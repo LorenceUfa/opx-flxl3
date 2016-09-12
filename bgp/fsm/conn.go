@@ -85,15 +85,17 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 	reachable := <-reachableCh
 	if !reachable {
 		duration := uint32(3)
-		for {
-			select {
-			case <-time.After(time.Duration(duration) * time.Second):
-				o.fsm.Manager.reachabilityCh <- reachabilityInfo
-				reachable = <-reachableCh
-			}
-			seconds -= duration
-			if reachable || seconds <= duration {
-				break
+		if (duration * 2) < seconds {
+			for {
+				select {
+				case <-time.After(time.Duration(duration) * time.Second):
+					o.fsm.Manager.reachabilityCh <- reachabilityInfo
+					reachable = <-reachableCh
+				}
+				seconds -= duration
+				if reachable || seconds <= (duration*2) {
+					break
+				}
 			}
 		}
 		if !reachable {
@@ -128,6 +130,7 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 	o.logger.Info("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id,
 		"Connect called... calling DialTimeout with", seconds, "second timeout", "OutTCPCOnn id", o.id)
 	socket, err := netUtils.ConnectSocket("tcp", remote, local)
+	defer netUtils.CloseSocket(socket)
 	if err != nil {
 		o.logger.Err("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id, "ConnectSocket failed with error", err)
 		errCh <- err
@@ -146,7 +149,12 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 		}
 	}
 
-	err = netUtils.Connect(socket, "tcp", remote, local, time.Duration(seconds)*time.Second)
+	duration := uint32(10)
+	if duration < seconds {
+		duration = seconds
+	}
+
+	err = netUtils.Connect(socket, "tcp", remote, local, time.Duration(duration)*time.Second)
 	if err != nil {
 		o.logger.Err("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id, "Connect failed with error", err)
 		errCh <- err
@@ -163,13 +171,10 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 			ttl = int(o.fsm.pConf.MultiHopTTL)
 		}
 		if err = packetConn.SetTTL(ttl); err != nil {
-			packetConn.Close()
 			conn.Close()
-			netUtils.CloseSocket(socket)
 			errCh <- err
 			return
 		}
-		netUtils.CloseSocket(socket)
 		connCh <- conn
 	}
 }
@@ -186,6 +191,7 @@ func (o *OutTCPConn) ConnectToPeer(seconds uint32, remote, local string) {
 		connTime = seconds
 	}
 
+	done := false
 	go o.Connect(seconds, remote, local, connCh, errCh)
 
 	for {
@@ -198,8 +204,8 @@ func (o *OutTCPConn) ConnectToPeer(seconds uint32, remote, local string) {
 				return
 			}
 
+			done = true
 			o.fsmConnCh <- conn
-			return
 
 		case err := <-errCh:
 			o.logger.Info("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id,
@@ -208,19 +214,15 @@ func (o *OutTCPConn) ConnectToPeer(seconds uint32, remote, local string) {
 				return
 			}
 
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-				o.logger.Info("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id,
-					"Connect to peer timed out, retrying...", "OutTCPCOnn id", o.id)
-				go o.Connect(3, remote, local, connCh, errCh)
-			} else if _, ok := err.(config.AddressNotResolvedError); ok {
-				go o.Connect(3, remote, local, connCh, errCh)
-			} else {
-				o.fsmConnErrCh <- PeerConnErr{0, err}
-			}
+			done = true
+			o.fsmConnErrCh <- PeerConnErr{0, err}
 
 		case <-o.StopConnCh:
 			o.logger.Info("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id,
 				"ConnectToPeer: Recieved stop connecting to peer", remote, "OutTCPCOnn id", o.id)
+			if done {
+				return
+			}
 			stopConn = true
 		}
 	}
@@ -283,6 +285,7 @@ func (p *PeerConn) StartReading() {
 			p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "FSM", p.fsm.id, "conn: exit channel")
 			(*p.conn).Close()
 			p.exitCh <- true
+			return
 
 		case readOk := <-doneReadingCh:
 			if stopReading {
@@ -302,7 +305,8 @@ func (p *PeerConn) StartReading() {
 	}
 }
 
-func (p *PeerConn) StopReading() {
+func (p *PeerConn) StopReading(exitCh chan bool) {
+	p.exitCh = exitCh
 	p.stopCh <- true
 }
 
