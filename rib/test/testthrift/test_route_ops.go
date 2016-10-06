@@ -83,28 +83,34 @@ func CheckRouteReachability(client *ribd.RIBDServicesClient) {
 }
 func Createv4RouteList() {
 	ipv4RouteList = make([]ribd.IPv4Route, 0)
-	/*	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
 		DestinationNw: "40.1.10.0",
 		NetworkMask:   "255.255.255.0",
 		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
 		Protocol:      "STATIC",
-	})*/
-	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
-		DestinationNw: "40.10.0.0/16",
-		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
-		Protocol:      "EBGP",
-		NullRoute:     true,
 	})
+	/*	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+			DestinationNw: "40.10.0.0/16",
+			NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
+			Protocol:      "EBGP",
+			NullRoute:     true,
+		})
 
+		ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+			DestinationNw: "50.10.0.0/16",
+			Protocol:      "EBGP",
+			NullRoute:     true,
+		})
+		ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+			DestinationNw: "40.10.0.0/24",
+			NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
+			Protocol:      "STATIC",
+		})*/
 	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
-		DestinationNw: "50.10.0.0/16",
+		DestinationNw: "40.1.1.1/24",
+		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
 		Protocol:      "EBGP",
 		NullRoute:     true,
-	})
-	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
-		DestinationNw: "40.10.0.0/24",
-		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
-		Protocol:      "STATIC",
 	})
 
 	//reachability test list
