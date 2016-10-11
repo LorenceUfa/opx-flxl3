@@ -24,7 +24,6 @@ package server
 
 import (
 	"l3/ndp/config"
-	_ "l3/ndp/debug"
 	"l3/ndp/packet"
 )
 
@@ -39,24 +38,27 @@ import (
  * @TODO: handle un-solicited Neighbor Advertisemtn
  */
 func (intf *Interface) processNA(ndInfo *packet.NDInfo) (nbrInfo *config.NeighborConfig, oper NDP_OPERATION) {
-	//debug.Logger.Debug("Processing NA packet", *ndInfo)
+	if ndInfo.SrcIp == intf.linkScope || ndInfo.SrcIp == intf.globalScope {
+		// NA was generated locally or it is multicast-solicitation message
+		return nil, IGNORE
+	}
 	nbrKey := intf.createNbrKey(ndInfo)
+	if !intf.validNbrKey(nbrKey) {
+		return nil, IGNORE
+	}
 	nbr, exists := intf.Neighbor[nbrKey]
 	if exists {
-		//debug.Logger.Debug("Nbr entry exists and hence marking", nbr.IpAddr, "as REACHABLE")
 		// update existing neighbor timers and move
-		nbr.State = REACHABLE
 		nbr.UpdateProbe()
 		nbr.RchTimer()
 		oper = UPDATE
 	} else {
 		// create new neighbor
-		//debug.Logger.Debug("Nbr entry learned via NA and hence marking", nbr.IpAddr, "as REACHABLE")
 		nbr.InitCache(intf.reachableTime, intf.retransTime, nbrKey, intf.PktDataCh, intf.IfIndex)
-		nbr.State = REACHABLE
 		oper = CREATE
-		nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
 	}
+	nbr.State = REACHABLE
+	nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
 	nbr.updatePktRxStateInfo()
 	intf.Neighbor[nbrKey] = nbr
 	return nbrInfo, oper

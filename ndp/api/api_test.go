@@ -41,6 +41,7 @@ var testApiState = "UP"
 var testApiIpAddr = "2192::1/64"
 var testVlanId = int32(1234)
 var testVlanName = "vlan1234"
+var testVlanIfIndex = int32(355231)
 
 func initApiBasic() {
 	t := &testing.T{}
@@ -62,7 +63,6 @@ func NDPTestNewLogger(name string, tag string, listenToConfig bool) (*logging.Wr
 		return srLogger, err
 	}
 
-	srLogger.GlobalLogging = true
 	srLogger.MyLogLevel = sysdCommonDefs.INFO
 	return srLogger, err
 }
@@ -77,11 +77,6 @@ func baseApiTest() *server.NDPServer {
 
 func TestApiInit(t *testing.T) {
 	Init(baseApiTest())
-}
-
-func TestL2PortNotification(t *testing.T) {
-	TestApiInit(t)
-	SendL2PortNotification(testApiIfIndex, testApiState)
 }
 
 func TestL3PortNotification(t *testing.T) {
@@ -114,7 +109,7 @@ func TestGetNeighborEntry(t *testing.T) {
 
 func TestVlanNotification(t *testing.T) {
 	TestApiInit(t)
-	SendVlanNotification(testApiState, testVlanId, testVlanName, make([]int32, 0))
+	SendVlanNotification(testApiState, testVlanId, testVlanIfIndex, testVlanName, make([]int32, 0), make([]int32, 0))
 }
 
 func TestNdpGlobalConfigState(t *testing.T) {

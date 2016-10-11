@@ -104,7 +104,6 @@ func NDPTestNewLogger(name string, tag string, listenToConfig bool) (*logging.Wr
 		return srLogger, err
 	}
 
-	srLogger.GlobalLogging = true
 	srLogger.MyLogLevel = sysdCommonDefs.INFO
 	return srLogger, err
 }
@@ -119,6 +118,7 @@ func initServerBasic() {
 }
 
 func initPhysicalPorts() {
+	var l2Port PhyPort
 	port := config.PortInfo{
 		IntfRef:   "lo",
 		IfIndex:   testIfIndex,
@@ -126,7 +126,9 @@ func initPhysicalPorts() {
 		OperState: "UP",
 		MacAddr:   "aa:bb:cc:dd:ee:ff",
 	}
-	testNdpServer.PhyPort[port.IfIndex] = port
+	l2Port = testNdpServer.L2Port[port.IfIndex]
+	l2Port.Info = port
+	testNdpServer.L2Port[port.IfIndex] = l2Port
 	port = config.PortInfo{
 		IntfRef:   "lo1",
 		IfIndex:   96,
@@ -134,7 +136,9 @@ func initPhysicalPorts() {
 		OperState: "UP",
 		MacAddr:   "aa:bb:cc:dd:ee:ff",
 	}
-	testNdpServer.PhyPort[port.IfIndex] = port
+	l2Port = testNdpServer.L2Port[port.IfIndex]
+	l2Port.Info = port
+	testNdpServer.L2Port[port.IfIndex] = l2Port
 	port = config.PortInfo{
 		IntfRef:   "lo2",
 		IfIndex:   97,
@@ -142,7 +146,9 @@ func initPhysicalPorts() {
 		OperState: "UP",
 		MacAddr:   "aa:bb:cc:dd:ee:ff",
 	}
-	testNdpServer.PhyPort[port.IfIndex] = port
+	l2Port = testNdpServer.L2Port[port.IfIndex]
+	l2Port.Info = port
+	testNdpServer.L2Port[port.IfIndex] = l2Port
 	port = config.PortInfo{
 		IntfRef:   "lo3",
 		IfIndex:   98,
@@ -150,7 +156,9 @@ func initPhysicalPorts() {
 		OperState: "UP",
 		MacAddr:   "aa:bb:cc:dd:ee:ff",
 	}
-	testNdpServer.PhyPort[port.IfIndex] = port
+	l2Port = testNdpServer.L2Port[port.IfIndex]
+	l2Port.Info = port
+	testNdpServer.L2Port[port.IfIndex] = l2Port
 	port = config.PortInfo{
 		IntfRef:   "lo4",
 		IfIndex:   99,
@@ -158,7 +166,9 @@ func initPhysicalPorts() {
 		OperState: "UP",
 		MacAddr:   "aa:bb:cc:dd:ee:ff",
 	}
-	testNdpServer.PhyPort[port.IfIndex] = port
+	l2Port = testNdpServer.L2Port[port.IfIndex]
+	l2Port.Info = port
+	testNdpServer.L2Port[port.IfIndex] = l2Port
 	port = config.PortInfo{
 		IntfRef:   "lo5",
 		IfIndex:   95,
@@ -166,7 +176,9 @@ func initPhysicalPorts() {
 		OperState: "UP",
 		MacAddr:   "aa:bb:cc:dd:ee:ff",
 	}
-	testNdpServer.PhyPort[port.IfIndex] = port
+	l2Port = testNdpServer.L2Port[port.IfIndex]
+	l2Port.Info = port
+	testNdpServer.L2Port[port.IfIndex] = l2Port
 }
 
 func InitNDPTestServer() {
@@ -195,16 +207,12 @@ func TestNDPStartServer(t *testing.T) {
 func TestNdpDeInit(t *testing.T) {
 	TestNDPStartServer(t)
 	testNdpServer.DeInitGlobalDS()
-	if testNdpServer.PhyPort != nil {
-		t.Error("Deinit failed for PhyPort")
+	if testNdpServer.L2Port != nil {
+		t.Error("Deinit failed for L2Port")
 		return
 	}
 	if testNdpServer.L3Port != nil {
 		t.Error("Deinit failed for l3 port")
-		return
-	}
-	if testNdpServer.PhyPortStateCh != nil {
-		t.Error("Deinit failed for phyPortStateCh")
 		return
 	}
 	if testNdpServer.IpIntfCh != nil {
@@ -252,12 +260,10 @@ func TestIPv6IntfCreate(t *testing.T) {
 		Operation: config.CONFIG_CREATE,
 		IntfRef:   testIntfRef,
 	}
-	//t.Log("Ports Created are:", testNdpServer.PhyPort)
 	testNdpServer.HandleIPIntfCreateDelete(ipv6Obj)
 	ipv6Obj.IpAddr = testMyLinkScopeIP
 	testNdpServer.HandleIPIntfCreateDelete(ipv6Obj)
 
-	//t.Log(testNdpServer.L3Port)
 	l3Port, exists := testNdpServer.L3Port[testIfIndex]
 	if !exists {
 		t.Error("failed to init interface")
@@ -337,69 +343,20 @@ func TestIPv6IntfDelete(t *testing.T) {
 
 func TestL2IntfStateDownUp(t *testing.T) {
 	TestIPv6IntfCreate(t)
-	stateObj := config.IPIntfNotification{
-		IfIndex:   testIfIndex,
-		Operation: config.STATE_UP,
-		IpAddr:    testMyLinkScopeIP,
-	}
-	//t.Log(stateObj)
-	testNdpServer.HandleStateNotification(&stateObj)
-	l3Port, _ := testNdpServer.L3Port[testIfIndex]
-	if l3Port.PcapBase.PcapHandle == nil {
-		t.Error("Failed to initialize pcap handler")
-		return
-	}
-	/*
-		if l3Port.PcapBase.PcapCtrl == nil {
-			t.Error("failed to initialize pcap ctrl")
-			return
-		}
-	*/
-	if l3Port.PcapBase.PcapUsers != 1 {
-		t.Error("Failed to add first pcap user")
-		return
-	}
 
-	stateObj.Operation = config.STATE_UP
-	stateObj.IpAddr = testMyGSIp
-
-	//t.Log(stateObj)
-
-	testNdpServer.HandleStateNotification(&stateObj)
-	l3Port, _ = testNdpServer.L3Port[testIfIndex]
-	if l3Port.PcapBase.PcapHandle == nil {
-		t.Error("Failed to initialize pcap handler for second time")
-		return
-	}
-	/*
-		if l3Port.PcapBase.PcapCtrl == nil {
-			t.Error("failed to initialize pcap ctrl")
-			return
-		}
-	*/
-	if l3Port.PcapBase.PcapUsers != 2 {
-		t.Error("Failed to add second pcap user")
-		return
-	}
 	// Test L2 Port state Down Notification
 	portState := &config.PortState{
 		IfIndex: testIfIndex,
 		IfState: config.STATE_DOWN,
 	}
 	testNdpServer.HandlePhyPortStateNotification(portState)
-	l3Port, _ = testNdpServer.L3Port[testIfIndex]
-	if l3Port.PcapBase.PcapHandle != nil {
-		t.Error("Pcap is not deleted even when there are no users")
+	l2Port, exists := testNdpServer.L2Port[testIfIndex]
+	if !exists {
+		t.Error("No l2 entry found for ifIndex:", testIfIndex)
 		return
 	}
-	/*
-		if l3Port.PcapBase.PcapCtrl != nil {
-			t.Error("Pcap ctrl channel should be deleted when there are no users")
-			return
-		}
-	*/
-	if l3Port.PcapBase.PcapUsers != 0 {
-		t.Error("Pcap users count should be zero when all ipaddress from interfaces are removed")
+	if l2Port.Info.OperState != config.STATE_DOWN {
+		t.Error("Failed to handle L2 State Down notification")
 		return
 	}
 	// Test L2 port up notification also
@@ -408,19 +365,13 @@ func TestL2IntfStateDownUp(t *testing.T) {
 		IfState: config.STATE_UP,
 	}
 	testNdpServer.HandlePhyPortStateNotification(portState)
-	l3Port, _ = testNdpServer.L3Port[testIfIndex]
-	if l3Port.PcapBase.PcapHandle == nil {
-		t.Error("Failed to initialize pcap handler for second time")
+	l2Port, exists = testNdpServer.L2Port[testIfIndex]
+	if !exists {
+		t.Error("No l2 entry found for ifIndex:", testIfIndex)
 		return
 	}
-	/*
-		if l3Port.PcapBase.PcapCtrl == nil {
-			t.Error("failed to initialize pcap ctrl")
-			return
-		}
-	*/
-	if l3Port.PcapBase.PcapUsers != 1 {
-		t.Error("Failed to add pcap user")
+	if l2Port.Info.OperState != config.STATE_UP {
+		t.Error("Failed to handle L2 State UP notification")
 		return
 	}
 }
@@ -439,12 +390,6 @@ func teststateUpHelperFunc(t *testing.T) {
 		t.Error("Failed to initialize pcap handler")
 		return
 	}
-	/*
-		if l3Port.PcapBase.PcapCtrl == nil {
-			t.Error("failed to initialize pcap ctrl")
-			return
-		}
-	*/
 	if l3Port.PcapBase.PcapUsers != 1 {
 		t.Error("Failed to add first pcap user")
 		return
@@ -453,20 +398,12 @@ func teststateUpHelperFunc(t *testing.T) {
 	stateObj.Operation = config.STATE_UP
 	stateObj.IpAddr = testMyGSIp
 
-	//	t.Log(stateObj)
-
 	testNdpServer.HandleStateNotification(&stateObj)
 	l3Port, _ = testNdpServer.L3Port[testIfIndex]
 	if l3Port.PcapBase.PcapHandle == nil {
 		t.Error("Failed to initialize pcap handler for second time")
 		return
 	}
-	/*
-		if l3Port.PcapBase.PcapCtrl == nil {
-			t.Error("failed to initialize pcap ctrl")
-			return
-		}
-	*/
 	if l3Port.PcapBase.PcapUsers != 2 {
 		t.Error("Failed to add second pcap user")
 		return
@@ -488,12 +425,6 @@ func teststateDownHelperFunc(t *testing.T) {
 		t.Error("Pcap got deleted even when there was one user")
 		return
 	}
-	/*
-		if l3Port.PcapBase.PcapCtrl == nil {
-			t.Error("Pcap ctrl channel got deleted even when there was one user")
-			return
-		}
-	*/
 	if l3Port.PcapBase.PcapUsers != 1 {
 		t.Error("Failed to delete one pcap user")
 		return
@@ -508,12 +439,6 @@ func teststateDownHelperFunc(t *testing.T) {
 		t.Error("Pcap is not deleted even when there are no users")
 		return
 	}
-	/*
-		if l3Port.PcapBase.PcapCtrl != nil {
-			t.Error("Pcap ctrl channel should be deleted when there are no users")
-			return
-		}
-	*/
 	if l3Port.PcapBase.PcapUsers != 0 {
 		t.Error("Pcap users count should be zero when all ipaddress from interfaces are removed")
 		return
@@ -525,19 +450,6 @@ func TestIPv6IntfStateUpDown(t *testing.T) {
 	TestIPv6IntfCreate(t)
 	teststateUpHelperFunc(t)
 	teststateDownHelperFunc(t)
-}
-
-func TestFindL3Port(t *testing.T) {
-	TestIPv6IntfCreate(t)
-	if _, exists := testNdpServer.findL3Port(testIfIndex); !exists {
-		t.Error("Entry for ifIndex:", testIfIndex, "should exists")
-		return
-	}
-	invalidIfIndex := int32(123)
-	if _, exists := testNdpServer.findL3Port(invalidIfIndex); exists {
-		t.Error("Entry for ifIndex:", invalidIfIndex, "should not exists")
-		return
-	}
 }
 
 func TestProcessPkt(t *testing.T) {
@@ -697,7 +609,6 @@ func testTransmitPacket(t *testing.T) {
 	// sleep for 2 second and then send control channel
 	time.Sleep(2 * time.Second)
 	l3Port.DeleteAll()
-	//l3Port.PcapBase.PcapCtrl <- true
 }
 
 func TestPktRxTx(t *testing.T) {
@@ -720,11 +631,6 @@ func TestPktRxTx(t *testing.T) {
 			}
 			testNdpServer.counter.Rcvd++
 			testNdpServer.ProcessRxPkt(rxChInfo.ifIndex, rxChInfo.pkt)
-			/*
-				case <-l3Port.PcapBase.PcapCtrl:
-					t.Log("Done with testing RX/TX")
-					break
-			*/
 		}
 		break
 	}
