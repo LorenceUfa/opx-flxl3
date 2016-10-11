@@ -45,9 +45,16 @@ type NdpConfig struct {
 	RaRestransmitTime uint8
 }
 
+type L3Info struct {
+	Name     string
+	IfIndex  int32
+	PortType string // tag or untag
+}
+
 type PhyPort struct {
 	RX   *pcap.Handle
 	Info config.PortInfo
+	L3   L3Info
 }
 
 type NDPServer struct {
@@ -77,10 +84,14 @@ type NDPServer struct {
 	IpIntfCh chan *config.IPIntfNotification
 	// Vlan Create/Delete/Update Notification Channel
 	VlanCh chan *config.VlanNotification
+	// Mac Move Notification Channel
+	MacMoveCh chan *config.MacMoveNotification
 	//Received Pkt Channel
 	RxPktCh chan *RxPktInfo
 	//Package packet informs server over PktDataCh saying that send this packet..
 	PktDataCh chan config.PacketData
+	//Action Channel for NDP
+	ActionCh chan *config.ActionData
 
 	ndpL3IntfStateSlice   []int32
 	ndpUpL3IntfStateSlice []int32
@@ -107,7 +118,7 @@ type NDPServer struct {
 const (
 	NDP_CPU_PROFILE_FILE                  = "/var/log/ndpd.prof"
 	NDP_SERVER_MAP_INITIAL_CAP            = 30
-	NDP_SERVER_ASICD_NOTIFICATION_CH_SIZE = 5
+	NDP_SERVER_ASICD_NOTIFICATION_CH_SIZE = 1
 	NDP_SERVER_INITIAL_CHANNEL_SIZE       = 1
 	INTF_REF_NOT_FOUND                    = "Not Found"
 )

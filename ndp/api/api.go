@@ -88,6 +88,10 @@ func SendVlanNotification(oper string, vlanId int32, vlanIfIndex int32, vlanName
 	}
 }
 
+func SendMacMoveNotification(ipAddr string, ifIndex, vlanId int32) {
+	ndpApi.server.MacMoveCh <- &config.MacMoveNotification{ipAddr, ifIndex, vlanId}
+}
+
 func GetAllNeigborEntries(from, count int) (int, int, []config.NeighborConfig) {
 	n, c, result := ndpApi.server.GetNeighborEntries(from, count)
 	return n, c, result
@@ -124,4 +128,32 @@ func GetAllNdpIntfState(from, count int) (int, int, []config.InterfaceEntries) {
 
 func GetNdpIntfState(intfRef string) *config.InterfaceEntries {
 	return ndpApi.server.GetInterfaceNeighborEntry(intfRef)
+}
+
+func SendDeleteByIfName(intfRef string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:    config.DELETE_BY_IFNAME,
+		IntfRef: intfRef,
+	}
+}
+
+func SendDeleteByNeighborIp(ipAddr string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:  config.DELETE_BY_IPADDR,
+		NbrIp: ipAddr,
+	}
+}
+
+func SendRefreshByIfName(intfRef string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:    config.REFRESH_BY_IFNAME,
+		IntfRef: intfRef,
+	}
+}
+
+func SendRefreshByNeighborIp(ipAddr string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:  config.REFRESH_BY_IPADDR,
+		NbrIp: ipAddr,
+	}
 }

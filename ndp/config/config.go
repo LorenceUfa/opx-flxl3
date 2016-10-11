@@ -34,7 +34,20 @@ const (
 	CONFIG_DELETE = "DELETE"
 	CONFIG_UPDATE = "UPDATE"
 
-	L2_NOTIFICATION = "UNKNOWN_IP"
+	L2_NOTIFICATION    = "UNKNOWN_IP"
+	L2_TAG_TYPE        = "tag"
+	L2_UNTAG_TYPE      = "untag"
+	L3_INVALID_IFINDEX = -1
+
+	INTERNAL_VLAN = -1
+)
+
+const (
+	_ = iota
+	DELETE_BY_IFNAME
+	DELETE_BY_IPADDR
+	REFRESH_BY_IFNAME
+	REFRESH_BY_IPADDR
 )
 
 type PortInfo struct {
@@ -78,12 +91,11 @@ type GlobalState struct {
 }
 
 type NeighborConfig struct {
-	MacAddr     string
-	VlanId      int32
-	IfIndex     int32
-	Intf        string
-	IpAddr      string
-	LinkLocalIp string
+	MacAddr string
+	VlanId  int32
+	IfIndex int32
+	Intf    string
+	IpAddr  string
 }
 
 type NeighborEntry struct {
@@ -123,9 +135,21 @@ type VlanNotification struct {
 	TagPorts    []int32
 }
 
+type MacMoveNotification struct {
+	IpAddr  string
+	IfIndex int32
+	VlanId  int32
+}
+
 type PacketData struct {
 	SendPktType layers.ICMPv6TypeCode
 	NeighborIp  string
 	NeighborMac string
 	IfIndex     int32
+}
+
+type ActionData struct {
+	Type    int
+	NbrIp   string
+	IntfRef string
 }
