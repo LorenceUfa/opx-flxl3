@@ -56,9 +56,10 @@ type IPv4IntfNotifyMsg struct {
 }
 
 type IpProperty struct {
-	IfId   uint16
-	IfType uint8
-	IpAddr string // CIDR Notation
+	IfId    uint16
+	IfType  uint8
+	IpAddr  string // CIDR Notation
+	IpState int    //interface state
 }
 
 type IPIntfProperty struct {
