@@ -124,6 +124,19 @@ func (server *OSPFServer) processAsicdNotification(asicdrxBuf []byte) {
 		}
 		server.UpdateVlanInfra(vlanNotifyMsg, msg.MsgType)
 	}
+
+	if msg.MsgType == asicdCommonDefs.NOTIFY_IPV4_L3INTF_STATE_CHANGE {
+		var newIpv4StateMsg asicdCommonDefs.NOTIFY_IPV4_L3INTF_STATE_CHANGE
+		err = json.Unmarshal(msg.Msg, &newIpv4StateMsg)
+		if err != nil {
+			server.logger.Err(fmt.Sprintln("Unable to unmarshal msg :", msg))
+			return
+		}
+		server.UpdateIPv4IntfUpdate(newIpv4StateMsg.IpAddr,
+			newIpv4StateMsg.IfIndex,
+			newIpv4StateMsg.IfState,
+			msg.MsgType)
+	}
 }
 
 func (server *OSPFServer) initAsicdForRxMulticastPkt() (err error) {

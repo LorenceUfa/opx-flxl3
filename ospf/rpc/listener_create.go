@@ -59,8 +59,6 @@ func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry) error {
 		IfHelloInterval:   config.HelloRange(ospfIfConf.IfHelloInterval),
 		IfRtrDeadInterval: config.PositiveInteger(ospfIfConf.IfRtrDeadInterval),
 		IfPollInterval:    config.PositiveInteger(ospfIfConf.IfPollInterval),
-		IfAuthKey:         ospfIfConf.IfAuthKey,
-		IfAuthType:        config.AuthType(ospfIfConf.IfAuthType),
 	}
 
 	for index, ifName := range config.IfTypeList {
@@ -79,12 +77,11 @@ func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry) error {
 
 func (h *OSPFHandler) SendOspfAreaConf(ospfAreaConf *ospfd.OspfAreaEntry) error {
 	areaConf := config.AreaConf{
-		AreaId:                 config.AreaId(ospfAreaConf.AreaId),
-		AuthType:               config.AuthType(ospfAreaConf.AuthType),
-		ImportAsExtern:         config.ImportAsExtern(ospfAreaConf.ImportAsExtern),
-		AreaSummary:            config.AreaSummary(ospfAreaConf.AreaSummary),
-		StubDefaultCost:        ospfAreaConf.StubDefaultCost,
-		AreaNssaTranslatorRole: config.NssaTranslatorRole(ospfAreaConf.AreaNssaTranslatorRole),
+		AreaId:          config.AreaId(ospfAreaConf.AreaId),
+		AuthType:        config.AuthType(ospfAreaConf.AuthType),
+		ImportAsExtern:  config.ImportAsExtern(ospfAreaConf.ImportAsExtern),
+		AreaSummary:     config.AreaSummary(ospfAreaConf.AreaSummary),
+		StubDefaultCost: ospfAreaConf.StubDefaultCost,
 	}
 
 	h.server.AreaConfigCh <- areaConf
@@ -158,7 +155,9 @@ func (h *OSPFHandler) CreateOspfIfMetricEntry(ospfIfMetricConf *ospfd.OspfIfMetr
 	return true, nil
 }
 
+/* This feature is not supported now
 func (h *OSPFHandler) CreateOspfVirtIfEntry(ospfVirtIfConf *ospfd.OspfVirtIfEntry) (bool, error) {
 	h.logger.Info(fmt.Sprintln("Create virtual interface config attrs:", ospfVirtIfConf))
 	return true, nil
 }
+*/

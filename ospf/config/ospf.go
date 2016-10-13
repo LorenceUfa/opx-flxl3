@@ -60,8 +60,10 @@ const (
 type Status int
 
 const (
-	Enabled  Status = 1
-	Disabled Status = 2
+	Enabled   Status = 1
+	Disabled  Status = 2
+	Intf_Down Status = 0
+	Intf_Up   Status = 1
 )
 
 type AuthType int
@@ -573,8 +575,7 @@ type OspfIPv4Route struct {
 }
 
 type OspfEventState struct {
-	TimeStamp      string
-	EventType      string
-	EventInfo      string
+	TimeStamp string
+	EventType string
+	EventInfo string
 }
-	

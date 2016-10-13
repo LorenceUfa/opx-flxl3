@@ -83,6 +83,7 @@ type IntfConf struct {
 	IfAreaId              []byte
 	IfType                config.IfType
 	IfAdminStat           config.Status
+	IfState               config.Status
 	IfRtrPriority         uint8
 	IfTransitDelay        config.UpToMaxAge
 	IfRetransInterval     config.UpToMaxAge
@@ -154,6 +155,7 @@ func (server *OSPFServer) initDefaultIntfConf(key IntfConfKey, ipIntfProp IPIntf
 		ent.IfAreaId = areaId
 		ent.IfType = intfType
 		ent.IfAdminStat = config.Disabled
+		ent.IfState = config.Disabled
 		ent.IfRtrPriority = uint8(config.DesignatedRouterPriority(1))
 		ent.IfTransitDelay = config.UpToMaxAge(1)
 		ent.IfRetransInterval = config.UpToMaxAge(5)
@@ -342,6 +344,7 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 	server.updateIntfToAreaMap(intfConfKey, oldAreaId, "none")
 
 	if server.ospfGlobalConf.AdminStat == config.Enabled &&
+		ent.IfState == config.Enabled &&
 		ent.IfAdminStat == config.Enabled {
 		server.StopSendRecvPkts(intfConfKey)
 		flag = true
@@ -393,13 +396,6 @@ func (server *OSPFServer) updateIPIntfConfMap(ifConf config.InterfaceConf) {
 		ent.IfHelloInterval = uint16(ifConf.IfHelloInterval)
 		ent.IfRtrDeadInterval = uint32(ifConf.IfRtrDeadInterval)
 		ent.IfPollInterval = ifConf.IfPollInterval
-		//authKey := convertAuthKey(string(ifConf.IfAuthKey))
-		//if authKey == nil {
-		//	server.logger.Err("Invalid authKey")
-		//	return
-		//}
-		//ent.IfAuthKey = authKey
-		ent.IfAuthType = uint16(ifConf.IfAuthType)
 		/* Re initiate the Interface State */
 		ent.IfDRIp = []byte{0, 0, 0, 0}
 		ent.IfBDRIp = []byte{0, 0, 0, 0}
@@ -443,6 +439,7 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 	}
 
 	if ent.IfAdminStat == config.Enabled &&
+		ent.IfState == congig.Enabled &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.StopSendRecvPkts(intfConfKey)
 	}
@@ -452,10 +449,47 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 	server.logger.Info(fmt.Sprintln("InterfaceConf:", server.IntfConfMap))
 	ent, _ = server.IntfConfMap[intfConfKey]
 	if ent.IfAdminStat == config.Enabled &&
+		ent.IfState == config.Enabled &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.StartSendRecvPkts(intfConfKey)
 	}
 	return nil
+}
+
+func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32, ifState uint8) {
+	var ifIdx int32
+	var updateIfConf bool
+	server.logger.Debug(fmt.Sprintln("Intf : intf state change ", ipAddr, " state ", ifState))
+	if ipAddr == "0.0.0.0" {
+		ifIdx = ifIndex
+	} else {
+		ifIdx = 0
+	}
+	intfKey := IntfConfKey{
+		IPAddr:  config.IpAddress(ipAddr),
+		IntfIdx: config.InterfaceIndexOrZero(ifIdx),
+	}
+	ent, exist := server.IntfConfMap[intfKey]
+	if exist {
+		server.logger.Debug(fmt.Sprintln("Intf: Ospf intf exist for ", ipAddr))
+		updateIfConf = true
+	} else {
+		updateIfConf = false
+	}
+	ip, valid := server.ipPropertyMap[ipAddr]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("Intf: Ip ", ipAddr,
+			" doesnt exist in ip proprty map. Ospf will not be started. "))
+		return
+	}
+
+	if ifState == config.Intf_Up {
+		ip.IpState = config.Intf_Up
+	} else {
+		ip.IpState = config.Intf_Down
+	}
+	if updateIfConf {
+	}
 }
 
 func (server *OSPFServer) StopSendRecvPkts(intfConfKey IntfConfKey) {
