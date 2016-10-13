@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"net"
 	"utils/commonDefs"
+	"l3/ospf/config"
 )
 
 type PortProperty struct {
@@ -59,7 +60,7 @@ type IpProperty struct {
 	IfId    uint16
 	IfType  uint8
 	IpAddr  string // CIDR Notation
-	IpState int    //interface state
+	IpState config.Status    //interface state
 }
 
 type IPIntfProperty struct {
