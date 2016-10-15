@@ -29,9 +29,9 @@ import (
 	"asicdServices"
 	"errors"
 	"fmt"
+	"l3/ospf/config"
 	"net"
 	"utils/commonDefs"
-	"l3/ospf/config"
 )
 
 type PortProperty struct {
@@ -59,8 +59,8 @@ type IPv4IntfNotifyMsg struct {
 type IpProperty struct {
 	IfId    uint16
 	IfType  uint8
-	IpAddr  string // CIDR Notation
-	IpState config.Status    //interface state
+	IpAddr  string        // CIDR Notation
+	IpState config.Status //interface state
 }
 
 type IPIntfProperty struct {
@@ -103,6 +103,7 @@ func (server *OSPFServer) updateIpPropertyMap(msg IPv4IntfNotifyMsg, msgType uin
 		ent.IfId = msg.IfId
 		ent.IfType = msg.IfType
 		ent.IpAddr = msg.IpAddr
+		ent.IpState = config.Intf_Down
 		server.ipPropertyMap[ip] = ent
 	} else { // Delete IP
 		delete(server.ipPropertyMap, ip)

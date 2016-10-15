@@ -207,17 +207,18 @@ func (server *OSPFServer) initDefaultIntfConf(key IntfConfKey, ipIntfProp IPIntf
 		ent.IfLsaCount = 0
 		ent.IfLsaCksumSum = 0
 		ent.IfMetricTOSMap = make(map[uint8]uint32)
-		txEntry, exist := server.IntfTxMap[key]
-		if !exist {
-			sendHdl, err := pcap.OpenLive(ent.IfName, snapshot_len, promiscuous, timeout_pcap)
-			if sendHdl == nil {
-				server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ent.IfName, err))
-				return
-			}
-			txEntry.SendPcapHdl = sendHdl
-			txEntry.SendMutex = &sync.Mutex{}
-			server.IntfTxMap[key] = txEntry
-		}
+		/*
+			txEntry, exist := server.IntfTxMap[key]
+			if !exist {
+				sendHdl, err := pcap.OpenLive(ent.IfName, snapshot_len, promiscuous, timeout_pcap)
+				if sendHdl == nil {
+					server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ent.IfName, err))
+					return
+				}
+				txEntry.SendPcapHdl = sendHdl
+				txEntry.SendMutex = &sync.Mutex{}
+				server.updateIntfTxMap(txEntry, key)
+			} */
 		rxEntry, exist := server.IntfRxMap[key]
 		if !exist {
 			recvHdl, err := pcap.OpenLive(ent.IfName, snapshot_len, promiscuous, timeout_pcap)
@@ -483,8 +484,10 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 	} else {
 		ifIdx = 0
 	}
+	intf, _, _ := net.ParseCIDR(ipAddr)
+
 	intfKey := IntfConfKey{
-		IPAddr:  config.IpAddress(ipAddr),
+		IPAddr:  config.IpAddress(intf.String()),
 		IntfIdx: config.InterfaceIndexOrZero(ifIdx),
 	}
 	ent, exist := server.IntfConfMap[intfKey]
@@ -492,42 +495,65 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 		server.logger.Debug(fmt.Sprintln("Intf: Ospf intf exist for ", ipAddr))
 		updateIfConf = true
 	} else {
+		server.logger.Debug(fmt.Sprintln("Intf: Ospf intf does not exist ", ipAddr))
 		updateIfConf = false
 	}
-	ipAddrKey := convertAreaOrRouterIdUint32(ipAddr)
-	ip, valid := server.ipPropertyMap[ipAddrKey]
+	ipAddrKey, _, _ := net.ParseCIDR(ipAddr)
+	ipKey := convertAreaOrRouterIdUint32(ipAddrKey.String())
+	ip, valid := server.ipPropertyMap[ipKey]
 	if !valid {
 		server.logger.Err(fmt.Sprintln("Intf: Ip ", ipAddr,
 			" doesnt exist in ip proprty map. Ospf will not be started. "))
 		return
 	}
 
-	ip.IpState = ifState
-	ip.IpState = config.Intf_Down
-	server.ipPropertyMap[ipAddrKey] = ip
 	if updateIfConf {
 		server.logger.Debug(fmt.Sprintln("Intf: Update intf config for ", intfKey, " state changed ", ifState))
+		areaId := convertIPv4ToUint32(ent.IfAreaId)
+		AreaId := convertIPInByteToString(ent.IfAreaId)
 
-		if ip.IpState == config.Intf_Down {
+		var flag bool
+		if ifState == config.Intf_Down {
+			server.logger.Debug(fmt.Sprintln("Intf: Down . Update area id info"))
+			server.updateIntfToAreaMap(intfKey, AreaId, "none")
+			server.logger.Debug(fmt.Sprintln("Intf: Down admin ", ent.IfAdminStat,
+				" state ", ent.IfState, " admin ", server.ospfGlobalConf.AdminStat))
 			if ent.IfAdminStat == config.Enabled &&
-				ent.IfState == config.Enabled &&
-				ip.IpState == config.Intf_Up &&
+				ent.IfState >= config.Enabled &&
+				//	ip.IpState == config.Intf_Up &&
 				server.ospfGlobalConf.AdminStat == config.Enabled {
+				server.logger.Debug(fmt.Sprintln("Intf: Down. Stop send receive packets"))
 				server.StopSendRecvPkts(intfKey)
+				flag = true
+			}
+			server.IntfKeyToSliceIdxMap[intfKey] = false
+			if flag {
+				msg := NetworkLSAChangeMsg{
+					areaId:  areaId,
+					intfKey: intfKey,
+				}
+				server.IntfStateChangeCh <- msg
+
 			}
 			server.logger.Debug(fmt.Sprintln("Intf: Intf is down . Stop ospf on ", ipAddr))
-			return
 		}
-		if ip.IpState == config.Intf_Up {
+
+		if ifState == config.Intf_Up {
+			server.updateIntfToAreaMap(intfKey, "none", AreaId)
 			if ent.IfAdminStat == config.Enabled &&
-				ent.IfState == config.Enabled &&
-				ip.IpState == config.Intf_Up &&
+				ent.IfState >= config.Enabled &&
+				//	ifState == config.Intf_Up &&
 				server.ospfGlobalConf.AdminStat == config.Enabled {
 				server.StartSendRecvPkts(intfKey)
+				flag = true
 				server.logger.Debug(fmt.Sprintln("Intf: Intf is Up . Start ospf on ", ipAddr))
 			}
+			server.IntfKeyToSliceIdxMap[intfKey] = true
 		}
 	}
+
+	ip.IpState = ifState
+	server.ipPropertyMap[ipKey] = ip
 }
 
 func (server *OSPFServer) StopSendRecvPkts(intfConfKey IntfConfKey) {
@@ -540,10 +566,12 @@ func (server *OSPFServer) StopSendRecvPkts(intfConfKey IntfConfKey) {
 	ent.IfEvents = ent.IfEvents + 1
 	ent.IfFSMState = config.Down
 	server.IntfConfMap[intfConfKey] = ent
+	server.updateIntfTxMap(intfConfKey, config.Intf_Down, ent.IfName)
 }
 
 func (server *OSPFServer) StartSendRecvPkts(intfConfKey IntfConfKey) {
 	ent, _ := server.IntfConfMap[intfConfKey]
+	server.updateIntfTxMap(intfConfKey, config.Intf_Up, ent.IfName)
 	helloInterval := time.Duration(ent.IfHelloInterval) * time.Second
 	ent.HelloIntervalTicker = time.NewTicker(helloInterval)
 	if ent.IfType == config.Broadcast {
@@ -585,5 +613,45 @@ func (server *OSPFServer) refreshIntfKeySlice() {
 	for key, _ := range server.IntfConfMap {
 		server.IntfKeySlice = append(server.IntfKeySlice, key)
 		server.IntfKeyToSliceIdxMap[key] = true
+	}
+}
+
+func (server *OSPFServer) updateIntfTxMap(key IntfConfKey, status config.Status, ifName string) {
+	var txEntry IntfTxHandle
+	var exist bool
+	txEntry, exist = server.IntfTxMap[key]
+
+	if status == config.Intf_Up {
+		if exist {
+			if txEntry.SendMutex == nil {
+				sendHdl, err := pcap.OpenLive(ifName, snapshot_len, promiscuous, timeout_pcap)
+				if sendHdl == nil {
+					server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ifName, err))
+					return
+				}
+				txEntry.SendPcapHdl = sendHdl
+			}
+		} else {
+			sendHdl, err := pcap.OpenLive(ifName, snapshot_len, promiscuous, timeout_pcap)
+			if sendHdl == nil {
+				server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ifName, err))
+				return
+			}
+			txEntry.SendPcapHdl = sendHdl
+			txEntry.SendMutex = &sync.Mutex{}
+			server.logger.Debug(fmt.Sprintln("Pcap : Created successfully for ", ifName))
+		}
+		server.IntfTxMutex.Lock()
+		server.IntfTxMap[key] = txEntry
+		server.IntfTxMutex.Unlock()
+	}
+
+	if status == config.Intf_Down {
+		if exist {
+			server.IntfTxMutex.Lock()
+			delete(server.IntfTxMap, key)
+			server.IntfTxMutex.Unlock()
+			server.logger.Debug(fmt.Sprintln("Pcap : Deleted successfully for ", ifName))
+		}
 	}
 }
