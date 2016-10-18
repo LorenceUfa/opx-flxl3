@@ -6,12 +6,13 @@ import (
 	"asicdServices"
 	"encoding/json"
 	"fmt"
-	nanomsg "github.com/op/go-nanomsg"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"net"
 	"strconv"
 	"strings"
 	"utils/commonDefs"
+
+	nanomsg "github.com/op/go-nanomsg"
 )
 
 type AsicdClient struct {
@@ -30,10 +31,12 @@ var PortVlanDb map[uint16][]*portVlanValue
 func ConvertVxlanConfigToVxlanAsicdConfig(c *vxlan.VxlanConfig) *asicdInt.Vxlan {
 
 	return &asicdInt.Vxlan{
-		Vni:      int32(c.VNI),
-		VlanId:   int16(c.VlanId),
-		McDestIp: c.Group.String(),
-		Mtu:      int32(c.MTU),
+		Vni:              int32(c.VNI),
+		VlanId:           int16(c.VlanId),
+		McDestIp:         c.Group.String(),
+		Mtu:              int32(c.MTU),
+		IntfRefList:      c.IntfRefList,
+		UntagIntfRefList: c.UntagIntfRefList,
 	}
 }
 
@@ -78,7 +81,7 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 			currMarker = asicdServices.Int(bulkInfo.EndIdx)
 			for i := 0; i < objCount; i++ {
 				if bulkInfo.PortStateList[i].IntfRef != bulkCfgInfo.PortList[i].IntfRef {
-					logger.Err(fmt.Sprintln("Error IntfRef differ at index",bulkInfo.PortStateList[i].IntfRef, bulkCfgInfo.PortList[i].IntfRef))
+					logger.Err(fmt.Sprintln("Error IntfRef differ at index", bulkInfo.PortStateList[i].IntfRef, bulkCfgInfo.PortList[i].IntfRef))
 				}
 				ifindex := bulkInfo.PortStateList[i].IfIndex
 				netMac, _ := net.ParseMAC(bulkCfgInfo.PortList[i].MacAddr)

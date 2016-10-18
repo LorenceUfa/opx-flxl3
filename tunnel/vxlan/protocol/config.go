@@ -89,10 +89,12 @@ type VtepUpdate struct {
 
 // bridge for the VNI
 type VxlanConfig struct {
-	VNI    uint32
-	VlanId uint16 // used to tag inner ethernet frame when egressing
-	Group  net.IP // multicast group IP
-	MTU    uint32 // MTU size for each VTEP
+	VNI              uint32
+	VlanId           uint16 // used to tag inner ethernet frame when egressing
+	Group            net.IP // multicast group IP
+	MTU              uint32 // MTU size for each VTEP
+	IntfRefList      []string
+	UntagIntfRefList []string
 }
 
 type PortConfig struct {
