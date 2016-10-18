@@ -20,8 +20,7 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-
-package server
+package packet
 
 import (
 	"encoding/binary"
@@ -32,17 +31,6 @@ import (
 	"net"
 	"time"
 )
-
-/*
- *  VRRP TX INTERFACE
- */
-type VrrpTxIntf interface {
-	VrrpSendPkt(key string, priority uint16)
-	VrrpEncodeHeader(hdr VrrpPktHeader) ([]byte, uint16)
-	VrrpCreateVrrpHeader(gblInfo VrrpGlobalInfo) ([]byte, uint16)
-	VrrpCreateSendPkt(gblInfo VrrpGlobalInfo, vrrpEncHdr []byte, hdrLen uint16) []byte
-	VrrpCreateWriteBuf(eth *layers.Ethernet, arp *layers.ARP, ipv4 *layers.IPv4, payload []byte) []byte
-}
 
 /*
 Octet Offset--> 0                   1                   2                   3
@@ -68,7 +56,7 @@ Octet Offset--> 0                   1                   2                   3
 		|                                                               |
 		+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
-func (svr *VrrpServer) VrrpEncodeHeader(hdr VrrpPktHeader) ([]byte, uint16) {
+func EncodeHeader(hdr *Header) ([]byte, uint16) {
 	pktLen := VRRP_HEADER_SIZE_EXCLUDING_IPVX + (hdr.CountIPv4Addr * 4)
 	if pktLen < VRRP_HEADER_MIN_SIZE {
 		pktLen = VRRP_HEADER_MIN_SIZE
@@ -87,63 +75,41 @@ func (svr *VrrpServer) VrrpEncodeHeader(hdr VrrpPktHeader) ([]byte, uint16) {
 		baseIpByte += 4
 	}
 	// Create Checksum for the header and store it
-	binary.BigEndian.PutUint16(bytes[6:8],
-		svr.VrrpComputeChecksum(hdr.Version, bytes))
+	binary.BigEndian.PutUint16(bytes[6:8], svr.computeChecksum(hdr.Version, bytes))
 	return bytes, uint16(pktLen)
 }
 
-func (svr *VrrpServer) VrrpCreateVrrpHeader(gblInfo VrrpGlobalInfo) ([]byte, uint16) {
+//func CreateHeader(vrid, priority uint8, advertiseInt uint16, ipAddr string) ([]byte, uint16) {
+func CreateHeader(pInfo PacketInfo) ([]byte, uint16) {
 	// @TODO: handle v6 packets.....
-	vrrpHeader := VrrpPktHeader{
+	hdr := VrrpPktHeader{
 		Version:       VRRP_VERSION2,
 		Type:          VRRP_PKT_TYPE_ADVERTISEMENT,
-		VirtualRtrId:  uint8(gblInfo.IntfConfig.VRID),
-		Priority:      uint8(gblInfo.IntfConfig.Priority),
-		CountIPv4Addr: 1, // FIXME for more than 1 vip
+		VirtualRtrId:  vrid,     //uint8(gblInfo.IntfConfig.VRID),
+		Priority:      priority, //uint8(gblInfo.IntfConfig.Priority),
+		CountIPv4Addr: 1,        // FIXME for more than 1 vip
 		Rsvd:          VRRP_RSVD,
-		MaxAdverInt:   uint16(gblInfo.IntfConfig.AdvertisementInterval),
+		MaxAdverInt:   advertiseInt, //uint16(gblInfo.IntfConfig.AdvertisementInterval),
 		CheckSum:      VRRP_HDR_CREATE_CHECKSUM,
 	}
-	var ip net.IP
-	//FIXME with Virtual Ip Addr.... and not IfIndex Ip Addr
-	// If no virtual ip then use interface/router ip address as virtual ip
-	if gblInfo.IntfConfig.VirtualIPv4Addr == "" {
-		ip, _, _ = net.ParseCIDR(gblInfo.IpAddr)
-	} else {
-		ip = net.ParseIP(gblInfo.IntfConfig.VirtualIPv4Addr)
-	}
-	vrrpHeader.IPv4Addr = append(vrrpHeader.IPv4Addr, ip)
-	vrrpEncHdr, hdrLen := svr.VrrpEncodeHeader(vrrpHeader)
-	return vrrpEncHdr, hdrLen
+	/*
+		var ip net.IP
+		//FIXME with Virtual Ip Addr.... and not IfIndex Ip Addr
+		// If no virtual ip then use interface/router ip address as virtual ip
+				if gblInfo.IntfConfig.VirtualIPv4Addr == "" {
+					ip, _, _ = net.ParseCIDR(gblInfo.IpAddr)
+				} else {
+					ip = net.ParseIP(gblInfo.IntfConfig.VirtualIPv4Addr)
+				}
+			vrrpHeader.IPv4Addr = append(vrrpHeader.IPv4Addr, ip)
+			vrrpEncHdr, hdrLen := svr.VrrpEncodeHeader(vrrpHeader)
+	*/
+	encHdr, hdrLen := EncodeHeader(hdr)
+	return encHdr, hdrLen
 }
 
-func (svr *VrrpServer) VrrpWritePacket(gblInfo VrrpGlobalInfo, vrrpTxPkt []byte) {
-	gblInfo.PcapHdlLock.Lock()
-	err := gblInfo.pHandle.WritePacketData(vrrpTxPkt)
-	gblInfo.PcapHdlLock.Unlock()
-	if err != nil {
-		svr.logger.Info(fmt.Sprintln("Sending Packet failed: ", err))
-	}
-}
-
-func (svr *VrrpServer) VrrpCreateWriteBuf(eth *layers.Ethernet,
-	arp *layers.ARP, ipv4 *layers.IPv4, payload []byte) []byte {
-
-	buffer := gopacket.NewSerializeBuffer()
-	options := gopacket.SerializeOptions{
-		FixLengths:       true,
-		ComputeChecksums: true,
-	}
-	if ipv4 != nil {
-		gopacket.SerializeLayers(buffer, options, eth, ipv4,
-			gopacket.Payload(payload))
-	} else {
-		gopacket.SerializeLayers(buffer, options, eth, arp)
-	}
-	return buffer.Bytes()
-}
-
-func (svr *VrrpServer) VrrpCreateSendPkt(gblInfo VrrpGlobalInfo, vrrpEncHdr []byte, hdrLen uint16) []byte {
+/*
+func createSendPkt(gblInfo VrrpGlobalInfo, vrrpEncHdr []byte, hdrLen uint16) []byte {
 	// Ethernet Layer
 	srcMAC, _ := net.ParseMAC(gblInfo.VirtualRouterMACAddress)
 	dstMAC, _ := net.ParseMAC(VRRP_PROTOCOL_MAC)
@@ -166,33 +132,98 @@ func (svr *VrrpServer) VrrpCreateSendPkt(gblInfo VrrpGlobalInfo, vrrpEncHdr []by
 	}
 	return svr.VrrpCreateWriteBuf(eth, nil, ipv4, vrrpEncHdr)
 }
+func (svr *VrrpServer) VrrpCreateWriteBuf(eth *layers.Ethernet,
+	arp *layers.ARP, ipv4 *layers.IPv4, payload []byte) []byte {
 
-func (svr *VrrpServer) VrrpSendPkt(key string, priority uint16) {
-	gblInfo, found := svr.vrrpGblInfo[key]
-	if !found {
-		svr.logger.Err("No Entry for " + key)
-		return
+	buffer := gopacket.NewSerializeBuffer()
+	options := gopacket.SerializeOptions{
+		FixLengths:       true,
+		ComputeChecksums: true,
 	}
-	gblInfo.PcapHdlLock.Lock()
-	if gblInfo.pHandle == nil {
-		svr.logger.Info("Invalid Pcap Handle")
+	if ipv4 != nil {
+		gopacket.SerializeLayers(buffer, options, eth, ipv4,
+			gopacket.Payload(payload))
+	} else {
+		gopacket.SerializeLayers(buffer, options, eth, arp)
+	}
+	return buffer.Bytes()
+}
+*/
+
+//func (p *Packet) Encode(vrid uint8, priority uint8, VMac string, priority uint16) {
+func (p *PacketInfo) Encode(pInfo PacketInfo) []byte {
+	//func (svr *VrrpServer) VrrpSendPkt(key string, priority uint16) {
+	/*
+		gblInfo, found := svr.vrrpGblInfo[key]
+		if !found {
+			svr.logger.Err("No Entry for " + key)
+			return
+		}
+		gblInfo.PcapHdlLock.Lock()
+		if gblInfo.pHandle == nil {
+			svr.logger.Info("Invalid Pcap Handle")
+			gblInfo.PcapHdlLock.Unlock()
+			return
+		}
 		gblInfo.PcapHdlLock.Unlock()
-		return
-	}
-	gblInfo.PcapHdlLock.Unlock()
-	configuredPriority := gblInfo.IntfConfig.Priority
+		configuredPriority := gblInfo.IntfConfig.Priority
+	*/
 	// Because we do not update the gblInfo back into the map...
 	// we can overwrite the priority value if Master is down..
-	if priority == VRRP_MASTER_DOWN_PRIORITY {
-		gblInfo.IntfConfig.Priority = int32(priority)
+	/*
+		if priority == VRRP_MASTER_DOWN_PRIORITY {
+			gblInfo.IntfConfig.Priority = int32(priority)
+		}
+	*/
+	vrrpEncHdr, hdrLen := CreateVrrpHeader(pInfo)
+	// Ethernet Layer
+	srcMAC, _ := net.ParseMAC(pInfo.VirutalMac)
+	dstMAC, _ := net.ParseMAC(VRRP_PROTOCOL_MAC)
+	eth := &layers.Ethernet{
+		SrcMAC:       srcMAC,
+		DstMAC:       dstMAC,
+		EthernetType: layers.EthernetTypeIPv4,
 	}
-	vrrpEncHdr, hdrLen := svr.VrrpCreateVrrpHeader(gblInfo)
-	svr.VrrpWritePacket(gblInfo, svr.VrrpCreateSendPkt(gblInfo, vrrpEncHdr, hdrLen))
-	svr.VrrpUpdateMasterTimerStateInfo(&gblInfo)
-	gblInfo.IntfConfig.Priority = configuredPriority
-	svr.vrrpGblInfo[key] = gblInfo
+
+	// IP Layer
+	sip, _, _ := net.ParseCIDR(pInfo.IpAddr)
+	ipv4 := &layers.IPv4{
+		Version:  uint8(4),
+		IHL:      uint8(VRRP_IPV4_HEADER_MIN_SIZE),
+		Protocol: layers.IPProtocol(VRRP_PROTO_ID),
+		Length:   uint16(VRRP_IPV4_HEADER_MIN_SIZE + hdrLen),
+		TTL:      uint8(VRRP_TTL),
+		SrcIP:    sip,
+		DstIP:    net.ParseIP(VRRP_GROUP_IP),
+	}
+	buffer := gopacket.NewSerializeBuffer()
+	options := gopacket.SerializeOptions{
+		FixLengths:       true,
+		ComputeChecksums: true,
+	}
+	if ipv4 != nil {
+		gopacket.SerializeLayers(buffer, options, eth, ipv4, gopacket.Payload(payload))
+	} else {
+		gopacket.SerializeLayers(buffer, options, eth, arp)
+	}
+
+	return buffer.Bytes()
+	//svr.VrrpWritePacket(gblInfo, svr.VrrpCreateSendPkt(gblInfo, vrrpEncHdr, hdrLen))
+	//svr.VrrpUpdateMasterTimerStateInfo(&gblInfo)
+	//gblInfo.IntfConfig.Priority = configuredPriority
+	//svr.vrrpGblInfo[key] = gblInfo
 	// inform the caller that advertisment packet is send out
-	svr.vrrpPktSend <- true
+	//svr.vrrpPktSend <- true
+}
+
+/*
+func (svr *VrrpServer) VrrpWritePacket(gblInfo VrrpGlobalInfo, vrrpTxPkt []byte) {
+	gblInfo.PcapHdlLock.Lock()
+	err := gblInfo.pHandle.WritePacketData(vrrpTxPkt)
+	gblInfo.PcapHdlLock.Unlock()
+	if err != nil {
+		svr.logger.Info(fmt.Sprintln("Sending Packet failed: ", err))
+	}
 }
 
 func (svr *VrrpServer) VrrpUpdateMasterTimerStateInfo(gblInfo *VrrpGlobalInfo) {
@@ -201,3 +232,4 @@ func (svr *VrrpServer) VrrpUpdateMasterTimerStateInfo(gblInfo *VrrpGlobalInfo) {
 	gblInfo.StateInfo.AdverTx++
 	gblInfo.StateInfoLock.Unlock()
 }
+*/
