@@ -28,14 +28,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"git.apache.org/thrift.git/lib/go/thrift"
-	"github.com/garyburd/redigo/redis"
 	"io/ioutil"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"models/objects"
 	"utils/dbutils"
 	"utils/logging"
 	"vxland"
+
+	"git.apache.org/thrift.git/lib/go/thrift"
+	"github.com/garyburd/redigo/redis"
 )
 
 const DBName string = "UsrConfDb.db"
