@@ -259,6 +259,7 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 			}
 			if objName == "UntagIntfRefList" ||
 				objName == "IntfRefList" {
+				logger.Info(fmt.Sprintf("Updating interface list tag: #v, untag: %#v", c.Newconfig.IntfRefList, c.Newconfig.UntagIntfRefList))
 				updateCfg = true
 			}
 		}
