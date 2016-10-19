@@ -416,6 +416,37 @@ func (svr *VrrpServer) VrrpChecknUpdateGblInfo(IfIndex int32, IpAddr string) {
 
 func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 	key := KeyInfo{cfg.IntfRef, cfg.Version}
+	intf, exists := svr.Intf[key]
+	if exists {
+		debug.Logger.Err("During Create we should not any entry in the DB")
+		return
+	}
+	l3Info := &L3Intf{}
+	l3Info.IfName = cfg.IntfRef
+	switch cfg.Version {
+	case config.VERSION2:
+		ifIndex, exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
+		if exists {
+			l3Info.IfIndex = ifIndex
+			v4, exists := svr.V4[ifIndex]
+			if exists {
+				l3Info.IpAddr = v4.Cfg.IpAddr
+			}
+		}
+		// if cross reference exists then only set l3Info else just pass go defaults and it will updated
+		// later once we have configured ipv4 or ipv6 interface
+	case config.VERSION3:
+		ifIndex, exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
+		l3Info.IfIndex = ifIndex
+		if exists {
+			v6, exists := svr.V6[ifIndex]
+			if exists {
+				// @TODO: do we have to use linkscope ip or global scope ip Check RFC
+				l3Info.IpAddr = v6.Cfg.IpAddr
+			}
+		}
+	}
+	intf.Init(cfg, l3Info)
 }
 
 func (svr *VrrpServer) HandleVrrpConfig(cfg *config.IntfCfg) {
@@ -530,11 +561,14 @@ func (svr *VrrpServer) GetSystemInfo() {
 
 func (svr *VrrpServer) InitGlobalDS() {
 	svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.L3Port = make(map[int32]IpIntf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.V6 = make(map[int32]V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.V4 = make(map[int32]V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	//svr.L3Port = make(map[int32]IpIntf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
-	svr.IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.V6IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	/*
 		svr.vrrpGblInfo = make(map[string]VrrpGlobalInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 		svr.vrrpIfIndexIpAddr = make(map[int32]string, VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE)

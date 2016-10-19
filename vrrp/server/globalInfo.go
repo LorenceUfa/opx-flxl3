@@ -130,13 +130,26 @@ type KeyInfo struct {
 	VRID    int32
 }
 
+type V4Intf struct {
+	Cfg     config.Ipv4Info
+	Vrrpkey *KeyInfo
+}
+
+type V6Intf struct {
+	Cfg     config.Ipv6Info
+	Vrrpkey *KeyInfo
+}
+
 type VrrpServer struct {
-	L2Port           map[int32]config.PhyPort
-	VlanInfo         map[int32]config.VlanInfo
-	L3Port           map[int32]config.L3Intf
-	Intf             map[KeyInfo]VrrpInterface
-	CfgCh            chan *config.IntfCfg
-	IntfRefToIfIndex map[string]int32
+	L2Port             map[int32]config.PhyPort
+	VlanInfo           map[int32]config.VlanInfo
+	V4                 map[int32]V4Intf
+	V6                 map[int32]V6Intf
+	Intf               map[KeyInfo]VrrpInterface
+	CfgCh              chan *config.IntfCfg
+	V4IntfRefToIfIndex map[string]int32
+	V6IntfRefToIfIndex map[string]int32
+	//L3Port           map[int32]L3Info
 	//	logger                        *logging.Writer
 	//	vrrpDbHdl                     *dbutils.DBUtil
 	//paramsDir                     string

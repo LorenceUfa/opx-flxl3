@@ -26,10 +26,24 @@ import (
 	"l3/vrrp/config"
 )
 
+type L3Intf struct {
+	IfIndex int32
+	// cached info for IfName is required in future
+	IfName string
+	// IpAddr which needs to be used if no Virtual Ip is specified
+	IpAddr string
+	// Pcap Handler for receiving packets
+	pHandle *pcap.Handle
+	// Pcap Handler lock to write data one routine at a time
+	PcapHdlLock *sync.RWMutex
+}
+
 //type VrrpGlobalInfo struct {
 type VrrpInterface struct {
 	// Vrrp config for interface
 	Cfg config.IntfCfg
+	// Vrrp Port Information Collected From System
+	L3 *L3Intf
 	// VRRP MAC aka VMAC
 	VirtualRouterMACAddress string
 	// The initial value is the same as Advertisement_Interval.
@@ -42,14 +56,6 @@ type VrrpInterface struct {
 	MasterDownLock  *sync.RWMutex
 	// Advertisement Timer
 	AdverTimer *time.Timer
-	// IpAddr which needs to be used if no Virtual Ip is specified
-	IpAddr string
-	// cached info for IfName is required in future
-	IfName string
-	// Pcap Handler for receiving packets
-	pHandle *pcap.Handle
-	// Pcap Handler lock to write data one routine at a time
-	PcapHdlLock *sync.RWMutex
 	// State Name
 	StateName string
 	// Lock to read current state of vrrp object
@@ -57,38 +63,9 @@ type VrrpInterface struct {
 	// Vrrp State Lock for each IfIndex + VRID
 	StateInfo     VrrpGlobalStateInfo
 	StateInfoLock *sync.RWMutex
-	/*
-		IntfConfig vrrpd.VrrpIntf
-		// VRRP MAC aka VMAC
-		VirtualRouterMACAddress string
-		// The initial value is the same as Advertisement_Interval.
-		MasterAdverInterval int32
-		// (((256 - priority) * Master_Adver_Interval) / 256)
-		SkewTime int32
-		// (3 * Master_Adver_Interval) + Skew_time
-		MasterDownValue int32
-		MasterDownTimer *time.Timer
-		MasterDownLock  *sync.RWMutex
-		// Advertisement Timer
-		AdverTimer *time.Timer
-		// IfIndex IpAddr which needs to be used if no Virtual Ip is specified
-		IpAddr string
-		// cached info for IfName is required in future
-		IfName string
-		// Pcap Handler for receiving packets
-		pHandle *pcap.Handle
-		// Pcap Handler lock to write data one routine at a time
-		PcapHdlLock *sync.RWMutex
-		// State Name
-		StateName string
-		// Lock to read current state of vrrp object
-		StateNameLock *sync.RWMutex
-		// Vrrp State Lock for each IfIndex + VRID
-		StateInfo     VrrpGlobalStateInfo
-		StateInfoLock *sync.RWMutex
-	*/
 }
 
-func (intf *IpIntf) InitIpIntf(obj interface{}) {
-
+func (intf *VrrpInterface) Init(cfg *config.IntfCfg, l3Info *L3Intf) {
+	intf.Cfg = *cfg
+	intf.L3 = *l3Info
 }

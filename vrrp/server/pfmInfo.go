@@ -77,15 +77,17 @@ func (svr *VrrpServer) getIPv4Intfs() {
 		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
 			continue
 		}
-		ipInfo, _ := svr.L3Port[obj.IfIndex]
+		v4Info, _ := svr.V4[obj.IfIndex]
+		ipInfo := v4Info.Cfg.Info
 		//if !exists {
 		ipInfo.IntfRef = obj.IntfRef
 		ipInfo.IfIndex = obj.IfIndex
-		ipInfo.V4OperState = obj.OperState
-		ipInfo.IPv4Addr = obj.IpAddr
+		ipInfo.OperState = obj.OperState
+		v4Info.Cfg.IpAddr = obj.IpAddr
+		v4Info.Vrrpkey = nil
 		//		}
-		svr.L3Port[obj.IfIndex] = ipInfo
-		svr.IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
+		svr.V4[obj.IfIndex] = ipInfo
+		svr.V4IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
 
@@ -100,20 +102,22 @@ func (svr *VrrpServer) getIPv6Intfs() {
 		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
 			continue
 		}
-		ipInfo, _ := svr.L3Port[obj.IfIndex]
+		v6Info, _ := svr.V6[obj.IfIndex]
+		ipInfo := v6Info.Cfg.Info
 		//if !exists {
 		ipInfo.IntfRef = obj.IntfRef
 		ipInfo.IfIndex = obj.IfIndex
-		ipInfo.V6OperState = obj.OperState
+		ipInfo.OperState = obj.OperState
 		ip, _, _ := net.ParseCIDR(obj.IpAddr)
 		if ip.IsLinkLocalUnicast() {
-			ipInfo.LinkScopeAddr = ip.String()
+			v6Info.Cfg.LinkScopeAddr = ip.String()
 		} else {
-			ipInfo.IPv6Addr = ip.String()
+			v6Info.Cfg.IPv6Addr = ip.String()
 		}
 		//		}
-		svr.L3Port[obj.IfIndex] = ipInfo
-		svr.IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
+		v6Info.Vrrpkey = nil
+		svr.V6[obj.IfIndex] = ipInfo
+		svr.V6IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
 
