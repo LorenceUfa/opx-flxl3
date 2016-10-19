@@ -82,5 +82,13 @@ func VrrpIntfConfig(cfg *config.IntfCfg) (bool, error) {
 	if rv != false {
 		return rv, err
 	}
-	vrrpApi.server <- cfg
+	//vrrpApi.server <- cfg
+}
+
+func CreateVrrpGbl(cfg *config.GlobalConfig) {
+	vrrpApi.server.GblCfgCh <- cfg
+}
+
+func UpdateVrrpGbl(cfg *config.GlobalConfig) {
+	vrrpApi.server.GblCfgCh <- cfg
 }

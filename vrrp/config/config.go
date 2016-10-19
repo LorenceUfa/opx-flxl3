@@ -37,6 +37,12 @@ const (
 	DELETE
 )
 
+type GlobalConfig struct {
+	Vrf       string
+	Enable    bool
+	Operation uint8
+}
+
 type PhyPort struct {
 	IfIndex   int32
 	IntfRef   string

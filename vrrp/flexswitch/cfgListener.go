@@ -24,11 +24,36 @@
 package flexswitch
 
 import (
+	"errors"
 	"l3/vrrp/api"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
 	"vrrpd"
 )
+
+func (h *ConfigHandler) CreateVrrpGlobal(config *vrrpd.VrrpGlobal) (r bool, err error) {
+	debug.Logger.Debug("Thrift request for creating vrrp global object:", *gblCfg)
+	gblCfg := &config.GlobalConfig{config.Vrf, config.Enable, config.CREATE}
+	api.CreateVrrpGbl(gblCfg)
+	debug.Logger.Debug("Thrift returning for creating vrrp global object true, nil")
+	return true, nil
+}
+
+func (h *ConfigHandler) UpdateVrrpGlobal(config *vrrpd.VrrpGlobal) (r bool, err error) {
+	debug.Logger.Debug("Thrift request for creating vrrp global object:", *gblCfg)
+	gblCfg := &config.GlobalConfig{config.Vrf, config.Enable, config.UPDATE}
+	api.UpdateVrrpGbl(gblCfg)
+	debug.Logger.Debug("Thrift returning for creating vrrp global object true, nil")
+	return true, nil
+}
+
+func (h *ConfigHandler) DeleteVrrpGlobal(config *vrrpd.VrrpGlobal) (r bool, err error) {
+	debug.Logger.Debug("Thrift request for deleting vrrp global object:", *gblCfg)
+	err = errors.New("Deleting Vrrp Global Object is not Supported")
+	r = false
+	debug.Logger.Debug("Thrift returning for deleting vrrp global object:", r, err)
+	return r, err
+}
 
 func (h *ConfigHandler) CreateVrrpV4Intf(config *vrrpd.VrrpV4Intf) (r bool, err error) {
 	debug.Logger.Debug("Thrift request for creating vrrp v4 interface config for:", *config)

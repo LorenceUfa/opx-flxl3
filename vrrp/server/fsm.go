@@ -29,12 +29,144 @@ import (
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	"net"
 	"strconv"
 	"strings"
 	"time"
 )
 
+// vrrp states
+const (
+	VRRP_UNINTIALIZE_STATE = iota
+	VRRP_INITIALIZE_STATE
+	VRRP_BACKUP_STATE
+	VRRP_MASTER_STATE
+)
+
+type PktChannelInfo struct {
+	pkt gopacket.Packet
+	/*
+		key KeyInfo
+			key     string
+			IfIndex int32
+	*/
+}
+type FSM struct {
+	Config *config.IntfCfg
+	// Pcap Handler for receiving packets
+	pHandle *pcap.Handle
+	// VRRP MAC aka VMAC
+	VirtualRouterMACAddress string
+
+	State uint8
+
+	StateCh *StateInfo
+
+	pktCh *PktChannelInfo
+	/*
+		// The initial value is the same as Advertisement_Interval.
+		MasterAdverInterval int32
+		// (((256 - priority) * Master_Adver_Interval) / 256)
+		SkewTime int32
+		// (3 * Master_Adver_Interval) + Skew_time
+		MasterDownValue int32
+		MasterDownTimer *time.Timer
+		MasterDownLock  *sync.RWMutex
+		// Advertisement Timer
+		AdverTimer *time.Timer
+
+		// State Name
+		//StateName string
+		// Lock to read current state of vrrp object
+		//StateNameLock *sync.RWMutex
+		// Vrrp State Lock for each IfIndex + VRID
+		//StateInfo     VrrpGlobalStateInfo
+		//StateInfoLock *sync.RWMutex
+	*/
+}
+
+func InitFsm(cfg *config.IntfCfg, stCh *StateInfo) *FSM {
+	f := &FSM{}
+	f.Config = cfg
+	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
+	f.StateCh = stCh
+	f.pktCh = make(chan *PktChannelInfo)
+	go f.StartFsm()
+	f.InitPacketListener()
+	f.State = VRRP_UNINTIALIZE_STATE
+	return f
+}
+
+func createVirtualMac(vrid int32) (vmac string) {
+	if vrid < 10 {
+		vmac = VRRP_IEEE_MAC_ADDR + "0" + strconv.Itoa(int(vrid))
+
+	} else {
+		vmac = VRRP_IEEE_MAC_ADDR + strconv.Itoa(int(vrid))
+	}
+	return vmac
+}
+
+func (f *FSM) ReceiveVrrpPackets() {
+	pHandle := f.pHandle
+	pktCh := f.pktCh
+	packetSource := gopacket.NewPacketSource(pHandle, pHandle.LinkType())
+	in := packetSource.Packets()
+	for {
+		select {
+		case pkt, ok := <-in:
+			if !ok {
+				debug.Logger.Debug("Pcap closed for interface:", intf.L3.IfName, "exiting RX go routine")
+				return
+			}
+			pktCh <- &PktChannelInfo{
+				pkt: pkt,
+				/*
+					key: KeyInfo{
+						IntfRef: intf.L3.IfName,
+						VRID:    intf.Config.VRID,
+					},
+				*/
+			}
+		}
+	}
+}
+
+func (f *FSM) InitPacketListener() error {
+	var err error
+	pHandle := f.pHandle
+	ifName := f.Config.IntfRef
+	if pHandle == nil {
+		pHandle, err = pcap.OpenLive(ifName, VRRP_SNAPSHOT_LEN, VRRP_PROMISCOUS_MODE, VRRP_TIMEOUT)
+		if err != nil {
+			debug.Logger.Err("Creating Pcap Handle for l3 interface:", ifName, "failed with error:", err)
+			return
+		}
+
+		err = pHandle.SetBPFFilter(VRRP_BPF_FILTER)
+		if err != nil {
+			debug.Logger.Err("Setting filter:", VRRP_BPF_FILTER, "for l3 interface:", ifName, "failed with error:", err)
+			return err
+		}
+
+		// if everything is success then only start receiving packets
+		go f.ReceiveVrrpPackets()
+	}
+}
+
+func (f *FSM) StartFsm() {
+	for {
+		select {
+		case pktCh, ok := <-f.pktCh:
+			if ok {
+				// handle received packet
+			}
+		}
+	}
+}
+
+/*
 type VrrpFsmIntf interface {
 	VrrpFsmStart(fsmObj VrrpFsm)
 	VrrpCreateObject(gblInfo VrrpGlobalInfo) (fsmObj VrrpFsm)
@@ -46,7 +178,7 @@ type VrrpFsmIntf interface {
 	VrrpHandleIntfUpEvent(IfIndex int32)
 	VrrpHandleIntfShutdownEvent(IfIndex int32)
 }
-
+*/
 /*
 			   +---------------+
 		+--------->|               |<-------------+

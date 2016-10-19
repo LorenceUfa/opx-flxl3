@@ -177,6 +177,7 @@ func (svr *VrrpServer) VrrpCheckRcvdPkt(packet gopacket.Packet, key string,
 	}
 }
 
+/*
 func (svr *VrrpServer) VrrpReceivePackets(pHandle *pcap.Handle, key string, IfIndex int32) {
 	svr.logger.Info("Listen Vrrp packet for " + key)
 	packetSource := gopacket.NewPacketSource(pHandle, pHandle.LinkType())
@@ -216,25 +217,4 @@ func (svr *VrrpServer) VrrpInitPacketListener(key string, IfIndex int32) {
 	svr.vrrpGblInfo[key] = gblInfo
 	go svr.VrrpReceivePackets(handle, key, IfIndex)
 }
-
-func (svr *VrrpServer) VrrpUpdateProtocolMacEntry(add bool) {
-	macConfig := asicdInt.RsvdProtocolMacConfig{
-		MacAddr:     VRRP_PROTOCOL_MAC,
-		MacAddrMask: VRRP_MAC_MASK,
-	}
-	if add {
-		inserted, _ := svr.asicdClient.ClientHdl.EnablePacketReception(&macConfig)
-		if !inserted {
-			svr.logger.Info("Adding reserved mac failed")
-			return
-		}
-		svr.vrrpMacConfigAdded = true
-	} else {
-		deleted, _ := svr.asicdClient.ClientHdl.DisablePacketReception(&macConfig)
-		if !deleted {
-			svr.logger.Info("Deleting reserved mac failed")
-			return
-		}
-		svr.vrrpMacConfigAdded = false
-	}
-}
+*/

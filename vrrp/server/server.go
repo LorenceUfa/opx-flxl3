@@ -44,6 +44,7 @@ import (
 	"vrrpd"
 )
 
+/*
 func (svr *VrrpServer) VrrpUpdateIntfIpAddr(gblInfo *VrrpGlobalInfo) bool {
 	IpAddr, ok := svr.vrrpIfIndexIpAddr[gblInfo.IntfConfig.IfIndex]
 	if ok == false {
@@ -55,6 +56,7 @@ func (svr *VrrpServer) VrrpUpdateIntfIpAddr(gblInfo *VrrpGlobalInfo) bool {
 	gblInfo.IpAddr = IpAddr
 	return true
 }
+*/
 
 func (svr *VrrpServer) VrrpPopulateIntfState(key string, entry *vrrpd.VrrpIntfState) bool {
 	gblInfo, ok := svr.vrrpGblInfo[key]
@@ -446,7 +448,7 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 			}
 		}
 	}
-	intf.Init(cfg, l3Info)
+	intf.Init(cfg, l3Info, svr.StateCh)
 }
 
 func (svr *VrrpServer) HandleVrrpConfig(cfg *config.IntfCfg) {
@@ -519,16 +521,47 @@ func (svr *VrrpServer) HandleVrrpConfig(cfg *config.IntfCfg) {
 	*/
 }
 
+func (svr *VrrpServer) UpdateProtocolMacEntry(add bool) {
+	switch add {
+	case true:
+		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC)
+	case false:
+		svr.SwitchPlugin.DisablePacketReception(packet.VRRP_PROTOCOL_MAC)
+		// @TODO: tear down all fsm states and configuration
+	}
+}
+
+func (svr *VrrpServer) HandlerGlobalConfig(gCfg *config.GlobalConfig) {
+	debug.Logger.Info("Handling Global Config for:", *gCfg)
+	switch gCfg.Operation {
+	case config.CREATE:
+		debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac")
+		svr.UpdateProtocolMacEntry(true /*Enable*/)
+	case config.UPDATE:
+		debug.Logger.Info("Vrrp Disabled, deleting Protocol Mac")
+		svr.UpdateProtocolMacEntry(false /*Enable*/)
+	}
+}
+
 func (svr *VrrpServer) EventListener() {
 	// Start receviing in rpc values in the channell
 	for {
 		select {
 
+		case gCfg, ok := <-svr.GblCfgCh:
+			if ok {
+				svr.HandlerGlobalConfig(gCfg)
+			}
 		case cfg, ok := <-svr.CfgCh:
 			if ok {
 				svr.HandleVrrpConfig(cfg)
 			}
-
+			/*
+				case rxChInfo, ok := <-svr.RxPktCh:
+					if ok {
+						svr.ProcessRxPkt(rxChInfo)
+					}
+			*/
 			/*
 				case intfConf := <-svr.VrrpCreateIntfConfigCh:
 					svr.VrrpCreateGblInfo(intfConf)
@@ -569,6 +602,8 @@ func (svr *VrrpServer) InitGlobalDS() {
 	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.StateCh = make(chan StateInfo, VRRP_RX_BUF_CHANNEL_SIZE)
+	svr.GblCfgCh = make(chan config.GlobalConfig)
 	/*
 		svr.vrrpGblInfo = make(map[string]VrrpGlobalInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 		svr.vrrpIfIndexIpAddr = make(map[int32]string, VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE)
@@ -621,6 +656,10 @@ func (svr *VrrpServer) OSSignalHandle() {
 	signal.Notify(sigChannel, signalList...)
 	go svr.signalHandler(sigChannel)
 }
+
+/*
+
+*/
 
 func (svr *VrrpServer) VrrpStartServer(paramsDir string) {
 	svr.OSSignalHandle()

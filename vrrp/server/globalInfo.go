@@ -29,12 +29,14 @@ import (
 	"github.com/google/gopacket/pcap"
 	nanomsg "github.com/op/go-nanomsg"
 	"l3/vrrp/config"
+	"l3/vrrp/packet"
 	"net"
 	"sync"
 	"time"
+	"utils/asicdClient"
 	"utils/dbutils"
+	"utils/dmnBase"
 	"utils/logging"
-	"vrrpd"
 )
 
 /*
@@ -103,23 +105,6 @@ type VrrpUpdateConfig struct {
 	AttrSet   []bool
 }
 
-type VrrpGlobalStateInfo struct {
-	AdverRx             uint32 // Total advertisement received
-	AdverTx             uint32 // Total advertisement send out
-	MasterIp            string // Remote Master Ip Address
-	LastAdverRx         string // Last advertisement received
-	LastAdverTx         string // Last advertisment send out
-	PreviousFsmState    string // previous fsm state
-	CurrentFsmState     string // current fsm state
-	ReasonForTransition string // why did we transition to current state?
-}
-
-type VrrpPktChannelInfo struct {
-	pkt     gopacket.Packet
-	key     string
-	IfIndex int32
-}
-
 type VrrpTxChannelInfo struct {
 	key      string
 	priority uint16 // any value > 255 means ignore it
@@ -141,41 +126,48 @@ type V6Intf struct {
 }
 
 type VrrpServer struct {
+	// All System Related Information
+	dmnBase            *dmnBase.FSBaseDmn
+	SwitchPlugin       asicdClient.AsicdClientIntf
+	GlobalConfig       config.GlobalConfig
 	L2Port             map[int32]config.PhyPort
 	VlanInfo           map[int32]config.VlanInfo
 	V4                 map[int32]V4Intf
 	V6                 map[int32]V6Intf
 	Intf               map[KeyInfo]VrrpInterface
-	CfgCh              chan *config.IntfCfg
 	V4IntfRefToIfIndex map[string]int32
 	V6IntfRefToIfIndex map[string]int32
+	// All Channels Used during Events
+	CfgCh    chan *config.IntfCfg
+	StateCh  chan *StateInfo
+	GblCfgCh chan *config.GlobalConfig
+
 	//L3Port           map[int32]L3Info
 	//	logger                        *logging.Writer
 	//	vrrpDbHdl                     *dbutils.DBUtil
 	//paramsDir                     string
 	//asicdClient                   VrrpAsicdClient
 	//asicdSubSocket                *nanomsg.SubSocket
-	vrrpGblInfo                   map[string]VrrpGlobalInfo // IfIndex + VRID
-	vrrpIntfStateSlice            []string
-	vrrpLinuxIfIndex2AsicdIfIndex map[int32]*net.Interface
-	vrrpIfIndexIpAddr             map[int32]string
-	vrrpVlanId2Name               map[int]string
-	VrrpCreateIntfConfigCh        chan vrrpd.VrrpIntf
-	VrrpDeleteIntfConfigCh        chan vrrpd.VrrpIntf
-	VrrpUpdateIntfConfigCh        chan VrrpUpdateConfig
-	vrrpRxPktCh                   chan VrrpPktChannelInfo
-	vrrpTxPktCh                   chan VrrpTxChannelInfo
-	vrrpFsmCh                     chan VrrpFsm
-	vrrpMacConfigAdded            bool
-	vrrpSnapshotLen               int32
-	vrrpPromiscuous               bool
-	vrrpTimeout                   time.Duration
-	vrrpPktSend                   chan bool
+	/*
+		vrrpGblInfo                   map[string]VrrpGlobalInfo // IfIndex + VRID
+		vrrpIntfStateSlice            []string
+		vrrpLinuxIfIndex2AsicdIfIndex map[int32]*net.Interface
+		vrrpIfIndexIpAddr             map[int32]string
+		vrrpVlanId2Name               map[int]string
+		VrrpCreateIntfConfigCh        chan vrrpd.VrrpIntf
+		VrrpDeleteIntfConfigCh        chan vrrpd.VrrpIntf
+		VrrpUpdateIntfConfigCh        chan VrrpUpdateConfig
+		vrrpTxPktCh                   chan VrrpTxChannelInfo
+		vrrpFsmCh                     chan VrrpFsm
+		vrrpMacConfigAdded            bool
+		vrrpSnapshotLen               int32
+		vrrpPromiscuous               bool
+		vrrpTimeout                   time.Duration
+		vrrpPktSend                   chan bool
+	*/
 }
 
 const (
-	VRRP_REDDIS_DB_PORT = ":6379"
-	VRRP_INTF_DB        = "VrrpIntf"
 
 	// Error Message
 	VRRP_INVALID_VRID                   = "VRID is invalid"
@@ -189,9 +181,12 @@ const (
 	VRRP_DATABASE_LOCKED                = "database is locked"
 
 	// VRRP multicast ip address for join
-	VRRP_BPF_FILTER = "ip host " + VRRP_GROUP_IP
-	VRRP_MAC_MASK   = "ff:ff:ff:ff:ff:ff"
-	VRRP_PROTO_ID   = 112
+	VRRP_BPF_FILTER      = "ip host " + packet.VRRP_GROUP_IP
+	VRRP_MAC_MASK        = "ff:ff:ff:ff:ff:ff"
+	VRRP_PROTO_ID        = 112
+	VRRP_SNAPSHOT_LEN    = 1024
+	VRRP_PROMISCOUS_MODE = false
+	VRRP_TIMEOUT         = 1 // in seconds
 
 	// Default Size
 	VRRP_GLOBAL_INFO_DEFAULT_SIZE         = 50
@@ -199,7 +194,7 @@ const (
 	VRRP_INTF_STATE_SLICE_DEFAULT_SIZE    = 5
 	VRRP_LINUX_INTF_MAPPING_DEFAULT_SIZE  = 5
 	VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE = 5
-	VRRP_RX_BUF_CHANNEL_SIZE              = 100
+	VRRP_RX_BUF_CHANNEL_SIZE              = 5
 	VRRP_TX_BUF_CHANNEL_SIZE              = 1
 	VRRP_FSM_CHANNEL_SIZE                 = 1
 	VRRP_INTF_CONFIG_CH_SIZE              = 1
@@ -213,9 +208,10 @@ const (
 	VRRP_DEFAULT_PRIORITY = 100
 	VRRP_IEEE_MAC_ADDR    = "00-00-5E-00-01-"
 
-	// vrrp state names
-	VRRP_UNINTIALIZE_STATE = "Un-Initialize"
-	VRRP_INITIALIZE_STATE  = "Initialize"
-	VRRP_BACKUP_STATE      = "Backup"
-	VRRP_MASTER_STATE      = "Master"
+	/*
+		VRRP_UNINTIALIZE_STATE = "Un-Initialize"
+		VRRP_INITIALIZE_STATE  = "Initialize"
+		VRRP_BACKUP_STATE      = "Backup"
+		VRRP_MASTER_STATE      = "Master"
+	*/
 )
