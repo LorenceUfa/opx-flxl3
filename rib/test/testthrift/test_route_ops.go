@@ -39,12 +39,16 @@ var reachabilityTestList []string
 func GetTotalRouteCount(client *ribd.RIBDServicesClient) {
 	fmt.Println("GetTotalRouteCount")
 	number, _ := client.GetTotalv4RouteCount()
-	fmt.Println("Number of routes:", number)
+	fmt.Println("Number of v4 routes:", number)
+	number, _ = client.GetTotalv6RouteCount()
+	fmt.Println("Number of v6 routes:", number)
 }
 func GetRouteCreatedTime(client *ribd.RIBDServicesClient, number int) {
 	fmt.Println("GetRouteCreatedTime")
 	time, err := client.Getv4RouteCreatedTime(ribdInt.Int(number))
-	fmt.Println("err: ", err, " time:", time)
+	fmt.Println("v4 route created time err: ", err, " time:", time)
+	time, err = client.Getv6RouteCreatedTime(ribdInt.Int(number))
+	fmt.Println("v6 route created time err: ", err, " time:", time)
 }
 func Createv4Routes(client *ribd.RIBDServicesClient) {
 	fmt.Println("Createv4Routes")
@@ -83,35 +87,35 @@ func CheckRouteReachability(client *ribd.RIBDServicesClient) {
 }
 func Createv4RouteList() {
 	ipv4RouteList = make([]ribd.IPv4Route, 0)
-	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+	/*ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
 		DestinationNw: "40.1.10.0",
 		NetworkMask:   "255.255.255.0",
 		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
 		Protocol:      "STATIC",
+	})*/
+	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+		DestinationNw: "40.10.0.0/16",
+		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
+		Protocol:      "EBGP",
+		NullRoute:     true,
+	})
+
+	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+		DestinationNw: "50.10.0.0/16",
+		Protocol:      "EBGP",
+		NullRoute:     true,
+	})
+	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
+		DestinationNw: "40.10.0.0/24",
+		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
+		Protocol:      "STATIC",
 	})
 	/*	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
-			DestinationNw: "40.10.0.0/16",
-			NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
-			Protocol:      "EBGP",
-			NullRoute:     true,
-		})
-
-		ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
-			DestinationNw: "50.10.0.0/16",
-			Protocol:      "EBGP",
-			NullRoute:     true,
-		})
-		ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
-			DestinationNw: "40.10.0.0/24",
-			NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
-			Protocol:      "STATIC",
-		})*/
-	ipv4RouteList = append(ipv4RouteList, ribd.IPv4Route{
 		DestinationNw: "40.1.1.1/24",
 		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
 		Protocol:      "EBGP",
 		NullRoute:     true,
-	})
+	})*/
 
 	//reachability test list
 	reachabilityTestList = make([]string, 0)
@@ -139,4 +143,23 @@ func Createv6RouteList() {
 		Protocol:      "STATIC",
 	})
 
+}
+func LoopTest(client *ribd.RIBDServicesClient) {
+	route := ribd.IPv4Route{
+		DestinationNw: "40.10.0.0/16",
+		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.1.2"}},
+		Protocol:      "EBGP",
+		NullRoute:     true,
+	}
+	route1 := ribd.IPv4Route{
+		DestinationNw: "40.10.0.0/24",
+		NextHop:       []*ribd.NextHopInfo{&ribd.NextHopInfo{NextHopIp: "40.1.2.2"}},
+		Protocol:      "STATIC",
+	}
+	for {
+		client.CreateIPv4Route(&route)
+		client.DeleteIPv4Route(&route)
+		client.CreateIPv4Route(&route1)
+		client.DeleteIPv4Route(&route1)
+	}
 }
