@@ -142,7 +142,7 @@ func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInsta
 	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig)
 	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig)
 	if err == nil {
-		err = vxlan.VxlanConfigCheck(nc)
+		err = vxlan.VxlanConfigUpdateCheck(oc, nc)
 		if err == nil {
 			update := vxlan.VxlanUpdate{
 				Oldconfig: *oc,
