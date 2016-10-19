@@ -80,7 +80,7 @@ type OSPFServer struct {
 	ospfGlobalConf         GlobalConf
 	GlobalConfigCh         chan config.GlobalConf
 	AreaConfigCh           chan config.AreaConf
-	IntfConfigCh           chan config.InterfaceConf
+	IntfConfigCh           chan config.InterfaceRpcMsg
 	IfMetricConfCh         chan config.IfMetricConf
 	GlobalConfigRetCh      chan error
 	AreaConfigRetCh        chan error
@@ -175,7 +175,7 @@ func NewOSPFServer(logger *logging.Writer) *OSPFServer {
 	ospfServer.logger = logger
 	ospfServer.GlobalConfigCh = make(chan config.GlobalConf)
 	ospfServer.AreaConfigCh = make(chan config.AreaConf)
-	ospfServer.IntfConfigCh = make(chan config.InterfaceConf)
+	ospfServer.IntfConfigCh = make(chan config.InterfaceRpcMsg)
 	ospfServer.IfMetricConfCh = make(chan config.IfMetricConf)
 	ospfServer.GlobalConfigRetCh = make(chan error)
 	ospfServer.AreaConfigRetCh = make(chan error)
@@ -371,12 +371,22 @@ func (server *OSPFServer) StartServer(paramFile string) {
 				//Handle Area Configuration
 			}
 		//	server.AreaConfigRetCh <- err
-		case ifConf := <-server.IntfConfigCh:
-			server.logger.Info(fmt.Sprintln("Received call for performing Intf Configuration", ifConf))
-			err := server.processIntfConfig(ifConf)
-			if err == nil {
-				//Handle Intf Configuration
+		case ifMsg := <-server.IntfConfigCh:
+			server.logger.Info(fmt.Sprintln("Received call for performing Intf Configuration", ifMsg))
+			if ifMsg.msg == config.CREATE {
+				err := server.processIntfConfig(ifConf)
+				if err == nil {
+					//Handle Intf Configuration
+				}
 			}
+			if ifMsg.msg == config.UPDATE {
+				err := server.processIntfConfigUpdate(ifConf)
+			}
+
+			if ifMsg.msg == config.DELETE {
+				err := server.processIntfConfigDelete(ifConf)
+			}
+
 		//	server.IntfConfigRetCh <- err
 		case ifMetricConf := <-server.IfMetricConfCh:
 			server.logger.Info(fmt.Sprintln("Received call for preforming Intf Metric Configuration", ifMetricConf))

@@ -466,6 +466,48 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 	return nil
 }
 
+func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) error {
+	server.logger.Debug(fmt.Sprintln("Intf: Update interface ", ifConf))
+	updateFlags := server.DiffWithIntfConfObjAndSetFlags(ifConf)
+	if updateFlags == 0 {
+		server.logger.Info("Intf: Update nothing changed. Return ", ifConf)
+	}
+	ifKey := IntfConfKey{
+		IPAddr:  ifConf.IfIpAddress,
+		IntfIdx: ifConf.AddressLessIf,
+	}
+
+	//stop interface state machine.
+	server.logger.Debug(fmt.Sprintln("Intf: Update - Stop interface FSM"))
+	server.StopOspfIntfFSM(ifKey)
+
+	//update interface config.
+	server.logger.Debug(fmt.Sprintln("Intf: Update - Update intfconf map "))
+	server.updateIPIntfConfMap(ifConf)
+	//send notification to lsdb
+	//(it will update LSDB and neighbor datastrutures.
+	server.logger.Debug(fmt.Sprintln("Intf: Update - send message to neighbor"))
+	ent, exist := server.IntfConfMap[ifKey]
+	if !exist {
+		server.logger.Err(fmt.Sprintln("Intf: Failed to get interface entry ", ifKey))
+		return errors.New("Interface entry does not exist.")
+	}
+
+	msg := NetworkLSAChangeMsg{
+		areaId:  convertAreaOrRouterId(ifConf.AreaId),
+		intfKey: ifKey,
+	}
+	server.IntfStateChangeCh <- msg
+	//start interface state machine.
+	if ifConf.IfAdminStat != 0 {
+		server.logger.Debug(fmt.Sprintln("Intf: Update - start intf FSM "))
+		server.StartOspfIntfFSM(ifKey)
+	} else {
+		server.logger.Debug(fmt.Sprintln("Intf: Update - admin state down . Stop fsm ", ifKey))
+	}
+	return nil
+}
+
 /*
  * When interface state changes
  * 1) Update ip property map .
@@ -654,4 +696,59 @@ func (server *OSPFServer) updateIntfTxMap(key IntfConfKey, status config.Status,
 			server.logger.Debug(fmt.Sprintln("Pcap : Deleted successfully for ", ifName))
 		}
 	}
+}
+
+/**** UTIL APIs ******/
+func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.InterfaceConf) config.ConfFlag {
+	var flags config.ConfFlag = 0
+
+	intfConfKey := IntfConfKey{
+		IPAddr:  ifConf.IfIpAddress,
+		IntfIdx: config.InterfaceIndexOrZero(ifConf.AddressLessIf),
+	}
+	ent, exist := server.IntfConfMap[intfConfKey]
+	if !exist {
+		server.logger.Err(fmt.Sprintln("Intf Update: No such L3 interface exists ", intfConfKey.IPAddr, intfConfKey.IntfIdx))
+		server.logger.Debug("No such L3 interface exists")
+		return 0
+	}
+	if ent.IfHelloInterval != uint16(ifConf.IfHelloInterval) {
+		flags |= config.IF_HELLO_INTERVAL
+	}
+
+	ipAddr, _, err := net.ParseIP(config.IpAddress(ifConf.IfIpAddress))
+	if err {
+		server.logger.Err(fmt.Sprintln("Intf: Update failed. Wrong Ip ", ifConf.IfIpAddress))
+		return 0
+	}
+	if ent.IfIpAddr != ipAddr {
+		flags |= config.IF_IP_ADDRESS
+	}
+
+	if ent.IfAreaId != []byte(ifConf.IfAreaId) {
+		flags |= config.IF_AREA_ID
+	}
+
+	if ent.IfType != ifConf.IfType {
+		flags |= config.IF_TYPE
+	}
+	if ent.IfAdminStat != ifConf.IfAdminStat {
+		flags |= config.IF_ADMIN_STAT
+	}
+	if ent.IfRtrPriority != ifConf.IfRtrPriority {
+		flags |= config.IF_RTR_PRIORITY
+	}
+	if ent.IfTransitDelay != ifConf.IfTransitDelay {
+		flags |= config.IF_TRANSIT_DELAY
+	}
+	if ent.IfRetransInterval != ifConf.IfRetransInterval {
+		flags |= config.IF_RETRANS_INTERVAL
+	}
+	if ent.IfRtrDeadInterval != ifConf.IfRtrDeadInterval {
+		flags |= config.IF_RTR_DEAD_INTERVAL
+	}
+	if ent.IfPollInterval != ifConf.IfPollInterval {
+		flags |= config.IF_POLL_INTERVAL
+	}
+	return flags
 }

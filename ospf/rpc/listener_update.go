@@ -47,6 +47,10 @@ func (h *OSPFHandler) UpdateOspfAreaEntry(origConf *ospfd.OspfAreaEntry, newConf
 func (h *OSPFHandler) UpdateOspfIfEntry(origConf *ospfd.OspfIfEntry, newConf *ospfd.OspfIfEntry, attrset []bool, op []*ospfd.PatchOpInfo) (bool, error) {
 	h.logger.Info(fmt.Sprintln("Original interface config attrs:", origConf))
 	h.logger.Info(fmt.Sprintln("New interface config attrs:", newConf))
+	err := h.SendOspfIfConf(newConf, config.UPDATE)
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 

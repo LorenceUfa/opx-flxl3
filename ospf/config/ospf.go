@@ -66,6 +66,14 @@ const (
 	Intf_Up   Status = 1
 )
 
+type MsgType int
+
+const (
+	CREATE MsgType = 0
+	UPDATE MsgType = 1
+	DELETE MsgType = 2
+)
+
 type AuthType int
 
 const (
@@ -136,6 +144,22 @@ const (
 	UnnumberedP2P     IfType = 4
 	PointToMultipoint IfType = 5
 	Stub              IfType = 6
+)
+
+type ConfFlag int
+
+const (
+	IF_IP_ADDRESS        ConfFlag = 0
+	IF_ADDRESS_LESS_IF   ConfFlag = 1
+	IF_ADMIN_STAT        ConfFlag = 2
+	IF_TYPE              ConfFlag = 3
+	IF_RTR_PRIORITY      ConfFlag = 4
+	IF_TRANSIT_DELAY     ConfFlag = 5
+	IF_RETRANS_INTERVAL  ConfFlag = 6
+	IF_HELLO_INTERVAL    ConfFlag = 7
+	IF_RTR_DEAD_INTERVAL ConfFlag = 8
+	IF_POLL_INTERVAL     ConfFlag = 9
+	IF_AREA_ID           ConfFlag = 10
 )
 
 var IfTypeList = []string{
@@ -578,4 +602,9 @@ type OspfEventState struct {
 	TimeStamp string
 	EventType string
 	EventInfo string
+}
+
+type InterfaceRpcMsg struct {
+	intfConf InterfaceConf
+	msg      MsgType
 }
