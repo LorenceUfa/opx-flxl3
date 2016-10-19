@@ -172,10 +172,12 @@ func VtepConfigCheck(c *VtepConfig) error {
 
 // ConvertVxlanInstanceToVxlanConfig:
 // Convert thrift struct to vxlan config and check that db entry exists already
-func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance) (*VxlanConfig, error) {
+func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance, create bool) (*VxlanConfig, error) {
 
-	if GetVxlanDBEntry(uint32(c.Vni)) != nil {
-		return nil, errors.New(fmt.Sprintln("Error VxlanInstance Exists", c))
+	if !create &&
+		GetVxlanDBEntry(uint32(c.Vni)) != nil {
+		return nil, errors.New(fmt.Sprintln("Error VxlanInstance does not Exists", c))
+
 	}
 
 	return &VxlanConfig{

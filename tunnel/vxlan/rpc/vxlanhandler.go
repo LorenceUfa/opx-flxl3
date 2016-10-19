@@ -116,7 +116,7 @@ func (v *VXLANDServiceHandler) StartThriftServer() {
 func (v *VXLANDServiceHandler) CreateVxlanInstance(config *vxland.VxlanInstance) (bool, error) {
 	v.logger.Info(fmt.Sprintf("CreateVxlanConfigInstance %#v", config))
 
-	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config)
+	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config, true)
 	if err == nil {
 		err = vxlan.VxlanConfigCheck(c)
 		if err == nil {
@@ -129,7 +129,7 @@ func (v *VXLANDServiceHandler) CreateVxlanInstance(config *vxland.VxlanInstance)
 
 func (v *VXLANDServiceHandler) DeleteVxlanInstance(config *vxland.VxlanInstance) (bool, error) {
 	v.logger.Info(fmt.Sprintf("DeleteVxlanConfigInstance %#v", config))
-	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config)
+	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config, false)
 	if err == nil {
 		v.server.Configchans.Vxlandelete <- *c
 		return true, nil
@@ -139,8 +139,8 @@ func (v *VXLANDServiceHandler) DeleteVxlanInstance(config *vxland.VxlanInstance)
 
 func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInstance, newconfig *vxland.VxlanInstance, attrset []bool, op []*vxland.PatchOpInfo) (bool, error) {
 	v.logger.Info(fmt.Sprintf("UpdateVxlanConfigInstance orig[%#v] new[%#v]", origconfig, newconfig))
-	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig)
-	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig)
+	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig, false)
+	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig, false)
 	if err == nil {
 		err = vxlan.VxlanConfigUpdateCheck(oc, nc)
 		if err == nil {
