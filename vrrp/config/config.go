@@ -53,6 +53,17 @@ type VlanInfo struct {
 	OperState     string
 }
 
+type L3Intf struct {
+	IfIndex       int32
+	IntfRef       string
+	IPv4Addr      string
+	IPv6Addr      string
+	LinkScopeAddr string
+	V4OperState   string
+	V6OperState   string
+	MsgType       string
+}
+
 type IntfCfg struct {
 	IntfRef               string
 	IfIndex               int32

@@ -125,11 +125,18 @@ type VrrpTxChannelInfo struct {
 	priority uint16 // any value > 255 means ignore it
 }
 
+type KeyInfo struct {
+	IntfRef string
+	VRID    int32
+}
+
 type VrrpServer struct {
-	L2Port   map[int32]config.PhyPort
-	VlanInfo map[int32]config.VlanInfo
-	L3Port   map[int32]IpIntf
-	CfgCh    chan *config.IntfCfg
+	L2Port           map[int32]config.PhyPort
+	VlanInfo         map[int32]config.VlanInfo
+	L3Port           map[int32]config.L3Intf
+	Intf             map[KeyInfo]VrrpInterface
+	CfgCh            chan *config.IntfCfg
+	IntfRefToIfIndex map[string]int32
 	//	logger                        *logging.Writer
 	//	vrrpDbHdl                     *dbutils.DBUtil
 	//paramsDir                     string

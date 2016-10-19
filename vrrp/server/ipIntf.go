@@ -27,7 +27,7 @@ import (
 )
 
 //type VrrpGlobalInfo struct {
-type IpIntf struct {
+type VrrpInterface struct {
 	// Vrrp config for interface
 	Cfg config.IntfCfg
 	// VRRP MAC aka VMAC

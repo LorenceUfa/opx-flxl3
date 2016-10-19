@@ -26,6 +26,7 @@ package server
 import (
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
+	"net"
 	"utils/commonDefs"
 )
 
@@ -70,6 +71,22 @@ func (svr *VrrpServer) getIPv4Intfs() {
 		debug.Logger.Err("Failed to get all IPv4 interfaces, err:", err)
 		return
 	}
+
+	for _, obj := range ipv4Info {
+		// do not care for loopback interface
+		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
+			continue
+		}
+		ipInfo, _ := svr.L3Port[obj.IfIndex]
+		//if !exists {
+		ipInfo.IntfRef = obj.IntfRef
+		ipInfo.IfIndex = obj.IfIndex
+		ipInfo.V4OperState = obj.OperState
+		ipInfo.IPv4Addr = obj.IpAddr
+		//		}
+		svr.L3Port[obj.IfIndex] = ipInfo
+		svr.IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
+	}
 }
 
 func (svr *VrrpServer) getIPv6Intfs() {
@@ -77,6 +94,26 @@ func (svr *VrrpServer) getIPv6Intfs() {
 	if err != nil {
 		debug.Logger.Err("Failed to get all IPv6 interfaces, err:", err)
 		return
+	}
+	for _, obj := range ipv6Info {
+		// do not care for loopback interface
+		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
+			continue
+		}
+		ipInfo, _ := svr.L3Port[obj.IfIndex]
+		//if !exists {
+		ipInfo.IntfRef = obj.IntfRef
+		ipInfo.IfIndex = obj.IfIndex
+		ipInfo.V6OperState = obj.OperState
+		ip, _, _ := net.ParseCIDR(obj.IpAddr)
+		if ip.IsLinkLocalUnicast() {
+			ipInfo.LinkScopeAddr = ip.String()
+		} else {
+			ipInfo.IPv6Addr = ip.String()
+		}
+		//		}
+		svr.L3Port[obj.IfIndex] = ipInfo
+		svr.IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
 

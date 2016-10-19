@@ -99,67 +99,6 @@ func (svr *VrrpServer) VrrpPopulateVridState(key string, entry *vrrpd.VrrpVridSt
 	return ok
 }
 
-func (svr *VrrpServer) VrrpCreateGblInfo(config vrrpd.VrrpIntf) {
-	key := strconv.Itoa(int(config.IfIndex)) + "_" + strconv.Itoa(int(config.VRID))
-	gblInfo := svr.vrrpGblInfo[key]
-
-	gblInfo.IntfConfig.IfIndex = config.IfIndex
-	gblInfo.IntfConfig.VRID = config.VRID
-	gblInfo.IntfConfig.VirtualIPv4Addr = config.VirtualIPv4Addr
-	gblInfo.IntfConfig.PreemptMode = config.PreemptMode
-	gblInfo.IntfConfig.Priority = config.Priority
-	if config.AdvertisementInterval == 0 {
-		gblInfo.IntfConfig.AdvertisementInterval = 1
-	} else {
-		gblInfo.IntfConfig.AdvertisementInterval = config.AdvertisementInterval
-	}
-
-	if config.AcceptMode == true {
-		gblInfo.IntfConfig.AcceptMode = true
-	} else {
-		gblInfo.IntfConfig.AcceptMode = false
-	}
-
-	if gblInfo.IntfConfig.VRID < 10 {
-		gblInfo.VirtualRouterMACAddress = VRRP_IEEE_MAC_ADDR +
-			"0" + strconv.Itoa(int(gblInfo.IntfConfig.VRID))
-
-	} else {
-		gblInfo.VirtualRouterMACAddress = VRRP_IEEE_MAC_ADDR +
-			strconv.Itoa(int(gblInfo.IntfConfig.VRID))
-	}
-
-	// Initialize Locks for accessing shared ds
-	gblInfo.PcapHdlLock = &sync.RWMutex{}
-	gblInfo.StateNameLock = &sync.RWMutex{}
-	gblInfo.MasterDownLock = &sync.RWMutex{}
-	gblInfo.StateInfoLock = &sync.RWMutex{}
-
-	// Update Ip Addr at last
-	svr.VrrpUpdateIntfIpAddr(&gblInfo)
-
-	// Set Initial state
-	gblInfo.StateNameLock.Lock()
-	gblInfo.StateName = VRRP_INITIALIZE_STATE
-	gblInfo.StateNameLock.Unlock()
-	svr.vrrpGblInfo[key] = gblInfo
-	svr.vrrpIntfStateSlice = append(svr.vrrpIntfStateSlice, key)
-
-	// Create Packet listener first so that pcap handler is created...
-	// We will not receive any vrrp packets as punt to CPU is not yet done
-	svr.VrrpInitPacketListener(key, config.IfIndex)
-
-	// Register Protocol Mac
-	if !svr.vrrpMacConfigAdded {
-		svr.logger.Info("Adding protocol mac for punting packets to CPU")
-		svr.VrrpUpdateProtocolMacEntry(true /*add vrrp protocol mac*/)
-	}
-	// Start FSM
-	svr.vrrpFsmCh <- VrrpFsm{
-		key: key,
-	}
-}
-
 func (svr *VrrpServer) VrrpDeleteGblInfo(config vrrpd.VrrpIntf) {
 	key := strconv.Itoa(int(config.IfIndex)) + "_" + strconv.Itoa(int(config.VRID))
 	gblInfo, found := svr.vrrpGblInfo[key]
@@ -475,27 +414,106 @@ func (svr *VrrpServer) VrrpChecknUpdateGblInfo(IfIndex int32, IpAddr string) {
 	}
 }
 
+func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
+	key := KeyInfo{cfg.IntfRef, cfg.Version}
+}
+
+func (svr *VrrpServer) HandleVrrpConfig(cfg *config.IntfCfg) {
+	switch cfg.Operation {
+	case config.CREATE:
+		svr.HandlerCreateConfig(cfg)
+	case config.UPDATE:
+
+	case config.DELETE:
+	}
+	/*
+		key := strconv.Itoa(int(config.IfIndex)) + "_" + strconv.Itoa(int(config.VRID))
+		gblInfo := svr.vrrpGblInfo[key]
+
+		gblInfo.IntfConfig.IfIndex = config.IfIndex
+		gblInfo.IntfConfig.VRID = config.VRID
+		gblInfo.IntfConfig.VirtualIPv4Addr = config.VirtualIPv4Addr
+		gblInfo.IntfConfig.PreemptMode = config.PreemptMode
+		gblInfo.IntfConfig.Priority = config.Priority
+		if config.AdvertisementInterval == 0 {
+			gblInfo.IntfConfig.AdvertisementInterval = 1
+		} else {
+			gblInfo.IntfConfig.AdvertisementInterval = config.AdvertisementInterval
+		}
+
+		if config.AcceptMode == true {
+			gblInfo.IntfConfig.AcceptMode = true
+		} else {
+			gblInfo.IntfConfig.AcceptMode = false
+		}
+
+		if gblInfo.IntfConfig.VRID < 10 {
+			gblInfo.VirtualRouterMACAddress = VRRP_IEEE_MAC_ADDR +
+				"0" + strconv.Itoa(int(gblInfo.IntfConfig.VRID))
+
+		} else {
+			gblInfo.VirtualRouterMACAddress = VRRP_IEEE_MAC_ADDR +
+				strconv.Itoa(int(gblInfo.IntfConfig.VRID))
+		}
+
+		// Initialize Locks for accessing shared ds
+		gblInfo.PcapHdlLock = &sync.RWMutex{}
+		gblInfo.StateNameLock = &sync.RWMutex{}
+		gblInfo.MasterDownLock = &sync.RWMutex{}
+		gblInfo.StateInfoLock = &sync.RWMutex{}
+
+		// Update Ip Addr at last
+		svr.VrrpUpdateIntfIpAddr(&gblInfo)
+
+		// Set Initial state
+		gblInfo.StateNameLock.Lock()
+		gblInfo.StateName = VRRP_INITIALIZE_STATE
+		gblInfo.StateNameLock.Unlock()
+		svr.vrrpGblInfo[key] = gblInfo
+		svr.vrrpIntfStateSlice = append(svr.vrrpIntfStateSlice, key)
+
+		// Create Packet listener first so that pcap handler is created...
+		// We will not receive any vrrp packets as punt to CPU is not yet done
+		svr.VrrpInitPacketListener(key, config.IfIndex)
+
+		// Register Protocol Mac
+		if !svr.vrrpMacConfigAdded {
+			svr.logger.Info("Adding protocol mac for punting packets to CPU")
+			svr.VrrpUpdateProtocolMacEntry(true /*add vrrp protocol mac*/ /*)
+	}
+	// Start FSM
+	svr.vrrpFsmCh <- VrrpFsm{
+		key: key,
+	}
+	*/
+}
+
 func (svr *VrrpServer) EventListener() {
 	// Start receviing in rpc values in the channell
 	for {
 		select {
 
-		/*
-			case intfConf := <-svr.VrrpCreateIntfConfigCh:
-				svr.VrrpCreateGblInfo(intfConf)
-			case delConf := <-svr.VrrpDeleteIntfConfigCh:
-				svr.VrrpDeleteGblInfo(delConf)
-			case fsmInfo := <-svr.vrrpFsmCh:
-				svr.VrrpFsmStart(fsmInfo)
-			case sendInfo := <-svr.vrrpTxPktCh:
-				svr.VrrpSendPkt(sendInfo.key, sendInfo.priority)
-			case rcvdInfo := <-svr.vrrpRxPktCh:
-				svr.VrrpCheckRcvdPkt(rcvdInfo.pkt, rcvdInfo.key,
-					rcvdInfo.IfIndex)
-			case updConfg := <-svr.VrrpUpdateIntfConfigCh:
-				svr.VrrpUpdateIntf(updConfg.OldConfig, updConfg.NewConfig,
-					updConfg.AttrSet)
-		*/
+		case cfg, ok := <-svr.CfgCh:
+			if ok {
+				svr.HandleVrrpConfig(cfg)
+			}
+
+			/*
+				case intfConf := <-svr.VrrpCreateIntfConfigCh:
+					svr.VrrpCreateGblInfo(intfConf)
+				case delConf := <-svr.VrrpDeleteIntfConfigCh:
+					svr.VrrpDeleteGblInfo(delConf)
+				case fsmInfo := <-svr.vrrpFsmCh:
+					svr.VrrpFsmStart(fsmInfo)
+				case sendInfo := <-svr.vrrpTxPktCh:
+					svr.VrrpSendPkt(sendInfo.key, sendInfo.priority)
+				case rcvdInfo := <-svr.vrrpRxPktCh:
+					svr.VrrpCheckRcvdPkt(rcvdInfo.pkt, rcvdInfo.key,
+						rcvdInfo.IfIndex)
+				case updConfg := <-svr.VrrpUpdateIntfConfigCh:
+					svr.VrrpUpdateIntf(updConfg.OldConfig, updConfg.NewConfig,
+						updConfg.AttrSet)
+			*/
 		}
 
 	}
@@ -514,7 +532,9 @@ func (svr *VrrpServer) InitGlobalDS() {
 	svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.L3Port = make(map[int32]IpIntf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
+	svr.IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	/*
 		svr.vrrpGblInfo = make(map[string]VrrpGlobalInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 		svr.vrrpIfIndexIpAddr = make(map[int32]string, VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE)
