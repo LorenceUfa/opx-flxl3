@@ -4,10 +4,11 @@ package vxlan
 import (
 	"bytes"
 	"fmt"
+	"time"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"time"
 )
 
 var portDB map[string]*VxlanPort

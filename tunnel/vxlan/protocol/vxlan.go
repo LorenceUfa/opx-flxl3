@@ -23,6 +23,9 @@ type vxlanDbEntry struct {
 	// VTEP's associated with this vxlan domain
 	// Vlan db will hold port membership for access
 	VtepMembers []uint32
+	// host
+	IntfRefMembers      []string
+	UntagIntfRefMembers []string
 }
 
 // vlan -> vni mapping
@@ -32,11 +35,13 @@ var vxlanVlanToVniDb map[uint16]uint32
 // Create a new vxlan db entry
 func NewVxlanDbEntry(c *VxlanConfig) *vxlanDbEntry {
 	return &vxlanDbEntry{
-		VNI:         c.VNI,
-		VlanId:      c.VlanId,
-		Group:       c.Group,
-		MTU:         c.MTU,
-		VtepMembers: make([]uint32, 0),
+		VNI:                 c.VNI,
+		VlanId:              c.VlanId,
+		Group:               c.Group,
+		MTU:                 c.MTU,
+		VtepMembers:         make([]uint32, 0),
+		IntfRefMembers:      make([]string, 0),
+		UntagIntfRefMembers: make([]string, 0),
 	}
 }
 

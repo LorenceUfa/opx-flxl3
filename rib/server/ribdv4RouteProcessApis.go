@@ -29,7 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"l3/rib/ribdCommonDefs"
-	"models/objects"
+	//"models/objects"
 	"net"
 	"reflect"
 	"ribd"
@@ -445,17 +445,17 @@ func (m RIBDServer) RouteConfigValidationCheck(cfg *ribd.IPv4Route, op string) (
 		/*
 			In case where user provides CIDR address, the DB cannot verify if the route is present, so check here
 		*/
-		if m.DbHdl != nil {
-			var dbObjCfg objects.IPv4Route
-			dbObjCfg.DestinationNw = cfg.DestinationNw
-			dbObjCfg.NetworkMask = cfg.NetworkMask
-			key := "IPv4Route#" + cfg.DestinationNw + "#" + cfg.NetworkMask
-			_, err := m.DbHdl.GetObjectFromDb(dbObjCfg, key)
-			if err == nil {
-				logger.Err("Duplicate entry")
-				return errors.New("Duplicate entry")
-			}
-		}
+		/*		if m.DbHdl != nil {
+				var dbObjCfg objects.IPv4Route
+				dbObjCfg.DestinationNw = cfg.DestinationNw
+				dbObjCfg.NetworkMask = cfg.NetworkMask
+				key := "IPv4Route#" + cfg.DestinationNw + "#" + cfg.NetworkMask
+				_, err := m.DbHdl.GetObjectFromDb(dbObjCfg, key)
+				if err == nil {
+					logger.Err("Duplicate entry")
+					return errors.New("Duplicate entry")
+				}
+			}*/
 	}
 	_, err = validateNetworkPrefix(cfg.DestinationNw, cfg.NetworkMask)
 	if err != nil {

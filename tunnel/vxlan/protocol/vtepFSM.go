@@ -117,8 +117,8 @@ func (se *VxlanVtepStateEvent) SetEvent(es string, e fsm.Event) {
 func (se *VxlanVtepStateEvent) SetState(s fsm.State) {
 	se.ps = se.s
 	se.s = s
-	//if se.IsLoggerEna() && se.ps != se.s {
-	if se.IsLoggerEna(){
+	if se.IsLoggerEna() && se.ps != se.s {
+		//if se.IsLoggerEna() {
 		se.logger((strings.Join([]string{"Src", se.esrc, "OldState", se.strStateMap[se.ps], "Evt", strconv.Itoa(int(se.e)), "NewState", se.strStateMap[s]}, ":")))
 	}
 }
@@ -433,13 +433,13 @@ func VxlanVtepMachineFSMBuild(vtep *VtepDbEntry) *VxlanVtepMachine {
 
 	// Certain clients will need to have information polled if an event is not generated
 	for _, client := range ClientIntf {
-		logger.Info("Adding State to", client,  client.IsClientIntfType(client, VXLANSnapClientStr))
+		//logger.Info("Adding State to", client, client.IsClientIntfType(client, VXLANSnapClientStr))
 		if client.IsClientIntfType(client, VXLANSnapClientStr) {
 			// user has not configured src interface
 			rules.AddRule(VxlanVtepStateInit, VxlanVtepEventRetryTimerExpired, vm.VxlanVtepInit)
 			// arpd is not sending an event for the resolved mac thus must poll till it is resolved
 			rules.AddRule(VxlanVtepStateNextHopInfo, VxlanVtepEventRetryTimerExpired, vm.VxlanVtepNextHopInfo)
-		} else if client.IsClientIntfType(client, VXLANSnapClientStr) {
+		} else if !client.IsClientIntfType(client, VXLANSnapClientStr) {
 			// in mock environmnet no asicd
 			rules.AddRule(VxlanVtepStateInit, VxlanVtepEventRetryTimerExpired, vm.VxlanVtepInit)
 			// in mock environment no arp
@@ -480,16 +480,15 @@ func (vtep *VtepDbEntry) VxlanVtepMachineMain() {
 
 				logger.Info("Timer Expired")
 				if ok {
-					
+
 					// in the case that the interface call needs to be polled then add state
-					state :=vm.Machine.ProcessEvent(VxlanVtepMachineModuleStr, VxlanVtepEventRetryTimerExpired, nil)
-				        logger.Info("new state", state)
+					vm.Machine.ProcessEvent(VxlanVtepMachineModuleStr, VxlanVtepEventRetryTimerExpired, nil)
 					vtep.ticksTillConfig++
 					vtep.retrytimer.Reset(retrytime)
 				}
 
 			case event, ok := <-vm.VxlanVtepEvents:
-                                fmt.Println("VXLAN event", event)
+				//fmt.Println("VXLAN event", event)
 				if ok {
 					rv := vm.Machine.ProcessEvent(event.Src, event.E, event.Data)
 					if rv != nil {
