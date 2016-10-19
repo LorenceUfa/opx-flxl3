@@ -39,29 +39,41 @@ func main() {
 			fmt.Println("Delete v6 route test")
 			routeThriftTest.Deletev6Routes(ribdClient)
 		case "scalev4Add":
-			if (i + 1) == len(route_ops) {
-				fmt.Println("Incorrect usage: should be ./main scale <number>")
+			if (i + 2) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main scalev4Add <nexthopIpStr> <number>")
 				break
 			}
-			number, _ := strconv.Atoi(route_ops[i+1])
+			nextHopIpStr := route_ops[i+1]
+			number, _ := strconv.Atoi(route_ops[i+2])
 			i++
-			fmt.Println("Scale test for ", number, " v4 routes")
-			routeThriftTest.ScaleV4Add(ribdClient, int64(number))
+			fmt.Println("Scale test for ", number, " v4 routes", " with nextHopIpStr:", nextHopIpStr)
+			routeThriftTest.ScaleV4Add(ribdClient, nextHopIpStr, int64(number))
 		case "scalev6Add":
-			if (i + 1) == len(route_ops) {
-				fmt.Println("Incorrect usage: should be ./main scale <number>")
+			if (i + 2) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main scalev6Add <nextHopIpStr> <number>")
 				break
 			}
-			number, _ := strconv.Atoi(route_ops[i+1])
+			nextHopIpStr := route_ops[i+1]
+			number, _ := strconv.Atoi(route_ops[i+2])
 			i++
-			fmt.Println("Scale test for ", number, " v6 routes")
-			routeThriftTest.ScaleV6Add(ribdClient, int64(number))
+			fmt.Println("Scale test for ", number, " v6 routes", " with nextHopIpStr:", nextHopIpStr)
+			routeThriftTest.ScaleV6Add(ribdClient, nextHopIpStr, int64(number))
 		case "scalev4Del":
-			fmt.Println("Scale test for deleting v4 routes")
-			routeThriftTest.ScaleV4Del(ribdClient)
+			if (i + 1) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main scalev4Del <nextHopIpStr>")
+				break
+			}
+			nextHopIpStr := route_ops[i+1]
+			fmt.Println("Scale test for deleting v4 routes with nextHopIpStr", nextHopIpStr)
+			routeThriftTest.ScaleV4Del(ribdClient, nextHopIpStr)
 		case "scalev6Del":
-			fmt.Println("Scale test for deleting v6 routes")
-			routeThriftTest.ScaleV6Del(ribdClient)
+			if (i + 1) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main scalev6Del <nextHopIpStr>")
+				break
+			}
+			nextHopIpStr := route_ops[i+1]
+			fmt.Println("Scale test for deleting v6 routes with nextHopIpStr", nextHopIpStr)
+			routeThriftTest.ScaleV6Del(ribdClient, nextHopIpStr)
 		case "RouteCount":
 			fmt.Println("RouteCount")
 			routeThriftTest.GetTotalRouteCount(ribdClient)

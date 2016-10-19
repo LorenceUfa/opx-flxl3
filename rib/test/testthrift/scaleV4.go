@@ -31,7 +31,7 @@ import (
 	"time"
 )
 
-func v4Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
+func v4Add(client *ribd.RIBDServicesClient, nextHopIpStr string, maxCount int64) (err error) {
 	fmt.Println("v4Add")
 	var count int64 = 0
 	//var maxCount int = 30000
@@ -71,7 +71,7 @@ func v4Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
 		route.NetworkMask = "255.255.255.0"
 		route.NextHop = make([]*ribd.NextHopInfo, 0)
 		nh := ribd.NextHopInfo{
-			NextHopIp: "11.1.10.2",
+			NextHopIp: nextHopIpStr, //"11.1.10.2",
 			//NextHopIntRef: strconv.Itoa(int(nhintf.NextHopIfIndex)),
 			//			NextHopIntRef: "lo1",
 		}
@@ -97,7 +97,7 @@ func v4Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
 	//	fmt.Println(" ## Elapsed time is ", elapsed)
 	return nil
 }
-func v4Del(client *ribd.RIBDServicesClient) (err error) {
+func v4Del(client *ribd.RIBDServicesClient, nextHopIpStr string) (err error) {
 	fmt.Println("v4Del")
 	count, _ := client.GetTotalv4RouteCount()
 	fmt.Println("Deleting ", count, " number of routes")
@@ -135,7 +135,7 @@ func v4Del(client *ribd.RIBDServicesClient) (err error) {
 		route.NetworkMask = "255.255.255.0"
 		route.NextHop = make([]*ribd.NextHopInfo, 0)
 		nh := ribd.NextHopInfo{
-			NextHopIp: "11.1.10.2",
+			NextHopIp: nextHopIpStr, //"11.1.10.2",
 		}
 		route.NextHop = append(route.NextHop, &nh)
 		route.Protocol = "STATIC"
@@ -243,16 +243,16 @@ func handleBulkClient(client *ribd.RIBDServicesClient, maxCount int64) (err erro
 }
 
 //func main() {
-func ScaleV4Add(ribdClient *ribd.RIBDServicesClient, number int64) {
+func ScaleV4Add(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string, number int64) {
 	/*ribdClient := testutils.GetRIBdClient()
 	if ribdClient == nil {
 		fmt.Println("RIBd client nil")
 		return
 	}*/
-	v4Add(ribdClient, number) //ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
+	v4Add(ribdClient, nextHopIpStr, number) //ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
 	//handleBulkClient(ribdClient, number) //(ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
 }
 
-func ScaleV4Del(ribdClient *ribd.RIBDServicesClient) {
-	v4Del(ribdClient)
+func ScaleV4Del(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string) {
+	v4Del(ribdClient, nextHopIpStr)
 }
