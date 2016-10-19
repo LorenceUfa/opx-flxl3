@@ -31,6 +31,7 @@ import (
 	"io/ioutil"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"models/objects"
+	"reflect"
 	"utils/dbutils"
 	"utils/logging"
 	"vxland"
@@ -116,7 +117,7 @@ func (v *VXLANDServiceHandler) StartThriftServer() {
 func (v *VXLANDServiceHandler) CreateVxlanInstance(config *vxland.VxlanInstance) (bool, error) {
 	v.logger.Info(fmt.Sprintf("CreateVxlanConfigInstance %#v", config))
 
-	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config)
+	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config, true)
 	if err == nil {
 		err = vxlan.VxlanConfigCheck(c)
 		if err == nil {
@@ -129,7 +130,7 @@ func (v *VXLANDServiceHandler) CreateVxlanInstance(config *vxland.VxlanInstance)
 
 func (v *VXLANDServiceHandler) DeleteVxlanInstance(config *vxland.VxlanInstance) (bool, error) {
 	v.logger.Info(fmt.Sprintf("DeleteVxlanConfigInstance %#v", config))
-	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config)
+	c, err := vxlan.ConvertVxlanInstanceToVxlanConfig(config, false)
 	if err == nil {
 		v.server.Configchans.Vxlandelete <- *c
 		return true, nil
@@ -138,16 +139,29 @@ func (v *VXLANDServiceHandler) DeleteVxlanInstance(config *vxland.VxlanInstance)
 }
 
 func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInstance, newconfig *vxland.VxlanInstance, attrset []bool, op []*vxland.PatchOpInfo) (bool, error) {
-	v.logger.Info(fmt.Sprintf("UpdateVxlanConfigInstance orig[%#v] new[%#v]", origconfig, newconfig))
-	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig)
-	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig)
+	v.logger.Info(fmt.Sprintf("UpdateVxlanConfigInstance orig[%#v] new[%#v] attrset[%#v]", origconfig, newconfig, attrset))
+	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig, false)
+	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig, false)
 	if err == nil {
-		err = vxlan.VxlanConfigCheck(nc)
+		err = vxlan.VxlanConfigUpdateCheck(oc, nc)
 		if err == nil {
+
+			strattr := make([]string, 0)
+			objTyp := reflect.TypeOf(*origconfig)
+
+			// important to note that the attrset starts at index 0 which is the BaseObj
+			// which is not the first element on the thrift obj, thus we need to skip
+			// this attribute
+			for i := 0; i < objTyp.NumField(); i++ {
+				objName := objTyp.Field(i).Name
+				if attrset[i] {
+					strattr = append(strattr, objName)
+				}
+			}
 			update := vxlan.VxlanUpdate{
 				Oldconfig: *oc,
 				Newconfig: *nc,
-				Attr:      attrset,
+				Attr:      strattr,
 			}
 			v.server.Configchans.Vxlanupdate <- update
 			return true, nil
@@ -186,10 +200,23 @@ func (v *VXLANDServiceHandler) UpdateVxlanVtepInstance(origconfig *vxland.VxlanV
 	if err == nil {
 		err = vxlan.VtepConfigCheck(nc)
 		if err == nil {
+			strattr := make([]string, 0)
+			objTyp := reflect.TypeOf(*origconfig)
+
+			// important to note that the attrset starts at index 0 which is the BaseObj
+			// which is not the first element on the thrift obj, thus we need to skip
+			// this attribute
+			for i := 0; i < objTyp.NumField(); i++ {
+				objName := objTyp.Field(i).Name
+				if attrset[i] {
+					strattr = append(strattr, objName)
+				}
+			}
+
 			update := vxlan.VtepUpdate{
 				Oldconfig: *oc,
 				Newconfig: *nc,
-				Attr:      attrset,
+				Attr:      strattr,
 			}
 			v.server.Configchans.Vtepupdate <- update
 			return true, nil

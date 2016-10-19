@@ -28,7 +28,6 @@ package vxlan
 import (
 	"fmt"
 	"net"
-	"reflect"
 	//"strings"
 	"errors"
 	"vxland"
@@ -78,21 +77,23 @@ type VxlanAccessPortVlan struct {
 type VxlanUpdate struct {
 	Oldconfig VxlanConfig
 	Newconfig VxlanConfig
-	Attr      []bool
+	Attr      []string
 }
 
 type VtepUpdate struct {
 	Oldconfig VtepConfig
 	Newconfig VtepConfig
-	Attr      []bool
+	Attr      []string
 }
 
 // bridge for the VNI
 type VxlanConfig struct {
-	VNI    uint32
-	VlanId uint16 // used to tag inner ethernet frame when egressing
-	Group  net.IP // multicast group IP
-	MTU    uint32 // MTU size for each VTEP
+	VNI              uint32
+	VlanId           uint16 // used to tag inner ethernet frame when egressing
+	Group            net.IP // multicast group IP
+	MTU              uint32 // MTU size for each VTEP
+	IntfRefList      []string
+	UntagIntfRefList []string
 }
 
 type PortConfig struct {
@@ -140,6 +141,22 @@ func VxlanConfigCheck(c *VxlanConfig) error {
 	return nil
 }
 
+func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
+	if oc.VNI != nc.VNI {
+		return errors.New(fmt.Sprintln("Error Unsupported Attribute VNI Update, must delete then create"))
+	}
+	if oc.VlanId != nc.VlanId {
+		return errors.New(fmt.Sprintln("Error Unsupported Attribute VlanId Update, must delete then create"))
+	}
+	if oc.MTU != nc.MTU {
+		return errors.New(fmt.Sprintln("Error Unsupported Attribute MTU Update, must delete then create"))
+	}
+	if oc.Group.String() != nc.Group.String() {
+		return errors.New(fmt.Sprintln("Error Unsupported Attribute Group Ip Update, must delete then create"))
+	}
+	return nil
+}
+
 // VtepConfigCheck
 // Validate the VTEP provisioning
 func VtepConfigCheck(c *VtepConfig) error {
@@ -154,15 +171,19 @@ func VtepConfigCheck(c *VtepConfig) error {
 
 // ConvertVxlanInstanceToVxlanConfig:
 // Convert thrift struct to vxlan config and check that db entry exists already
-func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance) (*VxlanConfig, error) {
+func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance, create bool) (*VxlanConfig, error) {
 
-	if GetVxlanDBEntry(uint32(c.Vni)) != nil {
-		return nil, errors.New(fmt.Sprintln("Error VxlanInstance Exists", c))
+	if !create &&
+		GetVxlanDBEntry(uint32(c.Vni)) == nil {
+		return nil, errors.New(fmt.Sprintln("Error VxlanInstance does not Exists", c))
+
 	}
 
 	return &VxlanConfig{
-		VNI:    uint32(c.Vni),
-		VlanId: uint16(c.VlanId),
+		VNI:              uint32(c.Vni),
+		VlanId:           uint16(c.VlanId),
+		IntfRefList:      c.IntfRefList,
+		UntagIntfRefList: c.UntagIntfRefList,
 	}, nil
 }
 
@@ -219,89 +240,148 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 }
 
 func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
-	objTyp := reflect.TypeOf(c.Oldconfig)
-
 	// important to note that the attrset starts at index 0 which is the BaseObj
 	// which is not the first element on the thrift obj, thus we need to skip
 	// this attribute
-	for i := 0; i < objTyp.NumField(); i++ {
-		objName := objTyp.Field(i).Name
-		if c.Attr[i] {
+	recreateCfg := false
+	updateCfg := false
+	for _, objName := range c.Attr {
 
-			if objName == "VxlanId" {
-				// TODO
+		if objName == "VlanId" {
+			logger.Info("Service affecting config change, re-creating vxlan")
+			recreateCfg = true
+		}
+		if objName == "UntagIntfRefList" ||
+			objName == "IntfRefList" {
+			logger.Info(fmt.Sprintf("Updating interface list tag: #v, untag: %#v", c.Newconfig.IntfRefList, c.Newconfig.UntagIntfRefList))
+			updateCfg = true
+		}
+	}
+
+	if recreateCfg {
+		DeleteVxLAN(&c.Oldconfig)
+		CreateVxLAN(&c.Newconfig)
+	} else if updateCfg {
+		newintfreflist := make([]string, 0)
+		newuntagintfreflist := make([]string, 0)
+		delintfreflist := make([]string, 0)
+		deluntagintfreflist := make([]string, 0)
+		for idx, nintfref := range c.Newconfig.IntfRefList {
+			foundintf := false
+			for _, ointfref := range c.Oldconfig.IntfRefList {
+				if nintfref == ointfref {
+					foundintf = true
+					break
+				}
 			}
-			if objName == "McDestIp" {
-				// TODO
+			if !foundintf {
+				newintfreflist = append(newintfreflist, c.Newconfig.IntfRefList[idx])
 			}
-			if objName == "VlanId" {
-				// TODO
+		}
+		for idx, nintfref := range c.Oldconfig.IntfRefList {
+			foundintf := false
+			for _, ointfref := range c.Newconfig.IntfRefList {
+				if nintfref == ointfref {
+					foundintf = true
+					break
+				}
 			}
-			if objName == "Mtu" {
-				// TODO
+			if !foundintf {
+				delintfreflist = append(delintfreflist, c.Oldconfig.IntfRefList[idx])
+			}
+		}
+		for idx, nintfref := range c.Newconfig.UntagIntfRefList {
+			foundintf := false
+			for _, ointfref := range c.Oldconfig.UntagIntfRefList {
+				if nintfref == ointfref {
+					foundintf = true
+					break
+				}
+			}
+			if !foundintf {
+				newuntagintfreflist = append(newuntagintfreflist, c.Newconfig.UntagIntfRefList[idx])
+			}
+		}
+		for idx, nintfref := range c.Oldconfig.UntagIntfRefList {
+			foundintf := false
+			for _, ointfref := range c.Newconfig.UntagIntfRefList {
+				if nintfref == ointfref {
+					foundintf = true
+					break
+				}
+			}
+			if !foundintf {
+				deluntagintfreflist = append(deluntagintfreflist, c.Oldconfig.UntagIntfRefList[idx])
+			}
+		}
+		if len(delintfreflist) > 0 || len(deluntagintfreflist) > 0 {
+			for _, client := range ClientIntf {
+				client.DelHostFromVxlan(int32(c.Oldconfig.VNI), delintfreflist, deluntagintfreflist)
+			}
+		}
+
+		if len(newintfreflist) > 0 || len(newuntagintfreflist) > 0 {
+			for _, client := range ClientIntf {
+				client.AddHostToVxlan(int32(c.Oldconfig.VNI), newintfreflist, newuntagintfreflist)
 			}
 		}
 	}
 }
 
 func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
-	objTyp := reflect.TypeOf(c.Oldconfig)
 
 	// important to note that the attrset starts at index 0 which is the BaseObj
 	// which is not the first element on the thrift obj, thus we need to skip
 	// this attribute
-	for i := 0; i < objTyp.NumField(); i++ {
-		objName := objTyp.Field(i).Name
-		if c.Attr[i] {
+	for _, objName := range c.Attr {
 
-			if objName == "InnerVlanHandlingMode" {
-				// TODO
-			}
-			if objName == "UDP" {
-				// TODO
-			}
-			if objName == "TunnelSourceIp" {
-				// TODO
-			}
-			if objName == "SrcMac" {
-				// TODO
-			}
-			if objName == "L2miss" {
-				// TODO
-			}
-			if objName == "TOS" {
-				// TODO
-			}
-			if objName == "VxlanId" {
-				// TODO
-			}
-			if objName == "VtepName" {
-				// TODO
-			}
-			if objName == "VlanId" {
-				// TODO
-			}
-			if objName == "Rsc" {
-				// TODO
-			}
-			if objName == "VtepId" {
-				// TODO
-			}
-			if objName == "SrcIfIndex" {
-				// TODO
-			}
-			if objName == "L3miss" {
-				// TODO
-			}
-			if objName == "Learning" {
-				// TODO
-			}
-			if objName == "TTL" {
-				// TODO
-			}
-			if objName == "TunnelDestinationIp" {
-				// TODO
-			}
+		if objName == "InnerVlanHandlingMode" {
+			// TODO
+		}
+		if objName == "UDP" {
+			// TODO
+		}
+		if objName == "TunnelSourceIp" {
+			// TODO
+		}
+		if objName == "SrcMac" {
+			// TODO
+		}
+		if objName == "L2miss" {
+			// TODO
+		}
+		if objName == "TOS" {
+			// TODO
+		}
+		if objName == "VxlanId" {
+			// TODO
+		}
+		if objName == "VtepName" {
+			// TODO
+		}
+		if objName == "VlanId" {
+			// TODO
+		}
+		if objName == "Rsc" {
+			// TODO
+		}
+		if objName == "VtepId" {
+			// TODO
+		}
+		if objName == "SrcIfIndex" {
+			// TODO
+		}
+		if objName == "L3miss" {
+			// TODO
+		}
+		if objName == "Learning" {
+			// TODO
+		}
+		if objName == "TTL" {
+			// TODO
+		}
+		if objName == "TunnelDestinationIp" {
+			// TODO
 		}
 	}
 }
@@ -326,8 +406,8 @@ func (s *VXLANServer) ConfigListener() {
 			case vxlan := <-cc.Vxlandelete:
 				DeleteVxLAN(&vxlan)
 
-			case <-cc.Vxlanupdate:
-				//s.UpdateThriftVxLAN(&vxlan)
+			case vxlan := <-cc.Vxlanupdate:
+				s.updateThriftVxLAN(&vxlan)
 
 			case vtep := <-cc.Vtepcreate:
 				CreateVtep(&vtep)
