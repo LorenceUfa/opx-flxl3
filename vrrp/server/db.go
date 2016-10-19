@@ -24,6 +24,35 @@
 package server
 
 import (
+	"l3/vrrp/debug"
+	"models/objects"
+	"utils/dbutils"
+)
+
+func (svr *vrrpserver) readVrrpGblCfg(dbhdl *dbutils.dbutil) {
+}
+
+func (svr *vrrpserver) readVrrpIntfCfg(dbhdl *dbutils.dbutil) {
+}
+
+func (svr *VrrpServer) ReadDB() {
+	if svr.dmnBase == nil {
+		return
+	}
+	dbHdl := svr.dmnBase.GetDbHdl()
+	if dbHdl == nil {
+		debug.Logger.Err("DB Handler is nil and hence cannot read anything from DATABASE")
+		return
+	}
+	debug.Logger.Info("Reading Config from DB")
+	svr.readVrrpGblCfg(dbHdl)
+	svr.readVrrpIntfCfg(dbHdl)
+}
+
+/*
+package server
+
+import (
 	"fmt"
 	"models/objects"
 	"utils/dbutils"
@@ -69,3 +98,4 @@ func (svr *VrrpServer) VrrpReadDB() error {
 	svr.logger.Info("Done reading from DB")
 	return err
 }
+*/

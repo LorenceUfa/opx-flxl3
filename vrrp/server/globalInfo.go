@@ -20,7 +20,6 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-
 package server
 
 import (
@@ -29,6 +28,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	nanomsg "github.com/op/go-nanomsg"
+	"l3/vrrp/config"
 	"net"
 	"sync"
 	"time"
@@ -114,37 +114,6 @@ type VrrpGlobalStateInfo struct {
 	ReasonForTransition string // why did we transition to current state?
 }
 
-type VrrpGlobalInfo struct {
-	IntfConfig vrrpd.VrrpIntf
-	// VRRP MAC aka VMAC
-	VirtualRouterMACAddress string
-	// The initial value is the same as Advertisement_Interval.
-	MasterAdverInterval int32
-	// (((256 - priority) * Master_Adver_Interval) / 256)
-	SkewTime int32
-	// (3 * Master_Adver_Interval) + Skew_time
-	MasterDownValue int32
-	MasterDownTimer *time.Timer
-	MasterDownLock  *sync.RWMutex
-	// Advertisement Timer
-	AdverTimer *time.Timer
-	// IfIndex IpAddr which needs to be used if no Virtual Ip is specified
-	IpAddr string
-	// cached info for IfName is required in future
-	IfName string
-	// Pcap Handler for receiving packets
-	pHandle *pcap.Handle
-	// Pcap Handler lock to write data one routine at a time
-	PcapHdlLock *sync.RWMutex
-	// State Name
-	StateName string
-	// Lock to read current state of vrrp object
-	StateNameLock *sync.RWMutex
-	// Vrrp State Lock for each IfIndex + VRID
-	StateInfo     VrrpGlobalStateInfo
-	StateInfoLock *sync.RWMutex
-}
-
 type VrrpPktChannelInfo struct {
 	pkt     gopacket.Packet
 	key     string
@@ -157,11 +126,15 @@ type VrrpTxChannelInfo struct {
 }
 
 type VrrpServer struct {
-	logger                        *logging.Writer
-	vrrpDbHdl                     *dbutils.DBUtil
-	paramsDir                     string
-	asicdClient                   VrrpAsicdClient
-	asicdSubSocket                *nanomsg.SubSocket
+	L2Port   map[int32]config.PhyPort
+	VlanInfo map[int32]config.VlanInfo
+	L3Port   map[int32]IpIntf
+	CfgCh    chan *config.IntfCfg
+	//	logger                        *logging.Writer
+	//	vrrpDbHdl                     *dbutils.DBUtil
+	//paramsDir                     string
+	//asicdClient                   VrrpAsicdClient
+	//asicdSubSocket                *nanomsg.SubSocket
 	vrrpGblInfo                   map[string]VrrpGlobalInfo // IfIndex + VRID
 	vrrpIntfStateSlice            []string
 	vrrpLinuxIfIndex2AsicdIfIndex map[int32]*net.Interface

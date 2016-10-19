@@ -310,6 +310,17 @@ func (svr *VrrpServer) VrrpMapIfIndexToLinuxIfIndex(IfIndex int32) {
 	svr.vrrpLinuxIfIndex2AsicdIfIndex[IfIndex] = linuxInterface
 }
 
+func (svr *VrrpServer) VrrpCloseAllPcapHandlers() {
+	for i := 0; i < len(svr.vrrpIntfStateSlice); i++ {
+		key := svr.vrrpIntfStateSlice[i]
+		gblInfo := svr.vrrpGblInfo[key]
+		if gblInfo.pHandle != nil {
+			gblInfo.pHandle.Close()
+		}
+	}
+}
+
+/*
 func (svr *VrrpServer) VrrpConnectToAsicd(client VrrpClientJson) error {
 	svr.logger.Info(fmt.Sprintln("VRRP: Connecting to asicd at port",
 		client.Port))
@@ -338,38 +349,6 @@ func (svr *VrrpServer) VrrpConnectToUnConnectedClient(client VrrpClientJson) err
 		return errors.New(VRRP_CLIENT_CONNECTION_NOT_REQUIRED)
 	}
 }
-
-func (svr *VrrpServer) VrrpCloseAllPcapHandlers() {
-	for i := 0; i < len(svr.vrrpIntfStateSlice); i++ {
-		key := svr.vrrpIntfStateSlice[i]
-		gblInfo := svr.vrrpGblInfo[key]
-		if gblInfo.pHandle != nil {
-			gblInfo.pHandle.Close()
-		}
-	}
-}
-
-func (svr *VrrpServer) VrrpSignalHandler(sigChannel <-chan os.Signal) {
-	signal := <-sigChannel
-	switch signal {
-	case syscall.SIGHUP:
-		svr.logger.Alert("Received SIGHUP Signal")
-		svr.VrrpCloseAllPcapHandlers()
-		svr.VrrpDeAllocateMemoryToGlobalDS()
-		svr.logger.Alert("Closed all pcap's and freed memory")
-		os.Exit(0)
-	default:
-		svr.logger.Info(fmt.Sprintln("Unhandled Signal:", signal))
-	}
-}
-
-func (svr *VrrpServer) VrrpOSSignalHandle() {
-	sigChannel := make(chan os.Signal, 1)
-	signalList := []os.Signal{syscall.SIGHUP}
-	signal.Notify(sigChannel, signalList...)
-	go svr.VrrpSignalHandler(sigChannel)
-}
-
 func (svr *VrrpServer) VrrpConnectAndInitPortVlan() error {
 	configFile := svr.paramsDir + "/clients.json"
 	bytes, err := ioutil.ReadFile(configFile)
@@ -426,95 +405,9 @@ func (svr *VrrpServer) VrrpConnectAndInitPortVlan() error {
 	svr.VrrpOSSignalHandle()
 	return err
 }
+*/
 
-func (vrrpServer *VrrpServer) VrrpInitGlobalDS() {
-	vrrpServer.vrrpGblInfo = make(map[string]VrrpGlobalInfo,
-		VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	vrrpServer.vrrpIfIndexIpAddr = make(map[int32]string,
-		VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE)
-	vrrpServer.vrrpLinuxIfIndex2AsicdIfIndex = make(map[int32]*net.Interface,
-		VRRP_LINUX_INTF_MAPPING_DEFAULT_SIZE)
-	vrrpServer.vrrpVlanId2Name = make(map[int]string,
-		VRRP_VLAN_MAPPING_DEFAULT_SIZE)
-	vrrpServer.VrrpCreateIntfConfigCh = make(chan vrrpd.VrrpIntf,
-		VRRP_INTF_CONFIG_CH_SIZE)
-	vrrpServer.VrrpDeleteIntfConfigCh = make(chan vrrpd.VrrpIntf,
-		VRRP_INTF_CONFIG_CH_SIZE)
-	vrrpServer.vrrpRxPktCh = make(chan VrrpPktChannelInfo,
-		VRRP_RX_BUF_CHANNEL_SIZE)
-	vrrpServer.vrrpTxPktCh = make(chan VrrpTxChannelInfo,
-		VRRP_TX_BUF_CHANNEL_SIZE)
-	vrrpServer.VrrpUpdateIntfConfigCh = make(chan VrrpUpdateConfig,
-		VRRP_INTF_CONFIG_CH_SIZE)
-	vrrpServer.vrrpFsmCh = make(chan VrrpFsm, VRRP_FSM_CHANNEL_SIZE)
-	vrrpServer.vrrpSnapshotLen = 1024
-	vrrpServer.vrrpPromiscuous = false
-	vrrpServer.vrrpTimeout = 10 * time.Microsecond
-	vrrpServer.vrrpMacConfigAdded = false
-	vrrpServer.vrrpPktSend = make(chan bool)
-}
-
-func (svr *VrrpServer) VrrpDeAllocateMemoryToGlobalDS() {
-	svr.vrrpGblInfo = nil
-	svr.vrrpIfIndexIpAddr = nil
-	svr.vrrpLinuxIfIndex2AsicdIfIndex = nil
-	svr.vrrpVlanId2Name = nil
-	svr.vrrpRxPktCh = nil
-	svr.vrrpTxPktCh = nil
-	svr.VrrpDeleteIntfConfigCh = nil
-	svr.VrrpCreateIntfConfigCh = nil
-	svr.VrrpUpdateIntfConfigCh = nil
-	svr.vrrpFsmCh = nil
-}
-
-func (svr *VrrpServer) VrrpChannelHanlder() {
-	// Start receviing in rpc values in the channell
-	for {
-		select {
-		case intfConf := <-svr.VrrpCreateIntfConfigCh:
-			svr.VrrpCreateGblInfo(intfConf)
-		case delConf := <-svr.VrrpDeleteIntfConfigCh:
-			svr.VrrpDeleteGblInfo(delConf)
-		case fsmInfo := <-svr.vrrpFsmCh:
-			svr.VrrpFsmStart(fsmInfo)
-		case sendInfo := <-svr.vrrpTxPktCh:
-			svr.VrrpSendPkt(sendInfo.key, sendInfo.priority)
-		case rcvdInfo := <-svr.vrrpRxPktCh:
-			svr.VrrpCheckRcvdPkt(rcvdInfo.pkt, rcvdInfo.key,
-				rcvdInfo.IfIndex)
-		case updConfg := <-svr.VrrpUpdateIntfConfigCh:
-			svr.VrrpUpdateIntf(updConfg.OldConfig, updConfg.NewConfig,
-				updConfg.AttrSet)
-		}
-
-	}
-}
-
-func (svr *VrrpServer) VrrpStartServer(paramsDir string) {
-	svr.paramsDir = paramsDir
-	// First connect to client to avoid any issues with start/re-start
-	svr.VrrpConnectAndInitPortVlan()
-
-	// Initialize DB
-	err := svr.VrrpInitDB()
-	if err != nil {
-		svr.logger.Err("VRRP: DB init failed")
-	} else {
-		// Populate Gbl Configs
-		svr.VrrpReadDB()
-		svr.VrrpCloseDB()
-	}
-	go svr.VrrpChannelHanlder()
-}
-
-func VrrpNewServer(log *logging.Writer) *VrrpServer {
-	vrrpServerInfo := &VrrpServer{}
-	vrrpServerInfo.logger = log
-	// Allocate memory to all the Data Structures
-	vrrpServerInfo.VrrpInitGlobalDS()
-	return vrrpServerInfo
-}
-
+/*
 func (svr *VrrpServer) VrrpValidateIntfConfig(IfIndex int32) error {
 	// Check Vlan is created
 	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(IfIndex)
@@ -531,6 +424,7 @@ func (svr *VrrpServer) VrrpValidateIntfConfig(IfIndex int32) error {
 
 	return nil
 }
+*/
 
 func (svr *VrrpServer) VrrpChecknUpdateGblInfo(IfIndex int32, IpAddr string) {
 	for _, key := range svr.vrrpIntfStateSlice {
@@ -579,4 +473,130 @@ func (svr *VrrpServer) VrrpChecknUpdateGblInfo(IfIndex int32, IpAddr string) {
 			}
 		}
 	}
+}
+
+func (svr *VrrpServer) EventListener() {
+	// Start receviing in rpc values in the channell
+	for {
+		select {
+
+		/*
+			case intfConf := <-svr.VrrpCreateIntfConfigCh:
+				svr.VrrpCreateGblInfo(intfConf)
+			case delConf := <-svr.VrrpDeleteIntfConfigCh:
+				svr.VrrpDeleteGblInfo(delConf)
+			case fsmInfo := <-svr.vrrpFsmCh:
+				svr.VrrpFsmStart(fsmInfo)
+			case sendInfo := <-svr.vrrpTxPktCh:
+				svr.VrrpSendPkt(sendInfo.key, sendInfo.priority)
+			case rcvdInfo := <-svr.vrrpRxPktCh:
+				svr.VrrpCheckRcvdPkt(rcvdInfo.pkt, rcvdInfo.key,
+					rcvdInfo.IfIndex)
+			case updConfg := <-svr.VrrpUpdateIntfConfigCh:
+				svr.VrrpUpdateIntf(updConfg.OldConfig, updConfg.NewConfig,
+					updConfg.AttrSet)
+		*/
+		}
+
+	}
+}
+
+func (svr *VrrpServer) GetSystemInfo() {
+	// Get ports information
+	svr.GetPorts()
+	// Get vlans information
+	svr.GetVlans()
+	// Get IP Information
+	svr.GetIPIntfs()
+}
+
+func (svr *VrrpServer) InitGlobalDS() {
+	svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.L3Port = make(map[int32]IpIntf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
+	/*
+		svr.vrrpGblInfo = make(map[string]VrrpGlobalInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+		svr.vrrpIfIndexIpAddr = make(map[int32]string, VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE)
+		svr.vrrpLinuxIfIndex2AsicdIfIndex = make(map[int32]*net.Interface, VRRP_LINUX_INTF_MAPPING_DEFAULT_SIZE)
+		svr.vrrpVlanId2Name = make(map[int]string, VRRP_VLAN_MAPPING_DEFAULT_SIZE)
+		svr.VrrpCreateIntfConfigCh = make(chan vrrpd.VrrpIntf, VRRP_INTF_CONFIG_CH_SIZE)
+		svr.VrrpDeleteIntfConfigCh = make(chan vrrpd.VrrpIntf, VRRP_INTF_CONFIG_CH_SIZE)
+		svr.vrrpRxPktCh = make(chan VrrpPktChannelInfo, VRRP_RX_BUF_CHANNEL_SIZE)
+		svr.vrrpTxPktCh = make(chan VrrpTxChannelInfo, VRRP_TX_BUF_CHANNEL_SIZE)
+		svr.VrrpUpdateIntfConfigCh = make(chan VrrpUpdateConfig, VRRP_INTF_CONFIG_CH_SIZE)
+		svr.vrrpFsmCh = make(chan VrrpFsm, VRRP_FSM_CHANNEL_SIZE)
+		svr.vrrpSnapshotLen = 1024
+		svr.vrrpPromiscuous = false
+		svr.vrrpTimeout = 10 * time.Microsecond
+		svr.vrrpMacConfigAdded = false
+		svr.vrrpPktSend = make(chan bool)
+	*/
+}
+
+func (svr *VrrpServer) DeAllocateMemory() {
+	svr.vrrpGblInfo = nil
+	svr.vrrpIfIndexIpAddr = nil
+	svr.vrrpLinuxIfIndex2AsicdIfIndex = nil
+	svr.vrrpVlanId2Name = nil
+	svr.vrrpRxPktCh = nil
+	svr.vrrpTxPktCh = nil
+	svr.VrrpDeleteIntfConfigCh = nil
+	svr.VrrpCreateIntfConfigCh = nil
+	svr.VrrpUpdateIntfConfigCh = nil
+	svr.vrrpFsmCh = nil
+}
+
+func (svr *VrrpServer) signalHandler(sigChannel <-chan os.Signal) {
+	signal := <-sigChannel
+	switch signal {
+	case syscall.SIGHUP:
+		debug.Logger.Alert("Received SIGHUP Signal")
+		//svr.VrrpCloseAllPcapHandlers()
+		svr.DeAllocateMemory()
+		debug.Logger.Alert("Closed all pcap's and freed memory")
+		os.Exit(0)
+	default:
+		debug.Logger.Info("Unhandled Signal:", signal)
+	}
+}
+
+func (svr *VrrpServer) OSSignalHandle() {
+	sigChannel := make(chan os.Signal, 1)
+	signalList := []os.Signal{syscall.SIGHUP}
+	signal.Notify(sigChannel, signalList...)
+	go svr.signalHandler(sigChannel)
+}
+
+func (svr *VrrpServer) VrrpStartServer(paramsDir string) {
+	svr.OSSignalHandle()
+	svr.ReadDB()
+	svr.InitGlobalDS()
+	svr.GetSystemInfo()
+	go svr.EventListener()
+	/*
+		svr.paramsDir = paramsDir
+		// First connect to client to avoid any issues with start/re-start
+		svr.VrrpConnectAndInitPortVlan()
+
+		// Initialize DB
+		err := svr.VrrpInitDB()
+		if err != nil {
+			svr.logger.Err("VRRP: DB init failed")
+		} else {
+			// Populate Gbl Configs
+			svr.VrrpReadDB()
+			svr.VrrpCloseDB()
+		}
+		go svr.VrrpChannelHanlder()
+	*/
+}
+
+func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
+	svr := &VrrpServer{}
+	svr.SwitchPlugin = sPlugin
+	svr.dmnBase = dmnBase
+	// Allocate memory to all the Data Structures
+	//vrrpServerInfo.VrrpInitGlobalDS()
+	return svr
 }

@@ -21,20 +21,72 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package vrrpRpc
+package flexswitch
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"io/ioutil"
-	"l3/vrrp/server"
+	"l3/vrrp/debug"
 	"strconv"
-	"utils/logging"
 	"vrrpd"
 )
 
+func NewConfigHandler() *ConfigHandler {
+	handler := &ConfigHandler{}
+	return handler
+}
+
+func NewConfigPlugin(handler *ConfigHandler, fileName string) *ConfigPlugin {
+	l := &ConfigPlugin{handler, fileName}
+	return l
+}
+
+func (cfg *ConfigPlugin) StartConfigListener() error {
+	fileName := cfg.fileName + "clients.json"
+
+	clientJson, err := getClient(fileName, "vrrpd")
+	if err != nil || clientJson == nil {
+		return err
+	}
+	debug.Logger.Info("Got Client Info for", clientJson.Name, " port", clientJson.Port)
+	// create processor, transport and protocol for server
+	processor := ndpd.NewNDPDServicesProcessor(cfg.handler)
+	transportFactory := thrift.NewTBufferedTransportFactory(8192)
+	protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
+	transport, err := thrift.NewTServerSocket("localhost:" + strconv.Itoa(clientJson.Port))
+	if err != nil {
+		debug.Logger.Info("StartServer: NewTServerSocket failed with error:", err)
+		return err
+	}
+	server := thrift.NewTSimpleServer4(processor, transport, transportFactory, protocolFactory)
+	err = server.Serve()
+	if err != nil {
+		debug.Logger.Err("Failed to start the listener, err:", err)
+		return err
+	}
+	return nil
+
+}
+
+func getClient(fileName string, process string) (*ClientJson, error) {
+	var allClients []ClientJson
+
+	data, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(data, &allClients)
+	for _, client := range allClients {
+		if client.Name == process {
+			return &client, nil
+		}
+	}
+	return nil, errors.New("couldn't find " + process + " port info")
+}
+
+/*
 type VrrpHandler struct {
 	server *vrrpServer.VrrpServer
 	logger *logging.Writer
@@ -260,3 +312,4 @@ func (h *VrrpHandler) GetVrrpVridState(ifIndex int32, vrId int32) (*vrrpd.VrrpVr
 	}
 	return response, nil
 }
+*/

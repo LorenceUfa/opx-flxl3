@@ -24,6 +24,72 @@
 package server
 
 import (
+	"l3/vrrp/config"
+	"l3/vrrp/debug"
+	"utils/commonDefs"
+)
+
+func (svr *VrrpServer) GetPorts() {
+	debug.Logger.Info("Get Port State List")
+	portsInfo, err := svr.SwitchPlugin.GetAllPortState()
+	if err != nil {
+		debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
+		return
+	}
+	for _, obj := range portsInfo {
+		var empty struct{}
+		port := config.PhyPort{
+			IntfRef:   obj.IntfRef,
+			IfIndex:   obj.IfIndex,
+			OperState: obj.OperState,
+		}
+		pObj, err := svr.SwitchPlugin.GetPort(obj.IntfRef)
+		if err != nil {
+			debug.Logger.Err("Getting mac address for", obj.IntfRef, "failed, error:", err)
+		} else {
+			port.MacAddr = pObj.MacAddr
+		}
+		l2Port := svr.L2Port[port.IfIndex]
+		l2Port.Info = port
+		svr.L2Port[port.IfIndex] = l2Port
+		//svr.SwitchMacMapEntries[port.MacAddr] = empty
+		//svr.SwitchMac = port.MacAddr // @HACK.... need better solution
+	}
+
+	debug.Logger.Info("Done with Port State list")
+	return
+}
+
+func (svr *VrrpServer) GetVlans() {
+
+}
+
+func (svr *VrrpServer) getIPv4Intfs() {
+	ipv4Info, err := svr.SwitchPlugin.GetAllIPv4IntfState()
+	if err != nil {
+		debug.Logger.Err("Failed to get all IPv4 interfaces, err:", err)
+		return
+	}
+}
+
+func (svr *VrrpServer) getIPv6Intfs() {
+	ipv6Info, err := svr.SwitchPlugin.GetAllIPv6IntfState()
+	if err != nil {
+		debug.Logger.Err("Failed to get all IPv6 interfaces, err:", err)
+		return
+	}
+}
+
+func (svr *VrrpServer) GetIPIntfs() {
+
+	debug.Logger.Info("Get all ipv4 interfaces from asicd")
+	svr.getIPv4Intfs()
+	debug.Logger.Info("Get all ipv6 interfaces from asicd")
+	svr.getIPv6Intfs()
+}
+
+/*
+import (
 	"asicd/asicdCommonDefs"
 	"asicdServices"
 	"encoding/json"
@@ -235,3 +301,4 @@ func (svr *VrrpServer) VrrpGetInfoFromAsicd() error {
 	svr.VrrpGetIPv4IntfList()
 	return nil
 }
+*/

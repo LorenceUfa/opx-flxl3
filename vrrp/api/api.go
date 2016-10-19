@@ -26,6 +26,7 @@ import (
 	"errors"
 	"l3/vrrp/config"
 	"l3/vrrp/server"
+	"strconv"
 	"sync"
 )
 
@@ -58,4 +59,28 @@ func getApiInstance() *VRRPApiLayer {
 func Init(svr *server.VrrpServer) {
 	vrrpApi = getApiInstance()
 	vrrpApi.server = svr
+}
+
+func cfgValidator(config *config.IntfCfg) (bool, error) {
+	if config.VRID == 0 {
+		return false, errors.New(server.VRRP_INVALID_VRID + strconv.Itoa(int(config.VRID)))
+	}
+	switch config.Operation {
+	// @TODO: jgheewala need to handle verification during the specific operations
+	case config.CREATE:
+
+	case config.UPDATE:
+
+	case config.DELETE:
+	}
+	return true, nil
+
+}
+
+func VrrpIntfConfig(cfg *config.IntfCfg) (bool, error) {
+	rv, err := cfgValidator(cfg)
+	if rv != false {
+		return rv, err
+	}
+	vrrpApi.server <- cfg
 }
