@@ -28,7 +28,6 @@ package vxlan
 import (
 	"fmt"
 	"net"
-	"reflect"
 	//"strings"
 	"errors"
 	"vxland"
@@ -78,13 +77,13 @@ type VxlanAccessPortVlan struct {
 type VxlanUpdate struct {
 	Oldconfig VxlanConfig
 	Newconfig VxlanConfig
-	Attr      []bool
+	Attr      []string
 }
 
 type VtepUpdate struct {
 	Oldconfig VtepConfig
 	Newconfig VtepConfig
-	Attr      []bool
+	Attr      []string
 }
 
 // bridge for the VNI
@@ -241,27 +240,21 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 }
 
 func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
-	objTyp := reflect.TypeOf(c.Oldconfig)
-
 	// important to note that the attrset starts at index 0 which is the BaseObj
 	// which is not the first element on the thrift obj, thus we need to skip
 	// this attribute
 	recreateCfg := false
 	updateCfg := false
-	for i := 0; i < objTyp.NumField(); i++ {
-		objName := objTyp.Field(i).Name
-		if c.Attr[i] {
+	for _, objName := range c.Attr {
 
-			if objName == "VlanId" {
-				logger.Info("Service affecting config change, re-creating vxlan")
-
-				recreateCfg = true
-			}
-			if objName == "UntagIntfRefList" ||
-				objName == "IntfRefList" {
-				logger.Info(fmt.Sprintf("Updating interface list tag: #v, untag: %#v", c.Newconfig.IntfRefList, c.Newconfig.UntagIntfRefList))
-				updateCfg = true
-			}
+		if objName == "VlanId" {
+			logger.Info("Service affecting config change, re-creating vxlan")
+			recreateCfg = true
+		}
+		if objName == "UntagIntfRefList" ||
+			objName == "IntfRefList" {
+			logger.Info(fmt.Sprintf("Updating interface list tag: #v, untag: %#v", c.Newconfig.IntfRefList, c.Newconfig.UntagIntfRefList))
+			updateCfg = true
 		}
 	}
 
@@ -336,63 +329,59 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 }
 
 func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
-	objTyp := reflect.TypeOf(c.Oldconfig)
 
 	// important to note that the attrset starts at index 0 which is the BaseObj
 	// which is not the first element on the thrift obj, thus we need to skip
 	// this attribute
-	for i := 0; i < objTyp.NumField(); i++ {
-		objName := objTyp.Field(i).Name
-		if c.Attr[i] {
+	for _, objName := range c.Attr {
 
-			if objName == "InnerVlanHandlingMode" {
-				// TODO
-			}
-			if objName == "UDP" {
-				// TODO
-			}
-			if objName == "TunnelSourceIp" {
-				// TODO
-			}
-			if objName == "SrcMac" {
-				// TODO
-			}
-			if objName == "L2miss" {
-				// TODO
-			}
-			if objName == "TOS" {
-				// TODO
-			}
-			if objName == "VxlanId" {
-				// TODO
-			}
-			if objName == "VtepName" {
-				// TODO
-			}
-			if objName == "VlanId" {
-				// TODO
-			}
-			if objName == "Rsc" {
-				// TODO
-			}
-			if objName == "VtepId" {
-				// TODO
-			}
-			if objName == "SrcIfIndex" {
-				// TODO
-			}
-			if objName == "L3miss" {
-				// TODO
-			}
-			if objName == "Learning" {
-				// TODO
-			}
-			if objName == "TTL" {
-				// TODO
-			}
-			if objName == "TunnelDestinationIp" {
-				// TODO
-			}
+		if objName == "InnerVlanHandlingMode" {
+			// TODO
+		}
+		if objName == "UDP" {
+			// TODO
+		}
+		if objName == "TunnelSourceIp" {
+			// TODO
+		}
+		if objName == "SrcMac" {
+			// TODO
+		}
+		if objName == "L2miss" {
+			// TODO
+		}
+		if objName == "TOS" {
+			// TODO
+		}
+		if objName == "VxlanId" {
+			// TODO
+		}
+		if objName == "VtepName" {
+			// TODO
+		}
+		if objName == "VlanId" {
+			// TODO
+		}
+		if objName == "Rsc" {
+			// TODO
+		}
+		if objName == "VtepId" {
+			// TODO
+		}
+		if objName == "SrcIfIndex" {
+			// TODO
+		}
+		if objName == "L3miss" {
+			// TODO
+		}
+		if objName == "Learning" {
+			// TODO
+		}
+		if objName == "TTL" {
+			// TODO
+		}
+		if objName == "TunnelDestinationIp" {
+			// TODO
 		}
 	}
 }

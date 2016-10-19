@@ -31,6 +31,7 @@ import (
 	"io/ioutil"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"models/objects"
+	"reflect"
 	"utils/dbutils"
 	"utils/logging"
 	"vxland"
@@ -144,10 +145,23 @@ func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInsta
 	if err == nil {
 		err = vxlan.VxlanConfigUpdateCheck(oc, nc)
 		if err == nil {
+
+			strattr := make([]string, 0)
+			objTyp := reflect.TypeOf(origconfig)
+
+			// important to note that the attrset starts at index 0 which is the BaseObj
+			// which is not the first element on the thrift obj, thus we need to skip
+			// this attribute
+			for i := 0; i < objTyp.NumField(); i++ {
+				objName := objTyp.Field(i).Name
+				if attrset[i] {
+					strattr = append(strattr, objName)
+				}
+			}
 			update := vxlan.VxlanUpdate{
 				Oldconfig: *oc,
 				Newconfig: *nc,
-				Attr:      attrset,
+				Attr:      strattr,
 			}
 			v.server.Configchans.Vxlanupdate <- update
 			return true, nil
@@ -186,10 +200,23 @@ func (v *VXLANDServiceHandler) UpdateVxlanVtepInstance(origconfig *vxland.VxlanV
 	if err == nil {
 		err = vxlan.VtepConfigCheck(nc)
 		if err == nil {
+			strattr := make([]string, 0)
+			objTyp := reflect.TypeOf(origconfig)
+
+			// important to note that the attrset starts at index 0 which is the BaseObj
+			// which is not the first element on the thrift obj, thus we need to skip
+			// this attribute
+			for i := 0; i < objTyp.NumField(); i++ {
+				objName := objTyp.Field(i).Name
+				if attrset[i] {
+					strattr = append(strattr, objName)
+				}
+			}
+
 			update := vxlan.VtepUpdate{
 				Oldconfig: *oc,
 				Newconfig: *nc,
-				Attr:      attrset,
+				Attr:      strattr,
 			}
 			v.server.Configchans.Vtepupdate <- update
 			return true, nil
