@@ -38,18 +38,36 @@ func main() {
 		case "deletev6":
 			fmt.Println("Delete v6 route test")
 			routeThriftTest.Deletev6Routes(ribdClient)
-		case "scale":
+		case "scalev4Add":
 			if (i + 1) == len(route_ops) {
 				fmt.Println("Incorrect usage: should be ./main scale <number>")
 				break
 			}
 			number, _ := strconv.Atoi(route_ops[i+1])
 			i++
-			fmt.Println("Scale test for ", number, " routes")
-			routeThriftTest.Scale(ribdClient, int64(number))
+			fmt.Println("Scale test for ", number, " v4 routes")
+			routeThriftTest.ScaleV4Add(ribdClient, int64(number))
+		case "scalev6Add":
+			if (i + 1) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main scale <number>")
+				break
+			}
+			number, _ := strconv.Atoi(route_ops[i+1])
+			i++
+			fmt.Println("Scale test for ", number, " v6 routes")
+			routeThriftTest.ScaleV6Add(ribdClient, int64(number))
+		case "scalev4Del":
+			fmt.Println("Scale test for deleting v4 routes")
+			routeThriftTest.ScaleV4Del(ribdClient)
+		case "scalev6Del":
+			fmt.Println("Scale test for deleting v6 routes")
+			routeThriftTest.ScaleV6Del(ribdClient)
 		case "RouteCount":
 			fmt.Println("RouteCount")
 			routeThriftTest.GetTotalRouteCount(ribdClient)
+		case "LoopTest":
+			fmt.Println("LoopTest")
+			routeThriftTest.LoopTest(ribdClient)
 		case "Time":
 			if (i + 1) == len(route_ops) {
 				fmt.Println("Incorrect usage: should be ./main Time <number>")

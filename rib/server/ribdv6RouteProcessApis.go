@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"l3/rib/ribdCommonDefs"
-	"models/objects"
+	// "models/objects"
 	"net"
 	"reflect"
 	"ribd"
@@ -432,17 +432,17 @@ func (m RIBDServer) IPv6RouteConfigValidationCheck(cfg *ribd.IPv6Route, op strin
 		/*
 			In case where user provides CIDR address, the DB cannot verify if the route is present, so check here
 		*/
-		if m.DbHdl != nil {
-			var dbObjCfg objects.IPv6Route
-			dbObjCfg.DestinationNw = cfg.DestinationNw
-			dbObjCfg.NetworkMask = cfg.NetworkMask
-			key := "IPv4Route#" + cfg.DestinationNw + "#" + cfg.NetworkMask
-			_, err := m.DbHdl.GetObjectFromDb(dbObjCfg, key)
-			if err == nil {
-				logger.Err("Duplicate entry")
-				return errors.New("Duplicate entry")
-			}
-		}
+		/*		if m.DbHdl != nil {
+				var dbObjCfg objects.IPv6Route
+				dbObjCfg.DestinationNw = cfg.DestinationNw
+				dbObjCfg.NetworkMask = cfg.NetworkMask
+				key := "IPv4Route#" + cfg.DestinationNw + "#" + cfg.NetworkMask
+				_, err := m.DbHdl.GetObjectFromDb(dbObjCfg, key)
+				if err == nil {
+					logger.Err("Duplicate entry")
+					return errors.New("Duplicate entry")
+				}
+			}*/
 	}
 	_, err = validateNetworkPrefix(cfg.DestinationNw, cfg.NetworkMask)
 	if err != nil {
@@ -533,6 +533,14 @@ func (m RIBDServer) IPv6RouteConfigValidationCheck(cfg *ribd.IPv6Route, op strin
 }
 func (m RIBDServer) GetTotalv6RouteCount() (number int, err error) {
 	return v6rtCount, err
+}
+func (m RIBDServer) Getv6RouteCreatedTime(number int) (time string, err error) {
+	_, ok := v6routeCreatedTimeMap[number]
+	if !ok {
+		logger.Info(number, " number of  v6 routes not created yet")
+		return "", errors.New("Not enough v6 routes")
+	}
+	return v6routeCreatedTimeMap[number], err
 }
 func Getv6RoutesPerProtocol(protocol string) []*ribd.RouteInfoSummary {
 	v6routes := make([]*ribd.RouteInfoSummary, 0)
@@ -741,15 +749,16 @@ func (m RIBDServer) ProcessV6RouteDeleteConfig(cfg *ribd.IPv6Route, delType int)
 			cfg.NextHop[i].NextHopIp = "255.255.255.255"
 		}
 		logger.Debug("nexthop info: ip: ", cfg.NextHop[i].NextHopIp, " intref: ", cfg.NextHop[i].NextHopIntRef)
+		nextHopIfIndex = -1
 		if cfg.NextHop[i].NextHopIntRef != "" {
 			cfg.NextHop[i].NextHopIntRef, err = m.ConvertIntfStrToIfIndexStr(cfg.NextHop[i].NextHopIntRef)
 			if err != nil {
 				logger.Err(fmt.Sprintln("Invalid NextHop IntRef ", cfg.NextHop[i].NextHopIntRef))
 				return false, err
 			}
+			nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[i].NextHopIntRef)
+			nextHopIfIndex = ribd.Int(nextHopIntRef)
 		}
-		nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[i].NextHopIntRef)
-		nextHopIfIndex = ribd.Int(nextHopIntRef)
 		_, err = deleteIPRoute(cfg.DestinationNw, ribdCommonDefs.IPv6, cfg.NetworkMask, cfg.Protocol, cfg.NextHop[i].NextHopIp, nextHopIfIndex, ribd.Int(delType), ribdCommonDefs.RoutePolicyStateChangetoInValid)
 	}
 	return true, err
