@@ -147,7 +147,7 @@ func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInsta
 		if err == nil {
 
 			strattr := make([]string, 0)
-			objTyp := reflect.TypeOf(origconfig)
+			objTyp := reflect.TypeOf(*origconfig)
 
 			// important to note that the attrset starts at index 0 which is the BaseObj
 			// which is not the first element on the thrift obj, thus we need to skip
@@ -201,7 +201,7 @@ func (v *VXLANDServiceHandler) UpdateVxlanVtepInstance(origconfig *vxland.VxlanV
 		err = vxlan.VtepConfigCheck(nc)
 		if err == nil {
 			strattr := make([]string, 0)
-			objTyp := reflect.TypeOf(origconfig)
+			objTyp := reflect.TypeOf(*origconfig)
 
 			// important to note that the attrset starts at index 0 which is the BaseObj
 			// which is not the first element on the thrift obj, thus we need to skip
