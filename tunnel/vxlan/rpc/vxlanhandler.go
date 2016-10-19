@@ -138,7 +138,7 @@ func (v *VXLANDServiceHandler) DeleteVxlanInstance(config *vxland.VxlanInstance)
 }
 
 func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInstance, newconfig *vxland.VxlanInstance, attrset []bool, op []*vxland.PatchOpInfo) (bool, error) {
-	v.logger.Info(fmt.Sprintf("UpdateVxlanConfigInstance orig[%#v] new[%#v]", origconfig, newconfig))
+	v.logger.Info(fmt.Sprintf("UpdateVxlanConfigInstance orig[%#v] new[%#v] attrset[%#v]", origconfig, newconfig, attrset))
 	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig, false)
 	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig, false)
 	if err == nil {
