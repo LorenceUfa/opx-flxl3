@@ -104,7 +104,7 @@ func computeChecksum(version uint8, content []byte) uint16 {
 }
 
 func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error { //, key string) error {
-	// @TODO: need to check for version 2 type...RFC requests to drop the packet
+	// @TODO: need to check for version 2 type...RFC requests to drop the pkt
 	// but cisco uses version 2...
 	if hdr.Version != VRRP_VERSION2 && hdr.Version != VRRP_VERSION3 {
 		return errors.New(VRRP_INCORRECT_VERSION)
@@ -146,7 +146,7 @@ func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error { //
 	return nil
 }
 
-func (p *PacketInfo) Decode(packet gopacket.Packet) *Header { //, key string, IfIndex int32) {
+func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *Header { //, key string, IfIndex int32) {
 	/*
 		gblInfo := p.vrrpGblInfo[key]
 		gblInfo.StateNameLock.Lock()
@@ -156,8 +156,15 @@ func (p *PacketInfo) Decode(packet gopacket.Packet) *Header { //, key string, If
 		}
 		gblInfo.StateNameLock.Unlock()
 	*/
+	// Check dmac address from the inPacket and if it is same discard the pkt
+	ethLayer := pkt.Layer(layers.LayerTypeEthernet)
+	if ethLayer == nil {
+		svr.logger.Err("Not an eth packet?")
+		return
+	}
+	eth := ethLayer.(*layers.Ethernet)
 	// Get Entire IP layer Info
-	ipLayer := packet.Layer(layers.LayerTypeIPv4)
+	ipLayer := pkt.Layer(layers.LayerTypeIPv4)
 	if ipLayer == nil {
 		debug.Logger.Err("Not an ip packet?")
 		return

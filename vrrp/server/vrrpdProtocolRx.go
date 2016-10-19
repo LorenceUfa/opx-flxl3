@@ -133,6 +133,7 @@ func (svr *VrrpServer) VrrpCheckHeader(hdr *VrrpPktHeader, layerContent []byte, 
 	return nil
 }
 
+/*
 func (svr *VrrpServer) VrrpCheckRcvdPkt(packet gopacket.Packet, key string,
 	IfIndex int32) {
 	gblInfo := svr.vrrpGblInfo[key]
@@ -177,7 +178,6 @@ func (svr *VrrpServer) VrrpCheckRcvdPkt(packet gopacket.Packet, key string,
 	}
 }
 
-/*
 func (svr *VrrpServer) VrrpReceivePackets(pHandle *pcap.Handle, key string, IfIndex int32) {
 	svr.logger.Info("Listen Vrrp packet for " + key)
 	packetSource := gopacket.NewPacketSource(pHandle, pHandle.LinkType())
