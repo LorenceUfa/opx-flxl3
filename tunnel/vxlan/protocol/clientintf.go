@@ -24,10 +24,8 @@ type VXLANClientIntf interface {
 	CreateVxlan(vxlan *VxlanConfig)
 	DeleteVxlan(vxlan *VxlanConfig)
 	// access ports
-	GetAccessPorts(vlan uint16)
-	UpdateAccessPorts()
-	CreateAccessPortVlan(vlan uint16, intfList []int)
-	DeleteAccessPortVlan(vlan uint16, intfList []int)
+	AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
+	DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
 	// vtep fsm
 	GetIntfInfo(name string, intfchan chan<- MachineEvent)
 	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent)
@@ -77,21 +75,15 @@ func (b BaseClientIntf) CreateVxlanAccess() {
 func (b BaseClientIntf) DeleteVxlanAccess() {
 
 }
-func (b BaseClientIntf) GetAccessPorts(vlan uint16) {
-
-}
-func (b BaseClientIntf) UpdateAccessPorts() {
-
-}
-func (b BaseClientIntf) CreateAccessPortVlan(vlan uint16, intfList []int) {
-
-}
-func (b BaseClientIntf) DeleteAccessPortVlan(vlan uint16, intfList []int) {
-
-}
 func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
 
 }
 func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent) {
+
+}
+func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
+
+}
+func (b BaseClientIntf) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
 
 }

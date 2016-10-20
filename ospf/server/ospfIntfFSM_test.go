@@ -108,7 +108,8 @@ func intfFSMTestLogic() int {
 func checkInfraAPIs() {
 	ospf.processIfMetricConfig(conf)
 	ospf.BuildOspfInfra()
-	mtu := ospf.computeMinMTU(ipv4Msg)
+	//mtu := ospf.computeMinMTU(ipv4Msg)
+	mtu := ospf.computeMinMTU(ipProperty.IfType, ipProperty.IfId)
 	fmt.Println("Mtu size calculated as ", mtu)
 	ospf.updateIpPropertyMap(ipv4Msg, asicdCommonDefs.NOTIFY_IPV4INTF_CREATE)
 

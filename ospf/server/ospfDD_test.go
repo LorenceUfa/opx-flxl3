@@ -68,7 +68,7 @@ func TestOSPFDBDecode(t *testing.T) {
 
 	/* DB summary list */
 	ospfNeighborDBSummary_list[nbrKey] = db_list
-	ospf.ConstructAndSendDbdPacket(nbrKey, true, false, true, uint8(2), uint32(1233), true, false)
+	ospf.ConstructAndSendDbdPacket(nbrKey, true, false, true, uint8(2), uint32(1233), true, false, 1500)
 	last, lsaat := ospf.calculateDBLsaAttach(nbrKey, nbrConf)
 	fmt.Println("Db lsa attach yes/no, lsattach index ", last, lsaat)
 	ospf.generateRequestList(nbrKey, nbrConf, *ospfdbd_data)

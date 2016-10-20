@@ -118,6 +118,7 @@ func (se *VxlanVtepStateEvent) SetState(s fsm.State) {
 	se.ps = se.s
 	se.s = s
 	if se.IsLoggerEna() && se.ps != se.s {
+		//if se.IsLoggerEna() {
 		se.logger((strings.Join([]string{"Src", se.esrc, "OldState", se.strStateMap[se.ps], "Evt", strconv.Itoa(int(se.e)), "NewState", se.strStateMap[s]}, ":")))
 	}
 }
@@ -297,13 +298,11 @@ func (vm *VxlanVtepMachine) VxlanVtepNextHopInfo(m fsm.Machine, data interface{}
 
 	logger.Info(fmt.Sprintln("VxlanVtepNextHopInfo", data))
 	switch data.(type) {
-	case VxlanNextHopIp:
-		info := data.(VxlanNextHopIp)
-
-		// save the next hop info
+	case VtepNextHopInfo:
+		info := data.(VtepNextHopInfo)
 		vtep.NextHop.Ip = info.Ip
-		vtep.NextHop.IfIndex = info.Intf
-		vtep.NextHop.IfName = info.IntfName
+		vtep.NextHop.IfIndex = info.IfIndex
+		vtep.NextHop.IfName = info.IfName
 
 		// TODO need create a port listener per next hop interface
 		// lets start listening on this port for VXLAN frames
@@ -361,7 +360,7 @@ func (vm *VxlanVtepMachine) VxlanVtepStartListener(m fsm.Machine, data interface
 
 	vtep := vm.vtep
 
-	logger.Info(fmt.Sprintln("%s: Starting listening for packets on vtep intf %s and intf %s ", strings.TrimRight(vtep.VtepName, "Int"), vtep.VtepHandleName, vtep.NextHop.IfName))
+	logger.Info(fmt.Sprintf("%s: Starting listening for packets on vtep intf %s and intf %s ", vtep.VtepName, vtep.VtepHandleName, vtep.NextHop.IfName))
 	VxlanVtepRxTx(vtep)
 	VxlanCreatePortRxTx(vtep.NextHop.IfName, vtep.UDP)
 	return VxlanVtepStateStart
@@ -434,12 +433,13 @@ func VxlanVtepMachineFSMBuild(vtep *VtepDbEntry) *VxlanVtepMachine {
 
 	// Certain clients will need to have information polled if an event is not generated
 	for _, client := range ClientIntf {
+		//logger.Info("Adding State to", client, client.IsClientIntfType(client, VXLANSnapClientStr))
 		if client.IsClientIntfType(client, VXLANSnapClientStr) {
 			// user has not configured src interface
 			rules.AddRule(VxlanVtepStateInit, VxlanVtepEventRetryTimerExpired, vm.VxlanVtepInit)
 			// arpd is not sending an event for the resolved mac thus must poll till it is resolved
 			rules.AddRule(VxlanVtepStateNextHopInfo, VxlanVtepEventRetryTimerExpired, vm.VxlanVtepNextHopInfo)
-		} else if client.IsClientIntfType(client, VXLANSnapClientStr) {
+		} else if !client.IsClientIntfType(client, VXLANSnapClientStr) {
 			// in mock environmnet no asicd
 			rules.AddRule(VxlanVtepStateInit, VxlanVtepEventRetryTimerExpired, vm.VxlanVtepInit)
 			// in mock environment no arp
@@ -480,6 +480,7 @@ func (vtep *VtepDbEntry) VxlanVtepMachineMain() {
 
 				logger.Info("Timer Expired")
 				if ok {
+
 					// in the case that the interface call needs to be polled then add state
 					vm.Machine.ProcessEvent(VxlanVtepMachineModuleStr, VxlanVtepEventRetryTimerExpired, nil)
 					vtep.ticksTillConfig++
@@ -487,7 +488,7 @@ func (vtep *VtepDbEntry) VxlanVtepMachineMain() {
 				}
 
 			case event, ok := <-vm.VxlanVtepEvents:
-
+				//fmt.Println("VXLAN event", event)
 				if ok {
 					rv := vm.Machine.ProcessEvent(event.Src, event.E, event.Data)
 					if rv != nil {

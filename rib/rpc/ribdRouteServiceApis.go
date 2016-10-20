@@ -486,3 +486,7 @@ func (m RIBDServicesHandler) Getv4RouteCreatedTime(number ribdInt.Int) (time str
 	time, err = m.server.Getv4RouteCreatedTime(int(number))
 	return time, err
 }
+func (m RIBDServicesHandler) Getv6RouteCreatedTime(number ribdInt.Int) (time string, err error) {
+	time, err = m.server.Getv6RouteCreatedTime(int(number))
+	return time, err
+}
