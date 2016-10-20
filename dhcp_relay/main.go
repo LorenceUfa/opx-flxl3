@@ -1,4 +1,3 @@
-//
 //Copyright [2016] [SnapRoute Inc]
 //
 //Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,55 +6,81 @@
 //
 //    http://www.apache.org/licenses/LICENSE-2.0
 //
-//	 Unless required by applicable law or agreed to in writing, software
-//	 distributed under the License is distributed on an "AS IS" BASIS,
-//	 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//	 See the License for the specific language governing permissions and
-//	 limitations under the License.
+//       Unless required by applicable law or agreed to in writing, software
+//       distributed under the License is distributed on an "AS IS" BASIS,
+//       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//       See the License for the specific language governing permissions and
+//       limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+//   This is a auto-generated file, please do not edit!
+// _______   __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
 // |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----  \   \/    \/   /  |  |  ---|  |----    ,---- |  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |        |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |        `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-// Main entry point for DHCP_RELAY
 package main
 
 import (
-	"flag"
-	"fmt"
+	"l3/dhcp_relay/rpc"
 	"l3/dhcp_relay/server"
-	"utils/keepalive"
-	"utils/logging"
+	"strconv"
+	"strings"
+	"utils/dmnBase"
 )
 
+const (
+	DMN_NAME = "dhcprelayd"
+)
+
+type Daemon struct {
+	*dmnBase.FSBaseDmn
+	daemonServer *server.DmnServer
+	rpcServer    *rpc.RPCServer
+}
+
+var dmn Daemon
+
 func main() {
-	fmt.Println("Starting dhcprelay daemon")
-	paramsDir := flag.String("params", "./params", "Params directory")
-	flag.Parse()
-	fileName := *paramsDir
-	if fileName[len(fileName)-1] != '/' {
-		fileName = fileName + "/"
-	}
-	fmt.Println("Start logger")
-	logger, err := logging.NewLogger("dhcprelayd", "DRA", true)
-	if err != nil {
-		fmt.Println("Failed to start the logger. Nothing will be logged...")
-	}
-	logger.Info("Started the logger successfully.")
+	//	dmn.FSBaseDmn = dmnBase.NewBaseDmn(DMN_NAME, DMN_NAME)
+	dmnB := dmnBase.NewBaseDmn(DMN_NAME, DMN_NAME)
+	dmn.FSBaseDmn = dmnB
 
-	// Start keepalive routine
-	go keepalive.InitKeepAlive("dhcprelayd", fileName)
-
-	logger.Info("Starting DHCP RELAY....")
-	// Create a handler
-	handler := relayServer.NewDhcpRelayServer()
-	err = relayServer.StartServer(logger, handler, *paramsDir)
-	if err != nil {
-		logger.Err("DRA: Cannot start dhcp server", err)
-		return
+	ok := dmnB.Init()
+	if !ok {
+		panic("Daemon Base initialization failed for dhcprelayd")
 	}
+
+	serverInitParams := &server.ServerInitParams{
+		DmnName:     DMN_NAME,
+		CfgFileName: dmn.ParamsDir + "clients.json",
+		DbHdl:       dmn.DbHdl,
+		Logger:      dmn.FSBaseDmn.Logger,
+	}
+	dmn.daemonServer = server.NewDHCPRELAYDServer(serverInitParams)
+	go dmn.daemonServer.Serve()
+
+	var rpcServerAddr string
+	for _, value := range dmn.FSBaseDmn.ClientsList {
+		if value.Name == strings.ToLower(DMN_NAME) {
+			rpcServerAddr = "localhost:" + strconv.Itoa(value.Port)
+			break
+		}
+	}
+	if rpcServerAddr == "" {
+		panic("Daemon dhcprelayd is not part of the system profile")
+	}
+	dmn.rpcServer = rpc.NewRPCServer(rpcServerAddr, dmn.FSBaseDmn.Logger, dmn.daemonServer)
+
+	dmn.StartKeepAlive()
+
+	// Wait for server started msg before opening up RPC port to accept calls
+	_ = <-dmn.daemonServer.InitCompleteCh
+
+	//Start RPC server
+	dmn.FSBaseDmn.Logger.Info("Daemon Server started for dhcprelayd")
+	dmn.rpcServer.Serve()
+	panic("Daemon RPC Server terminated dhcprelayd")
 }

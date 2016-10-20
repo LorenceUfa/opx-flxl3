@@ -31,8 +31,8 @@ import (
 	"time"
 )
 
-func handleClient(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
-	fmt.Println("handleClient")
+func v4Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
+	fmt.Println("v4Add")
 	var count int64 = 0
 	//var maxCount int = 30000
 	intByt2 := 1
@@ -88,6 +88,67 @@ func handleClient(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
 			return nil
 		}
 		if maxCount == count {
+			fmt.Println("Done. Total calls executed", count)
+			break
+		}
+
+	}
+	//elapsed := time.Since(start)
+	//	fmt.Println(" ## Elapsed time is ", elapsed)
+	return nil
+}
+func v4Del(client *ribd.RIBDServicesClient) (err error) {
+	fmt.Println("v4Del")
+	count, _ := client.GetTotalv4RouteCount()
+	fmt.Println("Deleting ", count, " number of routes")
+	intByt2 := 1
+	intByt3 := 1
+	intByt1 := 22
+	byte4 := "0"
+	start := time.Now()
+	var route ribd.IPv4Route
+	for {
+		if intByt2 > 253 && intByt3 > 254 {
+			intByt1++
+			intByt2 = 1
+			intByt3 = 1
+		}
+		if intByt3 > 254 {
+			intByt3 = 1
+			intByt2++
+		} else {
+			intByt3++
+		}
+		if intByt2 > 254 {
+			intByt2 = 1
+		} //else {
+		//intByt2++
+		//}
+
+		route = ribd.IPv4Route{}
+		byte1 := strconv.Itoa(intByt1)
+		byte2 := strconv.Itoa(intByt2)
+		byte3 := strconv.Itoa(intByt3)
+		rtNet := byte1 + "." + byte2 + "." + byte3 + "." + byte4
+		//nhintf, _ := client.GetRouteReachabilityInfo("11.1.10.2")
+		route.DestinationNw = rtNet
+		route.NetworkMask = "255.255.255.0"
+		route.NextHop = make([]*ribd.NextHopInfo, 0)
+		nh := ribd.NextHopInfo{
+			NextHopIp: "11.1.10.2",
+		}
+		route.NextHop = append(route.NextHop, &nh)
+		route.Protocol = "STATIC"
+		rv := client.OnewayDeleteIPv4Route(&route)
+		if rv == nil {
+			count--
+		} else {
+			fmt.Println("Call failed", rv, "count: ", count)
+			elapsed := time.Since(start)
+			fmt.Println(" ## Elapsed time is ", elapsed)
+			return nil
+		}
+		if count == 0 {
 			fmt.Println("Done. Total calls executed", count)
 			break
 		}
@@ -182,12 +243,16 @@ func handleBulkClient(client *ribd.RIBDServicesClient, maxCount int64) (err erro
 }
 
 //func main() {
-func Scale(ribdClient *ribd.RIBDServicesClient, number int64) {
+func ScaleV4Add(ribdClient *ribd.RIBDServicesClient, number int64) {
 	/*ribdClient := testutils.GetRIBdClient()
 	if ribdClient == nil {
 		fmt.Println("RIBd client nil")
 		return
 	}*/
-	handleClient(ribdClient, number) //ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
+	v4Add(ribdClient, number) //ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
 	//handleBulkClient(ribdClient, number) //(ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
+}
+
+func ScaleV4Del(ribdClient *ribd.RIBDServicesClient) {
+	v4Del(ribdClient)
 }
