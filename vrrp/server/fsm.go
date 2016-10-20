@@ -39,11 +39,57 @@ import (
 
 // vrrp states
 const (
-	VRRP_UNINTIALIZE_STATE = iota
+	VRRP_UNINITIALIZE_STATE = iota
 	VRRP_INITIALIZE_STATE
 	VRRP_BACKUP_STATE
 	VRRP_MASTER_STATE
 )
+
+const (
+	VRRP_MASTER_PRIORITY      = 255
+	VRRP_IGNORE_PRIORITY      = 65535
+	VRRP_MASTER_DOWN_PRIORITY = 0
+
+	FSM_PREFIX = "FSM ------> "
+)
+
+/*
+	0                   1                   2                   3
+	0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	|                    IPv4 Fields or IPv6 Fields                 |
+	...                                                             ...
+	|                                                               |
+	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	|Version| Type  | Virtual Rtr ID|   Priority    |Count IPvX Addr|
+	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	|(rsvd) |     Max Adver Int     |          Checksum             |
+	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	|                                                               |
+	+                                                               +
+	|                       IPvX Address(es)                        |
+	+                                                               +
+	+                                                               +
+	+                                                               +
+	+                                                               +
+	|                                                               |
+	+                                                               +
+	|                                                               |
+	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+			   +---------------+
+		+--------->|               |<-------------+
+		|          |  Initialize   |              |
+		|   +------|               |----------+   |
+		|   |      +---------------+          |   |
+		|   |                                 |   |
+		|   V                                 V   |
+	+---------------+                       +---------------+
+	|               |---------------------->|               |
+	|    Master     |                       |    Backup     |
+	|               |<----------------------|               |
+	+---------------+                       +---------------+
+
+*/
 
 type PktChannelInfo struct {
 	pkt gopacket.Packet
@@ -53,8 +99,18 @@ type PktChannelInfo struct {
 			IfIndex int32
 	*/
 }
+
+type FsmStateInfo struct {
+	Hdr *packet.Header
+}
+
 type FSM struct {
+	// config attributes like virtual rtr ip, vrid, intfRef, etc...
 	Config *config.IntfCfg
+	// My own ip address
+	IpAddr string
+	// My own ifIndex
+	IfIndex int32
 	// Pcap Handler for receiving packets
 	pHandle *pcap.Handle
 	// VRRP MAC aka VMAC
@@ -67,6 +123,13 @@ type FSM struct {
 	pktCh *PktChannelInfo
 
 	PktInfo *PacketInfo
+
+	fsmStCh *FsmStateInfo
+
+	txPktCh *packet.PacketInfo
+
+	// Advertisement Timer
+	AdverTimer *time.Timer
 	/*
 		// The initial value is the same as Advertisement_Interval.
 		MasterAdverInterval int32
@@ -76,8 +139,6 @@ type FSM struct {
 		MasterDownValue int32
 		MasterDownTimer *time.Timer
 		MasterDownLock  *sync.RWMutex
-		// Advertisement Timer
-		AdverTimer *time.Timer
 
 		// State Name
 		//StateName string
@@ -89,16 +150,20 @@ type FSM struct {
 	*/
 }
 
-func InitFsm(cfg *config.IntfCfg, stCh *StateInfo) *FSM {
+func InitFsm(cfg *config.IntfCfg, l3Info *L3Intf, stCh *StateInfo) *FSM {
 	f := &FSM{}
 	f.Config = cfg
+	f.IpAddr = l3Info.IpAddr
+	f.IfIndex = l3Info.IfIndex
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
 	f.StateCh = stCh
 	f.pktCh = make(chan *PktChannelInfo)
+	f.fsmStCh = make(chan *FsmStateInfo)
+	f.txPktCh = make(chan *packet.PacketInfo)
 	f.PktInfo = packet.Init()
 	go f.StartFsm()
 	f.InitPacketListener()
-	f.State = VRRP_UNINTIALIZE_STATE
+	f.State = VRRP_INITIALIZE_STATE
 	return f
 }
 
@@ -160,74 +225,113 @@ func (f *FSM) InitPacketListener() error {
 }
 
 func (f *FSM) ProcessRcvdPkt(pktCh *config.PktChannelInfo) {
-	packet := pktCh.pkt
-	// Get Entire IP layer Info
-	ipLayer := packet.Layer(layers.LayerTypeIPv4)
-	if ipLayer == nil {
-		debug.Logger.Err("Not an ip packet?")
+	hdr := f.PktInfo.Decode(pktCh.pkt, f.Config.Version)
+	if hdr == nil {
+		debug.Logger.Err("Decoding Vrrp Header Failed")
 		return
 	}
-	var ipHdr interface{}
-	switch f.Config.Version {
-	case config.VERSION2:
-		// Get Ip Hdr and start doing basic check according to RFC
-		ipHdr = ipLayer.(*layers.IPv4)
-		if ipHdr.TTL != VRRP_TTL {
-			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL,
-				"dropping packet from", ipHdr.SrcIP)
+	for i := 0; i < int(hdr.CountIPAddr); i++ {
+		/* If Virtual Ip is not configured then check whether the ip
+		 * address of router/interface is not same as the received
+		 * Virtual Ip Addr
+		 */
+		if f.IpAddr == hdr.IpAddr[i].String() {
+			debug.Logger.Err("Header payload ip address is same as my own ip address, FSM INFO ----> intf:",
+				f.Config.IntfRef, "ipAddr:", f.IpAddr)
 			return
 		}
-	case config.VERSION3:
-		// @TODO: need to read rfc
-		ipHdr = ipLayer.(*layers.IPv6)
 	}
-	// Get Payload as checks are succesful
-	ipPayload := ipLayer.LayerPayload()
-	if ipPayload == nil {
-		debug.Logger.Err("No payload for ip packet")
-		return
+	f.fsmStCh <- &FsmStateInfo{
+		Hdr: hdr,
 	}
+}
 
+func (f *FSM) SendPkt(pktInfo *packet.PacketInfo) {
+	pkt := f.PktInfo.Encode(pktInfo)
+	if f.pHandle != nil {
+		err := f.pHandle.WritePacketData(pkt)
+		if err != nil {
+			debug.Logger.Err(FSM_PREFIX, "Writing packet failed for interface:", f.Config.IntfRef)
+		}
+	}
+}
+
+func (f *FSM) TransitionToMaster() {
+
+	// (110) + Send an ADVERTISEMENT
+	pktInfo := &packet.PacketInfo{
+		Version:      f.Config.Version,
+		Vrid:         f.Config.VRID,
+		Priority:     VRRP_IGNORE_PRIORITY,
+		AdvertiseInt: f.Config.AdvertisementInterval,
+		VirutalMac:   f.VirtualRouterMACAddress,
+	}
+	if f.Config.VirtualIPAddr == "" {
+		// If no virtual ip then use interface/router ip address as virtual ip
+		pktInfo.IpAddr = f.IpAddr
+	} else {
+		pktInfo.IpAddr = f.Config.VirtualIPAddr
+	}
+	f.SendPkt(pktInfo)
+	f.State = VRRP_MASTER_STATE
+	// (140) + Set the Adver_Timer to Advertisement_Interval
+	// Start Advertisement Timer
+	svr.VrrpHandleMasterAdverTimer(key)
+}
+
+func (f *FSM) Initialize() {
+	debug.Logger.Debug("FSM -----> In Init state deciding next state")
+
+	switch f.Config.Priority {
+	case VRRP_MASTER_PRIORITY:
+		f.TransitionToMaster()
+	default:
+		f.TransitionToBackup()
+	}
 	/*
-		gblInfo := svr.vrrpGblInfo[key]
+		if gblInfo.IntfConfig.Priority == VRRP_MASTER_PRIORITY {
+			svr.logger.Info("Transitioning to Master State")
+			svr.VrrpTransitionToMaster(key, "Priority is 255")
+		} else {
+			svr.logger.Info("Transitioning to Backup State")
+			// Transition to backup state first
+			svr.VrrpTransitionToBackup(key,
+				gblInfo.IntfConfig.AdvertisementInterval,
+				"Priority is not 255")
+		}
+	*/
+
+}
+
+func (f *FSM) ProcessStateInfo(fsmStInfo *FsmStateInfo) {
+	switch f.State {
+	case VRRP_INITIALIZE_STATE:
+
+	case VRRP_BACKUP_STATE:
+
+	case VRRP_MASTER_STATE:
+	}
+	/*
+		key := fsmObj.key
+		pktInfo := fsmObj.inPkt
+		pktHdr := fsmObj.vrrpHdr
+		gblInfo, exists := svr.vrrpGblInfo[key]
+		if !exists {
+			svr.logger.Err("No entry found ending fsm")
+			return
+		}
 		gblInfo.StateNameLock.Lock()
-		if gblInfo.StateName == VRRP_INITIALIZE_STATE {
-			gblInfo.StateNameLock.Unlock()
-			return
-		}
+		currentState := gblInfo.StateName
 		gblInfo.StateNameLock.Unlock()
-		// Get Entire IP layer Info
-		ipLayer := packet.Layer(layers.LayerTypeIPv4)
-		if ipLayer == nil {
-			svr.logger.Err("Not an ip packet?")
-			return
-		}
-		// Get Ip Hdr and start doing basic check according to RFC
-		ipHdr := ipLayer.(*layers.IPv4)
-		if ipHdr.TTL != VRRP_TTL {
-			svr.logger.Err(fmt.Sprintln("ttl should be 255 instead of", ipHdr.TTL,
-				"dropping packet from", ipHdr.SrcIP))
-			return
-		}
-		// Get Payload as checks are succesful
-		ipPayload := ipLayer.LayerPayload()
-		if ipPayload == nil {
-			svr.logger.Err("No payload for ip packet")
-			return
-		}
-		// Get VRRP header from IP Payload
-		vrrpHeader := svr.VrrpDecodeHeader(ipPayload)
-		// Do Basic Vrrp Header Check
-		if err := svr.VrrpCheckHeader(vrrpHeader, ipPayload, key); err != nil {
-			svr.logger.Err(fmt.Sprintln(err.Error(),
-				". Dropping received packet from", ipHdr.SrcIP))
-			return
-		}
-		// Start FSM for VRRP after all the checks are successful
-		svr.vrrpFsmCh <- VrrpFsm{
-			vrrpHdr: vrrpHeader,
-			inPkt:   packet,
-			key:     key,
+		switch currentState {
+		case VRRP_INITIALIZE_STATE:
+			svr.VrrpInitState(key)
+		case VRRP_BACKUP_STATE:
+			svr.VrrpBackupState(pktInfo, pktHdr, key)
+		case VRRP_MASTER_STATE:
+			svr.VrrpMasterState(pktInfo, pktHdr, key)
+		default: // VRRP_UNINTIALIZE_STATE
+			svr.logger.Info("No Ip address and hence no need for fsm")
 		}
 	*/
 }
@@ -239,6 +343,10 @@ func (f *FSM) StartFsm() {
 			if ok {
 				f.ProcessRcvdPkt(pktCh)
 				// handle received packet
+			}
+		case fsmStInfo, ok := <-f.fsmStCh:
+			if ok {
+				f.ProcessStateInfo(fsmStInfo)
 			}
 		}
 	}
@@ -294,6 +402,7 @@ func (svr *VrrpServer) VrrpCreateObject(gblInfo VrrpGlobalInfo) (fsmObj VrrpFsm)
  * This API will create config object with MacAddr and configure....
  * Configure will enable/disable the link...
  */
+/*
 func (svr *VrrpServer) VrrpUpdateSubIntf(gblInfo VrrpGlobalInfo, configure bool) {
 	vip := gblInfo.IntfConfig.VirtualIPv4Addr
 	if !strings.Contains(vip, "/") {
@@ -314,7 +423,8 @@ func (svr *VrrpServer) VrrpUpdateSubIntf(gblInfo VrrpGlobalInfo, configure bool)
 			3 4 : string MacAddr
 			4 5 : bool Enable
 		}
-	*/
+*/
+/*
 	var attrset []bool
 	// The len of attrset is set to 5 for 5 elements in the object...
 	// if no.of elements changes then index for mac address and enable needs
@@ -333,7 +443,9 @@ func (svr *VrrpServer) VrrpUpdateSubIntf(gblInfo VrrpGlobalInfo, configure bool)
 	}
 	return
 }
+*/
 
+/*
 func (svr *VrrpServer) VrrpUpdateStateInfo(key string, reason string,
 	currentSt string) {
 	gblInfo, exists := svr.vrrpGblInfo[key]
@@ -350,6 +462,7 @@ func (svr *VrrpServer) VrrpUpdateStateInfo(key string, reason string,
 	gblInfo.StateInfoLock.Unlock()
 	svr.vrrpGblInfo[key] = gblInfo
 }
+*/
 
 func (svr *VrrpServer) VrrpHandleMasterAdverTimer(key string) {
 	var timerCheck_func func()
@@ -386,6 +499,7 @@ func (svr *VrrpServer) VrrpHandleMasterAdverTimer(key string) {
 	}
 }
 
+/*
 func (svr *VrrpServer) VrrpTransitionToMaster(key string, reason string) {
 	// (110) + Send an ADVERTISEMENT
 	svr.vrrpTxPktCh <- VrrpTxChannelInfo{
@@ -403,11 +517,13 @@ func (svr *VrrpServer) VrrpTransitionToMaster(key string, reason string) {
 		return
 	}
 	// Set Sub-intf state up and send out garp via linux stack
-	svr.VrrpUpdateSubIntf(gblInfo, true /*configure or set*/)
+	svr.VrrpUpdateSubIntf(gblInfo, true /*configure or set*/ //)
+/*
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
 	svr.VrrpHandleMasterAdverTimer(key)
 }
+*/
 
 func (svr *VrrpServer) VrrpHandleMasterDownTimer(key string) {
 	gblInfo, exists := svr.vrrpGblInfo[key]
@@ -478,6 +594,7 @@ func (svr *VrrpServer) VrrpTransitionToBackup(key string, AdvertisementInterval 
 	svr.VrrpHandleMasterDownTimer(key)
 }
 
+/*
 func (svr *VrrpServer) VrrpInitState(key string) {
 	svr.logger.Info("in init state decide next state")
 	gblInfo, found := svr.vrrpGblInfo[key]
@@ -496,6 +613,7 @@ func (svr *VrrpServer) VrrpInitState(key string) {
 			"Priority is not 255")
 	}
 }
+*/
 
 func (svr *VrrpServer) VrrpBackupState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHeader,
 	key string) {

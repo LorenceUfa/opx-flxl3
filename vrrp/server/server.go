@@ -449,9 +449,10 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 		}
 	}
 	intf.Init(cfg, l3Info, svr.StateCh)
+	// @TODO: NEED TO ADD PRE - PROCESSOR SUB INTERFACE OBJECT
 }
 
-func (svr *VrrpServer) HandleVrrpConfig(cfg *config.IntfCfg) {
+func (svr *VrrpServer) HandleIntfConfig(cfg *config.IntfCfg) {
 	switch cfg.Operation {
 	case config.CREATE:
 		svr.HandlerCreateConfig(cfg)
@@ -531,7 +532,7 @@ func (svr *VrrpServer) UpdateProtocolMacEntry(add bool) {
 	}
 }
 
-func (svr *VrrpServer) HandlerGlobalConfig(gCfg *config.GlobalConfig) {
+func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	debug.Logger.Info("Handling Global Config for:", *gCfg)
 	switch gCfg.Operation {
 	case config.CREATE:
@@ -550,11 +551,11 @@ func (svr *VrrpServer) EventListener() {
 
 		case gCfg, ok := <-svr.GblCfgCh:
 			if ok {
-				svr.HandlerGlobalConfig(gCfg)
+				svr.HandleGlobalConfig(gCfg)
 			}
 		case cfg, ok := <-svr.CfgCh:
 			if ok {
-				svr.HandleVrrpConfig(cfg)
+				svr.HandleIntfConfig(cfg)
 			}
 			/*
 				case rxChInfo, ok := <-svr.RxPktCh:

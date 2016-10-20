@@ -39,43 +39,6 @@ import (
 	"utils/logging"
 )
 
-/*
-	0                   1                   2                   3
-	0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|                    IPv4 Fields or IPv6 Fields                 |
-	...                                                             ...
-	|                                                               |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|Version| Type  | Virtual Rtr ID|   Priority    |Count IPvX Addr|
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|(rsvd) |     Max Adver Int     |          Checksum             |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|                                                               |
-	+                                                               +
-	|                       IPvX Address(es)                        |
-	+                                                               +
-	+                                                               +
-	+                                                               +
-	+                                                               +
-	|                                                               |
-	+                                                               +
-	|                                                               |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-type VrrpPktHeader struct {
-	Version       uint8
-	Type          uint8
-	VirtualRtrId  uint8
-	Priority      uint8
-	CountIPv4Addr uint8
-	Rsvd          uint8
-	MaxAdverInt   uint16
-	CheckSum      uint16
-	IPv4Addr      []net.IP
-}
-*/
-
 type VrrpFsm struct {
 	key     string
 	vrrpHdr *VrrpPktHeader
@@ -200,13 +163,7 @@ const (
 	VRRP_INTF_CONFIG_CH_SIZE              = 1
 	VRRP_TOTAL_INTF_CONFIG_ELEMENTS       = 7
 
-	VRRP_MASTER_PRIORITY      = 255
-	VRRP_IGNORE_PRIORITY      = 65535
-	VRRP_MASTER_DOWN_PRIORITY = 0
-
-	// vrrp default configs
-	VRRP_DEFAULT_PRIORITY = 100
-	VRRP_IEEE_MAC_ADDR    = "00-00-5E-00-01-"
+	VRRP_IEEE_MAC_ADDR = "00-00-5E-00-01-"
 
 	/*
 		VRRP_UNINTIALIZE_STATE = "Un-Initialize"

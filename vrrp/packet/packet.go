@@ -30,6 +30,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"l3/vrrp/config"
 	_ "net"
 	_ "time"
 )
@@ -37,8 +38,6 @@ import (
 const (
 	// ip/vrrp header Check Defines
 	VRRP_TTL                        = 255
-	VRRP_VERSION2                   = 2
-	VRRP_VERSION3                   = 3
 	VRRP_PKT_TYPE_ADVERTISEMENT     = 1 // Only one type is supported which is advertisement
 	VRRP_RSVD                       = 0
 	VRRP_HDR_CREATE_CHECKSUM        = 0
@@ -85,10 +84,23 @@ Octet Offset--> 0                   1                   2                   3
 type Packet interface {
 	Decode(gopacket.Packet) *Header
 	ValidateHeader(*Header, []byte) error
-	Encode(PacketInfo) []byte
+	Encode(*PacketInfo) []byte
+}
+
+type Header struct {
+	Version      uint8
+	Type         uint8
+	VirtualRtrId uint8
+	Priority     uint8
+	CountIPAddr  uint8
+	Rsvd         uint8
+	MaxAdverInt  uint16
+	CheckSum     uint16
+	IpAddr       []net.IP
 }
 
 type PacketInfo struct {
+	Version      string
 	Vrid         uint8
 	Priority     uint8
 	AdvertiseInt uint16
@@ -100,4 +112,20 @@ func Init() *PacketInfo {
 	var pktInfo Packet
 	pktInfo = &PacketInfo{}
 	return pktInfo
+}
+
+func computeChecksum(version uint8, content []byte) uint16 {
+	var csum uint32
+	var rv uint16
+	if version == config.VERSION2 {
+		for i := 0; i < len(content); i += 2 {
+			csum += uint32(content[i]) << 8
+			csum += uint32(content[i+1])
+		}
+		rv = ^uint16((csum >> 16) + csum)
+	} else if version == config.VERSION3 {
+		//@TODO: .....
+	}
+
+	return rv
 }

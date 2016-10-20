@@ -63,5 +63,5 @@ type VrrpInterface struct {
 func (intf *VrrpInterface) Init(cfg *config.IntfCfg, l3Info *L3Intf, stCh *StateInfo) {
 	intf.Config = *cfg
 	intf.L3 = *l3Info
-	intf.Fsm = InitFsm(&intf.Config, stCh)
+	intf.Fsm = InitFsm(&intf.Config, l3Info, stCh)
 }

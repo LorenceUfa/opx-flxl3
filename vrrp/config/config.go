@@ -82,7 +82,7 @@ type IntfCfg struct {
 	IfIndex               int32
 	VRID                  int32
 	Priority              int32
-	VirtualIPv4Addr       string
+	VirtualIPAddr         string
 	AdvertisementInterval int32
 	PreemptMode           bool
 	AcceptMode            bool
