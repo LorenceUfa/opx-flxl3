@@ -316,7 +316,7 @@ func (server *OSPFServer) createIPIntfConfMap(msg IPv4IntfNotifyMsg, mtu int32, 
 func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int32) {
 	var flag bool = false
 	var ifIdx int32
-	server.logger.Info(fmt.Sprintln("calling deleteIPIntfConfMap for....:", msg))
+	server.logger.Debug(fmt.Sprintln("calling deleteIPIntfConfMap for....:", msg))
 	ip, _, err := net.ParseCIDR(msg.IpAddr)
 	if err != nil {
 		server.logger.Err(fmt.Sprintln("Unable to parse IP address", msg.IpAddr))
@@ -328,7 +328,7 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 	} else {
 		ifIdx = 0
 	}
-	server.logger.Info(fmt.Sprintln("delete IPIntfConfMap for ", msg, "ifIndex:", ifIdx))
+	server.logger.Debug(fmt.Sprintln("delete IPIntfConfMap for ", msg, "ifIndex:", ifIdx))
 
 	// Set ifIdx = 0 for time being --- Need to be revisited
 	intfConfKey := IntfConfKey{
@@ -406,7 +406,7 @@ func (server *OSPFServer) updateIPIntfConfMap(ifConf config.InterfaceConf) {
 		ent.IfLsaCount = 0
 		ent.IfLsaCksumSum = 0
 		server.IntfConfMap[intfConfKey] = ent
-		server.logger.Info(fmt.Sprintln("1:Update IPIntfConfMap for ", intfConfKey))
+		server.logger.Debug(fmt.Sprintln("1:Update IPIntfConfMap for ", intfConfKey))
 	}
 }
 
@@ -476,18 +476,36 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 		IPAddr:  ifConf.IfIpAddress,
 		IntfIdx: ifConf.AddressLessIf,
 	}
-
+	ipKey := convertAreaOrRouterIdUint32(string(ifConf.IfIpAddress))
+	ip, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("Intf : Update , no L3 interface exist. No updates made.", ipKey))
+		return errors.New("No L3 intf exist")
+	}
 	//stop interface state machine.
 	server.logger.Debug(fmt.Sprintln("Intf: Update - Stop interface FSM"))
-	server.StopSendRecvPkts(ifKey)
+	ent, exist := server.IntfConfMap[ifKey]
+	if !exist {
+		server.logger.Err(fmt.Sprintln("Intf: Update failed as ospf intf does not exist ", ifKey))
+		return errors.New("Ospf Interface does not exist ")
+	}
+	server.logger.Debug(fmt.Sprintln("Intf admin stat ", ent.IfAdminStat, " ifState ", ent.IfState,
+		"ip state", ip.IpState, "global admin_stat", server.ospfGlobalConf.AdminStat))
+	if ent.IfAdminStat == config.Enabled &&
+		ent.IfState >= config.Enabled &&
+		ip.IpState == config.Intf_Up &&
+		server.ospfGlobalConf.AdminStat == config.Enabled {
+		server.logger.Debug(fmt.Sprintln("Intf: Update Stop send recv packets ", ifKey))
+		server.StopSendRecvPkts(ifKey)
+	}
 
 	//update interface config.
 	server.logger.Debug(fmt.Sprintln("Intf: Update - Update intfconf map "))
 	server.updateIPIntfConfMap(ifConf)
 	//send notification to lsdb
-	//(it will update LSDB and neighbor datastrutures.
+	//(it will update LSDB and clear neighbor datastructures
 	server.logger.Debug(fmt.Sprintln("Intf: Update - send message to neighbor"))
-	_, exist := server.IntfConfMap[ifKey]
+	ent, _ = server.IntfConfMap[ifKey]
 	if !exist {
 		server.logger.Err(fmt.Sprintln("Intf: Failed to get interface entry ", ifKey))
 		return errors.New("Interface entry does not exist.")
@@ -501,8 +519,13 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 		server.IntfStateChangeCh <- msg
 	}
 	//start interface state machine.
-	if ifConf.IfAdminStat != 0 {
-		server.logger.Debug(fmt.Sprintln("Intf: Update - start intf FSM "))
+	ent, _ = server.IntfConfMap[ifKey]
+
+	if ent.IfAdminStat == config.Enabled &&
+		ent.IfState >= config.Enabled &&
+		ip.IpState == config.Intf_Up &&
+		server.ospfGlobalConf.AdminStat == config.Enabled {
+		server.logger.Debug(fmt.Sprintln("Intf: Update Start send recv packets ", ifKey))
 		server.StartSendRecvPkts(ifKey)
 	} else {
 		server.logger.Debug(fmt.Sprintln("Intf: Update - admin state down . Stop fsm ", ifKey))
@@ -611,7 +634,7 @@ func (server *OSPFServer) StopSendRecvPkts(intfConfKey IntfConfKey) {
 	server.logger.Info("Stop Receiving Hello Pkt")
 	server.StopOspfRecvPkts(intfConfKey)
 	ent, _ := server.IntfConfMap[intfConfKey]
-	ent.NeighborMap = nil
+	ent.NeighborMap = make(map[NeighborConfKey]NeighborData)
 	ent.IfEvents = ent.IfEvents + 1
 	ent.IfFSMState = config.Down
 	server.IntfConfMap[intfConfKey] = ent
