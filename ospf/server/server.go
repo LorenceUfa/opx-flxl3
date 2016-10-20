@@ -80,7 +80,7 @@ type OSPFServer struct {
 	ospfGlobalConf         GlobalConf
 	GlobalConfigCh         chan config.GlobalConf
 	AreaConfigCh           chan config.AreaConf
-	IntfConfigCh           chan config.InterfaceConf
+	IntfConfigCh           chan config.InterfaceRpcMsg
 	IfMetricConfCh         chan config.IfMetricConf
 	GlobalConfigRetCh      chan error
 	AreaConfigRetCh        chan error
@@ -110,6 +110,7 @@ type OSPFServer struct {
 	AreaConfMap           map[AreaConfKey]AreaConf
 	IntfConfMap           map[IntfConfKey]IntfConf
 	IntfTxMap             map[IntfConfKey]IntfTxHandle
+	IntfTxMutex           sync.Mutex
 	IntfRxMap             map[IntfConfKey]IntfRxHandle
 	NeighborConfigMap     map[NeighborConfKey]OspfNeighborEntry
 	NeighborListMap       map[IntfConfKey]list.List
@@ -174,7 +175,7 @@ func NewOSPFServer(logger *logging.Writer) *OSPFServer {
 	ospfServer.logger = logger
 	ospfServer.GlobalConfigCh = make(chan config.GlobalConf)
 	ospfServer.AreaConfigCh = make(chan config.AreaConf)
-	ospfServer.IntfConfigCh = make(chan config.InterfaceConf)
+	ospfServer.IntfConfigCh = make(chan config.InterfaceRpcMsg)
 	ospfServer.IfMetricConfCh = make(chan config.IfMetricConf)
 	ospfServer.GlobalConfigRetCh = make(chan error)
 	ospfServer.AreaConfigRetCh = make(chan error)
@@ -202,6 +203,7 @@ func NewOSPFServer(logger *logging.Writer) *OSPFServer {
 	ospfServer.NeighborConfigMap = make(map[NeighborConfKey]OspfNeighborEntry)
 	ospfServer.NeighborListMap = make(map[IntfConfKey]list.List)
 	ospfServer.neighborConfMutex = sync.Mutex{}
+	ospfServer.IntfTxMutex = sync.Mutex{}
 	ospfServer.neighborHelloEventCh = make(chan IntfToNeighMsg)
 	ospfServer.neighborConfCh = make(chan ospfNeighborConfMsg)
 	ospfServer.neighborConfStopCh = make(chan bool)
@@ -216,7 +218,7 @@ func NewOSPFServer(logger *logging.Writer) *OSPFServer {
 	ospfServer.IntfSliceRefreshCh = make(chan bool)
 	ospfServer.IntfSliceRefreshDoneCh = make(chan bool)
 	ospfServer.nbrFSMCtrlCh = make(chan bool)
-	ospfServer.RefreshDuration = time.Duration(10) * time.Minute
+	ospfServer.RefreshDuration = time.Duration(5) * time.Second
 	ospfServer.neighborDBDEventCh = make(chan ospfNeighborDBDMsg)
 	ospfServer.neighborIntfEventCh = make(chan IntfConfKey)
 	ospfServer.neighborLSAReqEventCh = make(chan ospfNeighborLSAreqMsg, 2)
@@ -369,12 +371,9 @@ func (server *OSPFServer) StartServer(paramFile string) {
 				//Handle Area Configuration
 			}
 		//	server.AreaConfigRetCh <- err
-		case ifConf := <-server.IntfConfigCh:
-			server.logger.Info(fmt.Sprintln("Received call for performing Intf Configuration", ifConf))
-			err := server.processIntfConfig(ifConf)
-			if err == nil {
-				//Handle Intf Configuration
-			}
+		case ifMsg := <-server.IntfConfigCh:
+			server.logger.Info(fmt.Sprintln("Received call for performing Intf Configuration", ifMsg))
+			server.ProcessIntfConfChange(ifMsg)
 		//	server.IntfConfigRetCh <- err
 		case ifMetricConf := <-server.IfMetricConfCh:
 			server.logger.Info(fmt.Sprintln("Received call for preforming Intf Metric Configuration", ifMetricConf))
