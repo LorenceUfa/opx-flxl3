@@ -373,20 +373,7 @@ func (server *OSPFServer) StartServer(paramFile string) {
 		//	server.AreaConfigRetCh <- err
 		case ifMsg := <-server.IntfConfigCh:
 			server.logger.Info(fmt.Sprintln("Received call for performing Intf Configuration", ifMsg))
-			if ifMsg.msg == config.CREATE {
-				err := server.processIntfConfig(ifConf)
-				if err == nil {
-					//Handle Intf Configuration
-				}
-			}
-			if ifMsg.msg == config.UPDATE {
-				err := server.processIntfConfigUpdate(ifConf)
-			}
-
-			if ifMsg.msg == config.DELETE {
-				err := server.processIntfConfigDelete(ifConf)
-			}
-
+			server.ProcessIntfConfChange(ifMsg)
 		//	server.IntfConfigRetCh <- err
 		case ifMetricConf := <-server.IfMetricConfCh:
 			server.logger.Info(fmt.Sprintln("Received call for preforming Intf Metric Configuration", ifMetricConf))

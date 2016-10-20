@@ -479,7 +479,7 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 
 	//stop interface state machine.
 	server.logger.Debug(fmt.Sprintln("Intf: Update - Stop interface FSM"))
-	server.StopOspfIntfFSM(ifKey)
+	server.StopSendRecvPkts(ifKey)
 
 	//update interface config.
 	server.logger.Debug(fmt.Sprintln("Intf: Update - Update intfconf map "))
@@ -487,24 +487,31 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 	//send notification to lsdb
 	//(it will update LSDB and neighbor datastrutures.
 	server.logger.Debug(fmt.Sprintln("Intf: Update - send message to neighbor"))
-	ent, exist := server.IntfConfMap[ifKey]
+	_, exist := server.IntfConfMap[ifKey]
 	if !exist {
 		server.logger.Err(fmt.Sprintln("Intf: Failed to get interface entry ", ifKey))
 		return errors.New("Interface entry does not exist.")
 	}
 
 	msg := NetworkLSAChangeMsg{
-		areaId:  convertAreaOrRouterId(ifConf.AreaId),
+		areaId:  convertAreaOrRouterIdUint32(string(ifConf.IfAreaId)),
 		intfKey: ifKey,
 	}
-	server.IntfStateChangeCh <- msg
+	if server.ospfGlobalConf.AdminStat != config.Enabled {
+		server.IntfStateChangeCh <- msg
+	}
 	//start interface state machine.
 	if ifConf.IfAdminStat != 0 {
 		server.logger.Debug(fmt.Sprintln("Intf: Update - start intf FSM "))
-		server.StartOspfIntfFSM(ifKey)
+		server.StartSendRecvPkts(ifKey)
 	} else {
 		server.logger.Debug(fmt.Sprintln("Intf: Update - admin state down . Stop fsm ", ifKey))
 	}
+	return nil
+}
+
+func (server *OSPFServer) processIntfConfigDelete(ifConf config.InterfaceConf) error {
+	server.logger.Debug(fmt.Sprintln("Intf: Delete called ", ifConf))
 	return nil
 }
 
@@ -698,6 +705,28 @@ func (server *OSPFServer) updateIntfTxMap(key IntfConfKey, status config.Status,
 	}
 }
 
+func (server *OSPFServer) ProcessIntfConfChange(ifMsg config.InterfaceRpcMsg) {
+	if ifMsg.Op == config.CREATE {
+		err := server.processIntfConfig(ifMsg.IntfConf)
+		if err == nil {
+			//Handle Intf Configuration
+		}
+	}
+	if ifMsg.Op == config.UPDATE {
+		err := server.processIntfConfigUpdate(ifMsg.IntfConf)
+		if err != nil {
+			server.logger.Debug(fmt.Sprintln("intf : Failed to update interface config ", ifMsg))
+		}
+	}
+
+	if ifMsg.Op == config.DELETE {
+		err := server.processIntfConfigDelete(ifMsg.IntfConf)
+		if err != nil {
+			server.logger.Debug(fmt.Sprintln("Intf: Failed to delete interface config ", ifMsg))
+		}
+	}
+}
+
 /**** UTIL APIs ******/
 func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.InterfaceConf) config.ConfFlag {
 	var flags config.ConfFlag = 0
@@ -715,17 +744,9 @@ func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.Interface
 	if ent.IfHelloInterval != uint16(ifConf.IfHelloInterval) {
 		flags |= config.IF_HELLO_INTERVAL
 	}
-
-	ipAddr, _, err := net.ParseIP(config.IpAddress(ifConf.IfIpAddress))
-	if err {
-		server.logger.Err(fmt.Sprintln("Intf: Update failed. Wrong Ip ", ifConf.IfIpAddress))
-		return 0
-	}
-	if ent.IfIpAddr != ipAddr {
-		flags |= config.IF_IP_ADDRESS
-	}
-
-	if ent.IfAreaId != []byte(ifConf.IfAreaId) {
+	entAreaId := convertIPInByteToString(ent.IfAreaId)
+	confAreaId := string(ifConf.IfAreaId)
+	if entAreaId != confAreaId {
 		flags |= config.IF_AREA_ID
 	}
 
@@ -735,7 +756,7 @@ func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.Interface
 	if ent.IfAdminStat != ifConf.IfAdminStat {
 		flags |= config.IF_ADMIN_STAT
 	}
-	if ent.IfRtrPriority != ifConf.IfRtrPriority {
+	if ent.IfRtrPriority != uint8(ifConf.IfRtrPriority) {
 		flags |= config.IF_RTR_PRIORITY
 	}
 	if ent.IfTransitDelay != ifConf.IfTransitDelay {
@@ -744,7 +765,7 @@ func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.Interface
 	if ent.IfRetransInterval != ifConf.IfRetransInterval {
 		flags |= config.IF_RETRANS_INTERVAL
 	}
-	if ent.IfRtrDeadInterval != ifConf.IfRtrDeadInterval {
+	if ent.IfRtrDeadInterval != uint32(ifConf.IfRtrDeadInterval) {
 		flags |= config.IF_RTR_DEAD_INTERVAL
 	}
 	if ent.IfPollInterval != ifConf.IfPollInterval {

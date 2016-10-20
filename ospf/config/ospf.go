@@ -605,6 +605,6 @@ type OspfEventState struct {
 }
 
 type InterfaceRpcMsg struct {
-	intfConf InterfaceConf
-	msg      MsgType
+	IntfConf InterfaceConf
+	Op       MsgType
 }

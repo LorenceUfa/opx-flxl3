@@ -25,8 +25,8 @@ package rpc
 
 import (
 	"fmt"
+	"l3/ospf/config"
 	"ospfd"
-	//    "l3/ospf/config"
 	//    "l3/ospf/server"
 	//    "utils/logging"
 	//    "net"

@@ -47,7 +47,7 @@ func (h *OSPFHandler) SendOspfGlobal(ospfGlobalConf *ospfd.OspfGlobal) error {
 	return nil
 }
 
-func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry, msg MsgType) error {
+func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry, msg config.MsgType) error {
 	ifConf := config.InterfaceConf{
 		IfIpAddress:       config.IpAddress(ospfIfConf.IfIpAddress),
 		AddressLessIf:     config.InterfaceIndexOrZero(ospfIfConf.AddressLessIf),
@@ -68,10 +68,11 @@ func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry, msg MsgType)
 		}
 	}
 
-	ifMsg := InterfaceRpcMsg{
-		intfConf: ifConf,
-		msg:      msg,
+	ifMsg := config.InterfaceRpcMsg{
+		IntfConf: ifConf,
+		Op:       msg,
 	}
+	h.logger.Info(fmt.Sprintln("Before sending interface config "))
 	h.server.IntfConfigCh <- ifMsg
 
 	//retMsg := <-h.server.IntfConfigRetCh
