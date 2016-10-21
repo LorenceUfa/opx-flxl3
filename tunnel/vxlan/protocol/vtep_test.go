@@ -19,7 +19,7 @@ var vtepdeletedone chan bool
 var vxlandeletedone chan bool
 
 type mockintf struct {
-	//BaseClientIntf
+	BaseClientIntf
 	// triggers for test to fail various interface functions to test behavior
 	failCreateVtep           bool
 	failCreateVxlan          bool
@@ -31,6 +31,7 @@ type mockintf struct {
 	failGetAccessPorts       bool
 	failGetNextHop           bool
 	failResolveNexHop        bool
+	faillink                 bool
 }
 
 func (b mockintf) IsClientIntfType(client VXLANClientIntf, clientStr string) bool {
@@ -150,11 +151,19 @@ func (b mockintf) ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- Mach
 	}
 }
 
+func (b mockintf) GetLinkState(ifname string) string {
+	if b.faillink {
+		return "DOWN"
+	}
+	return "UP"
+}
+
 func MockFuncRxTx(vtep *VtepDbEntry) {
 	logger.Info(fmt.Sprintf("MOCK: going to listen on interface %s", vtep.VtepName))
 }
 
 func setup() {
+	VxlanGlobalStateSet(VXLAN_GLOBAL_ENABLE)
 	setVxlanTestLogger()
 	vtepcreatedone = make(chan bool, 1)
 	vtepdeletedone = make(chan bool, 1)
@@ -215,16 +224,18 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 	RegisterClients(mockintf{})
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
 		TunnelDstIp: net.ParseIP("100.1.1.2"),
-		VlanId:      200,
+		VlanId:      0,
 	}
 
 	// create the vxlan
@@ -238,7 +249,7 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 	<-vtepcreatedone
 
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -284,11 +295,13 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 	RegisterClients(mockintf{})
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -299,7 +312,7 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 	CreateVtep(vtepConfig)
 
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -361,6 +374,7 @@ func TestFSMCreateVtepNoVxlan(t *testing.T) {
 	RegisterClients(mockintf{})
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -372,7 +386,7 @@ func TestFSMCreateVtepNoVxlan(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -410,11 +424,13 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 	})
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -431,7 +447,7 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -498,11 +514,13 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 	RegisterClients(x)
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -519,7 +537,7 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -613,11 +631,13 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 	})
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -634,7 +654,7 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -706,11 +726,13 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 	RegisterClients(x)
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -727,7 +749,7 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -820,11 +842,13 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 	})
 
 	vxlanConfig := &VxlanConfig{
+		Enable: true,
 		VNI:    100,
-		VlanId: 200,
+		VlanId: []uint16{200},
 	}
 
 	vtepConfig := &VtepConfig{
+		Enable:      true,
 		Vni:         100,
 		VtepName:    "vtep100",
 		SrcIfName:   "eth0",
@@ -841,7 +865,7 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		name: vtepConfig.VtepName,
+		Name: vtepConfig.VtepName,
 	}
 	vtep := GetVtepDBEntry(key)
 

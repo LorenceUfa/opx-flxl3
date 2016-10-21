@@ -10,6 +10,8 @@ const (
 	VXLANMockClientStr = "SnapMockTestClient"
 )
 
+type PortEvtCb func(ifindex int32)
+
 // interface class is used to store the communication methods
 // for the various daemon communications
 type VXLANClientIntf interface {
@@ -24,12 +26,16 @@ type VXLANClientIntf interface {
 	CreateVxlan(vxlan *VxlanConfig)
 	DeleteVxlan(vxlan *VxlanConfig)
 	// access ports
-	AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
-	DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
+	//AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
+	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
 	// vtep fsm
 	GetIntfInfo(name string, intfchan chan<- MachineEvent)
 	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent)
 	ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent)
+
+	GetLinkState(ifname string) string
+	GetAllVlans() []uint16
+	RegisterLinkUpDownEvents(ifindex int32, upcb PortEvtCb, downdb PortEvtCb)
 }
 
 type BaseClientIntf struct {
@@ -86,4 +92,14 @@ func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist 
 }
 func (b BaseClientIntf) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
 
+}
+
+func (b BaseClientIntf) GetAllVlans() []uint16 {
+	return []uint16{}
+}
+func (b BaseClientIntf) RegisterLinkUpDownEvents(ifindex int32, upcb PortEvtCb, downdb PortEvtCb) {
+
+}
+func (b BaseClientIntf) GetLinkState(ifname string) string {
+	return "UP"
 }

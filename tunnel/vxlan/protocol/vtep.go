@@ -35,7 +35,7 @@ const (
 // VtepDbKey
 // Holds the key for the VtepDB
 type VtepDbKey struct {
-	name string
+	Name string
 }
 
 // vtepStatus
@@ -55,6 +55,10 @@ type VtepDbEntry struct {
 	UDP uint16
 	// TTL used in the ip header in the vxlan header
 	TTL uint16
+	// TOS used in ip header in the vxlan header
+	TOS uint16
+	// MTU of the vtep
+	MTU uint16
 	// Source Ip used in ip header in the vxlan header
 	SrcIp net.IP
 	// Destination Ip used in ip header in the vxlan header
@@ -69,6 +73,9 @@ type VtepDbEntry struct {
 	VtepIfIndex int32
 	// Next Hop Ip used to find the next hop MAC which will be used as the DstMac of the vxlan header
 	NextHop VtepNextHopInfo
+
+	// Drop unknown customer macs
+	FilterUnknownCustVlan bool
 
 	// Enable/Disable state
 	Enable bool
@@ -124,6 +131,7 @@ type SrcIfIndexEntry struct {
 
 // vtep id to vtep data
 var vtepDB map[VtepDbKey]*VtepDbEntry
+var vtepDbList []*VtepDbEntry
 
 // vni + customer mac to vtepId
 //var fdbDb map[vtepVniCMACToVtepKey]VtepDbKey
@@ -155,6 +163,14 @@ func GetVtepDBEntry(key *VtepDbKey) *VtepDbEntry {
 	return nil
 }
 
+func GetVtepDbListEntry(idx int32, vxlan **VtepDbEntry) bool {
+	if int(idx) < len(vtepDbList) {
+		*vxlan = vtepDbList[idx]
+		return true
+	}
+	return false
+}
+
 /* TODO may need to keep a table to map customer macs to vtep
 type srcMacVtepMap struct {
 	SrcMac      net.HardwareAddr
@@ -168,16 +184,22 @@ func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 		// TODO if we are running in hw linux vs proxy then this should not be + Int
 		VtepName:       c.VtepName,
 		VtepHandleName: c.VtepName + "Int",
-		//VtepName:  c.VtepName,
-		SrcIfName: c.SrcIfName,
-		UDP:       c.UDP,
-		TTL:       c.TTL,
-		DstIp:     c.TunnelDstIp,
-		SrcIp:     c.TunnelSrcIp,
-		SrcMac:    c.TunnelSrcMac,
-		DstMac:    c.TunnelDstMac,
-		VlanId:    c.VlanId,
-		Enable:    true,
+		SrcIfName:      c.SrcIfName,
+		UDP:            c.UDP,
+		TTL:            c.TTL,
+		TOS:            c.TOS,
+		MTU:            uint16(c.MTU),
+		DstIp:          c.TunnelDstIp,
+		SrcIp:          c.TunnelSrcIp,
+		SrcMac:         c.TunnelSrcMac,
+		DstMac:         c.TunnelDstMac,
+		VlanId:         c.VlanId,
+		Enable:         true,
+	}
+	if c.InnerVlanHandlingMode == 0 {
+		vtep.FilterUnknownCustVlan = true
+	} else {
+		vtep.FilterUnknownCustVlan = false
 	}
 
 	return vtep
@@ -186,11 +208,13 @@ func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 func CreateVtep(c *VtepConfig) *VtepDbEntry {
 
 	vtep := saveVtepConfigData(c)
-	logger.Info(fmt.Sprintln("Vtep CreateVtep Start", vtep))
-	// lets start the FSM
-	vtep.VxlanVtepMachineMain()
-	vtep.VxlanVtepMachineFsm.BEGIN()
-
+	if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE &&
+		c.Enable {
+		logger.Info(fmt.Sprintln("Vtep CreateVtep Start", vtep))
+		// lets start the FSM
+		vtep.VxlanVtepMachineMain()
+		vtep.VxlanVtepMachineFsm.BEGIN()
+	}
 	return vtep
 }
 
@@ -235,28 +259,42 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 func DeleteVtep(c *VtepConfig) {
 
 	key := &VtepDbKey{
-		name: c.VtepName,
+		Name: c.VtepName,
 	}
 
 	vtep := GetVtepDBEntry(key)
 	if vtep != nil {
-		DeProvisionVtep(vtep, true)
-		if vtep.VxlanVtepMachineFsm != nil {
-			vtep.VxlanVtepMachineFsm.Stop()
-			vtep.VxlanVtepMachineFsm = nil
-		}
-		if vtep.retrytimer != nil {
-			vtep.retrytimer.Stop()
-			vtep.retrytimer = nil
-		}
+		if (VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE ||
+			VxlanGlobalStateGet() == VXLAN_GLOBAL_DISABLE_PENDING) &&
+			c.Enable {
 
-		delete(vtepDB, *key)
+			DeProvisionVtep(vtep, true)
+			if vtep.VxlanVtepMachineFsm != nil {
+				vtep.VxlanVtepMachineFsm.Stop()
+				vtep.VxlanVtepMachineFsm = nil
+			}
+			if vtep.retrytimer != nil {
+				vtep.retrytimer.Stop()
+				vtep.retrytimer = nil
+			}
+
+		}
+		if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE {
+			for idx, vtep := range vtepDbList {
+				if vtep.VtepName == c.VtepName {
+					vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+					break
+				}
+			}
+
+			delete(vtepDB, *key)
+		}
 	}
 }
 
 func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 	key := &VtepDbKey{
-		name: c.VtepName,
+		Name: c.VtepName,
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep == nil {

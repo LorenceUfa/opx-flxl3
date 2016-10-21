@@ -86,14 +86,13 @@ type VtepUpdate struct {
 	Attr      []string
 }
 
-// bridge for the VNI
+// bridges attached to the VNI, mapping table to know
+// what vlan maps to what VNI used for filtering packets on RX
 type VxlanConfig struct {
-	VNI              uint32
-	VlanId           uint16 // used to tag inner ethernet frame when egressing
-	Group            net.IP // multicast group IP
-	MTU              uint32 // MTU size for each VTEP
-	IntfRefList      []string
-	UntagIntfRefList []string
+	VNI          uint32
+	UntaggedVlan uint16
+	VlanId       []uint16 // used to tag inner ethernet frame when egressing
+	Enable       bool
 }
 
 type PortConfig struct {
@@ -112,6 +111,7 @@ type VtepConfig struct {
 	UDP                   uint16           //vxlan udp port.  Deafult is the iana default udp port
 	TTL                   uint16           //TTL of the Vxlan tunnel
 	TOS                   uint16           //Type of Service
+	MTU                   uint32           //Maximum Transmission Unit
 	InnerVlanHandlingMode int32            //The inner vlan tag handling mode.
 	Learning              bool             //specifies if unknown source link layer  addresses and IP addresses are entered into the VXLAN  device forwarding database.
 	Rsc                   bool             //specifies if route short circuit is turned on.
@@ -123,6 +123,7 @@ type VtepConfig struct {
 	TunnelSrcMac          net.HardwareAddr //Src Mac assigned to the VTEP within this VxLAN. If an address is not assigned the the local switch address will be used.
 	TunnelDstMac          net.HardwareAddr // Optional - may be looked up based on TunnelNextHopIp
 	TunnelNextHopIP       net.IP           // NextHopIP is used to find the DMAC for the tunnel within Asicd
+	Enable                bool
 }
 
 func ConvertInt32ToBool(val int32) bool {
@@ -138,6 +139,35 @@ func VxlanConfigCheck(c *VxlanConfig) error {
 	if GetVxlanDBEntry(c.VNI) != nil {
 		return errors.New(fmt.Sprintln("Error VxlanInstance Exists vni is not unique", c))
 	}
+
+	// could optimize by making this call once on startup and listen for vlan create
+	// updates from asicd but for now this is the simple call (will only affect speed
+	// of provisioning or if asicd is not available)
+	var vlanList []uint16
+	for _, client := range ClientIntf {
+		vlanList = client.GetAllVlans()
+	}
+
+	unprovvlanlist := make([]uint16, 0)
+	for _, vlan := range c.VlanId {
+		if c.UntaggedVlan == vlan {
+			return errors.New(fmt.Sprintln("Error VxlanInstance Untagged and vlan list vlans must be unique"))
+		}
+		foundVlan := false
+
+		for _, provvlan := range vlanList {
+			if vlan == provvlan {
+				foundVlan = false
+			}
+		}
+		if !foundVlan {
+			unprovvlanlist = append(unprovvlanlist, vlan)
+		}
+	}
+	if len(unprovvlanlist) > 0 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Prov failed because following vlans were not provisioned %#v", unprovvlanlist))
+	}
+
 	return nil
 }
 
@@ -145,15 +175,38 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 	if oc.VNI != nc.VNI {
 		return errors.New(fmt.Sprintln("Error Unsupported Attribute VNI Update, must delete then create"))
 	}
-	if oc.VlanId != nc.VlanId {
-		return errors.New(fmt.Sprintln("Error Unsupported Attribute VlanId Update, must delete then create"))
+	vxlan := GetVxlanDBEntry(nc.VNI)
+	if vxlan == nil {
+		return errors.New(fmt.Sprintln("Error Error VxlanInstance Does not exists"))
 	}
-	if oc.MTU != nc.MTU {
-		return errors.New(fmt.Sprintln("Error Unsupported Attribute MTU Update, must delete then create"))
+
+	// could optimize by making this call once on startup and listen for vlan create
+	// updates from asicd but for now this is the simple call (will only affect speed
+	// of provisioning or if asicd is not available)
+	var vlanList []uint16
+	for _, client := range ClientIntf {
+		vlanList = client.GetAllVlans()
 	}
-	if oc.Group.String() != nc.Group.String() {
-		return errors.New(fmt.Sprintln("Error Unsupported Attribute Group Ip Update, must delete then create"))
+
+	unprovvlanlist := make([]uint16, 0)
+	for _, vlan := range nc.VlanId {
+		if nc.UntaggedVlan == vlan {
+			return errors.New(fmt.Sprintln("Error VxlanInstance Untagged and vlan list vlans must be unique"))
+		}
+		foundVlan := false
+		for _, provvlan := range vlanList {
+			if vlan == provvlan {
+				foundVlan = false
+			}
+		}
+		if !foundVlan {
+			unprovvlanlist = append(unprovvlanlist, vlan)
+		}
 	}
+	if len(unprovvlanlist) > 0 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Prov failed because following vlans were not provisioned %#v", unprovvlanlist))
+	}
+
 	return nil
 }
 
@@ -161,7 +214,7 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 // Validate the VTEP provisioning
 func VtepConfigCheck(c *VtepConfig) error {
 	key := VtepDbKey{
-		name: c.VtepName,
+		Name: c.VtepName,
 	}
 	if GetVtepDBEntry(&key) != nil {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
@@ -179,12 +232,14 @@ func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance, create bool) (*V
 
 	}
 
-	return &VxlanConfig{
-		VNI:              uint32(c.Vni),
-		VlanId:           uint16(c.VlanId),
-		IntfRefList:      c.IntfRefList,
-		UntagIntfRefList: c.UntagIntfRefList,
-	}, nil
+	vxlan := &VxlanConfig{
+		VNI:          uint32(c.Vni),
+		UntaggedVlan: uint16(c.UntaggedVlanId),
+	}
+	for _, vlan := range c.VlanId {
+		vxlan.VlanId = append(vxlan.VlanId, uint16(vlan))
+	}
+	return vxlan, nil
 }
 
 func getVtepName(intf string) string {
@@ -243,86 +298,59 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 	// important to note that the attrset starts at index 0 which is the BaseObj
 	// which is not the first element on the thrift obj, thus we need to skip
 	// this attribute
-	recreateCfg := false
 	updateCfg := false
 	for _, objName := range c.Attr {
-
 		if objName == "VlanId" {
-			logger.Info("Service affecting config change, re-creating vxlan")
-			recreateCfg = true
-		}
-		if objName == "UntagIntfRefList" ||
-			objName == "IntfRefList" {
-			logger.Info(fmt.Sprintf("Updating interface list tag: #v, untag: %#v", c.Newconfig.IntfRefList, c.Newconfig.UntagIntfRefList))
+			logger.Info(fmt.Sprintf("Updating vlan list tag: %#v,", c.Newconfig.VlanId))
 			updateCfg = true
 		}
 	}
 
-	if recreateCfg {
-		DeleteVxLAN(&c.Oldconfig)
-		CreateVxLAN(&c.Newconfig)
-	} else if updateCfg {
-		newintfreflist := make([]string, 0)
-		newuntagintfreflist := make([]string, 0)
-		delintfreflist := make([]string, 0)
-		deluntagintfreflist := make([]string, 0)
-		for idx, nintfref := range c.Newconfig.IntfRefList {
-			foundintf := false
-			for _, ointfref := range c.Oldconfig.IntfRefList {
-				if nintfref == ointfref {
-					foundintf = true
+	if updateCfg {
+		newvlanlist := make([]uint16, 0)
+		delvlanlist := make([]uint16, 0)
+		for idx, nvlan := range c.Newconfig.VlanId {
+			foundvlan := false
+			for _, ovlan := range c.Oldconfig.VlanId {
+				if nvlan == ovlan {
+					foundvlan = true
 					break
 				}
 			}
-			if !foundintf {
-				newintfreflist = append(newintfreflist, c.Newconfig.IntfRefList[idx])
+			if !foundvlan {
+				newvlanlist = append(newvlanlist, c.Newconfig.VlanId[idx])
 			}
 		}
-		for idx, nintfref := range c.Oldconfig.IntfRefList {
-			foundintf := false
-			for _, ointfref := range c.Newconfig.IntfRefList {
-				if nintfref == ointfref {
-					foundintf = true
+		for idx, nvlan := range c.Oldconfig.VlanId {
+			foundvlan := false
+			for _, ovlan := range c.Newconfig.VlanId {
+				if nvlan == ovlan {
+					foundvlan = true
 					break
 				}
 			}
-			if !foundintf {
-				delintfreflist = append(delintfreflist, c.Oldconfig.IntfRefList[idx])
+			if !foundvlan {
+				delvlanlist = append(delvlanlist, c.Oldconfig.VlanId[idx])
 			}
 		}
-		for idx, nintfref := range c.Newconfig.UntagIntfRefList {
-			foundintf := false
-			for _, ointfref := range c.Oldconfig.UntagIntfRefList {
-				if nintfref == ointfref {
-					foundintf = true
-					break
+		vxlan := GetVxlanDB()[c.Newconfig.VNI]
+		if vxlan != nil {
+			// TODO add lock around db as it is used as a filtering
+			if len(delvlanlist) > 0 {
+				for _, dv := range delvlanlist {
+					for idx, vlan := range vxlan.VlanId {
+						if dv == vlan {
+							vxlan.VlanId = append(vxlan.VlanId[:idx], vxlan.VlanId[idx+1:]...)
+							break
+						}
+					}
 				}
 			}
-			if !foundintf {
-				newuntagintfreflist = append(newuntagintfreflist, c.Newconfig.UntagIntfRefList[idx])
-			}
-		}
-		for idx, nintfref := range c.Oldconfig.UntagIntfRefList {
-			foundintf := false
-			for _, ointfref := range c.Newconfig.UntagIntfRefList {
-				if nintfref == ointfref {
-					foundintf = true
-					break
-				}
-			}
-			if !foundintf {
-				deluntagintfreflist = append(deluntagintfreflist, c.Oldconfig.UntagIntfRefList[idx])
-			}
-		}
-		if len(delintfreflist) > 0 || len(deluntagintfreflist) > 0 {
-			for _, client := range ClientIntf {
-				client.DelHostFromVxlan(int32(c.Oldconfig.VNI), delintfreflist, deluntagintfreflist)
-			}
-		}
 
-		if len(newintfreflist) > 0 || len(newuntagintfreflist) > 0 {
-			for _, client := range ClientIntf {
-				client.AddHostToVxlan(int32(c.Oldconfig.VNI), newintfreflist, newuntagintfreflist)
+			if len(newvlanlist) > 0 {
+				for _, nv := range newvlanlist {
+					vxlan.VlanId = append(vxlan.VlanId, nv)
+				}
 			}
 		}
 	}

@@ -1,14 +1,15 @@
 package snapclient
 
 import (
-//	"asicd/asicdCommonDefs"
+	//	"asicd/asicdCommonDefs"
 	"encoding/json"
 	"fmt"
-	nanomsg "github.com/op/go-nanomsg"
 	"l3/rib/ribdCommonDefs"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"net"
 	"ribd"
+
+	nanomsg "github.com/op/go-nanomsg"
 )
 
 type RibdClient struct {
@@ -129,7 +130,7 @@ func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxl
 	if ribdclnt.ClientHdl != nil {
 		nexthopinfo, err := ribdclnt.ClientHdl.GetRouteReachabilityInfo(ip.String(), -1)
 		if err == nil {
-                        fmt.Println("GetNextHopInfo", ip, nexthopinfo, vxlan.PortConfigMap[3].Name)
+			fmt.Println("GetNextHopInfo", ip, nexthopinfo, vxlan.PortConfigMap[3].Name)
 
 			nexthopip := net.ParseIP(nexthopinfo.NextHopIp)
 			if nexthopinfo.IsReachable &&

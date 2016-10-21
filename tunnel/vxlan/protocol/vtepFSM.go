@@ -55,15 +55,15 @@ var VxlanVtepStateStrMap map[fsm.State]string
 // VxlanVtepState map converts state to string
 func VxlanVtepMachineStrStateMapInit() {
 	VxlanVtepStateStrMap = make(map[fsm.State]string)
-	VxlanVtepStateStrMap[VxlanVtepStateNone] = "None"
-	VxlanVtepStateStrMap[VxlanVtepStateDisabled] = "Disabled"
-	VxlanVtepStateStrMap[VxlanVtepStateInit] = "Init"
-	VxlanVtepStateStrMap[VxlanVtepStateDetached] = "Detached"
-	VxlanVtepStateStrMap[VxlanVtepStateInterface] = "Interface"
-	VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo] = "Next Hop Info"
-	VxlanVtepStateStrMap[VxlanVtepStateResolveNextHopMac] = "Resolve Next Hop Mac"
-	VxlanVtepStateStrMap[VxlanVtepStateHwConfig] = "Hw Config"
-	VxlanVtepStateStrMap[VxlanVtepStateStart] = "Listener"
+	VxlanVtepStateStrMap[VxlanVtepStateNone] = "UNINITIALIZED"
+	VxlanVtepStateStrMap[VxlanVtepStateDisabled] = "DISABLED"
+	VxlanVtepStateStrMap[VxlanVtepStateInit] = "INIT"
+	VxlanVtepStateStrMap[VxlanVtepStateDetached] = "DETACHED"
+	VxlanVtepStateStrMap[VxlanVtepStateInterface] = "INTERFACE"
+	VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo] = "NEXT HOP INFO"
+	VxlanVtepStateStrMap[VxlanVtepStateResolveNextHopMac] = "RESOLVE NEXT HOP INFO"
+	VxlanVtepStateStrMap[VxlanVtepStateHwConfig] = "HW CONFIG"
+	VxlanVtepStateStrMap[VxlanVtepStateStart] = "LISTENER"
 }
 
 // VxlanVtepEvent is used to transition VTEP FSM to various
