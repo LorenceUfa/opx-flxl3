@@ -322,7 +322,8 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 	// this attribute
 	updateCfg := false
 	for _, objName := range c.Attr {
-		if objName == "VlanId" {
+		if objName == "VlanId" ||
+			objName == "UntaggedVlanId" {
 			logger.Info(fmt.Sprintf("Updating vlan list tag: %#v,", c.Newconfig.VlanId))
 			updateCfg = true
 		}
@@ -355,8 +356,8 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 				delvlanlist = append(delvlanlist, c.Oldconfig.VlanId[idx])
 			}
 		}
-		vxlan := GetVxlanDB()[c.Newconfig.VNI]
-		if vxlan != nil {
+		vxlan, ok := GetVxlanDB()[c.Newconfig.VNI]
+		if ok {
 			// TODO add lock around db as it is used as a filtering
 			if len(delvlanlist) > 0 {
 				for _, dv := range delvlanlist {
@@ -373,6 +374,10 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 				for _, nv := range newvlanlist {
 					vxlan.VlanId = append(vxlan.VlanId, nv)
 				}
+			}
+
+			for _, client := range ClientIntf {
+				client.UpdateVxlan(vxlan.VNI, newvlanlist, delvlanlist, c.Oldconfig.UntaggedVlan, c.Newconfig.UntaggedVlan)
 			}
 		}
 	}

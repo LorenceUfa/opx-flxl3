@@ -25,6 +25,7 @@ type VXLANClientIntf interface {
 	DeleteVtep(vtep *VtepDbEntry)
 	CreateVxlan(vxlan *VxlanConfig)
 	DeleteVxlan(vxlan *VxlanConfig)
+	UpdateVxlan(vni uint32, addvlanlist []uint16, delvlanlist []uint16, oldUntaggedVlan uint16, newUntaggedVlan uint16)
 	// access ports
 	//AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
 	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
@@ -73,6 +74,10 @@ func (b BaseClientIntf) CreateVxlan(vxlan *VxlanConfig) {
 
 }
 func (b BaseClientIntf) DeleteVxlan(vxlan *VxlanConfig) {
+
+}
+func (b BaseClientIntf) UpdateVxlan(vni uint32,
+	addvlanlist []uint16, delvlanlist []uint16, oldUntaggedVlan uint16, newUntaggedVlan uint16) {
 
 }
 func (b BaseClientIntf) CreateVxlanAccess() {

@@ -427,6 +427,28 @@ func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanConfig) {
 	}
 }
 
+func (intf VXLANSnapClient) UpdateVxlan(vni uint32, addvlanlist []uint16, delvlanlist []uint16, oldUntaggedVlan uint16, newUntaggedVlan uint16) {
+	// convert a vxland config to hw config
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+
+		convertadd := make([]int16, 0)
+		if len(addvlanlist) > 0 {
+			for _, vlan := range addvlanlist {
+				convertadd = append(convertadd, int16(vlan))
+			}
+		}
+		convertdel := make([]int16, 0)
+		if len(delvlanlist) > 0 {
+			for _, vlan := range delvlanlist {
+				convertdel = append(convertdel, int16(vlan))
+			}
+		}
+		asicdclnt.ClientHdl.UpdateVxlan(int32(vni), convertadd, convertdel, int16(oldUntaggedVlan), int16(newUntaggedVlan))
+		intf.asicdmutex.Unlock()
+	}
+}
+
 /*
 func (intf VXLANSnapClient) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
 	if asicdclnt.ClientHdl != nil {
