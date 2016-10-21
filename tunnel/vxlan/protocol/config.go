@@ -456,7 +456,7 @@ func (s *VXLANServer) ConfigListener() {
 					reachable = true
 				}
 				//ip := net.ParseIP(fmt.Sprintf("%s.%s.%s.%s", uint8(ipinfo.Ip>>24&0xff), uint8(ipinfo.Ip>>16&0xff), uint8(ipinfo.Ip>>8&0xff), uint8(ipinfo.Ip>>0&0xff)))
-				s.HandleNextHopChange(ipinfo.Ip, ipinfo.NextHopIp, ipinfo.Intf, ipinfo.IntfName, reachable)
+				HandleNextHopChange(ipinfo.Ip, ipinfo.NextHopIp, ipinfo.Intf, ipinfo.IntfName, reachable)
 
 			case port := <-cc.VxlanPortCreate:
 				// store all the valid physical ports

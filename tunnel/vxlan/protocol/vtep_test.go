@@ -76,6 +76,13 @@ func (b mockintf) GetIntfInfo(name string, intfchan chan<- MachineEvent) {
 func (b mockintf) CreateVtep(vtep *VtepDbEntry, vtepname chan<- MachineEvent) {
 	if !b.failCreateVtep {
 		logger.Info(fmt.Sprintf("Create vtep %#v", vtep))
+		event := MachineEvent{
+			E:    VxlanVtepEventHwConfigComplete,
+			Src:  VXLANSnapClientStr,
+			Data: "Vtep0Int",
+		}
+		vtepname <- event
+		
 		vtepcreatedone <- true
 	}
 }
@@ -909,6 +916,128 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 	DeleteVtep(vtepConfig)
 
 	DeleteVxLAN(vxlanConfig)
+
+	if len(GetVxlanDB()) != 0 {
+		t.Errorf("Vxlan db not empty as expected")
+	}
+
+	if len(GetVtepDB()) != 0 {
+		t.Errorf("Vtep db not empty as expected")
+	}
+}
+
+// TestFSMResolveNextHopFailVtepVxlanCreate:
+// Test that next hop ip mac address does not exist yet
+func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
+
+	// setup common test info
+	setup()
+	defer teardown()
+
+	oldRxTx := VxlanVtepRxTx
+	VxlanVtepRxTx = MockFuncRxTx
+
+	defer func() {
+		VxlanVtepRxTx = oldRxTx
+	}()
+
+	mymock := mockintf{}
+	// all apis are set to not fail
+	RegisterClients(mymock)
+
+	vxlanConfig := &VxlanConfig{
+		Enable: true,
+		VNI:    100,
+		VlanId: []uint16{200},
+	}
+
+	vtepConfig := &VtepConfig{
+		Enable:      true,
+		Vni:         100,
+		VtepName:    "vtep100",
+		SrcIfName:   "eth0",
+		TunnelDstIp: net.ParseIP("100.1.1.2"),
+		VlanId:      200,
+	}
+
+	// create vxlan
+	CreateVxLAN(vxlanConfig)
+	<-vxlancreatedone
+
+	// create vtep
+	CreateVtep(vtepConfig)
+
+	// should only be one entry
+	key := &VtepDbKey{
+		Name: vtepConfig.VtepName,
+	}
+	vtep := GetVtepDBEntry(key)
+
+	exitchan := make(chan bool, 1)
+	go TimerTest(vtep, exitchan)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-vtepcreatedone:
+				return
+			case <-exitchan:
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() != VxlanVtepStateStart {
+		t.Errorf("State not as expected expected[%s] actual[%s]", VxlanVtepStateStrMap[VxlanVtepStateStart], VxlanVtepStateStrMap[vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState()])
+	}
+
+	DeRegisterClients()
+	mymock.failGetNextHop = true
+	RegisterClients(mymock)
+
+	// simulate link down which should cause RIB to signal reachability message
+	ifindex := GetIfIndexFromIfName("eth0")
+	ProcessLinkDownCb(ifindex)
+
+	dip := net.ParseIP("100.1.1.2")
+	nexthopip := net.ParseIP("100.1.1.2")
+	nexthopIfIndex := ifindex
+	nexthopIfName := "eth0"
+	reachable := false
+
+	// now simulate the not reachabile message
+	HandleNextHopChange(dip, nexthopip, nexthopIfIndex, nexthopIfName, reachable)
+	<-vtepdeletedone
+	fmt.Println("Return from HandleNextHopeChange")
+	waitevt := make(chan bool)
+
+	go func() {
+		var x = 0
+		for x = 0; x < 5 && vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() != VxlanVtepStateNextHopInfo; x++ {
+			fmt.Println("waiting	", VxlanVtepStateStrMap[vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState()])
+			time.Sleep(time.Millisecond * 10)
+		}
+		waitevt <- true
+	}()
+	time.Sleep(time.Second * 4)
+	<-waitevt
+
+	if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() != VxlanVtepStateNextHopInfo {
+		t.Errorf("State not as expected expected[%s] actual[%s]", VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo], VxlanVtepStateStrMap[vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState()])
+	}
+
+	DeleteVtep(vtepConfig)
+
+	<-vtepdeletedone
+
+	DeleteVxLAN(vxlanConfig)
+
+	<-vxlandeletedone
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
