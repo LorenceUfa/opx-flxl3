@@ -463,10 +463,7 @@ func (intf VXLANSnapClient) CreateVtep(vtep *vxlan.VtepDbEntry, vteplistener cha
 					VlanId:   int32(vtep.VlanId),
 					IntfList: pbmp,
 				}
-				intf.asicdmutex.Lock()
 				asicdclnt.ClientHdl.CreateVlan(asicdVlan)
-				intf.asicdmutex.Unlock()
-
 			} else {
 				portExists := -1
 				for i, p := range PortVlanDb[vtep.VlanId] {
