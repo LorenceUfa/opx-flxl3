@@ -32,6 +32,7 @@ import (
 	"l3/ndp/config"
 	"l3/ndp/debug"
 	"net"
+	"strconv"
 	"utils/commonDefs"
 )
 
@@ -183,7 +184,8 @@ func (svr *NDPServer) CreatePcap(ifIndex int32) error {
 	for pIfIndex, _ := range vlan.TagPortsMap {
 		l2Port, exists := svr.L2Port[pIfIndex]
 		if exists {
-			name := l2Port.Info.Name + "." + vlan.Name
+			//name := l2Port.Info.Name + "." + vlan.Name
+			name := l2Port.Info.Name + "." + strconv.Itoa(int(vlan.VlanId))
 			if l2Port.Info.OperState == config.STATE_UP {
 				l2Port.createPortPcap(svr.RxPktCh, name)
 			} else {
