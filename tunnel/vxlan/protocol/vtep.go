@@ -210,11 +210,12 @@ func CreateVtep(c *VtepConfig) *VtepDbEntry {
 	vtep := saveVtepConfigData(c)
 	if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE &&
 		c.Enable {
-		logger.Info(fmt.Sprintln("Vtep CreateVtep Start", vtep))
 		// lets start the FSM
 		vtep.VxlanVtepMachineMain()
 		vtep.VxlanVtepMachineFsm.BEGIN()
 	}
+	logger.Info(fmt.Sprintln("Vtep CreateVtep", vtep))
+
 	return vtep
 }
 

@@ -88,8 +88,9 @@ func CreateVxLAN(c *VxlanConfig) {
 				}
 			}
 		}
-		logger.Info(fmt.Sprintln("CreateVxLAN", c))
 	}
+	logger.Info(fmt.Sprintln("CreateVxLAN", c))
+
 }
 
 // DeleteVxLAN:

@@ -148,11 +148,6 @@ func VxlanConfigCheck(c *VxlanConfig) error {
 		vlanList = client.GetAllVlans()
 	}
 
-	if c.AdminState != "UP" &&
-		c.AdminState != "DOWN" {
-		return errors.New(fmt.Sprintln("Error VxlanInstance Error unsupported Admin State String must be UP/DOWN"))
-	}
-
 	unprovvlanlist := make([]uint16, 0)
 	for _, vlan := range c.VlanId {
 		if c.UntaggedVlan == vlan {
@@ -193,11 +188,6 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 		vlanList = client.GetAllVlans()
 	}
 
-	if nc.AdminState != "UP" &&
-		nc.AdminState != "DOWN" {
-		return errors.New(fmt.Sprintln("Error VxlanInstance Error unsupported Admin State String must be UP/DOWN"))
-	}
-
 	unprovvlanlist := make([]uint16, 0)
 	for _, vlan := range nc.VlanId {
 		if nc.UntaggedVlan == vlan {
@@ -230,11 +220,6 @@ func VtepConfigCheck(c *VtepConfig) error {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
 	}
 
-	if c.AdminState != "UP" &&
-		c.AdminState != "DOWN" {
-		return errors.New(fmt.Sprintln("Error VxlanInstance Error unsupported Admin State String must be UP/DOWN"))
-	}
-
 	return nil
 }
 
@@ -248,7 +233,13 @@ func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance, create bool) (*V
 
 	}
 
+	if c.AdminState != "UP" &&
+		c.AdminState != "DOWN" {
+		return nil, errors.New(fmt.Sprintln("Error VxlanInstance Error unsupported Admin State String must be UP/DOWN"))
+	}
+
 	vxlan := &VxlanConfig{
+
 		VNI:          uint32(c.Vni),
 		UntaggedVlan: uint16(c.UntaggedVlanId),
 	}
@@ -299,6 +290,10 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 		logger.Info(fmt.Sprintf("Forcing Vtep %s to use Lb %s SrcMac %s Ip %s", vtepName, name, mac, ip))
 	}
 	*/
+	if c.AdminState != "UP" &&
+		c.AdminState != "DOWN" {
+		return nil, errors.New(fmt.Sprintln("Error VxlanInstance Error unsupported Admin State String must be UP/DOWN"))
+	}
 	enable := false
 	if c.AdminState == "UP" {
 		enable = true
