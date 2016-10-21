@@ -35,13 +35,12 @@ type AreaConfKey struct {
 
 /* TODO - Add list of interfaces for this Area */
 type AreaConf struct {
-	AuthType               config.AuthType
-	ImportAsExtern         config.ImportAsExtern
-	AreaSummary            config.AreaSummary
-	StubDefaultCost        int32
-	AreaNssaTranslatorRole config.NssaTranslatorRole
-	TransitCapability      bool
-	IntfListMap            map[IntfConfKey]bool
+	AuthType          config.AuthType
+	ImportAsExtern    config.ImportAsExtern
+	AreaSummary       config.AreaSummary
+	StubDefaultCost   int32
+	TransitCapability bool
+	IntfListMap       map[IntfConfKey]bool
 }
 
 type AreaState struct {
@@ -64,7 +63,6 @@ func (server *OSPFServer) processAreaConfig(areaConf config.AreaConf) error {
 	ent.ImportAsExtern = areaConf.ImportAsExtern
 	ent.AreaSummary = areaConf.AreaSummary
 	ent.StubDefaultCost = areaConf.StubDefaultCost
-	ent.AreaNssaTranslatorRole = areaConf.AreaNssaTranslatorRole
 	ent.IntfListMap = make(map[IntfConfKey]bool)
 	server.AreaConfMap[areaConfKey] = ent
 	server.initAreaStateSlice(areaConfKey)
@@ -85,7 +83,6 @@ func (server *OSPFServer) initAreaConfDefault() {
 		ent.ImportAsExtern = config.ImportExternal
 		ent.AreaSummary = config.NoAreaSummary
 		ent.StubDefaultCost = 20
-		ent.AreaNssaTranslatorRole = config.Candidate
 		ent.IntfListMap = make(map[IntfConfKey]bool)
 		server.AreaConfMap[areaConfKey] = ent
 	}
