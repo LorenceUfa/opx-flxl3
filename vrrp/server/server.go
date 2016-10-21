@@ -417,7 +417,7 @@ func (svr *VrrpServer) VrrpChecknUpdateGblInfo(IfIndex int32, IpAddr string) {
 }
 
 func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
-	key := KeyInfo{cfg.IntfRef, cfg.Version}
+	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
 	intf, exists := svr.Intf[key]
 	if exists {
 		debug.Logger.Err("During Create we should not any entry in the DB")

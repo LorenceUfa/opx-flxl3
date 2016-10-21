@@ -123,7 +123,7 @@ func DecodeHeader(data []byte, version uint8) *Header {
 	return &hdr
 }
 
-func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *Header {
+func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 	// Check dmac address from the inPacket and if it is same discard the pkt
 	ethLayer := pkt.Layer(layers.LayerTypeEthernet)
 	if ethLayer == nil {
@@ -163,6 +163,9 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *Header {
 		debug.Logger.Err(err.Error(), ". Dropping received packet from", ipHdr.SrcIP)
 		return nil
 	}
-
+	pktInfo := &PacketInfo{
+		Hdr:    hdr,
+		IpAddr: ipHdr.SrcIP.String(),
+	}
 	return hdr
 }

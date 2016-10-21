@@ -101,7 +101,8 @@ type PktChannelInfo struct {
 }
 
 type FsmStateInfo struct {
-	Hdr *packet.Header
+	PktInfo *packet.PacketInfo
+	//Hdr *packet.Header
 }
 
 type FSM struct {
@@ -130,14 +131,19 @@ type FSM struct {
 
 	// Advertisement Timer
 	AdverTimer *time.Timer
+
+	// The initial value is the same as Advertisement_Interval.
+	MasterAdverInterval int32
+
+	// (((256 - priority) * Master_Adver_Interval) / 256)
+	SkewTime int32
+
+	// (3 * Master_Adver_Interval) + Skew_time
+	MasterDownValue int32
+
+	MasterDownTimer *time.Timer
+
 	/*
-		// The initial value is the same as Advertisement_Interval.
-		MasterAdverInterval int32
-		// (((256 - priority) * Master_Adver_Interval) / 256)
-		SkewTime int32
-		// (3 * Master_Adver_Interval) + Skew_time
-		MasterDownValue int32
-		MasterDownTimer *time.Timer
 		MasterDownLock  *sync.RWMutex
 
 		// State Name
@@ -225,11 +231,12 @@ func (f *FSM) InitPacketListener() error {
 }
 
 func (f *FSM) ProcessRcvdPkt(pktCh *config.PktChannelInfo) {
-	hdr := f.PktInfo.Decode(pktCh.pkt, f.Config.Version)
-	if hdr == nil {
+	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.Version)
+	if pktInfo == nil {
 		debug.Logger.Err("Decoding Vrrp Header Failed")
 		return
 	}
+	hdr := pktInfo.Hdr
 	for i := 0; i < int(hdr.CountIPAddr); i++ {
 		/* If Virtual Ip is not configured then check whether the ip
 		 * address of router/interface is not same as the received
@@ -242,7 +249,8 @@ func (f *FSM) ProcessRcvdPkt(pktCh *config.PktChannelInfo) {
 		}
 	}
 	f.fsmStCh <- &FsmStateInfo{
-		Hdr: hdr,
+		//Hdr: hdr,
+		PktInfo: pktInfo,
 	}
 }
 
@@ -256,9 +264,7 @@ func (f *FSM) SendPkt(pktInfo *packet.PacketInfo) {
 	}
 }
 
-func (f *FSM) TransitionToMaster() {
-
-	// (110) + Send an ADVERTISEMENT
+func (f *FSM) getPacketInfo() *PacketInfo {
 	pktInfo := &packet.PacketInfo{
 		Version:      f.Config.Version,
 		Vrid:         f.Config.VRID,
@@ -272,15 +278,128 @@ func (f *FSM) TransitionToMaster() {
 	} else {
 		pktInfo.IpAddr = f.Config.VirtualIPAddr
 	}
+	return pktInfo
+}
+
+func (f *FSM) StartMasterAdverTimer() {
+	if f.AdverTimer != nil {
+		f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
+	} else {
+		var SendMasterAdveristement_func func()
+		SendMasterAdveristement_func = func() {
+			// Send advertisment every time interval expiration
+			f.SendPkt(f.getPacketInfo())
+			f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
+		}
+		debug.Logger.Debug("Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
+		f.AdverTimer = time.AfterFunc(time.Duration(f.Config.AdvertisementInterval), SendMasterAdveristement_func)
+	}
+
+	/*
+		var timerCheck_func func()
+		timerCheck_func = func() {
+			// Send advertisment every time interval expiration
+			svr.vrrpTxPktCh <- VrrpTxChannelInfo{
+				key:      key,
+				priority: VRRP_IGNORE_PRIORITY,
+			}
+			<-svr.vrrpPktSend
+			gblInfo, exists := svr.vrrpGblInfo[key]
+			if !exists {
+				svr.logger.Err("Gbl Config for " + key + " doesn't exists")
+				return
+			}
+			gblInfo.AdverTimer.Reset(
+				time.Duration(gblInfo.IntfConfig.AdvertisementInterval) *
+					time.Second)
+			svr.vrrpGblInfo[key] = gblInfo
+		}
+		gblInfo, exists := svr.vrrpGblInfo[key]
+		if exists {
+			svr.logger.Info(fmt.Sprintln("setting adver timer to",
+				gblInfo.IntfConfig.AdvertisementInterval))
+			// Set Timer expire func...
+			gblInfo.AdverTimer = time.AfterFunc(
+				time.Duration(gblInfo.IntfConfig.AdvertisementInterval)*time.Second,
+				timerCheck_func)
+			// (145) + Transition to the {Master} state
+			gblInfo.StateNameLock.Lock()
+			gblInfo.StateName = VRRP_MASTER_STATE
+			gblInfo.StateNameLock.Unlock()
+			svr.vrrpGblInfo[key] = gblInfo
+		}
+	*/
+}
+
+func (f *FSM) StopMasterAdverTimer() {
+	if f.AdverTimer != nil {
+		f.AdverTimer.Stop()
+		f.AdverTimer = nil
+	}
+}
+
+func (f *FSM) StartMasterDownTimer(key string) {
+	if f.MasterDownTimer != nil {
+		gblInfo.MasterDownTimer.Reset(time.Duration(f.MasterDownValue) * time.Second)
+	} else {
+		var MasterDownTimer_func func()
+		// On Timer expiration we will transition to master
+		MasterDownTimer_func = func() {
+			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
+			// @TODO: do timer expiry handling here
+			svr.VrrpTransitionToMaster(key, "Master Down Timer expired")
+		}
+		debug.logger.Info("setting down timer to", f.MasterDownValue)
+		// Set Timer expire func...
+		gblInfo.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second,
+			MasterDownTimer_func)
+	}
+	gblInfo.StateNameLock.Lock()
+	gblInfo.StateName = VRRP_BACKUP_STATE
+	gblInfo.StateNameLock.Unlock()
+	svr.vrrpGblInfo[key] = gblInfo
+}
+
+func (f *FSM) CalculateDownValue() {
+	//(155) + Set Master_Adver_Interval to Advertisement_Interval
+	f, MasterAdverInterval = f.Config.AdvertisementInterval
+	//(160) + Set the Master_Down_Timer to Master_Down_Interval
+	if f.Config.Priority != 0 && f.Config.MasterAdverInterval != 0 {
+		f.Config.SkewTime = ((256 - f.Config.Priority) * f.Config.MasterAdverInterval) / 256
+	}
+	f.MasterDownValue = (3 * f.MasterAdverInterval) + f.SkewTime
+}
+
+func (f *FSM) TransitionToMaster() {
+	pktInfo := f.getPacketInfo()
+	// (110) + Send an ADVERTISEMENT
 	f.SendPkt(pktInfo)
+	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
+	// @TODO : Set Sub-intf state up and send out garp via linux stack
+	// svr.VrrpUpdateSubIntf(gblInfo, true /*configure or set*/ //)
+
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
-	svr.VrrpHandleMasterAdverTimer(key)
+	f.StartMasterAdverTimer()
+}
+
+func (f *FSM) TransitionToBackup() {
+	debug.Logger.Debug(FSM_PREFIX, "advertisement timer to be used in backup state for",
+		"calculating master down timer is ", f.Config.AdvertisementInterval)
+	// @TODO: Bring Down Sub-Interface
+	//	svr.VrrpUpdateSubIntf(gblInfo, false /*configure or set*/)
+
+	// Re-Calculate Down timer value
+	f.CalculateDownValue()
+	f.StartMasterDownTimer()
+	//(165) + Transition to the {Backup} state
+	f.State = VRRP_BACKUP_STATE
+	//svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
 }
 
 func (f *FSM) Initialize() {
-	debug.Logger.Debug("FSM -----> In Init state deciding next state")
+	debug.Logger.Debug(FSM_PREFIX, "In Init state deciding next state")
 
 	switch f.Config.Priority {
 	case VRRP_MASTER_PRIORITY:
@@ -288,28 +407,60 @@ func (f *FSM) Initialize() {
 	default:
 		f.TransitionToBackup()
 	}
-	/*
-		if gblInfo.IntfConfig.Priority == VRRP_MASTER_PRIORITY {
-			svr.logger.Info("Transitioning to Master State")
-			svr.VrrpTransitionToMaster(key, "Priority is 255")
-		} else {
-			svr.logger.Info("Transitioning to Backup State")
-			// Transition to backup state first
-			svr.VrrpTransitionToBackup(key,
-				gblInfo.IntfConfig.AdvertisementInterval,
-				"Priority is not 255")
-		}
-	*/
+}
 
+func (f *FSM) MasterState(stInfo *FsmStateInfo) {
+	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *stInfo)
+	pktInfo := stInfo.PktInfo
+	hdr := pktInfo.Hdr
+	/* // @TODO:
+	   (645) - MUST forward packets with a destination link-layer MAC
+	   address equal to the virtual router MAC address.
+
+	   (650) - MUST accept packets addressed to the IPvX address(es)
+	   associated with the virtual router if it is the IPvX address owner
+	   or if Accept_Mode is True.  Otherwise, MUST NOT accept these
+	   packets.
+	*/
+	//  (700) - If an ADVERTISEMENT is received, then:
+	//	 (705) -+ If the Priority in the ADVERTISEMENT is zero, then:
+	if hdr.Priority == VRRP_MASTER_DOWN_PRIORITY {
+		// (710) -* Send an ADVERTISEMENT
+		debug.Logger.Debug(FSM_PREFIX, "Priority in the ADVERTISEMENT is zero, then: Send an ADVERTISEMENT")
+		f.SendPkt(f.getPacketInfo())
+		// (715) -* Reset the Adver_Timer to Advertisement_Interval
+		f.StartMasterAdverTimer()
+	} else { // (720) -+ else // priority was non-zero
+		/*     (725) -* If the Priority in the ADVERTISEMENT is greater than the local Priority,
+		*      (730) -* or
+		*      (735) -* If the Priority in the ADVERTISEMENT is equal to
+		*               the local Priority and the primary IPvX Address of the
+		*	        sender is greater than the local primary IPvX Address, then:
+		 */
+		if int32(hdr.Priority) > f.Config.Priority ||
+			(int32(hdr.Priority) == f.Config.Priority &&
+				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.IpAddr)) > 0) {
+			// (740) -@ Cancel Adver_Timer
+			f.StopMasterAdverTimer()
+			svr.VrrpTransitionToBackup(key, int32(vrrpHdr.MaxAdverInt),
+				"Remote Priority is higher OR (priority are equal AND remote ip is higher than local ip)")
+		} else { // new Master logic
+			// Discard Advertisement
+			return
+		} // endif new Master Detected
+	} // end if was priority zero
+	// end for Advertisemtn received over the channel
+	// end MASTER STATE
 }
 
 func (f *FSM) ProcessStateInfo(fsmStInfo *FsmStateInfo) {
+	debug.Logger.Debug(FSM_PREFIX, "Processing State Information")
 	switch f.State {
 	case VRRP_INITIALIZE_STATE:
-
+		f.Initialize()
 	case VRRP_BACKUP_STATE:
-
 	case VRRP_MASTER_STATE:
+		f.MasterState(fsmStInfo)
 	}
 	/*
 		key := fsmObj.key
@@ -462,7 +613,6 @@ func (svr *VrrpServer) VrrpUpdateStateInfo(key string, reason string,
 	gblInfo.StateInfoLock.Unlock()
 	svr.vrrpGblInfo[key] = gblInfo
 }
-*/
 
 func (svr *VrrpServer) VrrpHandleMasterAdverTimer(key string) {
 	var timerCheck_func func()
@@ -499,6 +649,7 @@ func (svr *VrrpServer) VrrpHandleMasterAdverTimer(key string) {
 	}
 }
 
+*/
 /*
 func (svr *VrrpServer) VrrpTransitionToMaster(key string, reason string) {
 	// (110) + Send an ADVERTISEMENT
@@ -695,6 +846,7 @@ func (svr *VrrpServer) VrrpBackupState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHe
 	// end BACKUP STATE
 }
 
+/*
 func (svr *VrrpServer) VrrpMasterState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHeader,
 	key string) {
 	/* // @TODO:
@@ -705,7 +857,8 @@ func (svr *VrrpServer) VrrpMasterState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHe
 	   associated with the virtual router if it is the IPvX address owner
 	   or if Accept_Mode is True.  Otherwise, MUST NOT accept these
 	   packets.
-	*/
+*/
+/*
 	if vrrpHdr.Priority == VRRP_MASTER_DOWN_PRIORITY {
 		svr.vrrpTxPktCh <- VrrpTxChannelInfo{
 			key:      key,
@@ -743,6 +896,7 @@ func (svr *VrrpServer) VrrpMasterState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHe
 	// end for Advertisemtn received over the channel
 	// end MASTER STATE
 }
+*/
 
 func (svr *VrrpServer) VrrpFsmStart(fsmObj VrrpFsm) {
 	key := fsmObj.key

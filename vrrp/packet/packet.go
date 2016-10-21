@@ -100,6 +100,7 @@ type Header struct {
 }
 
 type PacketInfo struct {
+	Hdr          *Header
 	Version      string
 	Vrid         uint8
 	Priority     uint8

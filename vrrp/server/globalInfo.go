@@ -76,6 +76,7 @@ type VrrpTxChannelInfo struct {
 type KeyInfo struct {
 	IntfRef string
 	VRID    int32
+	Version uint8
 }
 
 type V4Intf struct {
