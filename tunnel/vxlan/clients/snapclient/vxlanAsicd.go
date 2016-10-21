@@ -67,11 +67,13 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 		for {
 			bulkInfo, err := asicdclnt.ClientHdl.GetBulkPortState(currMarker, count)
 			if err != nil {
+				intf.asicdmutex.Unlock()
 				return
 			}
 
 			bulkCfgInfo, err := asicdclnt.ClientHdl.GetBulkPort(currMarker, count)
 			if err != nil {
+				intf.asicdmutex.Unlock()
 				return
 			}
 
@@ -95,6 +97,7 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 				serverchannels.VxlanPortCreate <- config
 			}
 			if more == false {
+				intf.asicdmutex.Unlock()
 				return
 			}
 		}
@@ -659,6 +662,7 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 					mac, _ = net.ParseMAC(phyIntfState.MacAddr)
 				} else {
 					// did not find src mac exiting
+					intf.asicdmutex.Unlock()
 					return
 				}
 			//case IfTypeLag:
@@ -672,6 +676,7 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 					mac, _ = net.ParseMAC(logicalIntfState.SrcMac)
 				} else {
 					// did not find src mac exiting
+					intf.asicdmutex.Unlock()
 					return
 				}
 
