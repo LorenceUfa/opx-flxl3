@@ -196,7 +196,8 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 		foundVlan := false
 		for _, provvlan := range vlanList {
 			if vlan == provvlan {
-				foundVlan = false
+				foundVlan = true
+				break
 			}
 		}
 		if !foundVlan {
