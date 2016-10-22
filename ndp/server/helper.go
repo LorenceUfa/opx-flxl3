@@ -256,7 +256,6 @@ func (svr *NDPServer) HandleVlanNotification(msg *config.VlanNotification) {
 	case config.CONFIG_UPDATE:
 		//@TODO: jgheewala
 		svr.UpdatePhyPortToVlanInfo(msg)
-		debug.Logger.Info("NEED TO SUPPORT Vlan Update:", *msg)
 	}
 }
 

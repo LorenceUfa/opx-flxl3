@@ -302,6 +302,7 @@ func (svr *NDPServer) UpdatePhyPortToVlanInfo(msg *config.VlanNotification) {
 		debug.Logger.Err("no matching vlan found for update msg:", *msg)
 		return
 	}
+	debug.Logger.Info("vlan tag port information is:", msg.TagPorts)
 	for pIfIndex, _ := range msg.TagPorts {
 		l3Info, exists := svr.PhyPortToL3PortMap[int32(pIfIndex)]
 		if !exists {

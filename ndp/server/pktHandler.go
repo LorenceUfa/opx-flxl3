@@ -388,88 +388,7 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 	}
 
 early_exit:
-	//if l3exists {
 	svr.L3Port[l3IfIndex] = l3Port
-	//} else {
-	//		svr.L3Port[ifIndex] = l3Port
-	//	}
-	/*
-			// if we receive packet on L2 Physical interface then the we need get l3 port via cross referencing PhyPortToL3PortMap
-			l3IfIndex, l3exists := svr.PhyPortToL3PortMap[ifIndex]
-			if l3exists {
-				// Vlan is the l3 port
-				l3Port, exists = svr.L3Port[l3IfIndex]
-				if !exists {
-					return errors.New(fmt.Sprintln("Entry for ifIndex:", l3IfIndex, "doesn't exists"))
-				}
-				l2Port = svr.L2Port[ifIndex]
-			} else {
-				// Physical Port itself is the l3 port
-				l3Port, exists = svr.L3Port[ifIndex]
-				if !exists {
-					return errors.New(fmt.Sprintln("Entry for ifIndex:", ifIndex, "doesn't exists"))
-				}
-			}
-			// Step2: process decode neighbor information
-			// update ifIndex to l2 ifIndex if iftype is not ifTypePort
-			switch l3Port.IfType {
-			case commonDefs.IfTypeVlan:
-				ndInfo.LearnedIfIndex = ifIndex
-				// if vlan type then updating the name to original port where the packet was received
-				ndInfo.LearnedIntfRef = l2Port.Info.Name
-			case commonDefs.IfTypePort:
-				ndInfo.LearnedIfIndex = l3Port.IfIndex
-				ndInfo.LearnedIntfRef = l3Port.IntfRef
-			}
-			// Step2: process decoded packet
-			nbrInfo, operation := l3Port.ProcessND(ndInfo)
-			if nbrInfo == nil && operation == IGNORE { //|| (operation != CREATE && operation != DELETE) {
-				//return nil
-				goto early_exit
-			}
-			// Step3: process decode neighbor information
-			// update ifIndex to l2 ifIndex if iftype is not ifTypePort
-			switch l3Port.IfType {
-			case commonDefs.IfTypeVlan:
-				nbrInfo.IfIndex = ifIndex
-				// if vlan type then updating the name to original port where the packet was received
-				nbrInfo.Intf = l2Port.Info.Name
-			}
-			if ndInfo.Dot1Q == -1 {
-				svr.PopulateVlanInfo(nbrInfo, l3Port.IntfRef)
-			} else {
-				debug.Logger.Debug("Received Dot1Q packet for l2Port:", l2Port.Info.Name, "Dot1Q tag:", ndInfo.Dot1Q)
-				nbrInfo.VlanId = ndInfo.Dot1Q
-			}
-			nbrKey = createNeighborKey(nbrInfo.MacAddr, nbrInfo.IpAddr, nbrInfo.Intf)
-			// based on operation program hardware, update sw & send notifications
-			switch operation {
-			case CREATE:
-				svr.CreateNeighborInfo(nbrInfo)
-			case UPDATE:
-				nbrEntry, exists := svr.NeighborInfo[nbrKey]
-				if !exists { //entry does not exists and hence creating new
-					debug.Logger.Info("!!!!!!ALERT!!!!!! NDP Server does not have nbrInfo for ipaddr:",
-						nbrInfo.IpAddr, "hence on UPDATE doing CREATE")
-					svr.CreateNeighborInfo(nbrInfo)
-				} else {
-					if !reflect.DeepEqual(nbrEntry, *nbrInfo) {
-						debug.Logger.Debug("Updating neighbor Info as oldEntry:", nbrEntry,
-							"is not equal to new entry", *nbrInfo)
-						svr.UpdateNeighborInfo(nbrInfo, nbrEntry)
-					}
-				}
-			case DELETE:
-				svr.deleteNeighbor(nbrKey, l3Port.IfIndex) // used mostly by RA
-			}
-
-		early_exit:
-			if l3exists {
-				svr.L3Port[l3IfIndex] = l3Port
-			} else {
-				svr.L3Port[ifIndex] = l3Port
-			}
-	*/
 	return nil
 }
 
@@ -480,19 +399,6 @@ func (svr *NDPServer) ProcessTimerExpiry(pktData config.PacketData) error {
 	var l3Port Interface
 	var exists bool
 	var intfName string
-	/*
-		// if we receive packet on L2 Physical interface then the we need get l3 port via cross referencing PhyPortToL3PortMap
-		l3IfIndex, l3exists := svr.PhyPortToL3PortMap[pktData.IfIndex]
-		if l3exists {
-			// Vlan is the l3 port
-			l3Port, exists = svr.L3Port[l3IfIndex]
-			if !exists {
-				return errors.New(fmt.Sprintln("Entry for ifIndex:", l3IfIndex, "doesn't exists"))
-			}
-			l2Port := svr.L2Port[pktData.IfIndex]
-			intfName = l2Port.Info.Name
-		} else {
-	*/
 	// Port is the l3 port
 	l3Port, exists = svr.L3Port[pktData.IfIndex]
 	if !exists {
@@ -507,13 +413,6 @@ func (svr *NDPServer) ProcessTimerExpiry(pktData config.PacketData) error {
 		svr.deleteNeighbor(nbrKey, l3Port.IfIndex)
 	}
 	svr.L3Port[pktData.IfIndex] = l3Port
-	/*
-		if l3exists {
-			svr.L3Port[l3IfIndex] = l3Port
-		} else {
-			svr.L3Port[pktData.IfIndex] = l3Port
-		}
-	*/
 	svr.counter.Send++
 	return nil
 }
