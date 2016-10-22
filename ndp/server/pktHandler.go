@@ -364,7 +364,6 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 	// nbrKey is peer_mac, peer_ip, always l3 port because asicd doesn't care for nbrInfo interface but
 	// bfd and bgp cares for l3 interface
 	nbrKey = createNeighborKey(nbrInfo.MacAddr, nbrInfo.IpAddr, nbrInfo.Intf)
-	//debug.Logger.Debug("L3 nbrkey is:", nbrKey)
 	// based on operation program hardware, update sw & send notifications
 	switch operation {
 	case CREATE:
