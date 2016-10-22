@@ -3,7 +3,7 @@ arp/rpc/arpd.thrift
 dhcp/rpc/dhcpd.thrift
 bfd/rpc/bfdd.thrift
 bgp/rpc/bgpd.thrift
-dhcp_relay/server/dhcprelayd.thrift
+dhcp_relay/rpc/dhcprelayd.thrift
 ospf/rpc/ospfd.thrift
 rib/rpc/ribd.thrift
 tunnel/vxlan/rpc/vxland.thrift
