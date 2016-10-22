@@ -55,7 +55,6 @@ type L3Info struct {
 type PhyPort struct {
 	RX   *pcap.Handle
 	Info config.PortInfo
-	//L3   L3Info
 }
 
 type NDPServer struct {

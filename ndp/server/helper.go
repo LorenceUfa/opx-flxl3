@@ -62,6 +62,7 @@ func (svr *NDPServer) GetPorts() {
 		l2Port.Info = port
 		l2Port.RX = nil
 		//l2Port.L3 = l3Info
+		debug.Logger.Info("L2 IfIndex:", port.IfIndex, "Information is:", l2Port.Info)
 		svr.L2Port[port.IfIndex] = l2Port
 		svr.SwitchMacMapEntries[port.MacAddr] = empty
 		svr.SwitchMac = port.MacAddr // @HACK.... need better solution
@@ -243,10 +244,8 @@ func (svr *NDPServer) HandleVlanNotification(msg *config.VlanNotification) {
 		}
 		svr.VlanInfo[msg.VlanIfIndex] = vlan
 		svr.Dot1QToVlanIfIndex[msg.VlanId] = msg.VlanIfIndex
-		//svr.CreatePcap(msg.VlanIfIndex)
 	case config.CONFIG_DELETE:
 		debug.Logger.Info("Received Vlan Delete:", *msg)
-		//svr.DeletePcap(msg.VlanIfIndex)
 		if exists {
 			vlan.UntagPortsMap = nil
 			vlan.TagPortsMap = nil
@@ -254,7 +253,46 @@ func (svr *NDPServer) HandleVlanNotification(msg *config.VlanNotification) {
 		}
 		delete(svr.Dot1QToVlanIfIndex, msg.VlanId)
 	case config.CONFIG_UPDATE:
-		//@TODO: jgheewala
+		debug.Logger.Info("Received Vlan Update:", *msg)
+		for tagIntf, _ := range vlan.TagPortsMap {
+			del := true
+			for _, msgTagIntf := range msg.TagPorts {
+				if msgTagIntf == tagIntf {
+					del = false
+					break
+				}
+			}
+			if del {
+				delete(vlan.TagPortsMap, tagIntf)
+			}
+		}
+		for unTagIntf, _ := range vlan.UntagPortsMap {
+			del := true
+			for _, msgUnTagIntf := range msg.UntagPorts {
+				if msgUnTagIntf == unTagIntf {
+					del = false
+					break
+				}
+			}
+			if del {
+				delete(vlan.UntagPortsMap, unTagIntf)
+			}
+		}
+		// Store untag port information
+		for _, untagIntf := range msg.UntagPorts {
+			if vlan.UntagPortsMap == nil {
+				vlan.UntagPortsMap = make(map[int32]bool)
+			}
+			vlan.UntagPortsMap[untagIntf] = true
+		}
+		// Store untag port information
+		for _, tagIntf := range msg.TagPorts {
+			if vlan.TagPortsMap == nil {
+				vlan.TagPortsMap = make(map[int32]bool)
+			}
+			vlan.TagPortsMap[tagIntf] = true
+		}
+		svr.VlanInfo[msg.VlanIfIndex] = vlan
 		svr.UpdatePhyPortToVlanInfo(msg)
 	}
 }

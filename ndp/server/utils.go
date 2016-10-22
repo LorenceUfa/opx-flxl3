@@ -92,24 +92,25 @@ func (svr *NDPServer) updateL2Operstate(ifIndex int32, state string) {
 		return
 	}
 	l2Port.Info.OperState = state
-	/* HANDLE PORT FLAP SCENARIOS
-	 * only l3 CreatePcap should update l2Port.L3 information, so only READ operation on l2Port.L3
-	 * no write operations are allowed
-	 */
-	//debug.Logger.Debug("l2 Port l3 information is", l2Port.L3)
-	l3Info := svr.PhyPortToL3PortMap[ifIndex]
+	/* HANDLE PORT FLAP SCENARIOS */
 	switch state {
 	case config.STATE_UP:
 		// if l2 port rx is set to nil and l3 ifIndex is not invalid then create pcap
-		if l2Port.RX == nil && l3Info.Name != "" { //&& l2Port.L3.IfIndex != config.L3_INVALID_IFINDEX {
-			l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name) //l2Port.L3.Name)
-			// reverse map updated
-			//svr.PhyPortToL3PortMap[ifIndex] = l2Port.L3.IfIndex
-		}
+		//		if l2Port.RX == nil && l3Infoexists {
+		//l3Info, l3Infoexists := svr.PhyPortToL3PortMap[ifIndex]
+		//l3IfIndex := -1
+		/*
+			if l2Port.RX == nil {
+				debug.Logger.Debug("l2 Port:", l2Port.Info, "l3 information is", l3Info)
+				//if l3Info.Name != "" {
+				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
+				//}
+			}
+		*/
 	case config.STATE_DOWN:
 		l2Port.deletePcap()
-		//delete(svr.PhyPortToL3PortMap, ifIndex)
 	}
+	debug.Logger.Info("During L2 State Notification L2 IfIndex:", ifIndex, "Information is:", l2Port.Info)
 	svr.L2Port[ifIndex] = l2Port
 }
 
@@ -175,70 +176,49 @@ func (intf *PhyPort) L2ReceiveNdpPkts(pktCh chan *RxPktInfo) error {
  *  only l3 CreatePcap should update l2Port.L3 information
  */
 func (svr *NDPServer) CreatePcap(ifIndex int32) error {
-	debug.Logger.Info("Updating Physical Port Pcap to L3 Vlan, ifIndex:", ifIndex)
+	debug.Logger.Info("Creating Physical Port Pcap to L3 Vlan, ifIndex:", ifIndex)
 	vlan, exists := svr.VlanInfo[ifIndex]
 	if !exists {
 		debug.Logger.Err("No matching vlan found for ifIndex:", ifIndex)
 		return errors.New(fmt.Sprintln("No matching vlan found for ifIndex:", ifIndex))
 	}
-	//debug.Logger.Debug("Creating Pcap Handlers for tag ports:", vlan.TagPortsMap)
+	debug.Logger.Debug("Creating Pcap Handlers for tag ports:", vlan.TagPortsMap)
 	// open rx pcap handler for tagged ports
 	for pIfIndex, _ := range vlan.TagPortsMap {
 		l2Port, exists := svr.L2Port[pIfIndex]
 		if exists {
+			debug.Logger.Debug("L2:", l2Port.Info.Name, "operstate is", l2Port.Info.OperState)
 			if l2Port.Info.OperState == config.STATE_UP {
 				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
 			}
 			/*
-				//name := l2Port.Info.Name + "." + vlan.Name
-				name := l2Port.Info.Name //+ "." + strconv.Itoa(int(vlan.VlanId))
-				if l2Port.Info.OperState == config.STATE_UP {
-					l2Port.createPortPcap(svr.RxPktCh, name)
-				} else {
-					l2Port.RX = nil
+				// reverse map updated
+				l3Info := L3Info{
+					Name:    vlan.Name,
+					IfIndex: ifIndex,
 				}
-				// l3 information store if the port flaps and we need to restart
-				l2Port.L3.IfIndex = ifIndex
-				l2Port.L3.PortType = config.L2_TAG_TYPE
-				l2Port.L3.Name = name
 				svr.L2Port[pIfIndex] = l2Port
+				svr.PhyPortToL3PortMap[pIfIndex] = l3Info
 			*/
-			// reverse map updated
-			l3Info := L3Info{
-				Name:    vlan.Name,
-				IfIndex: ifIndex,
-			}
-			svr.PhyPortToL3PortMap[pIfIndex] = l3Info //ifIndex
 		}
 	}
-	//debug.Logger.Debug("Creating pcap handlers for unTag ports:", vlan.UntagPortsMap)
+	debug.Logger.Debug("Creating pcap handlers for unTag ports:", vlan.UntagPortsMap)
 	// open rx pcap handler for untagged ports
 	for pIfIndex, _ := range vlan.UntagPortsMap {
 		l2Port, exists := svr.L2Port[pIfIndex]
-		//_, exists := svr.L2Port[pIfIndex]
 		if exists {
+			debug.Logger.Debug("L2:", l2Port.Info.Name, "operstate is", l2Port.Info.OperState)
 			if l2Port.Info.OperState == config.STATE_UP {
 				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
 				svr.L2Port[pIfIndex] = l2Port
 			}
-			/*
-				if l2Port.Info.OperState == config.STATE_UP {
-					l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
-				} else {
-					l2Port.RX = nil
-				}
-				// l3 information store if the port flaps and we need to restart
-				l2Port.L3.IfIndex = ifIndex
-				l2Port.L3.PortType = config.L2_UNTAG_TYPE
-				l2Port.L3.Name = l2Port.Info.Name
-				svr.L2Port[pIfIndex] = l2Port
-			*/
 			// reverse map updated
 			l3Info := L3Info{
 				Name:    vlan.Name,
 				IfIndex: ifIndex,
 			}
-			svr.PhyPortToL3PortMap[pIfIndex] = l3Info //ifIndex
+			svr.L2Port[pIfIndex] = l2Port
+			svr.PhyPortToL3PortMap[pIfIndex] = l3Info
 		}
 	}
 	debug.Logger.Debug("PhyPortToL3PortMap after create vlan is:", svr.PhyPortToL3PortMap)
@@ -256,39 +236,22 @@ func (svr *NDPServer) DeletePcap(ifIndex int32) {
 		debug.Logger.Err("No matching vlan found for ifIndex:", ifIndex)
 		return //errors.New(fmt.Sprintln("No matching vlan found for ifIndex:", ifIndex))
 	}
-	/*
-		l3 := L3Info{
-			IfIndex: config.L3_INVALID_IFINDEX,
-		}
-	*/
-	//debug.Logger.Debug("Deleting pcap handlers for unTag ports:", vlan.UntagPortsMap)
+	debug.Logger.Debug("Deleting pcap handlers for unTag ports:", vlan.UntagPortsMap)
 	// open rx pcap handler for tagged ports
 	for pIfIndex, _ := range vlan.TagPortsMap {
 		l2Port, exists := svr.L2Port[pIfIndex]
-		//_, exists := svr.L2Port[pIfIndex]
 		if exists {
 			l2Port.deletePcap()
 			svr.L2Port[pIfIndex] = l2Port
-			/*
-				// cleanup l3 port information from phy port only when L3 is calling delete
-				l2Port.L3 = l3
-			*/
-			delete(svr.PhyPortToL3PortMap, pIfIndex)
+			//delete(svr.PhyPortToL3PortMap, pIfIndex)
 		}
 	}
 	// open rx pcap handler for untagged ports
 	for pIfIndex, _ := range vlan.UntagPortsMap {
 		l2Port, exists := svr.L2Port[pIfIndex]
-		//_, exists := svr.L2Port[pIfIndex]
 		if exists {
 			l2Port.deletePcap()
 			svr.L2Port[pIfIndex] = l2Port
-			/*
-				l2Port.deletePcap()
-				// cleanup l3 port information from phy port only when L3 is calling delete
-				l2Port.L3 = l3
-				svr.L2Port[pIfIndex] = l2Port
-			*/
 			delete(svr.PhyPortToL3PortMap, pIfIndex)
 		}
 	}
@@ -303,46 +266,98 @@ func (svr *NDPServer) UpdatePhyPortToVlanInfo(msg *config.VlanNotification) {
 		return
 	}
 	debug.Logger.Info("vlan tag port information is:", msg.TagPorts)
-	for pIfIndex, _ := range msg.TagPorts {
-		l3Info, exists := svr.PhyPortToL3PortMap[int32(pIfIndex)]
+	// iterating over slice
+	/*
+		for _, pIfIndex := range msg.TagPorts {
+			debug.Logger.Info("tag port ifIndex:", pIfIndex)
+			l3Info, exists := svr.PhyPortToL3PortMap[pIfIndex]
+			if !exists {
+				l3Info = L3Info{
+					Name:    vlan.Name,
+					IfIndex: ifIndex,
+					Updated: true,
+				}
+				debug.Logger.Info("new tag port received for pIfIndex:", pIfIndex, "L3Info:", l3Info)
+			} else {
+				debug.Logger.Info("existing tag port setting update to true for pIfIndex:", pIfIndex, "L3Info:", l3Info)
+				l3Info.Updated = true
+			}
+			svr.PhyPortToL3PortMap[pIfIndex] = l3Info
+		}
+	*/
+	// iterating over slice
+	for _, pIfIndex := range msg.UntagPorts {
+		debug.Logger.Info("Untag port ifIndex:", pIfIndex)
+		l3Info, exists := svr.PhyPortToL3PortMap[pIfIndex]
 		if !exists {
 			l3Info = L3Info{
 				Name:    vlan.Name,
 				IfIndex: ifIndex,
 				Updated: true,
 			}
+			debug.Logger.Info("new untag port received for pIfIndex:", pIfIndex, "L3Info:", l3Info)
 		} else {
+			debug.Logger.Info("existing untag port setting update to true for pIfIndex:", pIfIndex, "L3Info:", l3Info)
 			l3Info.Updated = true
 		}
-		svr.PhyPortToL3PortMap[int32(pIfIndex)] = l3Info
+		svr.PhyPortToL3PortMap[pIfIndex] = l3Info
 	}
-
-	for pIfIndex, _ := range msg.UntagPorts {
-		l3Info, exists := svr.PhyPortToL3PortMap[int32(pIfIndex)]
-		if !exists {
-			l3Info = L3Info{
-				Name:    vlan.Name,
-				IfIndex: ifIndex,
-				Updated: true,
-			}
-		} else {
-			l3Info.Updated = true
-		}
-		svr.PhyPortToL3PortMap[int32(pIfIndex)] = l3Info
-	}
-
+	l3Port, l3exists := svr.L3Port[ifIndex]
+	// iterating over map
 	for pIfIndex, l3Info := range svr.PhyPortToL3PortMap {
+		l2Port, exists := svr.L2Port[pIfIndex]
 		if l3Info.Updated == false {
-			delete(svr.PhyPortToL3PortMap, int32(pIfIndex))
+			debug.Logger.Debug("before deleteing pcap for:", pIfIndex, "check if it belongs to tag port map")
+			if _, ok := vlan.TagPortsMap[pIfIndex]; !ok {
+				debug.Logger.Info("pIfIndex:", pIfIndex, "is removed from vlan:", ifIndex, vlan.Name, "as un-tag member",
+					"hence deleting its pcap")
+				l2Port.deletePcap()
+			}
+			delete(svr.PhyPortToL3PortMap, pIfIndex)
 		} else {
+			debug.Logger.Info("pIfIndex:", pIfIndex, "is part of vlan:", ifIndex, vlan.Name, "as tag/un-tag member",
+				"check if l3 is up or not and start rx/tx if needed")
 			l3Info.Updated = false
-			svr.PhyPortToL3PortMap[int32(pIfIndex)] = l3Info
-			l2Port, exists := svr.L2Port[int32(pIfIndex)]
+			svr.PhyPortToL3PortMap[pIfIndex] = l3Info
+			// if the entry is updated then check for l3 entry
 			if exists {
-				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
-				svr.L2Port[pIfIndex] = l2Port
+				/*
+				 * if l3 entry exists then check whether l3 is running or not
+				 * if l3 is started then incoming should be create
+				 * if not then delete the pcap for incoming notification
+				 */
+				if l3exists {
+					if l2Port.Info.OperState == config.STATE_UP && l3Port.PcapBase.PcapHandle != nil {
+						l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
+					} else {
+						l2Port.deletePcap()
+					}
+				}
 			}
 		}
+		svr.L2Port[pIfIndex] = l2Port
+	}
+	// open rx pcap handler for tagged ports
+	for pIfIndex, _ := range vlan.TagPortsMap {
+		l2Port, exists := svr.L2Port[pIfIndex]
+		if exists {
+			debug.Logger.Debug("L2:", l2Port.Info.Name, "operstate is", l2Port.Info.OperState)
+			if l2Port.Info.OperState == config.STATE_UP && l3Port.PcapBase.PcapHandle != nil {
+				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
+			} else {
+				l2Port.deletePcap()
+			}
+			/*
+				// reverse map updated
+				l3Info := L3Info{
+					Name:    vlan.Name,
+					IfIndex: ifIndex,
+				}
+				svr.L2Port[pIfIndex] = l2Port
+				svr.PhyPortToL3PortMap[pIfIndex] = l3Info
+			*/
+		}
+		svr.L2Port[pIfIndex] = l2Port
 	}
 }
 

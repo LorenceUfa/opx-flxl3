@@ -43,8 +43,6 @@ import (
 func (svr *NDPServer) StartRxTx(ifIndex int32) {
 	l3Port, exists := svr.L3Port[ifIndex]
 	if !exists {
-		// This will copy msg (intRef, ifIndex, ipAddr) into l3Port
-		// And also create an entry into the ndpL3IntfStateSlice
 		debug.Logger.Err("Failed starting RX/TX for interface which was not created, ifIndex:",
 			ifIndex, "is not allowed")
 		return
@@ -322,6 +320,7 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 		l3IfIndex = svr.Dot1QToVlanIfIndex[ndInfo.Dot1Q]
 	} else {
 		// if we receive packet on L2 Physical interface then the we need get l3 port via cross referencing PhyPortToL3PortMap
+		// this will only be the case during untagged member port and hence it will be only 1-1 mapping
 		l3Info, exists := svr.PhyPortToL3PortMap[ifIndex]
 		if exists {
 			// Vlan is the l3 port
