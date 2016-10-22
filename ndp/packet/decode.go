@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"l3/ndp/config"
 	"net"
 )
 
@@ -46,7 +47,7 @@ func getDot1QLayer(pkt gopacket.Packet, dot1q *layers.Dot1Q) int32 {
 	}
 	*dot1q = *dot1qLayer.(*layers.Dot1Q)
 	if dot1q.VLANIdentifier == 0 {
-		return -1
+		return config.INTERNAL_VLAN
 	}
 
 	return int32(dot1q.VLANIdentifier)
