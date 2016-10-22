@@ -439,6 +439,7 @@ func (intf *Interface) createNbrKey(ndInfo *packet.NDInfo) (nbrkey string) {
 	} else {
 		nbrkey = ndInfo.SrcMac + "_" + ndInfo.SrcIp + "_" + ndInfo.LearnedIntfRef
 	}
+	debug.Logger.Debug("nbrKey created for ipv6 adj is:", nbrkey)
 	return nbrkey
 }
 

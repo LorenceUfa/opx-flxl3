@@ -42,6 +42,7 @@ type NDInfo struct {
 	// NS/NA Information
 	TargetAddress  net.IP
 	PktType        layers.ICMPv6TypeCode
+	Dot1Q          int32
 	SrcMac         string
 	SrcIp          string
 	DstIp          string

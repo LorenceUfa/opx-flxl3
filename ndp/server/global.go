@@ -49,12 +49,13 @@ type L3Info struct {
 	Name     string
 	IfIndex  int32
 	PortType string // tag or untag
+	Updated  bool   // if set then do not delete during update
 }
 
 type PhyPort struct {
 	RX   *pcap.Handle
 	Info config.PortInfo
-	L3   L3Info
+	//L3   L3Info
 }
 
 type NDPServer struct {
@@ -65,12 +66,13 @@ type NDPServer struct {
 	// System Ports information, key is IntfRef
 	L2Port              map[int32]PhyPort                //config.PortInfo        // key is l2 ifIndex
 	L3Port              map[int32]Interface              // key is l3 ifIndex
-	VlanInfo            map[int32]config.VlanInfo        // key is vlanId
+	VlanInfo            map[int32]config.VlanInfo        // key is vlanIfIndex
 	VlanIfIdxVlanIdMap  map[string]int32                 //reverse map for vlanName ----> vlanId, used during ipv6 neig create
 	SwitchMacMapEntries map[string]struct{}              // cache entry for all mac addresses on a switch
 	NeighborInfo        map[string]config.NeighborConfig // neighbor created by NDP used for STATE
 	neighborKey         []string                         // keys for all neighbor entries is stored here for GET calls
-	PhyPortToL3PortMap  map[int32]int32                  // reverse map for l2IfIndex ----> l3IfIndex, used during vlan RX Pcap
+	PhyPortToL3PortMap  map[int32]L3Info                 // reverse map for l2IfIndex ----> l3IfIndex, used during vlan RX Pcap
+	Dot1QToVlanIfIndex  map[int32]int32
 
 	//Configuration Channels
 	GlobalCfg chan NdpConfig

@@ -38,10 +38,11 @@ func (svr *NDPServer) GetPorts() {
 	if err != nil {
 		debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
 		return
-	}
-	l3Info := L3Info{
-		IfIndex: config.L3_INVALID_IFINDEX,
-	}
+	} /*
+		l3Info := L3Info{
+			IfIndex: config.L3_INVALID_IFINDEX,
+		}
+	*/
 	for _, obj := range portsInfo {
 		var empty struct{}
 		port := config.PortInfo{
@@ -60,7 +61,7 @@ func (svr *NDPServer) GetPorts() {
 		l2Port := svr.L2Port[port.IfIndex]
 		l2Port.Info = port
 		l2Port.RX = nil
-		l2Port.L3 = l3Info
+		//l2Port.L3 = l3Info
 		svr.L2Port[port.IfIndex] = l2Port
 		svr.SwitchMacMapEntries[port.MacAddr] = empty
 		svr.SwitchMac = port.MacAddr // @HACK.... need better solution
@@ -241,15 +242,20 @@ func (svr *NDPServer) HandleVlanNotification(msg *config.VlanNotification) {
 			vlan.TagPortsMap[tagIntf] = true
 		}
 		svr.VlanInfo[msg.VlanIfIndex] = vlan
+		svr.Dot1QToVlanIfIndex[msg.VlanId] = msg.VlanIfIndex
+		svr.CreatePcap(msg.VlanIfIndex)
 	case config.CONFIG_DELETE:
 		debug.Logger.Info("Received Vlan Delete:", *msg)
+		svr.DeletePcap(msg.VlanIfIndex)
 		if exists {
 			vlan.UntagPortsMap = nil
 			vlan.TagPortsMap = nil
 			delete(svr.VlanInfo, msg.VlanIfIndex)
 		}
+		delete(svr.Dot1QToVlanIfIndex, msg.VlanId)
 	case config.CONFIG_UPDATE:
 		//@TODO: jgheewala
+		svr.UpdatePhyPortToVlanInfo(msg)
 		debug.Logger.Info("NEED TO SUPPORT Vlan Update:", *msg)
 	}
 }
@@ -288,6 +294,7 @@ func (svr *NDPServer) SoftwareUpdateNbrEntry(msg *config.MacMoveNotification) {
 	for _, nbrKey := range svr.neighborKey {
 		splitString := splitNeighborKey(nbrKey)
 		if splitString[1] == nbrIp {
+			debug.Logger.Info("Updating Neigbor information for:", nbrIp, splitString[1])
 			nbrEntry, exists := svr.NeighborInfo[nbrKey]
 			if !exists {
 				return
