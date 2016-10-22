@@ -481,18 +481,7 @@ func (svr *NDPServer) updateL2Operstate(ifIndex int32, state string) {
 	/* HANDLE PORT FLAP SCENARIOS */
 	switch state {
 	case config.STATE_UP:
-		// if l2 port rx is set to nil and l3 ifIndex is not invalid then create pcap
-		//		if l2Port.RX == nil && l3Infoexists {
-		//l3Info, l3Infoexists := svr.PhyPortToL3PortMap[ifIndex]
-		//l3IfIndex := -1
-		/*
-			if l2Port.RX == nil {
-				debug.Logger.Debug("l2 Port:", l2Port.Info, "l3 information is", l3Info)
-				//if l3Info.Name != "" {
-				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
-				//}
-			}
-		*/
+		// NO-OP Just change the state
 	case config.STATE_DOWN:
 		debug.Logger.Info("L2 Port is down and hence deleting pcap handler for port:", l2Port.Info.Name)
 		l2Port.deletePcap()
