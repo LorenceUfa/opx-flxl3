@@ -251,6 +251,23 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 			Src: VxlanVtepMachineModuleStr,
 		}
 
+		if vtep.Enable {
+			// restart the timer on deprovisioning as we will retry each of the
+			// state transitions again
+			vtep.retrytimer.Reset(retrytime)
+		} else {
+			vtep.retrytimer.Stop()
+		}
+	}
+}
+
+func ReProvisionVtep(vtep *VtepDbEntry) {
+	vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
+		E:   VxlanVtepEventBegin,
+		Src: VxlanVtepMachineModuleStr,
+	}
+
+	if vtep.Enable {
 		// restart the timer on deprovisioning as we will retry each of the
 		// state transitions again
 		vtep.retrytimer.Reset(retrytime)
@@ -301,6 +318,24 @@ func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 	if vtep == nil {
 		vtep = NewVtepDbEntry(c)
 		vtepDB[*key] = vtep
+	} else {
+		vtep.SrcIfName = c.SrcIfName
+		vtep.UDP = c.UDP
+		vtep.TTL = c.TTL
+		vtep.TOS = c.TOS
+		vtep.MTU = uint16(c.MTU)
+		vtep.DstIp = c.TunnelDstIp
+		vtep.SrcIp = c.TunnelSrcIp
+		vtep.SrcMac = c.TunnelSrcMac
+		vtep.DstMac = c.TunnelDstMac
+		vtep.VlanId = c.VlanId
+		vtep.Enable = c.Enable
+
+		if c.InnerVlanHandlingMode == 0 {
+			vtep.FilterUnknownCustVlan = true
+		} else {
+			vtep.FilterUnknownCustVlan = false
+		}
 	}
 	return vtep
 }

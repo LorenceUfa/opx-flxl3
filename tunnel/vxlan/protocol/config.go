@@ -221,6 +221,10 @@ func VtepConfigCheck(c *VtepConfig) error {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
 	}
 
+	if c.TTL > 255 {
+		return errors.New("Error VtepInstance TTL must be between 0-255")
+	}
+
 	return nil
 }
 
@@ -385,59 +389,42 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 
 func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
 
-	// important to note that the attrset starts at index 0 which is the BaseObj
-	// which is not the first element on the thrift obj, thus we need to skip
-	// this attribute
+	enableobj := false
+	disableobj := false
+	recreateobj := false
 	for _, objName := range c.Attr {
+		if objName == "AdminState" {
+			if c.Newconfig.Enable {
+				enableobj = true
+			} else {
+				disableobj = true
+			}
+		} else {
+			recreateobj = true
+		}
+	}
 
-		if objName == "InnerVlanHandlingMode" {
-			// TODO
+	if disableobj {
+		key := &VtepDbKey{
+			Name: c.Newconfig.VtepName,
 		}
-		if objName == "UDP" {
-			// TODO
+		vtep := GetVtepDBEntry(key)
+		if vtep != nil {
+			DeProvisionVtep(vtep, false)
+			saveVtepConfigData(&(c.Newconfig))
 		}
-		if objName == "TunnelSourceIp" {
-			// TODO
+	} else if enableobj {
+		key := &VtepDbKey{
+			Name: c.Newconfig.VtepName,
 		}
-		if objName == "SrcMac" {
-			// TODO
+		vtep := GetVtepDBEntry(key)
+		if vtep != nil {
+			saveVtepConfigData(&(c.Newconfig))
+			ReProvisionVtep(vtep)
 		}
-		if objName == "L2miss" {
-			// TODO
-		}
-		if objName == "TOS" {
-			// TODO
-		}
-		if objName == "VxlanId" {
-			// TODO
-		}
-		if objName == "VtepName" {
-			// TODO
-		}
-		if objName == "VlanId" {
-			// TODO
-		}
-		if objName == "Rsc" {
-			// TODO
-		}
-		if objName == "VtepId" {
-			// TODO
-		}
-		if objName == "SrcIfIndex" {
-			// TODO
-		}
-		if objName == "L3miss" {
-			// TODO
-		}
-		if objName == "Learning" {
-			// TODO
-		}
-		if objName == "TTL" {
-			// TODO
-		}
-		if objName == "TunnelDestinationIp" {
-			// TODO
-		}
+	} else if recreateobj {
+		DeleteVtep(&(c.Oldconfig))
+		CreateVtep(&(c.Newconfig))
 	}
 }
 
