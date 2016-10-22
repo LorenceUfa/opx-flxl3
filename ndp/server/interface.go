@@ -452,7 +452,8 @@ func (intf *Interface) ProcessND(ndInfo *packet.NDInfo) (*config.NeighborConfig,
 		debug.Logger.Alert("!!!!Neighbor Initialization for intf:", intf.IntfRef, "didn't happen properly!!!!!")
 		intf.Neighbor = make(map[string]NeighborInfo, 10)
 	}
-	if intf.PcapBase.PcapHandle == nil {
+	// if tx is closed then do not learn the packet
+	if intf.PcapBase.Tx == nil {
 		return nil, IGNORE
 	}
 	switch ndInfo.PktType {

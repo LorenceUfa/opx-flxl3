@@ -312,13 +312,15 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 	if err != nil || ndInfo == nil {
 		return errors.New(fmt.Sprintln("Failed decoding ND packet, error:", err))
 	}
-
+	debug.Logger.Debug("Decoded ND Information is:", *ndInfo, "for ifIndex:", ifIndex)
 	l3IfIndex := ifIndex
 	// if we have dot1q tag from the then we need to get l2 Port first and update l3Ifindex
 	if ndInfo.Dot1Q != config.INTERNAL_VLAN {
+		debug.Logger.Debug("Valid Dot1Q received")
 		l2Port, l2exists = svr.L2Port[ifIndex]
 		l3IfIndex = svr.Dot1QToVlanIfIndex[ndInfo.Dot1Q]
 	} else {
+		debug.Logger.Debug("Untagged packet received")
 		// if we receive packet on L2 Physical interface then the we need get l3 port via cross referencing PhyPortToL3PortMap
 		// this will only be the case during untagged member port and hence it will be only 1-1 mapping
 		l3Info, exists := svr.PhyPortToL3PortMap[ifIndex]
@@ -343,13 +345,14 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 		// treat it as l3 port information
 		ndInfo.LearnedIntfRef = l3Port.IntfRef
 	}
+	debug.Logger.Debug("LearnedIntfRef is:", ndInfo.LearnedIntfRef)
 	// get nbr Info for asicd
 	nbrInfo, operation := l3Port.ProcessND(ndInfo)
-	if nbrInfo == nil && operation == IGNORE { //|| (operation != CREATE && operation != DELETE) {
+	if nbrInfo == nil && operation == IGNORE {
 		//return nil
 		goto early_exit
 	}
-
+	debug.Logger.Debug("NbrInfo is:", *nbrInfo, "operation is:", operation)
 	// populate vlan information based on the packet that we received
 	if ndInfo.Dot1Q != config.INTERNAL_VLAN {
 		nbrInfo.VlanId = ndInfo.Dot1Q
