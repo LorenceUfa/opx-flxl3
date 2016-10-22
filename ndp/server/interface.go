@@ -452,6 +452,9 @@ func (intf *Interface) ProcessND(ndInfo *packet.NDInfo) (*config.NeighborConfig,
 		debug.Logger.Alert("!!!!Neighbor Initialization for intf:", intf.IntfRef, "didn't happen properly!!!!!")
 		intf.Neighbor = make(map[string]NeighborInfo, 10)
 	}
+	if intf.PcapBase.PcapHandle == nil {
+		return nil, IGNORE
+	}
 	switch ndInfo.PktType {
 	case layers.ICMPv6TypeNeighborSolicitation:
 		return intf.processNS(ndInfo)

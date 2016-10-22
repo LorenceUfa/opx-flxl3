@@ -59,21 +59,19 @@ func (svr *NDPServer) StartRxTx(ifIndex int32) {
 			return
 		}
 	case commonDefs.IfTypeVlan:
-		/*
-			    // On l2 Port State UP/Down we will start pcap handler for it so that l3 is separated from l2
-				if l3Port.PcapBase.PcapUsers == 0 {
-					debug.Logger.Debug("L3 port is vlan type, hence for all the ports in tag/untag list",
-						"creating pcap for RX channel")
-					// for all the ports in tag/untag list create pcap for RX channel, only if there are no
-					// pcap users created right now
-					err = svr.CreatePcap(ifIndex)
-					// @TODO: jgheewala help me fixing pcap users here
-					if err != nil {
-						debug.Logger.Err("Failed Creating Pcap Handler, err:", err, "for interface:", l3Port.IntfRef)
-						return
-					}
-				}
-		*/
+		// On l2 Port State UP/Down we will start pcap handler for it so that l3 is separated from l2
+		if l3Port.PcapBase.PcapUsers == 0 {
+			debug.Logger.Debug("L3 port is vlan type, hence for all the ports in tag/untag list",
+				"creating pcap for RX channel")
+			// for all the ports in tag/untag list create pcap for RX channel, only if there are no
+			// pcap users created right now
+			err = svr.CreatePcap(ifIndex)
+			// @TODO: jgheewala help me fixing pcap users here
+			if err != nil {
+				debug.Logger.Err("Failed Creating Pcap Handler, err:", err, "for interface:", l3Port.IntfRef)
+				return
+			}
+		}
 		l3Port.addPcapUser()
 	}
 	debug.Logger.Info("Started rx/tx for port:", l3Port.IntfRef, "ifIndex:",
@@ -160,7 +158,7 @@ func (svr *NDPServer) StopRxTx(ifIndex int32, ipAddr string) {
 	l3Port.DeleteTXPcap()
 	// if rx && tx both are closed then delete pcap from l2 ports if ifType is Vlan
 	if l3Port.PcapBase.Tx == nil && l3Port.PcapBase.PcapHandle == nil && l3Port.IfType == commonDefs.IfTypeVlan {
-		//svr.DeletePcap(ifIndex)
+		svr.DeletePcap(ifIndex)
 	}
 
 	svr.L3Port[ifIndex] = l3Port

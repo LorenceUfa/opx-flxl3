@@ -243,10 +243,10 @@ func (svr *NDPServer) HandleVlanNotification(msg *config.VlanNotification) {
 		}
 		svr.VlanInfo[msg.VlanIfIndex] = vlan
 		svr.Dot1QToVlanIfIndex[msg.VlanId] = msg.VlanIfIndex
-		svr.CreatePcap(msg.VlanIfIndex)
+		//svr.CreatePcap(msg.VlanIfIndex)
 	case config.CONFIG_DELETE:
 		debug.Logger.Info("Received Vlan Delete:", *msg)
-		svr.DeletePcap(msg.VlanIfIndex)
+		//svr.DeletePcap(msg.VlanIfIndex)
 		if exists {
 			vlan.UntagPortsMap = nil
 			vlan.TagPortsMap = nil
