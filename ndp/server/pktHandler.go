@@ -148,10 +148,6 @@ func (svr *NDPServer) StopRxTx(ifIndex int32, ipAddr string) {
 			}
 		}
 	}
-	if len(deleteEntries) > 0 && err == nil {
-		debug.Logger.Info("Server Got Neigbor Delete for interface:", l3Port.IntfRef)
-		svr.DeleteNeighborInfo(deleteEntries, ifIndex)
-	}
 	// if rx pcap handler is closed then close TX Pcap handler also
 	l3Port.DeleteTXPcap()
 	// if rx && tx both are closed then delete pcap from l2 ports if ifType is Vlan
@@ -160,7 +156,10 @@ func (svr *NDPServer) StopRxTx(ifIndex int32, ipAddr string) {
 	}
 
 	svr.L3Port[ifIndex] = l3Port
-	if len(deleteEntries) == 0 {
+	if len(deleteEntries) > 0 && err == nil {
+		debug.Logger.Info("Server Got Neigbor Delete for interface:", l3Port.IntfRef)
+		svr.DeleteNeighborInfo(deleteEntries, ifIndex)
+	} else if len(deleteEntries) == 0 {
 		return // only one ip address got deleted
 	}
 	debug.Logger.Info("Stop rx/tx for port:", l3Port.IntfRef, "ifIndex:",
@@ -318,6 +317,9 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 	if ndInfo.Dot1Q != config.INTERNAL_VLAN {
 		debug.Logger.Debug("Valid Dot1Q received")
 		l2Port, l2exists = svr.L2Port[ifIndex]
+		if l2Port.RX == nil {
+			return nil
+		}
 		l3IfIndex = svr.Dot1QToVlanIfIndex[ndInfo.Dot1Q]
 	} else {
 		debug.Logger.Debug("Untagged packet received")
@@ -327,6 +329,9 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 		if exists {
 			// Vlan is the l3 port
 			l2Port, l2exists = svr.L2Port[ifIndex]
+			if l2Port.RX == nil {
+				return nil
+			}
 			l3IfIndex = l3Info.IfIndex
 		} else {
 			l3IfIndex = ifIndex
