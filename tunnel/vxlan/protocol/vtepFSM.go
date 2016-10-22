@@ -207,9 +207,10 @@ func (vm *VxlanVtepMachine) BEGIN() {
 func (vm *VxlanVtepMachine) Stop() {
 
 	vtep := vm.vtep
-
 	logger.Info("Close VTEP MACHINE")
 	close(vm.VxlanVtepEvents)
+
+	vtep.wg.Wait()
 
 	if vtep.retrytimer != nil {
 		vtep.retrytimer.Stop()

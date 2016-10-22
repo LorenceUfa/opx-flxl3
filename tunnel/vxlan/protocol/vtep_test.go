@@ -82,7 +82,7 @@ func (b mockintf) CreateVtep(vtep *VtepDbEntry, vtepname chan<- MachineEvent) {
 			Data: "Vtep0Int",
 		}
 		vtepname <- event
-		
+
 		vtepcreatedone <- true
 	}
 }
@@ -178,7 +178,19 @@ func setup() {
 	vxlandeletedone = make(chan bool, 1)
 }
 
-func teardown() {
+func teardown(t *testing.T) {
+	if len(vxlanDB) > 0 {
+		t.Error("Error vxlandb not cleaned up")
+	}
+	if len(vxlanDbList) > 0 {
+		t.Error("Error vxlandblist not cleaned up")
+	}
+	if len(vtepDB) > 0 {
+		t.Error("Error vtepdb not cleaned up")
+	}
+	if len(vtepDbList) > 0 {
+		t.Error("Error vtepdblist not cleaned up")
+	}
 	logger.Close()
 	logger = nil
 	close(vtepcreatedone)
@@ -218,7 +230,7 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -289,7 +301,7 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -368,7 +380,7 @@ func TestFSMCreateVtepNoVxlan(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -416,7 +428,7 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -505,7 +517,7 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -623,7 +635,7 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -717,7 +729,7 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -834,7 +846,7 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
@@ -932,7 +944,7 @@ func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
 
 	// setup common test info
 	setup()
-	defer teardown()
+	defer teardown(t)
 
 	oldRxTx := VxlanVtepRxTx
 	VxlanVtepRxTx = MockFuncRxTx
