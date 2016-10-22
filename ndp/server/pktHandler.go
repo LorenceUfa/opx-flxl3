@@ -181,15 +181,12 @@ func (svr *NDPServer) CheckSrcMac(macAddr string) bool {
 /*
  *	insertNeighborInfo: Helper API to update list of neighbor keys that are created by ndp
  */
-func (svr *NDPServer) insertNeigborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32) {
+func (svr *NDPServer) insertNeigborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32, learnedIntf string) {
 	nbrEntry := *nbrInfo
 	nbrEntry.IfIndex = hwIfIndex
-	l2Port, exists := svr.L2Port[hwIfIndex]
-	if exists {
-		nbrEntry.Intf = l2Port.Info.Name
-	}
+	nbrEntry.Intf = learnedIntf
 	svr.NeigborEntryLock.Lock()
-	nbrKey := createNeighborKey(nbrInfo.MacAddr, nbrInfo.IpAddr, nbrInfo.Intf)
+	nbrKey := createNeighborKey(nbrInfo.MacAddr, nbrInfo.IpAddr, learnedIntf)
 	debug.Logger.Debug("server state nbrKey is:", nbrKey)
 	svr.NeighborInfo[nbrKey] = nbrEntry //*nbrInfo
 	svr.neighborKey = append(svr.neighborKey, nbrKey)
@@ -225,9 +222,9 @@ func (svr *NDPServer) deleteSvrStateNbrInfo(nbrKey string) {
  *			b) If it doesn't exists then we create neighbor in the platform
  *		        a) It will update ndp server neighbor info cache with the latest information
  */
-func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32) {
+func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32, learnedIntf string) {
 	debug.Logger.Debug("Calling create ipv6 neighgor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
-		nbrInfo.VlanId, hwIfIndex)
+		"vlanId:", nbrInfo.VlanId, "ifIndex:", hwIfIndex, "interface:", learnedIntf)
 	if net.ParseIP(nbrInfo.IpAddr).IsLinkLocalUnicast() == false {
 		_, err := svr.SwitchPlugin.CreateIPv6Neighbor(nbrInfo.IpAddr, nbrInfo.MacAddr, nbrInfo.VlanId, hwIfIndex)
 		if err != nil {
@@ -239,7 +236,7 @@ func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfInd
 	// for bgp send out l3 ifIndex only do not use hwIfIndex
 	svr.SendIPv6CreateNotification(nbrInfo.IpAddr, nbrInfo.IfIndex)
 	// after sending notification update ifIndex to hwIfIndex
-	svr.insertNeigborInfo(nbrInfo, hwIfIndex)
+	svr.insertNeigborInfo(nbrInfo, hwIfIndex, learnedIntf)
 }
 
 func (svr *NDPServer) deleteNeighbor(nbrKey string, ifIndex int32) {
@@ -372,7 +369,7 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 	// based on operation program hardware, update sw & send notifications
 	switch operation {
 	case CREATE:
-		svr.CreateNeighborInfo(nbrInfo, hwIfIndex)
+		svr.CreateNeighborInfo(nbrInfo, hwIfIndex, ndInfo.LearnedIntfRef)
 		/*
 			case UPDATE:
 				nbrEntry, exists := svr.NeighborInfo[nbrKey]

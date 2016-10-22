@@ -43,11 +43,7 @@ func (svr *NDPServer) GetPorts() {
 	if err != nil {
 		debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
 		return
-	} /*
-		l3Info := L3Info{
-			IfIndex: config.L3_INVALID_IFINDEX,
-		}
-	*/
+	}
 	for _, obj := range portsInfo {
 		var empty struct{}
 		port := config.PortInfo{
@@ -66,7 +62,6 @@ func (svr *NDPServer) GetPorts() {
 		l2Port := svr.L2Port[port.IfIndex]
 		l2Port.Info = port
 		l2Port.RX = nil
-		//l2Port.L3 = l3Info
 		debug.Logger.Info("L2 IfIndex:", port.IfIndex, "Information is:", l2Port.Info)
 		svr.L2Port[port.IfIndex] = l2Port
 		svr.SwitchMacMapEntries[port.MacAddr] = empty
@@ -423,7 +418,7 @@ func (svr *NDPServer) SendIPv6CreateNotification(ipAddr string, ifIndex int32) {
 		MsgType: commonDefs.NOTIFY_IPV6_NEIGHBOR_CREATE,
 		Msg:     msgBuf,
 	}
-	debug.Logger.Info("Sending Create notification for ip address:", ipAddr, "and ifIndex:", ifIndex)
+	debug.Logger.Info("Sending Create notification for ip address:", ipAddr, "and ifIndex:", ifIndex, "to other protocols")
 	svr.pushNotification(notification)
 }
 
@@ -440,7 +435,7 @@ func (svr *NDPServer) SendIPv6DeleteNotification(ipAddr string, ifIndex int32) {
 		MsgType: commonDefs.NOTIFY_IPV6_NEIGHBOR_DELETE,
 		Msg:     msgBuf,
 	}
-	debug.Logger.Info("Sending Delete notification for ip address:", ipAddr, "and ifIndex:", ifIndex)
+	debug.Logger.Info("Sending Delete notification for ip address:", ipAddr, "and ifIndex:", ifIndex, "to other protocols")
 	svr.pushNotification(notification)
 }
 
