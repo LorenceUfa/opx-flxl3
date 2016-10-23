@@ -566,13 +566,19 @@ func (intf *Interface) DeleteNeighbor(nbrEntry config.NeighborConfig) ([]string,
 
 /*
  *   UpdateNbrEntry will be called during mac move.
- *   Args: 1) oldNbrKey - old nbr that needs to be deleted...
- *	   2) newNbrKey - new nbr that needs to be initialized...
+ *   Args:    1) oldNbrKey - old nbr that needs to be deleted...
+ *	      2) newNbrKey - new nbr that needs to be initialized...
+ *   return:  linkscope old key & link scope ip that got deleted with following reason:
+ *	      * oldNbrKey : mac ip port
+ *                          for this mac & port combination get link scope ip and do update on that entry also
+ *			    return this newly formed linkScopeNbrKey to the caller so that server state can be
+ *			    updated
  */
-func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) {
+func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) (string, string) {
 	// old nbr getting deleted first
 	nbr, exists := intf.Neighbor[oldNbrKey]
 	if exists {
+		debug.Logger.Info("Deleting neighbor:", nbr)
 		nbr.DeInit()
 		delete(intf.Neighbor, oldNbrKey)
 	}
@@ -585,4 +591,32 @@ func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) {
 		nbr.updatePktRxStateInfo()
 		intf.Neighbor[newNbrKey] = nbr
 	}
+
+	oldNbrKeySS := splitNeighborKey(oldNbrKey)
+	// search for linkScopeNbrKey on the same old mac & port as we need to update that entry also
+	for nbrKey, nbr := range intf.Neighbor {
+		splitString := splitNeighborKey(nbrKey)
+		// key is mac_ip_intf
+		if oldNbrKeySS[0] == splitString[0] && oldNbrKeySS[2] == splitString[2] && isLinkLocal(splitString[1]) {
+			// found the linkScope Old Entry that we want to delete
+			debug.Logger.Info("Deleting Link Scope neighbor:", nbr, "key:", nbrKey)
+			nbr.DeInit()
+			// new nbr getting added
+			newNbrKeySS := splitNeighborKey(newNbrKey)
+			// new nbr mac & port but old entry ipv6 address
+			linkScopeNbrKey := createNeighborKey(newNbrKeySS[0], splitString[1], newNbrKeySS[2])
+			nbr, exists = intf.Neighbor[linkScopeNbrKey]
+			if !exists {
+				nbr.InitCache(intf.reachableTime, intf.retransTime, linkScopeNbrKey, intf.PktDataCh, intf.IfIndex)
+				nbr.RchTimer()
+				nbr.State = REACHABLE
+				nbr.updatePktRxStateInfo()
+				intf.Neighbor[linkScopeNbrKey] = nbr
+			}
+			delete(intf.Neighbor, nbrKey)
+			return nbrKey, splitString[1]
+		}
+	}
+
+	return "", ""
 }

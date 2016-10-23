@@ -31,6 +31,7 @@ import (
 	"github.com/google/gopacket/pcap"
 	"l3/ndp/config"
 	"l3/ndp/debug"
+	"net"
 	"utils/commonDefs"
 )
 
@@ -163,6 +164,143 @@ func (svr *NDPServer) GetIfType(ifIndex int32) int {
 	debug.Logger.Info("no valid ifIndex found")
 	return -1
 }
+
+/*
+ *	insertNeighborInfo: Helper API to update list of neighbor keys that are created by ndp
+ *	@NOTE: caller is responsible for acquiring the lock to access slice
+ */
+func (svr *NDPServer) insertNeigborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32, learnedIntf string) {
+	nbrEntry := *nbrInfo
+	nbrEntry.IfIndex = hwIfIndex
+	nbrEntry.Intf = learnedIntf
+	nbrKey := createNeighborKey(nbrInfo.MacAddr, nbrInfo.IpAddr, learnedIntf)
+	debug.Logger.Debug("server state nbrKey is:", nbrKey)
+	svr.NeighborInfo[nbrKey] = nbrEntry
+	svr.neighborKey = append(svr.neighborKey, nbrKey)
+}
+
+/*
+ *	deleteSvrStateNbrInfo: Helper API to update list of neighbor keys that are deleted by ndp
+ *	@NOTE: caller is responsible for acquiring the lock to access slice
+ */
+func (svr *NDPServer) deleteSvrStateNbrInfo(nbrKey string) {
+	// delete the entry from neighbor map
+	delete(svr.NeighborInfo, nbrKey)
+
+	for idx, _ := range svr.neighborKey {
+		if svr.neighborKey[idx] == nbrKey {
+			svr.neighborKey = append(svr.neighborKey[:idx], svr.neighborKey[idx+1:]...)
+			break
+		}
+	}
+}
+
+/*
+ *	updateStateNbrInfo: Helper API to update list of neighbor keys that are being updated by Mac Move
+ *	@NOTE: caller is responsible for acquiring the lock to access slice
+ */
+func (svr *NDPServer) updateStateNeighborInfo(nbrKey, ipAddr string, ifIndex, vlanId int32) string {
+	nbrEntry, exists := svr.NeighborInfo[nbrKey]
+	if !exists {
+		return ""
+	}
+	debug.Logger.Info("found nbrEntry is:", nbrEntry)
+	l2Port, exists := svr.L2Port[ifIndex]
+	if exists {
+		debug.Logger.Info("Updating entry:", nbrEntry, "old key is:", nbrKey)
+		newNbrEntry := nbrEntry
+		//svr.insertNeigborInfo(&newNbrEntry, msg.IfIndex, l2Port.Info.Name)
+		newNbrEntry.IfIndex = ifIndex
+		newNbrEntry.Intf = l2Port.Info.Name
+		newNbrKey := createNeighborKey(newNbrEntry.MacAddr, newNbrEntry.IpAddr, newNbrEntry.Intf)
+		debug.Logger.Info("Updated entry:", newNbrEntry, "new key is:", newNbrKey)
+		svr.NeighborInfo[newNbrKey] = newNbrEntry
+		svr.neighborKey = append(svr.neighborKey, newNbrKey)
+		debug.Logger.Info("Deleting old nbr entry at old location:", nbrKey)
+		svr.deleteSvrStateNbrInfo(nbrKey)
+		return newNbrKey
+	}
+
+	return ""
+}
+
+/*
+ *	 CreateNeighborInfo
+ *			a) It will first check whether a neighbor exists in the neighbor cache
+ *			b) If it doesn't exists then we create neighbor in the platform
+ *		        a) It will update ndp server neighbor info cache with the latest information
+ */
+func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32, learnedIntf string) {
+	debug.Logger.Debug("Calling create ipv6 neighgor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
+		"vlanId:", nbrInfo.VlanId, "ifIndex:", hwIfIndex, "interface:", learnedIntf)
+	if net.ParseIP(nbrInfo.IpAddr).IsLinkLocalUnicast() == false {
+		_, err := svr.SwitchPlugin.CreateIPv6Neighbor(nbrInfo.IpAddr, nbrInfo.MacAddr, nbrInfo.VlanId, hwIfIndex)
+		if err != nil {
+			debug.Logger.Err("create ipv6 global neigbor failed for", nbrInfo, "error is", err)
+			// do not enter that neighbor in our neigbor map
+			return
+		}
+	}
+	// for bgp send out l3 ifIndex only do not use hwIfIndex
+	svr.SendIPv6CreateNotification(nbrInfo.IpAddr, nbrInfo.IfIndex)
+	// after sending notification update ifIndex to hwIfIndex
+	svr.NeigborEntryLock.Lock()
+	svr.insertNeigborInfo(nbrInfo, hwIfIndex, learnedIntf)
+	svr.NeigborEntryLock.Unlock()
+}
+
+func (svr *NDPServer) deleteNeighbor(nbrKey string, ifIndex int32) {
+	debug.Logger.Debug("deleteNeighbor called for nbrKey:", nbrKey)
+	// Inform clients that neighbor is gonna be deleted
+	splitString := splitNeighborKey(nbrKey)
+	nbrIp := splitString[1]
+	svr.SendIPv6DeleteNotification(nbrIp, ifIndex)
+	// Request asicd to delete the neighbor
+	if net.ParseIP(nbrIp).IsLinkLocalUnicast() == false {
+		_, err := svr.SwitchPlugin.DeleteIPv6Neighbor(nbrIp)
+		if err != nil {
+			debug.Logger.Err("delete ipv6 neigbor failed for", nbrIp, "error is", err)
+		}
+	}
+	svr.NeigborEntryLock.Lock()
+	svr.deleteSvrStateNbrInfo(nbrKey)
+	svr.NeigborEntryLock.Unlock()
+}
+
+/*
+ *	 DeleteNeighborInfo
+ *			a) It will first check whether a neighbor exists in the neighbor cache
+ *			b) If it doesn't exists then we will move on to next neighbor
+ *		        c) If exists then we will call DeleteIPV6Neighbor for that entry and remove
+ *			   the entry from our runtime information
+ *	ifIndex is always l3 ifIndex
+ */
+func (svr *NDPServer) DeleteNeighborInfo(deleteEntries []string, ifIndex int32) {
+	svr.NeigborEntryLock.Lock()
+	for _, nbrKey := range deleteEntries {
+		debug.Logger.Debug("Calling delete ipv6 neighbor for nbr:", nbrKey, "ifIndex:", ifIndex)
+		svr.deleteNeighbor(nbrKey, ifIndex)
+	}
+	svr.NeigborEntryLock.Unlock()
+}
+
+/*
+func (svr *NDPServer) UpdateNeighborInfo(nbrInfo *config.NeighborConfig, oldNbrEntry config.NeighborConfig) {
+	//svr.SendIPv6DeleteNotification(oldNbrEntry.IpAddr, oldNbrEntry.IfIndex)
+	debug.Logger.Debug("Calling update ipv6 neighgor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
+		nbrInfo.VlanId, nbrInfo.IfIndex)
+	if net.ParseIP(nbrInfo.IpAddr).IsLinkLocalUnicast() == false {
+		_, err := svr.SwitchPlugin.UpdateIPv6Neighbor(nbrInfo.IpAddr, nbrInfo.MacAddr, nbrInfo.VlanId, nbrInfo.IfIndex)
+		if err != nil {
+			debug.Logger.Err("update ipv6 global neigbor failed for", nbrInfo, "error is", err)
+			// do not enter that neighbor in our neigbor map
+			return
+		}
+	}
+	//svr.SendIPv6CreateNotification(nbrInfo.IpAddr, nbrInfo.IfIndex)
+	svr.updateNeighborInfo(nbrInfo)
+}
+*/
 
 /*  API: will handle IPv6 notifications received from switch/asicd
  *      Msg types
@@ -333,35 +471,24 @@ func (svr *NDPServer) SoftwareUpdateNbrEntry(msg *config.MacMoveNotification) {
 		if splitString[1] == nbrIp {
 			debug.Logger.Info("Updating Neigbor information for:", nbrIp)
 			debug.Logger.Info("Neighbor Key is:", nbrKey)
-			nbrEntry, exists := svr.NeighborInfo[nbrKey]
-			if !exists {
+			// updating svr neighbor state information
+			newNbrKey := svr.updateStateNeighborInfo(nbrKey, msg.IpAddr, msg.IfIndex, msg.VlanId)
+			if newNbrKey == "" {
 				return
 			}
-			debug.Logger.Info("found nbrEntry is:", nbrEntry)
-			l2Port, exists := svr.L2Port[msg.IfIndex]
+			// updating interface neighbor state information
+			l3IfIndex, exists := svr.Dot1QToVlanIfIndex[msg.VlanId]
 			if exists {
-				debug.Logger.Info("Updating entry:", nbrEntry, "old key is:", nbrKey)
-				newNbrEntry := nbrEntry
-				//svr.insertNeigborInfo(&newNbrEntry, msg.IfIndex, l2Port.Info.Name)
-				newNbrEntry.IfIndex = msg.IfIndex
-				newNbrEntry.Intf = l2Port.Info.Name
-				newNbrKey := createNeighborKey(newNbrEntry.MacAddr, newNbrEntry.IpAddr, newNbrEntry.Intf)
-				debug.Logger.Info("Updated entry:", newNbrEntry, "new key is:", newNbrKey)
-				svr.NeighborInfo[newNbrKey] = newNbrEntry
-				svr.neighborKey = append(svr.neighborKey, newNbrKey)
-				l3IfIndex, exists := svr.Dot1QToVlanIfIndex[msg.VlanId]
+				l3Port, exists := svr.L3Port[l3IfIndex]
 				if exists {
-					l3Port, exists := svr.L3Port[l3IfIndex]
-					if exists {
-						debug.Logger.Info("Updating Neighbor Cache in ipv6 adj")
-						//		newNbrKey := createNeighborKey(newNbrEntry.MacAddr, newNbrEntry.IpAddr, newNbrEntry.Intf)
-						l3Port.UpdateNbrEntry(nbrKey, newNbrKey)
-						svr.L3Port[l3IfIndex] = l3Port
+					debug.Logger.Info("Updating Neighbor Cache in ipv6 adj")
+					oldLsKey, linkScopeIp := l3Port.UpdateNbrEntry(nbrKey, newNbrKey)
+					svr.L3Port[l3IfIndex] = l3Port
+					if oldLsKey != "" && linkScopeIp != "" {
+						debug.Logger.Info("Updating Link Scope Neighbor Information:", linkScopeIp)
+						svr.updateStateNeighborInfo(oldLsKey, linkScopeIp, msg.IfIndex, msg.VlanId)
 					}
 				}
-				debug.Logger.Info("Deleting entry at old location:", nbrKey)
-				svr.deleteSvrStateNbrInfo(nbrKey)
-				return
 			}
 			break
 		}
