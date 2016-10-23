@@ -36,14 +36,12 @@ func (server *OSPFServer) StopSendHelloPkt(key IntfConfKey) {
 	}
 	ent.HelloIntervalTicker.Stop()
 	server.logger.Info("Successfully stopped sending Hello Pkt")
-	ent.HelloIntervalTicker = nil
 	server.IntfConfMap[key] = ent
 	return
 }
 
 func (server *OSPFServer) StartSendHelloPkt(key IntfConfKey) {
 	ent, _ := server.IntfConfMap[key]
-	//server.logger.Info(fmt.Sprintln("Started Send Hello Pkt Thread", ent.IfName))
 	ospfHelloPkt := server.BuildHelloPkt(ent)
 	err := server.SendOspfPkt(key, ospfHelloPkt)
 	if err != nil {

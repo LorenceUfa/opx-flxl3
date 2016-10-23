@@ -13,13 +13,13 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 package rpc
 
@@ -183,12 +183,13 @@ func (h *OSPFHandler) GetBulkOspfNbrEntryState(fromIdx ospfd.Int, count ospfd.In
 	return OspfNbrEntryStateGetInfo, nil
 }
 
+/* Not supported
 func (h *OSPFHandler) GetBulkOspfVirtNbrEntryState(fromIdx ospfd.Int, count ospfd.Int) (*ospfd.OspfVirtNbrEntryStateGetInfo, error) {
 	h.logger.Info(fmt.Sprintln("Get Virtual Neighbor attrs"))
 	ospfVirtNbrResponse := ospfd.NewOspfVirtNbrEntryStateGetInfo()
 	return ospfVirtNbrResponse, nil
 }
-
+*/
 
 func (h *OSPFHandler) GetBulkOspfGlobalState(fromIdx ospfd.Int, count ospfd.Int) (*ospfd.OspfGlobalStateGetInfo, error) {
 	h.logger.Info(fmt.Sprintln("Get OSPF global state"))
@@ -211,10 +212,10 @@ func (h *OSPFHandler) GetBulkOspfGlobalState(fromIdx ospfd.Int, count ospfd.Int)
 
 func (h *OSPFHandler) GetBulkOspfIPv4RouteState(fromIdx ospfd.Int, count ospfd.Int) (*ospfd.OspfIPv4RouteStateGetInfo, error) {
 	/* This is template API . All OSPF routes are currently installed in the redis db */
-	return  nil, nil
+	return nil, nil
 }
 
 func (h *OSPFHandler) GetBulkOspfEventState(fromIdx ospfd.Int, count ospfd.Int) (*ospfd.OspfEventStateGetInfo, error) {
-       /* This is template API. Events are stored in redis-db */
+	/* This is template API. Events are stored in redis-db */
 	return nil, nil
 }
