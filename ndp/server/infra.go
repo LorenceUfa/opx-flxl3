@@ -664,7 +664,7 @@ func (svr *NDPServer) UpdatePhyPortToVlanInfo(msg *config.VlanNotification) {
 			}
 			delete(svr.PhyPortToL3PortMap, pIfIndex)
 		} else {
-			debug.Logger.Info("pIfIndex:", pIfIndex, "is part of vlan:", ifIndex, vlan.Name, "as tag/un-tag member",
+			debug.Logger.Info("pIfIndex:", pIfIndex, "is part of vlan:", ifIndex, vlan.Name, "as un-tag member",
 				"check if l3 is up or not and start rx/tx if needed")
 			l3Info.Updated = false
 			svr.PhyPortToL3PortMap[pIfIndex] = l3Info
@@ -676,7 +676,7 @@ func (svr *NDPServer) UpdatePhyPortToVlanInfo(msg *config.VlanNotification) {
 				 * if not then delete the pcap for incoming notification
 				 */
 				if l3exists {
-					if l2Port.Info.OperState == config.STATE_UP && l3Port.PcapBase.PcapHandle != nil {
+					if l2Port.Info.OperState == config.STATE_UP && l3Port.PcapBase.Tx != nil {
 						l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
 					} else {
 						l2Port.deletePcap()
@@ -691,7 +691,7 @@ func (svr *NDPServer) UpdatePhyPortToVlanInfo(msg *config.VlanNotification) {
 		l2Port, exists := svr.L2Port[pIfIndex]
 		if exists {
 			debug.Logger.Debug("L2:", l2Port.Info.Name, "operstate is", l2Port.Info.OperState)
-			if l2Port.Info.OperState == config.STATE_UP && l3Port.PcapBase.PcapHandle != nil {
+			if l2Port.Info.OperState == config.STATE_UP && l3Port.PcapBase.Tx != nil {
 				l2Port.createPortPcap(svr.RxPktCh, l2Port.Info.Name)
 			} else {
 				l2Port.deletePcap()
