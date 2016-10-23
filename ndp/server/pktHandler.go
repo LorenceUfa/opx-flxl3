@@ -72,8 +72,6 @@ func (svr *NDPServer) StartRxTx(ifIndex int32) {
 		}
 		l3Port.addPcapUser()
 	}
-	debug.Logger.Info("Started rx/tx for port:", l3Port.IntfRef, "ifIndex:",
-		l3Port.IfIndex, "ip GS:", l3Port.IpAddr, "LS:", l3Port.LinkLocalIp, "pcap users are:", l3Port.PcapBase.PcapUsers)
 	// go routine will be spawned only on first pcap user
 	// @FIX for WD-190 NDP HIGH CPU usage on WM Clos
 	if l3Port.PcapBase.PcapUsers == 1 {
@@ -93,6 +91,8 @@ func (svr *NDPServer) StartRxTx(ifIndex int32) {
 		}
 		svr.ndpUpL3IntfStateSlice = append(svr.ndpUpL3IntfStateSlice, ifIndex)
 	}
+	debug.Logger.Info("Started rx/tx for port:", l3Port.IntfRef, "ifIndex:",
+		l3Port.IfIndex, "ip GS:", l3Port.IpAddr, "LS:", l3Port.LinkLocalIp, "pcap users are:", l3Port.PcapBase.PcapUsers)
 	// On Port Up Send RA packets
 	pktData := config.PacketData{
 		SendPktType: layers.ICMPv6TypeRouterAdvertisement,

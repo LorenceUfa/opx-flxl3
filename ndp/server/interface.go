@@ -454,6 +454,7 @@ func (intf *Interface) ProcessND(ndInfo *packet.NDInfo) (*config.NeighborConfig,
 	}
 	// if tx is closed then do not learn the packet
 	if intf.PcapBase.Tx == nil {
+		debug.Logger.Debug("TX channel is closed for:", intf.IntfRef, "hence ignoring incoming packet")
 		return nil, IGNORE
 	}
 	switch ndInfo.PktType {
