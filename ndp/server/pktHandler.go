@@ -358,9 +358,13 @@ func (svr *NDPServer) ProcessRxPkt(ifIndex int32, pkt gopacket.Packet) error {
 	// populate vlan information based on the packet that we received
 	if ndInfo.Dot1Q != config.INTERNAL_VLAN {
 		nbrInfo.VlanId = ndInfo.Dot1Q
-		hwIfIndex = ifIndex
+		//hwIfIndex = ifIndex
 	} else {
 		svr.PopulateVlanInfo(nbrInfo, l3Port.IntfRef)
+	}
+	if l2exists {
+		hwIfIndex = ifIndex
+	} else {
 		hwIfIndex = l3Port.IfIndex
 	}
 	// nbrKey is peer_mac, peer_ip, always l3 port because asicd doesn't care for nbrInfo interface but
