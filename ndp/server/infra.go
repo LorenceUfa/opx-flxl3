@@ -276,12 +276,10 @@ func (svr *NDPServer) deleteNeighbor(nbrKey string, ifIndex int32) {
  *	ifIndex is always l3 ifIndex
  */
 func (svr *NDPServer) DeleteNeighborInfo(deleteEntries []string, ifIndex int32) {
-	svr.NeigborEntryLock.Lock()
 	for _, nbrKey := range deleteEntries {
 		debug.Logger.Debug("Calling delete ipv6 neighbor for nbr:", nbrKey, "ifIndex:", ifIndex)
 		svr.deleteNeighbor(nbrKey, ifIndex)
 	}
-	svr.NeigborEntryLock.Unlock()
 }
 
 /*
