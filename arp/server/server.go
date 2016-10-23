@@ -66,26 +66,8 @@ type ResolveIPv4 struct {
 	IfId int
 }
 
-type DeleteResolvedIPv4 struct {
-	IpAddr string
-}
-
 type ArpConf struct {
 	RefTimeout int
-}
-
-type ActionType uint8
-
-const (
-	DeleteByIPAddr  ActionType = 1
-	RefreshByIPAddr ActionType = 2
-	DeleteByIfName  ActionType = 3
-	RefreshByIfName ActionType = 4
-)
-
-type ArpActionMsg struct {
-	Type ActionType
-	Obj  string
 }
 
 type ARPServer struct {
