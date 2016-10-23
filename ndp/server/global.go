@@ -71,7 +71,7 @@ type NDPServer struct {
 	NeighborInfo        map[string]config.NeighborConfig // neighbor created by NDP used for STATE
 	neighborKey         []string                         // keys for all neighbor entries is stored here for GET calls
 	PhyPortToL3PortMap  map[int32]L3Info                 // reverse map for l2IfIndex ----> l3IfIndex, used during vlan RX Pcap
-	Dot1QToVlanIfIndex  map[int32]int32
+	Dot1QToVlanIfIndex  map[int32]int32                  // reverse map of vlanId (aka dot1q tag) to l3IfIndex for vlan
 
 	//Configuration Channels
 	GlobalCfg chan NdpConfig

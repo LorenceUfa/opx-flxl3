@@ -563,3 +563,26 @@ func (intf *Interface) DeleteNeighbor(nbrEntry config.NeighborConfig) ([]string,
 
 	return intf.FlushNeighborPerIp(nbrKey, nbrIp)
 }
+
+/*
+ *   UpdateNbrEntry will be called during mac move.
+ *   Args: 1) oldNbrKey - old nbr that needs to be deleted...
+ *	   2) newNbrKey - new nbr that needs to be initialized...
+ */
+func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) {
+	// old nbr getting deleted first
+	nbr, exists := intf.Neighbor[oldNbrKey]
+	if exists {
+		nbr.DeInit()
+		delete(intf.Neighbor, oldNbrKey)
+	}
+	// new nbr getting added
+	nbr, exists = intf.Neighbor[newNbrKey]
+	if !exists {
+		nbr.InitCache(intf.reachableTime, intf.retransTime, newNbrKey, intf.PktDataCh, intf.IfIndex)
+		nbr.RchTimer()
+		nbr.State = REACHABLE
+		nbr.updatePktRxStateInfo()
+		intf.Neighbor[newNbrKey] = nbr
+	}
+}

@@ -185,12 +185,10 @@ func (svr *NDPServer) insertNeigborInfo(nbrInfo *config.NeighborConfig, hwIfInde
 	nbrEntry := *nbrInfo
 	nbrEntry.IfIndex = hwIfIndex
 	nbrEntry.Intf = learnedIntf
-	svr.NeigborEntryLock.Lock()
 	nbrKey := createNeighborKey(nbrInfo.MacAddr, nbrInfo.IpAddr, learnedIntf)
 	debug.Logger.Debug("server state nbrKey is:", nbrKey)
-	svr.NeighborInfo[nbrKey] = nbrEntry //*nbrInfo
+	svr.NeighborInfo[nbrKey] = nbrEntry
 	svr.neighborKey = append(svr.neighborKey, nbrKey)
-	svr.NeigborEntryLock.Unlock()
 }
 
 func (svr *NDPServer) updateNeighborInfo(nbrInfo *config.NeighborConfig) {
@@ -236,7 +234,9 @@ func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfInd
 	// for bgp send out l3 ifIndex only do not use hwIfIndex
 	svr.SendIPv6CreateNotification(nbrInfo.IpAddr, nbrInfo.IfIndex)
 	// after sending notification update ifIndex to hwIfIndex
+	svr.NeigborEntryLock.Lock()
 	svr.insertNeigborInfo(nbrInfo, hwIfIndex, learnedIntf)
+	svr.NeigborEntryLock.Unlock()
 }
 
 func (svr *NDPServer) deleteNeighbor(nbrKey string, ifIndex int32) {
@@ -252,7 +252,9 @@ func (svr *NDPServer) deleteNeighbor(nbrKey string, ifIndex int32) {
 			debug.Logger.Err("delete ipv6 neigbor failed for", nbrIp, "error is", err)
 		}
 	}
+	svr.NeigborEntryLock.Lock()
 	svr.deleteSvrStateNbrInfo(nbrKey)
+	svr.NeigborEntryLock.Unlock()
 }
 
 func (svr *NDPServer) UpdateNeighborInfo(nbrInfo *config.NeighborConfig, oldNbrEntry config.NeighborConfig) {

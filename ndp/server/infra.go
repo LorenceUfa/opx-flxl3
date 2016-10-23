@@ -331,22 +331,36 @@ func (svr *NDPServer) SoftwareUpdateNbrEntry(msg *config.MacMoveNotification) {
 	for _, nbrKey := range svr.neighborKey {
 		splitString := splitNeighborKey(nbrKey)
 		if splitString[1] == nbrIp {
-			debug.Logger.Info("Updating Neigbor information for:", nbrIp, splitString[1])
+			debug.Logger.Info("Updating Neigbor information for:", nbrIp)
+			debug.Logger.Info("Neighbor Key is:", nbrKey)
 			nbrEntry, exists := svr.NeighborInfo[nbrKey]
 			if !exists {
 				return
 			}
+			debug.Logger.Info("found nbrEntry is:", nbrEntry)
 			l2Port, exists := svr.L2Port[msg.IfIndex]
 			if exists {
-				nbrEntry.Intf = l2Port.Info.Name
-				svr.NeighborInfo[nbrKey] = nbrEntry
-				return
-			}
-
-			l3Port, exists := svr.L3Port[msg.IfIndex]
-			if exists {
-				nbrEntry.Intf = l3Port.IntfRef
-				svr.NeighborInfo[nbrKey] = nbrEntry
+				debug.Logger.Info("Updating entry:", nbrEntry, "old key is:", nbrKey)
+				newNbrEntry := nbrEntry
+				//svr.insertNeigborInfo(&newNbrEntry, msg.IfIndex, l2Port.Info.Name)
+				newNbrEntry.IfIndex = msg.IfIndex
+				newNbrEntry.Intf = l2Port.Info.Name
+				newNbrKey := createNeighborKey(newNbrEntry.MacAddr, newNbrEntry.IpAddr, newNbrEntry.Intf)
+				debug.Logger.Info("Updated entry:", newNbrEntry, "new key is:", newNbrKey)
+				svr.NeighborInfo[newNbrKey] = newNbrEntry
+				svr.neighborKey = append(svr.neighborKey, newNbrKey)
+				l3IfIndex, exists := svr.Dot1QToVlanIfIndex[msg.VlanId]
+				if exists {
+					l3Port, exists := svr.L3Port[l3IfIndex]
+					if exists {
+						debug.Logger.Info("Updating Neighbor Cache in ipv6 adj")
+						//		newNbrKey := createNeighborKey(newNbrEntry.MacAddr, newNbrEntry.IpAddr, newNbrEntry.Intf)
+						l3Port.UpdateNbrEntry(nbrKey, newNbrKey)
+						svr.L3Port[l3IfIndex] = l3Port
+					}
+				}
+				debug.Logger.Info("Deleting entry at old location:", nbrKey)
+				svr.deleteSvrStateNbrInfo(nbrKey)
 				return
 			}
 			break
