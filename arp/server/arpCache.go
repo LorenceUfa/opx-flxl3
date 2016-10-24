@@ -405,6 +405,7 @@ func (server *ARPServer) arpCacheTimeout() {
 			server.printArpEntries()
 			server.logger.Debug("========================================================")
 			server.logger.Debug("Arp Slice: ", server.arpSlice)
+			server.dumpInfra()
 		}
 		server.arpCounterUpdateCh <- true
 	}

@@ -32,3 +32,59 @@ func (server *ARPServer) printArpEntries() {
 	}
 	server.logger.Debug("************")
 }
+
+func (server *ARPServer) dumpInfra() {
+	server.dumpL3IntfProp()
+	server.dumpVlanProp()
+	server.dumpLagProp()
+	server.dumpPortProp()
+}
+
+func (server *ARPServer) dumpL3IntfProp() {
+	server.logger.Debug("==================================================")
+	server.logger.Debug("L3 Interface Property Map:")
+	for l3IfIndex, l3Ent := range server.l3IntfPropMap {
+		server.logger.Debug("L3 IfIndex:", l3IfIndex, "IpAddr:", l3Ent.IpAddr, "Netmask:", l3Ent.Netmask, "IfName:", l3Ent.IfName)
+	}
+	server.logger.Debug("==================================================")
+}
+
+func (server *ARPServer) dumpVlanProp() {
+	server.logger.Debug("==================================================")
+	server.logger.Debug("Vlan Property Map:")
+	for vlanIfIdx, vlanEnt := range server.vlanPropMap {
+		server.logger.Debug("Vlan IfIdx:", vlanIfIdx, "Vlan Name:", vlanEnt.IfName)
+		server.logger.Debug("Untagged IfIndex Map:")
+		for uIfIdx, _ := range vlanEnt.UntagIfIdxMap {
+			server.logger.Debug(uIfIdx)
+		}
+		server.logger.Debug("Tagged IfIndex Map:")
+		for tIfIdx, _ := range vlanEnt.TagIfIdxMap {
+			server.logger.Debug(tIfIdx)
+		}
+	}
+	server.logger.Debug("==================================================")
+}
+
+func (server *ARPServer) dumpLagProp() {
+	server.logger.Debug("==================================================")
+	server.logger.Debug("Lag Property Map:")
+	for lagIfIdx, lagEnt := range server.lagPropMap {
+		server.logger.Debug("Lag IfIdx:", lagIfIdx, "Lag Name:", lagEnt.IfName, "UntagVlanId:", lagEnt.UntagVlanId)
+		server.logger.Debug("Port IfIndex Map:")
+		for ifIdx, _ := range lagEnt.PortMap {
+			server.logger.Debug(ifIdx)
+		}
+		server.logger.Debug("Vlan Id Map:")
+		for id, _ := range lagEnt.VlanIdMap {
+			server.logger.Debug(id)
+		}
+	}
+	server.logger.Debug("==================================================")
+}
+
+func (server *ARPServer) dumpPortProp() {
+	server.logger.Debug("==================================================")
+	server.logger.Debug(server.portPropMap)
+	server.logger.Debug("==================================================")
+}

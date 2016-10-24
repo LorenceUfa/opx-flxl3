@@ -161,7 +161,7 @@ func (server *ARPServer) initArpParams() {
 	server.probeMax = 20
 	server.probeMin = 10
 	server.arpSliceRefreshDuration = time.Duration(10) * time.Minute
-	server.dumpArpTable = true
+	server.dumpArpTable = false
 }
 
 func (server *ARPServer) sigHandler(sigChan <-chan os.Signal) {

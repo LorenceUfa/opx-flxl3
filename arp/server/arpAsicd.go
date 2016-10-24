@@ -47,80 +47,35 @@ func (server *ARPServer) processAsicdNotification(msg commonDefs.AsicdNotifyMsg)
 	switch msg.(type) {
 	case commonDefs.L2IntfStateNotifyMsg:
 		l2Msg := msg.(commonDefs.L2IntfStateNotifyMsg)
-		//server.dumpInfra()
-		server.logger.Info("L2IntfStateNotifyMsg:", l2Msg)
+		server.logger.Debug("L2IntfStateNotifyMsg:", l2Msg)
 		server.processL2StateChange(l2Msg)
-		//server.dumpInfra()
+		server.dumpInfra()
 	case commonDefs.IPv4L3IntfStateNotifyMsg:
 		l3Msg := msg.(commonDefs.IPv4L3IntfStateNotifyMsg)
 		server.dumpInfra()
-		server.logger.Info("IPv4L3IntfStateNotifyMsg:", l3Msg)
+		server.logger.Debug("IPv4L3IntfStateNotifyMsg:", l3Msg)
 		server.processIPv4L3StateChange(l3Msg)
 		server.dumpInfra()
 	case commonDefs.VlanNotifyMsg:
 		vlanMsg := msg.(commonDefs.VlanNotifyMsg)
-		//server.dumpInfra()
-		server.logger.Info("VlanNotifyMsg:", vlanMsg)
+		server.logger.Debug("VlanNotifyMsg:", vlanMsg)
 		server.updateVlanInfra(vlanMsg)
-		//server.dumpInfra()
+		server.dumpInfra()
 	case commonDefs.LagNotifyMsg:
 		lagMsg := msg.(commonDefs.LagNotifyMsg)
-		//server.dumpInfra()
-		server.logger.Info("LagNotifyMsg:", lagMsg)
+		server.logger.Debug("LagNotifyMsg:", lagMsg)
 		server.updateLagInfra(lagMsg)
-		//server.dumpInfra()
+		server.dumpInfra()
 	case commonDefs.IPv4IntfNotifyMsg:
 		ipv4Msg := msg.(commonDefs.IPv4IntfNotifyMsg)
-		server.dumpInfra()
-		server.logger.Info("IPv4IntfNotifyMsg:", ipv4Msg)
+		server.logger.Debug("IPv4IntfNotifyMsg:", ipv4Msg)
 		server.updateIPv4Infra(ipv4Msg)
 		server.dumpInfra()
 	case commonDefs.IPv4NbrMacMoveNotifyMsg:
 		macMoveMsg := msg.(commonDefs.IPv4NbrMacMoveNotifyMsg)
-		//server.dumpInfra()
 		server.processIPv4NbrMacMove(macMoveMsg)
-		//server.dumpInfra()
+		server.dumpInfra()
 	}
-}
-
-func (server *ARPServer) dumpInfra() {
-	server.dumpL3IntfProp()
-	server.dumpVlanProp()
-	//dumpLagProp()
-	server.dumpPortProp()
-}
-
-func (server *ARPServer) dumpL3IntfProp() {
-	server.logger.Debug("==================================================")
-	server.logger.Debug("L3 Interface Property Map:")
-	for l3IfIndex, l3Ent := range server.l3IntfPropMap {
-		server.logger.Debug("L3 IfIndex:", l3IfIndex, "IpAddr:", l3Ent.IpAddr, "Netmask:", l3Ent.Netmask, "IfName:", l3Ent.IfName)
-	}
-	server.logger.Debug("==================================================")
-}
-
-func (server *ARPServer) dumpVlanProp() {
-	server.logger.Debug("==================================================")
-	server.logger.Debug("Vlan Property Map:")
-	for vlanIfIdx, vlanEnt := range server.vlanPropMap {
-		server.logger.Debug("Vlan IfIdx:", vlanIfIdx, "Vlan Name:", vlanEnt.IfName)
-		server.logger.Debug("Untagged IfIndex Map:")
-		for uIfIdx, _ := range vlanEnt.UntagIfIdxMap {
-			server.logger.Debug(uIfIdx)
-		}
-		server.logger.Debug("Tagged IfIndex Map:")
-		for tIfIdx, _ := range vlanEnt.TagIfIdxMap {
-			server.logger.Debug(tIfIdx)
-		}
-	}
-	server.logger.Info("==================================================")
-}
-
-func (server *ARPServer) dumpPortProp() {
-	server.logger.Debug("==================================================")
-	server.logger.Debug(server.portPropMap[1])
-	server.logger.Debug(server.portPropMap[6])
-	server.logger.Debug("==================================================")
 }
 
 func (server *ARPServer) processAsicdMsg(msg AsicdMsg) error {
