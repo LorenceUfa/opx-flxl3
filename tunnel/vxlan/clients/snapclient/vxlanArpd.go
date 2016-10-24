@@ -3,7 +3,7 @@ package snapclient
 
 import (
 	"arpd"
-	"arpdInt"
+	//"arpdInt"
 	"fmt"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"net"
