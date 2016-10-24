@@ -83,7 +83,6 @@ type IntfConf struct {
 	IfAreaId              []byte
 	IfType                config.IfType
 	IfAdminStat           config.Status
-	IfState               config.Status
 	IfRtrPriority         uint8
 	IfTransitDelay        config.UpToMaxAge
 	IfRetransInterval     config.UpToMaxAge
@@ -155,7 +154,6 @@ func (server *OSPFServer) initDefaultIntfConf(key IntfConfKey, ipIntfProp IPIntf
 		ent.IfAreaId = areaId
 		ent.IfType = intfType
 		ent.IfAdminStat = config.Disabled
-		ent.IfState = config.Disabled
 		ent.IfRtrPriority = uint8(config.DesignatedRouterPriority(1))
 		ent.IfTransitDelay = config.UpToMaxAge(1)
 		ent.IfRetransInterval = config.UpToMaxAge(5)
@@ -340,12 +338,18 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 		server.logger.Err("No such inteface exists")
 		return
 	}
+	ipKey := convertAreaOrRouterIdUint32(ip.String())
+	ipPropKey, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("Intf: Delete , l3 intf doesnt exist ", ip))
+		return
+	}
 	areaId := convertIPv4ToUint32(ent.IfAreaId)
 	oldAreaId := convertIPInByteToString(ent.IfAreaId)
 	server.updateIntfToAreaMap(intfConfKey, oldAreaId, "none")
 
 	if server.ospfGlobalConf.AdminStat == config.Enabled &&
-		ent.IfState == config.Enabled &&
+		ipPropKey.IpState == config.Intf_Up &&
 		ent.IfAdminStat == config.Enabled {
 		server.StopSendRecvPkts(intfConfKey)
 		flag = true
@@ -445,9 +449,9 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 			return err
 		}
 	}
-
+	server.logger.Debug(fmt.Sprintln("Intf: ifadmin ", ent.IfAdminStat, " ipstate",
+		ip.IpState, " global admin ", server.ospfGlobalConf.AdminStat))
 	if ent.IfAdminStat == config.Enabled &&
-		ent.IfState == config.Enabled &&
 		ip.IpState == config.Intf_Up &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.StopSendRecvPkts(intfConfKey)
@@ -455,10 +459,11 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 
 	server.updateIPIntfConfMap(ifConf)
 
-	server.logger.Info(fmt.Sprintln("InterfaceConf:", server.IntfConfMap))
 	ent, _ = server.IntfConfMap[intfConfKey]
+	server.logger.Info(fmt.Sprintln("InterfaceConf:", server.IntfConfMap))
+	server.logger.Debug(fmt.Sprintln("Intf: ifadmin ", ent.IfAdminStat, " ipstate",
+		ip.IpState, " global admin ", server.ospfGlobalConf.AdminStat))
 	if ent.IfAdminStat == config.Enabled &&
-		ent.IfState == config.Enabled &&
 		ip.IpState == config.Intf_Up &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.StartSendRecvPkts(intfConfKey)
@@ -489,10 +494,9 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 		server.logger.Err(fmt.Sprintln("Intf: Update failed as ospf intf does not exist ", ifKey))
 		return errors.New("Ospf Interface does not exist ")
 	}
-	server.logger.Debug(fmt.Sprintln("Intf admin stat ", ent.IfAdminStat, " ifState ", ent.IfState,
+	server.logger.Debug(fmt.Sprintln("Intf admin stat ", ent.IfAdminStat,
 		"ip state", ip.IpState, "global admin_stat", server.ospfGlobalConf.AdminStat))
 	if ent.IfAdminStat == config.Enabled &&
-		ent.IfState >= config.Enabled &&
 		ip.IpState == config.Intf_Up &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.logger.Debug(fmt.Sprintln("Intf: Update Stop send recv packets ", ifKey))
@@ -522,7 +526,6 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 	ent, _ = server.IntfConfMap[ifKey]
 
 	if ent.IfAdminStat == config.Enabled &&
-		ent.IfState >= config.Enabled &&
 		ip.IpState == config.Intf_Up &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.logger.Debug(fmt.Sprintln("Intf: Update Start send recv packets ", ifKey))
@@ -589,10 +592,9 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 			server.logger.Debug(fmt.Sprintln("Intf: Down . Update area id info"))
 			server.updateIntfToAreaMap(intfKey, AreaId, "none")
 			server.logger.Debug(fmt.Sprintln("Intf: Down admin ", ent.IfAdminStat,
-				" state ", ent.IfState, " admin ", server.ospfGlobalConf.AdminStat))
+				" admin ", server.ospfGlobalConf.AdminStat))
 			if ent.IfAdminStat == config.Enabled &&
-				ent.IfState >= config.Enabled &&
-				//	ip.IpState == config.Intf_Up &&
+				ip.IpState == config.Intf_Up &&
 				server.ospfGlobalConf.AdminStat == config.Enabled {
 				server.logger.Debug(fmt.Sprintln("Intf: Down. Stop send receive packets"))
 				server.StopSendRecvPkts(intfKey)
@@ -613,8 +615,7 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 		if ifState == config.Intf_Up {
 			server.updateIntfToAreaMap(intfKey, "none", AreaId)
 			if ent.IfAdminStat == config.Enabled &&
-				ent.IfState >= config.Enabled &&
-				//	ifState == config.Intf_Up &&
+				ifState == config.Intf_Up &&
 				server.ospfGlobalConf.AdminStat == config.Enabled {
 				server.StartSendRecvPkts(intfKey)
 				flag = true
