@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"l3/ndp/config"
 	"net"
 )
 
@@ -37,6 +38,19 @@ func getEthLayer(pkt gopacket.Packet, eth *layers.Ethernet) error {
 	}
 	*eth = *ethLayer.(*layers.Ethernet)
 	return nil
+}
+
+func getDot1QLayer(pkt gopacket.Packet, dot1q *layers.Dot1Q) int32 {
+	dot1qLayer := pkt.Layer(layers.LayerTypeDot1Q)
+	if dot1qLayer == nil {
+		return -1
+	}
+	*dot1q = *dot1qLayer.(*layers.Dot1Q)
+	if dot1q.VLANIdentifier == 0 {
+		return config.INTERNAL_VLAN
+	}
+
+	return int32(dot1q.VLANIdentifier)
 }
 
 /*
@@ -176,6 +190,7 @@ func (p *Packet) DecodeND(pkt gopacket.Packet) (*NDInfo, error) {
 	icmpv6Hdr := &layers.ICMPv6{}
 	ipv6Hdr := &layers.IPv6{}
 	eth := &layers.Ethernet{}
+	dot1q := &layers.Dot1Q{}
 	var err error
 
 	// Get Ethernet Layer
@@ -183,6 +198,9 @@ func (p *Packet) DecodeND(pkt gopacket.Packet) (*NDInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Get Dot1Q Layer
+	dot1qTag := getDot1QLayer(pkt, dot1q)
 
 	// First get ipv6 and icmp6 information
 	err = getIpAndICMPv6Hdr(pkt, ipv6Hdr, icmpv6Hdr)
@@ -206,6 +224,6 @@ func (p *Packet) DecodeND(pkt gopacket.Packet) (*NDInfo, error) {
 	ndInfo.DstMac = eth.DstMAC.String()   // Update DST MAC from ethernet
 	ndInfo.SrcIp = ipv6Hdr.SrcIP.String() // copy sender ip address to this
 	ndInfo.DstIp = ipv6Hdr.DstIP.String() // copy destination ip
-
+	ndInfo.Dot1Q = dot1qTag
 	return ndInfo, nil
 }
