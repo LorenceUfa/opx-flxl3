@@ -46,9 +46,12 @@ const (
 )
 
 const (
-	VRRP_MASTER_PRIORITY      = 255
-	VRRP_IGNORE_PRIORITY      = 65535
-	VRRP_MASTER_DOWN_PRIORITY = 0
+	VRRP_MASTER_PRIORITY         = 255
+	VRRP_IGNORE_PRIORITY         = 65535
+	VRRP_MASTER_DOWN_PRIORITY    = 0
+	VRRP_INITIALIZE_STATE_STRING = "Initialize"
+	VRRP_BACKUP_STATE_STRING     = "Backup"
+	VRRP_MASTER_STATE_STRING     = "Master"
 
 	FSM_PREFIX = "FSM ------> "
 )
@@ -106,43 +109,23 @@ type FsmStateInfo struct {
 }
 
 type FSM struct {
-	// config attributes like virtual rtr ip, vrid, intfRef, etc...
-	Config *config.IntfCfg
-	// My own ip address
-	IpAddr string
-	// My own ifIndex
-	IfIndex int32
-	// Pcap Handler for receiving packets
-	pHandle *pcap.Handle
-	// VRRP MAC aka VMAC
-	VirtualRouterMACAddress string
-
-	State uint8
-
-	StateCh *StateInfo
-
-	pktCh *PktChannelInfo
-
-	PktInfo *PacketInfo
-
-	fsmStCh *FsmStateInfo
-
-	txPktCh *packet.PacketInfo
-
-	// Advertisement Timer
-	AdverTimer *time.Timer
-
-	// The initial value is the same as Advertisement_Interval.
-	MasterAdverInterval int32
-
-	// (((256 - priority) * Master_Adver_Interval) / 256)
-	SkewTime int32
-
-	// (3 * Master_Adver_Interval) + Skew_time
-	MasterDownValue int32
-
-	MasterDownTimer *time.Timer
-
+	Config                  *config.IntfCfg // config attributes like virtual rtr ip, vrid, intfRef, etc...
+	pHandle                 *pcap.Handle    // Pcap Handler for receiving packets
+	IpAddr                  string          // My own ip address
+	IfIndex                 int32           // My own ifIndex
+	VirtualRouterMACAddress string          // VRRP MAC aka VMAC
+	State                   uint8
+	PktInfo                 *PacketInfo
+	AdverTimer              *time.Timer // Advertisement Timer
+	MasterAdverInterval     int32       // The initial value is the same as Advertisement_Interval.
+	SkewTime                int32       // (((256 - priority) * Master_Adver_Interval) / 256)
+	MasterDownValue         int32       // (3 * Master_Adver_Interval) + Skew_time
+	MasterDownTimer         *time.Timer
+	StInfo                  StateInfo // this is state information for this fsm which will be used for get bulk
+	StateCh                 *StateInfo
+	pktCh                   *PktChannelInfo
+	fsmStCh                 *FsmStateInfo
+	txPktCh                 *packet.PacketInfo
 	/*
 		MasterDownLock  *sync.RWMutex
 
@@ -183,6 +166,26 @@ func createVirtualMac(vrid int32) (vmac string) {
 	return vmac
 }
 
+func getStateName(state uint8) (rv string) {
+	switch state {
+	case VRRP_INITIALIZE_STATE:
+		rv = VRRP_INITIALIZE_STATE_STRING
+	case VRRP_MASTER_STATE:
+		rv = VRRP_MASTER_STATE_STRING
+	case VRRP_BACKUP_STATE:
+		rv = VRRP_BACKUP_STATE_STRING
+	}
+
+	return rv
+}
+
+func (f *FSM) UpdateRxStateInformation(pktInfo *packet.PacketInfo) {
+	f.StInfo.MasterIp = pktInfo.IpAddr
+	f.StInfo.AdverRx++
+	f.StInfo.LastAdverRx = time.Now().String()
+	f.StInfo.CurrentFsmState = getStateName(f.State)
+}
+
 func (f *FSM) ReceiveVrrpPackets() {
 	pHandle := f.pHandle
 	pktCh := f.pktCh
@@ -197,12 +200,6 @@ func (f *FSM) ReceiveVrrpPackets() {
 			}
 			pktCh <- &PktChannelInfo{
 				pkt: pkt,
-				/*
-					key: KeyInfo{
-						IntfRef: intf.L3.IfName,
-						VRID:    intf.Config.VRID,
-					},
-				*/
 			}
 		}
 	}
@@ -294,41 +291,6 @@ func (f *FSM) StartMasterAdverTimer() {
 		debug.Logger.Debug("Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
 		f.AdverTimer = time.AfterFunc(time.Duration(f.Config.AdvertisementInterval), SendMasterAdveristement_func)
 	}
-
-	/*
-		var timerCheck_func func()
-		timerCheck_func = func() {
-			// Send advertisment every time interval expiration
-			svr.vrrpTxPktCh <- VrrpTxChannelInfo{
-				key:      key,
-				priority: VRRP_IGNORE_PRIORITY,
-			}
-			<-svr.vrrpPktSend
-			gblInfo, exists := svr.vrrpGblInfo[key]
-			if !exists {
-				svr.logger.Err("Gbl Config for " + key + " doesn't exists")
-				return
-			}
-			gblInfo.AdverTimer.Reset(
-				time.Duration(gblInfo.IntfConfig.AdvertisementInterval) *
-					time.Second)
-			svr.vrrpGblInfo[key] = gblInfo
-		}
-		gblInfo, exists := svr.vrrpGblInfo[key]
-		if exists {
-			svr.logger.Info(fmt.Sprintln("setting adver timer to",
-				gblInfo.IntfConfig.AdvertisementInterval))
-			// Set Timer expire func...
-			gblInfo.AdverTimer = time.AfterFunc(
-				time.Duration(gblInfo.IntfConfig.AdvertisementInterval)*time.Second,
-				timerCheck_func)
-			// (145) + Transition to the {Master} state
-			gblInfo.StateNameLock.Lock()
-			gblInfo.StateName = VRRP_MASTER_STATE
-			gblInfo.StateNameLock.Unlock()
-			svr.vrrpGblInfo[key] = gblInfo
-		}
-	*/
 }
 
 func (f *FSM) StopMasterAdverTimer() {
@@ -360,9 +322,13 @@ func (f *FSM) StartMasterDownTimer(key string) {
 	svr.vrrpGblInfo[key] = gblInfo
 }
 
-func (f *FSM) CalculateDownValue() {
+func (f *FSM) CalculateDownValue(advInt int32) {
 	//(155) + Set Master_Adver_Interval to Advertisement_Interval
-	f, MasterAdverInterval = f.Config.AdvertisementInterval
+	if advInt == config.USE_CONFIG_ADVERTISEMENT {
+		f.MasterAdverInterval = f.Config.AdvertisementInterval
+	} else {
+		f.MasterAdverInterval = advInt
+	}
 	//(160) + Set the Master_Down_Timer to Master_Down_Interval
 	if f.Config.Priority != 0 && f.Config.MasterAdverInterval != 0 {
 		f.Config.SkewTime = ((256 - f.Config.Priority) * f.Config.MasterAdverInterval) / 256
@@ -384,14 +350,14 @@ func (f *FSM) TransitionToMaster() {
 	f.StartMasterAdverTimer()
 }
 
-func (f *FSM) TransitionToBackup() {
+func (f *FSM) TransitionToBackup(advInt int32) {
 	debug.Logger.Debug(FSM_PREFIX, "advertisement timer to be used in backup state for",
 		"calculating master down timer is ", f.Config.AdvertisementInterval)
 	// @TODO: Bring Down Sub-Interface
 	//	svr.VrrpUpdateSubIntf(gblInfo, false /*configure or set*/)
 
 	// Re-Calculate Down timer value
-	f.CalculateDownValue()
+	f.CalculateDownValue(advInt)
 	f.StartMasterDownTimer()
 	//(165) + Transition to the {Backup} state
 	f.State = VRRP_BACKUP_STATE
@@ -405,7 +371,7 @@ func (f *FSM) Initialize() {
 	case VRRP_MASTER_PRIORITY:
 		f.TransitionToMaster()
 	default:
-		f.TransitionToBackup()
+		f.TransitionToBackup(config.USE_CONFIG_ADVERTISEMENT)
 	}
 }
 
@@ -442,8 +408,14 @@ func (f *FSM) MasterState(stInfo *FsmStateInfo) {
 				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.IpAddr)) > 0) {
 			// (740) -@ Cancel Adver_Timer
 			f.StopMasterAdverTimer()
-			svr.VrrpTransitionToBackup(key, int32(vrrpHdr.MaxAdverInt),
-				"Remote Priority is higher OR (priority are equal AND remote ip is higher than local ip)")
+			/*
+				(745) -@ Set Master_Adver_Interval to Adver Interval contained in the ADVERTISEMENT
+				(750) -@ Recompute the Skew_Time
+				(755) @ Recompute the Master_Down_Interval
+				(760) @ Set Master_Down_Timer to Master_Down_Interval
+				(765) @ Transition to the {Backup} state
+			*/
+			f.TransitionToBackup(int32(hdr.MaxAdverInt))
 		} else { // new Master logic
 			// Discard Advertisement
 			return
@@ -453,12 +425,77 @@ func (f *FSM) MasterState(stInfo *FsmStateInfo) {
 	// end MASTER STATE
 }
 
+func (f *FSM) BackupState(stInfo *FsmStateInfo) {
+	pktInfo := stInfo.PktInfo
+	hdr := pktInfo.Hdr
+	/* @TODO:
+	   (305) - If the protected IPvX address is an IPv4 address, then:
+	   (310) + MUST NOT respond to ARP requests for the IPv4 address(es) associated with the virtual router.
+	   (315) - else // protected addr is IPv6
+	   (320) + MUST NOT respond to ND Neighbor Solicitation messages for the IPv6 address(es) associated with the virtual router.
+	   (325) + MUST NOT send ND Router Advertisement messages for the virtual router.
+	   (330) -endif // was protected addr IPv4?
+	*/
+	// Check dmac address from the inPacket and if it is same discard the packet
+	if pktInfo.DstMac == f.VirtualRouterMACAddress {
+		svr.logger.Err("DMAC is equal to VMac and hence discarding the packet")
+		return
+	}
+	// MUST NOT accept packets addressed to the IPvX address(es)
+	// associated with the virtual router. @TODO: check with Hari
+	if pktInfo.DstIp == f.IpAddr {
+		svr.logger.Err("dst ip is equal to interface ip, dropping the packet")
+		return
+	}
+
+	if hdr.Type == VRRP_PKT_TYPE_ADVERTISEMENT {
+		if vrrpHdr.Priority == 0 {
+			// Change down Value to Skew time
+			gblInfo.MasterDownLock.Lock()
+			gblInfo.MasterDownValue = gblInfo.SkewTime
+			gblInfo.MasterDownLock.Unlock()
+			svr.vrrpGblInfo[key] = gblInfo
+			svr.VrrpHandleMasterDownTimer(key)
+		} else {
+			// local preempt is false
+			if gblInfo.IntfConfig.PreemptMode == false {
+				// if remote priority is higher update master down
+				// timer and move on
+				if vrrpHdr.Priority >= uint8(gblInfo.IntfConfig.Priority) {
+					gblInfo.MasterDownLock.Lock()
+					svr.VrrpCalculateDownValue(int32(vrrpHdr.MaxAdverInt),
+						&gblInfo)
+					gblInfo.MasterDownLock.Unlock()
+					svr.vrrpGblInfo[key] = gblInfo
+					svr.VrrpHandleMasterDownTimer(key)
+				} else {
+					// Do nothing.... same as discarding packet
+					svr.logger.Info("Discarding advertisment")
+					return
+				}
+			} else { // local preempt is true
+				if vrrpHdr.Priority >= uint8(gblInfo.IntfConfig.Priority) {
+					// Do nothing..... same as discarding packet
+					svr.logger.Info("Discarding advertisment")
+					return
+				} else { // Preempt is true... need to take over
+					// as master
+					svr.VrrpTransitionToMaster(key,
+						"Preempt is true and local Priority is higher than remote")
+				}
+			} // endif preempt test
+		} // endif was priority zero
+	} // endif was advertisement received
+	// end BACKUP STATE
+}
+
 func (f *FSM) ProcessStateInfo(fsmStInfo *FsmStateInfo) {
 	debug.Logger.Debug(FSM_PREFIX, "Processing State Information")
 	switch f.State {
 	case VRRP_INITIALIZE_STATE:
 		f.Initialize()
 	case VRRP_BACKUP_STATE:
+		f.BackupState(fsmStInfo)
 	case VRRP_MASTER_STATE:
 		f.MasterState(fsmStInfo)
 	}
@@ -713,6 +750,7 @@ func (svr *VrrpServer) VrrpHandleMasterDownTimer(key string) {
 	svr.vrrpGblInfo[key] = gblInfo
 }
 
+/*
 func (svr *VrrpServer) VrrpCalculateDownValue(AdvertisementInterval int32,
 	gblInfo *VrrpGlobalInfo) {
 	//(155) + Set Master_Adver_Interval to Advertisement_Interval
@@ -724,7 +762,8 @@ func (svr *VrrpServer) VrrpCalculateDownValue(AdvertisementInterval int32,
 	}
 	gblInfo.MasterDownValue = (3 * gblInfo.MasterAdverInterval) + gblInfo.SkewTime
 }
-
+*/
+/*
 func (svr *VrrpServer) VrrpTransitionToBackup(key string, AdvertisementInterval int32,
 	reason string) {
 	svr.logger.Info(fmt.Sprintln("advertisement timer to be used in backup state for",
@@ -735,8 +774,9 @@ func (svr *VrrpServer) VrrpTransitionToBackup(key string, AdvertisementInterval 
 		return
 	}
 	// Bring Down Sub-Interface
-	svr.VrrpUpdateSubIntf(gblInfo, false /*configure or set*/)
-	// Re-Calculate Down timer value
+	svr.VrrpUpdateSubIntf(gblInfo, false /*configure or set*/ //)
+// Re-Calculate Down timer value
+/*
 	gblInfo.MasterDownLock.Lock()
 	svr.VrrpCalculateDownValue(AdvertisementInterval, &gblInfo)
 	gblInfo.MasterDownLock.Unlock()
@@ -744,7 +784,7 @@ func (svr *VrrpServer) VrrpTransitionToBackup(key string, AdvertisementInterval 
 	svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
 	svr.VrrpHandleMasterDownTimer(key)
 }
-
+*/
 /*
 func (svr *VrrpServer) VrrpInitState(key string) {
 	svr.logger.Info("in init state decide next state")
@@ -766,6 +806,7 @@ func (svr *VrrpServer) VrrpInitState(key string) {
 }
 */
 
+/*
 func (svr *VrrpServer) VrrpBackupState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHeader,
 	key string) {
 	// @TODO: Handle arp drop...
@@ -845,6 +886,7 @@ func (svr *VrrpServer) VrrpBackupState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHe
 	} // endif was advertisement received
 	// end BACKUP STATE
 }
+*/
 
 /*
 func (svr *VrrpServer) VrrpMasterState(inPkt gopacket.Packet, vrrpHdr *VrrpPktHeader,

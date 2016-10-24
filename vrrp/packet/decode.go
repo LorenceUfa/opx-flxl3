@@ -165,7 +165,10 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 	}
 	pktInfo := &PacketInfo{
 		Hdr:    hdr,
+		DstIp:  ipHdr.DstIP.String(),
 		IpAddr: ipHdr.SrcIP.String(),
+		DstMac: (eth.DstMAC).String(),
+		SrcMac: (eth.SrcMAC).String(),
 	}
 	return hdr
 }

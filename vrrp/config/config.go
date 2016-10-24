@@ -31,6 +31,10 @@ const (
 )
 
 const (
+	USE_CONFIG_ADVERTISEMENT = -100
+)
+
+const (
 	_ = iota
 	CREATE
 	UDPATE

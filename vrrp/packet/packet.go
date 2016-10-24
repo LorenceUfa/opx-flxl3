@@ -101,12 +101,15 @@ type Header struct {
 
 type PacketInfo struct {
 	Hdr          *Header
+	DstMac       string
+	SrcMac       string
 	Version      string
 	Vrid         uint8
 	Priority     uint8
 	AdvertiseInt uint16
 	VirutalMac   string
-	IpAddr       string
+	IpAddr       string // this is IP Header SRC IP
+	DstIp        string
 }
 
 func Init() *PacketInfo {
