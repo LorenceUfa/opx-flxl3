@@ -9,10 +9,14 @@ func (server *ARPServer) SetPortPropertyMap() {
 	portEnt, _ := server.portPropMap[20]
 	portEnt.IfName = "fpPort20"
 	portEnt.MacAddr = "11:22:33:44:55:66"
-	portEnt.IpAddr = "10.10.10.20"
-	portEnt.Netmask = net.IPMask([]byte{0xff, 0xff, 0xff, 0})
-	portEnt.L3IfIdx = 20
-	portEnt.LagIfIdx = -1
+	portEnt.UntagVlanId = -1
+	portEnt.L3PortPropMap = make(map[int]L3PortProp)
+	l3PortPropEnt, _ := portEnt.L3PortPropMap[-1]
+	l3PortPropEnt.IpAddr = "10.10.10.20"
+	l3PortPropEnt.Netmask = net.IPMask([]byte{0xff, 0xff, 0xff, 0})
+	l3PortPropEnt.L3IfIdx = 20
+	l3PortPropEnt.LagIfIdx = -1
+	portEnt.L3PortPropMap[-1] = l3PortPropEnt
 	server.portPropMap[20] = portEnt
 }
 
@@ -42,10 +46,13 @@ func TestProcessArpEntryUpdateMsg(t *testing.T) {
 	ser := NewARPServer(logger)
 
 	msg := UpdateArpEntryMsg{
-		PortNum: 10,
-		IpAddr:  "10.10.10.10",
-		MacAddr: "00:11:22:33:44:55",
-		Type:    false,
+		PortIfIdx: 10,
+		IpAddr:    "10.10.10.10",
+		MacAddr:   "00:11:22:33:44:55",
+		Type:      false,
+		VlanId:    -1,
+		L3IfIdx:   10,
+		LagIfIdx:  -1,
 	}
 
 	ser.processArpEntryUpdateMsg(msg)
@@ -57,10 +64,13 @@ func TestProcessArpEntryUpdateMsg(t *testing.T) {
 	}
 	ser.SetPortPropertyMap()
 	msg = UpdateArpEntryMsg{
-		PortNum: 20,
-		IpAddr:  "10.10.10.10",
-		MacAddr: "00:11:22:33:44:55",
-		Type:    false,
+		PortIfIdx: 20,
+		IpAddr:    "10.10.10.10",
+		MacAddr:   "00:11:22:33:44:55",
+		Type:      false,
+		VlanId:    -1,
+		L3IfIdx:   10,
+		LagIfIdx:  -1,
 	}
 
 	ser.processArpEntryUpdateMsg(msg)
@@ -73,10 +83,13 @@ func TestProcessArpEntryUpdateMsg(t *testing.T) {
 
 	ser.SetL3PropertyMap()
 	msg = UpdateArpEntryMsg{
-		PortNum: 10,
-		IpAddr:  "10.10.10.10",
-		MacAddr: "00:11:22:33:44:55",
-		Type:    false,
+		PortIfIdx: 10,
+		IpAddr:    "10.10.10.10",
+		MacAddr:   "00:11:22:33:44:55",
+		Type:      false,
+		VlanId:    -1,
+		L3IfIdx:   10,
+		LagIfIdx:  -1,
 	}
 
 	ser.processArpEntryUpdateMsg(msg)

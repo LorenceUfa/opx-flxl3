@@ -439,6 +439,7 @@ func (intf *Interface) createNbrKey(ndInfo *packet.NDInfo) (nbrkey string) {
 	} else {
 		nbrkey = ndInfo.SrcMac + "_" + ndInfo.SrcIp + "_" + ndInfo.LearnedIntfRef
 	}
+	debug.Logger.Debug("nbrKey created for ipv6 adj is:", nbrkey)
 	return nbrkey
 }
 
@@ -450,6 +451,11 @@ func (intf *Interface) ProcessND(ndInfo *packet.NDInfo) (*config.NeighborConfig,
 	if intf.Neighbor == nil {
 		debug.Logger.Alert("!!!!Neighbor Initialization for intf:", intf.IntfRef, "didn't happen properly!!!!!")
 		intf.Neighbor = make(map[string]NeighborInfo, 10)
+	}
+	// if tx is closed then do not learn the packet
+	if intf.PcapBase.Tx == nil {
+		debug.Logger.Debug("TX channel is closed for:", intf.IntfRef, "hence ignoring incoming packet")
+		return nil, IGNORE
 	}
 	switch ndInfo.PktType {
 	case layers.ICMPv6TypeNeighborSolicitation:
@@ -556,4 +562,61 @@ func (intf *Interface) DeleteNeighbor(nbrEntry config.NeighborConfig) ([]string,
 	nbrKey := nbrIp + "_" + nbrMac
 
 	return intf.FlushNeighborPerIp(nbrKey, nbrIp)
+}
+
+/*
+ *   UpdateNbrEntry will be called during mac move.
+ *   Args:    1) oldNbrKey - old nbr that needs to be deleted...
+ *	      2) newNbrKey - new nbr that needs to be initialized...
+ *   return:  linkscope old key & link scope ip that got deleted with following reason:
+ *	      * oldNbrKey : mac ip port
+ *                          for this mac & port combination get link scope ip and do update on that entry also
+ *			    return this newly formed linkScopeNbrKey to the caller so that server state can be
+ *			    updated
+ */
+func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) (string, string) {
+	// old nbr getting deleted first
+	nbr, exists := intf.Neighbor[oldNbrKey]
+	if exists {
+		debug.Logger.Info("Deleting neighbor:", nbr)
+		nbr.DeInit()
+		delete(intf.Neighbor, oldNbrKey)
+	}
+	// new nbr getting added
+	nbr, exists = intf.Neighbor[newNbrKey]
+	if !exists {
+		nbr.InitCache(intf.reachableTime, intf.retransTime, newNbrKey, intf.PktDataCh, intf.IfIndex)
+		nbr.RchTimer()
+		nbr.State = REACHABLE
+		nbr.updatePktRxStateInfo()
+		intf.Neighbor[newNbrKey] = nbr
+	}
+
+	oldNbrKeySS := splitNeighborKey(oldNbrKey)
+	// search for linkScopeNbrKey on the same old mac & port as we need to update that entry also
+	for nbrKey, nbr := range intf.Neighbor {
+		splitString := splitNeighborKey(nbrKey)
+		// key is mac_ip_intf
+		if oldNbrKeySS[0] == splitString[0] && oldNbrKeySS[2] == splitString[2] && isLinkLocal(splitString[1]) {
+			// found the linkScope Old Entry that we want to delete
+			debug.Logger.Info("Deleting Link Scope neighbor:", nbr, "key:", nbrKey)
+			nbr.DeInit()
+			// new nbr getting added
+			newNbrKeySS := splitNeighborKey(newNbrKey)
+			// new nbr mac & port but old entry ipv6 address
+			linkScopeNbrKey := createNeighborKey(newNbrKeySS[0], splitString[1], newNbrKeySS[2])
+			nbr, exists = intf.Neighbor[linkScopeNbrKey]
+			if !exists {
+				nbr.InitCache(intf.reachableTime, intf.retransTime, linkScopeNbrKey, intf.PktDataCh, intf.IfIndex)
+				nbr.RchTimer()
+				nbr.State = REACHABLE
+				nbr.updatePktRxStateInfo()
+				intf.Neighbor[linkScopeNbrKey] = nbr
+			}
+			delete(intf.Neighbor, nbrKey)
+			return nbrKey, splitString[1]
+		}
+	}
+
+	return "", ""
 }

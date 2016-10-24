@@ -51,9 +51,10 @@ type LogicalIntfProperty struct {
 }
 
 type IPv4IntfNotifyMsg struct {
-	IpAddr string
-	IfId   uint16
-	IfType uint8
+	IpAddr  string
+	IfId    uint16
+	IfType  uint8
+	IfState config.Status
 }
 
 type IpProperty struct {
@@ -103,7 +104,7 @@ func (server *OSPFServer) updateIpPropertyMap(msg IPv4IntfNotifyMsg, msgType uin
 		ent.IfId = msg.IfId
 		ent.IfType = msg.IfType
 		ent.IpAddr = msg.IpAddr
-		ent.IpState = config.Intf_Down
+		ent.IpState = msg.IfState
 		server.ipPropertyMap[ip] = ent
 	} else { // Delete IP
 		delete(server.ipPropertyMap, ip)
@@ -196,22 +197,21 @@ func (server *OSPFServer) constructL3Infra() {
 		more := bool(bulkInfo.More)
 		curMark = int(bulkInfo.EndIdx)
 		for i := 0; i < objCnt; i++ {
-			ipAddr, _, _ := net.ParseCIDR(bulkInfo.IPv4IntfStateList[i].IpAddr)
 			ifIdx := bulkInfo.IPv4IntfStateList[i].IfIndex
 			ifType := uint8(asicdCommonDefs.GetIntfTypeFromIfIndex(ifIdx))
 			ifId := uint16(asicdCommonDefs.GetIntfIdFromIfIndex(ifIdx))
-			ip := convertAreaOrRouterIdUint32(ipAddr.String())
-			ent := server.ipPropertyMap[ip]
-			ent.IfId = ifId
-			ent.IfType = ifType
-			ent.IpAddr = bulkInfo.IPv4IntfStateList[i].IpAddr
 			var ipv4IntfMsg IPv4IntfNotifyMsg
-			ipv4IntfMsg.IpAddr = ent.IpAddr
+			ipv4IntfMsg.IpAddr = bulkInfo.IPv4IntfStateList[i].IpAddr
 			ipv4IntfMsg.IfType = ifType
 			ipv4IntfMsg.IfId = ifId
+			if bulkInfo.IPv4IntfStateList[i].OperState == "UP" {
+				ipv4IntfMsg.IfState = config.Intf_Up
+			} else {
+				ipv4IntfMsg.IfState = config.Intf_Down
+			}
+			server.updateIpPropertyMap(ipv4IntfMsg, asicdCommonDefs.NOTIFY_IPV4INTF_CREATE)
 			mtu := server.computeMinMTU(ipv4IntfMsg.IfType, ipv4IntfMsg.IfId)
 			server.createIPIntfConfMap(ipv4IntfMsg, mtu, ifIdx, broadcast)
-			server.ipPropertyMap[ip] = ent
 		}
 		if more == false {
 			break
@@ -368,7 +368,7 @@ func (server *OSPFServer) UpdateIPv4Infra(msg asicdCommonDefs.IPv4IntfNotifyMsg,
 				}
 			//End
 		*/
-
+		ipv4IntfMsg.IfState = config.Intf_Down
 		server.createIPIntfConfMap(ipv4IntfMsg, mtu, msg.IfIndex, broadcast)
 		server.updateIpPropertyMap(ipv4IntfMsg, msgType)
 	} else {
