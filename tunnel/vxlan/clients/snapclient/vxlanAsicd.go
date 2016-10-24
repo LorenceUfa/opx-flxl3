@@ -27,10 +27,12 @@ type portVlanValue struct {
 var asicdclnt AsicdClient
 var PortVlanDb map[uint16][]*portVlanValue
 
-func ConvertVxlanConfigToVxlanAsicdConfig(c *vxlan.VxlanConfig) *asicdInt.Vxlan {
+func ConvertVxlanConfigToVxlanAsicdConfig(c *vxlan.VxlanDbEntry) *asicdInt.Vxlan {
 	v := &asicdInt.Vxlan{
-		Vni:            int32(c.VNI),
-		UntaggedVlanId: int16(c.UntaggedVlan),
+		Vni: int32(c.VNI),
+	}
+	for _, untagvlan := range c.UntaggedVlanId {
+		v.UntaggedVlanId = append(v.UntaggedVlanId, int16(untagvlan))
 	}
 	for _, vlan := range c.VlanId {
 		v.VlanId = append(v.VlanId, int16(vlan))
@@ -409,7 +411,7 @@ func (intf VXLANSnapClient) updateIpv4Intf(msg commonDefs.IPv4IntfNotifyMsg, msg
 	}
 }
 
-func (intf VXLANSnapClient) CreateVxlan(vxlan *vxlan.VxlanConfig) {
+func (intf VXLANSnapClient) CreateVxlan(vxlan *vxlan.VxlanDbEntry) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
 		intf.asicdmutex.Lock()
@@ -418,7 +420,7 @@ func (intf VXLANSnapClient) CreateVxlan(vxlan *vxlan.VxlanConfig) {
 	}
 }
 
-func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanConfig) {
+func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanDbEntry) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
 		intf.asicdmutex.Lock()
@@ -427,7 +429,7 @@ func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanConfig) {
 	}
 }
 
-func (intf VXLANSnapClient) UpdateVxlan(vni uint32, addvlanlist []uint16, delvlanlist []uint16, oldUntaggedVlan uint16, newUntaggedVlan uint16) {
+func (intf VXLANSnapClient) UpdateVxlan(vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
 		intf.asicdmutex.Lock()
@@ -444,7 +446,20 @@ func (intf VXLANSnapClient) UpdateVxlan(vni uint32, addvlanlist []uint16, delvla
 				convertdel = append(convertdel, int16(vlan))
 			}
 		}
-		asicdclnt.ClientHdl.UpdateVxlan(int32(vni), convertadd, convertdel, int16(oldUntaggedVlan), int16(newUntaggedVlan))
+		convertadduntag := make([]int16, 0)
+		if len(addvlanlist) > 0 {
+			for _, vlan := range addUntaggedVlan {
+				convertadd = append(convertadd, int16(vlan))
+			}
+		}
+		convertdeluntag := make([]int16, 0)
+		if len(delvlanlist) > 0 {
+			for _, vlan := range delUntaggedVlan {
+				convertdel = append(convertdel, int16(vlan))
+			}
+		}
+
+		asicdclnt.ClientHdl.UpdateVxlan(int32(vni), convertadd, convertdel, convertadduntag, convertdeluntag)
 		intf.asicdmutex.Unlock()
 	}
 }

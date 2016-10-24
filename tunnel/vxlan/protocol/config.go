@@ -90,7 +90,7 @@ type VtepUpdate struct {
 // what vlan maps to what VNI used for filtering packets on RX
 type VxlanConfig struct {
 	VNI          uint32
-	UntaggedVlan uint16
+	UntaggedVlan []uint16
 	VlanId       []uint16 // used to tag inner ethernet frame when egressing
 	Enable       bool
 }
@@ -150,9 +150,6 @@ func VxlanConfigCheck(c *VxlanConfig) error {
 
 	unprovvlanlist := make([]uint16, 0)
 	for _, vlan := range c.VlanId {
-		if c.UntaggedVlan == vlan {
-			return errors.New(fmt.Sprintln("Error VxlanInstance Untagged and vlan list vlans must be unique"))
-		}
 		foundVlan := false
 
 		for _, provvlan := range vlanList {
@@ -190,9 +187,6 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 
 	unprovvlanlist := make([]uint16, 0)
 	for _, vlan := range nc.VlanId {
-		if nc.UntaggedVlan == vlan {
-			return errors.New(fmt.Sprintln("Error VxlanInstance Untagged and vlan list vlans must be unique"))
-		}
 		foundVlan := false
 		for _, provvlan := range vlanList {
 			if vlan == provvlan {
@@ -245,9 +239,12 @@ func ConvertVxlanInstanceToVxlanConfig(c *vxland.VxlanInstance, create bool) (*V
 
 	vxlan := &VxlanConfig{
 
-		VNI:          uint32(c.Vni),
-		UntaggedVlan: uint16(c.UntaggedVlanId),
+		VNI: uint32(c.Vni),
 	}
+	for _, untagvlan := range c.UntaggedVlanId {
+		vxlan.UntaggedVlan = append(vxlan.UntaggedVlan, uint16(untagvlan))
+	}
+
 	for _, vlan := range c.VlanId {
 		vxlan.VlanId = append(vxlan.VlanId, uint16(vlan))
 	}
@@ -336,32 +333,61 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 	if updateCfg {
 		newvlanlist := make([]uint16, 0)
 		delvlanlist := make([]uint16, 0)
-		for idx, nvlan := range c.Newconfig.VlanId {
-			foundvlan := false
-			for _, ovlan := range c.Oldconfig.VlanId {
-				if nvlan == ovlan {
-					foundvlan = true
-					break
-				}
-			}
-			if !foundvlan {
-				newvlanlist = append(newvlanlist, c.Newconfig.VlanId[idx])
-			}
-		}
-		for idx, nvlan := range c.Oldconfig.VlanId {
-			foundvlan := false
-			for _, ovlan := range c.Newconfig.VlanId {
-				if nvlan == ovlan {
-					foundvlan = true
-					break
-				}
-			}
-			if !foundvlan {
-				delvlanlist = append(delvlanlist, c.Oldconfig.VlanId[idx])
-			}
-		}
+		newuntagvlanlist := make([]uint16, 0)
+		deluntagvlanlist := make([]uint16, 0)
+
 		vxlan, ok := GetVxlanDB()[c.Newconfig.VNI]
 		if ok {
+			for idx, nvlan := range c.Newconfig.VlanId {
+				foundvlan := false
+				for _, ovlan := range c.Oldconfig.VlanId {
+					if nvlan == ovlan {
+						foundvlan = true
+						break
+					}
+				}
+				if !foundvlan {
+					newvlanlist = append(newvlanlist, c.Newconfig.VlanId[idx])
+				}
+			}
+			for idx, nvlan := range c.Oldconfig.VlanId {
+				foundvlan := false
+				for _, ovlan := range c.Newconfig.VlanId {
+					if nvlan == ovlan {
+						foundvlan = true
+						break
+					}
+				}
+				if !foundvlan {
+					delvlanlist = append(delvlanlist, c.Oldconfig.VlanId[idx])
+				}
+			}
+
+			for idx, nvlan := range c.Newconfig.UntaggedVlan {
+				foundvlan := false
+				for _, ovlan := range c.Oldconfig.UntaggedVlan {
+					if nvlan == ovlan {
+						foundvlan = true
+						break
+					}
+				}
+				if !foundvlan {
+					newuntagvlanlist = append(newuntagvlanlist, c.Newconfig.UntaggedVlan[idx])
+				}
+			}
+			for idx, nvlan := range c.Oldconfig.UntaggedVlan {
+				foundvlan := false
+				for _, ovlan := range c.Newconfig.UntaggedVlan {
+					if nvlan == ovlan {
+						foundvlan = true
+						break
+					}
+				}
+				if !foundvlan {
+					deluntagvlanlist = append(deluntagvlanlist, c.Oldconfig.UntaggedVlan[idx])
+				}
+			}
+
 			// TODO add lock around db as it is used as a filtering
 			if len(delvlanlist) > 0 {
 				for _, dv := range delvlanlist {
@@ -381,7 +407,7 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 			}
 
 			for _, client := range ClientIntf {
-				client.UpdateVxlan(vxlan.VNI, newvlanlist, delvlanlist, c.Oldconfig.UntaggedVlan, c.Newconfig.UntaggedVlan)
+				client.UpdateVxlan(vxlan.VNI, newvlanlist, delvlanlist, newuntagvlanlist, deluntagvlanlist)
 			}
 		}
 	}

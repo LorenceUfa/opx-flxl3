@@ -29,11 +29,14 @@ func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, macchan chan<- v
 				Data: nexthopmac,
 			}
 			macchan <- event
-		} else {
+		}
+		/* RIB should resolve
+		else {
 			logger.Info(fmt.Sprintln("calling ResolveArpIPV4", nexthopip))
 			portstate, _ := asicdclnt.ClientHdl.GetPortState("em4")
 			//arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.Pvid))
 			arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.IfIndex))
 		}
+		*/
 	}
 }

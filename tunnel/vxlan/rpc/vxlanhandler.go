@@ -85,7 +85,7 @@ func NewVXLANDServiceHandler(server *vxlan.VXLANServer, logger *logging.Writer) 
 
 	prevState := vxlan.VxlanGlobalStateGet()
 	// lets read the current config and re-play the config
-	handler.ReadConfigFromDB(prevState)
+	go handler.ReadConfigFromDB(prevState)
 
 	return handler
 }
@@ -128,7 +128,7 @@ func (v *VXLANDServiceHandler) CreateVxlanGlobal(config *vxland.VxlanGlobal) (rv
 	} else {
 		return rv, errors.New(fmt.Sprintln("Error VxlanGlobal unknown Admin State setting", config.AdminState))
 	}
-	v.ReadConfigFromDB(prevState)
+	go v.ReadConfigFromDB(prevState)
 	return rv, err
 }
 

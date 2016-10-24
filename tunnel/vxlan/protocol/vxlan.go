@@ -13,10 +13,12 @@ var vxlanDbList []*VxlanDbEntry
 // vxlanDbEntry
 // Struct to store the data associated with vxlan
 type VxlanDbEntry struct {
+	Name string
 	// VNI associated with the vxlan domain
 	VNI uint32
 	// VlanId associated with the Access endpoints
-	VlanId []uint16 // used to tag inner ethernet frame when egressing
+	UntaggedVlanId []uint16
+	VlanId         []uint16 // used to tag inner ethernet frame when egressing
 	// Multicast IP group (NOT SUPPORTED)
 	Group net.IP
 	// Shortcut to apply MTU to each VTEP
@@ -28,11 +30,19 @@ type VxlanDbEntry struct {
 // NewVxlanDbEntry:
 // Create a new vxlan db entry
 func NewVxlanDbEntry(c *VxlanConfig) *VxlanDbEntry {
-	return &VxlanDbEntry{
+	vxlandbenrty := &VxlanDbEntry{
 		VNI:    c.VNI,
-		VlanId: c.VlanId,
 		Enable: c.Enable,
 	}
+
+	for _, untagvlan := range c.UntaggedVlan {
+		vxlandbenrty.UntaggedVlanId = append(vxlandbenrty.UntaggedVlanId, untagvlan)
+	}
+	for _, vlan := range c.VlanId {
+		vxlandbenrty.VlanId = append(vxlandbenrty.VlanId, vlan)
+	}
+
+	return vxlandbenrty
 }
 
 func GetVxlanDBEntry(vni uint32) *VxlanDbEntry {
@@ -72,19 +82,25 @@ func CreateVxLAN(c *VxlanConfig) {
 
 	if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE &&
 		c.Enable {
+
 		for _, client := range ClientIntf {
-			// create vxlan resources in hw
-			client.CreateVxlan(c)
+			for _, vxlan := range GetVxlanDB() {
+				if c.VNI == vxlan.VNI {
+					client.CreateVxlan(vxlan)
+				}
+			}
 		}
 
 		// lets find all the vteps which are in VtepStatusConfigPending state
 		// and initiate a hwConfig
 		for _, vtep := range GetVtepDB() {
-			if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateDetached {
-				// restart the state machine
-				vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-					E:   VxlanVtepEventBegin,
-					Src: VxlanVtepMachineModuleStr,
+			if vtep.Vni == c.VNI {
+				if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateDetached {
+					// restart the state machine
+					vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
+						E:   VxlanVtepEventBegin,
+						Src: VxlanVtepMachineModuleStr,
+					}
 				}
 			}
 		}
@@ -100,9 +116,25 @@ func DeleteVxLAN(c *VxlanConfig) {
 	if (VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE ||
 		VxlanGlobalStateGet() == VXLAN_GLOBAL_DISABLE_PENDING) &&
 		c.Enable {
-		// delete vxlan resources in hw
-		for _, client := range ClientIntf {
-			client.DeleteVxlan(c)
+		for _, vtep := range GetVtepDB() {
+			if vtep.Vni == c.VNI {
+				if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() != VxlanVtepStateDetached {
+					// restart the state machine
+					vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
+						E:   VxlanVtepEventDetached,
+						Src: VxlanVtepMachineModuleStr,
+					}
+				}
+			}
+		}
+
+		for _, vxlan := range GetVxlanDB() {
+			if c.VNI == vxlan.VNI {
+				// delete vxlan resources in hw
+				for _, client := range ClientIntf {
+					client.DeleteVxlan(vxlan)
+				}
+			}
 		}
 		logger.Info(fmt.Sprintln("DeleteVxLAN", c.VNI))
 	}

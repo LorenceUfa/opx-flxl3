@@ -23,9 +23,9 @@ type VXLANClientIntf interface {
 	// create/delete
 	CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent)
 	DeleteVtep(vtep *VtepDbEntry)
-	CreateVxlan(vxlan *VxlanConfig)
-	DeleteVxlan(vxlan *VxlanConfig)
-	UpdateVxlan(vni uint32, addvlanlist []uint16, delvlanlist []uint16, oldUntaggedVlan uint16, newUntaggedVlan uint16)
+	CreateVxlan(vxlan *VxlanDbEntry)
+	DeleteVxlan(vxlan *VxlanDbEntry)
+	UpdateVxlan(vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16)
 	// access ports
 	//AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
 	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
@@ -70,14 +70,14 @@ func (b BaseClientIntf) CreateVtep(vtep *VtepDbEntry, vteplistener chan<- Machin
 func (b BaseClientIntf) DeleteVtep(vtep *VtepDbEntry) {
 
 }
-func (b BaseClientIntf) CreateVxlan(vxlan *VxlanConfig) {
+func (b BaseClientIntf) CreateVxlan(vxlan *VxlanDbEntry) {
 
 }
-func (b BaseClientIntf) DeleteVxlan(vxlan *VxlanConfig) {
+func (b BaseClientIntf) DeleteVxlan(vxlan *VxlanDbEntry) {
 
 }
-func (b BaseClientIntf) UpdateVxlan(vni uint32,
-	addvlanlist []uint16, delvlanlist []uint16, oldUntaggedVlan uint16, newUntaggedVlan uint16) {
+func (b BaseClientIntf) UpdateVxlan(
+	vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16) {
 
 }
 func (b BaseClientIntf) CreateVxlanAccess() {
