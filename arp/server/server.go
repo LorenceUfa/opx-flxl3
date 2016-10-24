@@ -62,37 +62,17 @@ type ArpState struct {
 
 type ResolveIPv4 struct {
 	TargetIP string
-	//	IfType   int
-	IfId int
-}
-
-type DeleteResolvedIPv4 struct {
-	IpAddr string
+	IfId     int
 }
 
 type ArpConf struct {
 	RefTimeout int
 }
 
-type ActionType uint8
-
-const (
-	DeleteByIPAddr  ActionType = 1
-	RefreshByIPAddr ActionType = 2
-	DeleteByIfName  ActionType = 3
-	RefreshByIfName ActionType = 4
-)
-
-type ArpActionMsg struct {
-	Type ActionType
-	Obj  string
-}
-
 type ARPServer struct {
-	logger           *logging.Writer
-	arpCache         map[string]ArpEntry //Key: Dest IpAddr
-	AsicdSubSocketCh chan commonDefs.AsicdNotifyMsg
-	//AsicdSubSocketErrCh     chan error
+	logger                  *logging.Writer
+	arpCache                map[string]ArpEntry //Key: Dest IpAddr
+	AsicdSubSocketCh        chan commonDefs.AsicdNotifyMsg
 	dbHdl                   *dbutils.DBUtil
 	eventDbHdl              *dbutils.DBUtil
 	snapshotLen             int32
@@ -119,18 +99,17 @@ type ARPServer struct {
 	arpSlice                []string
 	arpEntryUpdateCh        chan UpdateArpEntryMsg
 	arpEntryDeleteCh        chan DeleteArpEntryMsg
-	//arpEntryCreateCh        chan CreateArpEntryMsg
-	arpEntryMacMoveCh      chan commonDefs.IPv4NbrMacMoveNotifyMsg
-	arpEntryCntUpdateCh    chan int
-	arpSliceRefreshStartCh chan bool
-	arpSliceRefreshDoneCh  chan bool
-	arpCounterUpdateCh     chan bool
-	arpActionProcessCh     chan ArpActionMsg
-	ResolveIPv4Ch          chan ResolveIPv4
-	DeleteResolvedIPv4Ch   chan DeleteResolvedIPv4
-	ArpConfCh              chan ArpConf
-	dumpArpTable           bool
-	InitDone               chan bool
+	arpEntryMacMoveCh       chan commonDefs.IPv4NbrMacMoveNotifyMsg
+	arpEntryCntUpdateCh     chan int
+	arpSliceRefreshStartCh  chan bool
+	arpSliceRefreshDoneCh   chan bool
+	arpCounterUpdateCh      chan bool
+	arpActionProcessCh      chan ArpActionMsg
+	ResolveIPv4Ch           chan ResolveIPv4
+	DeleteResolvedIPv4Ch    chan DeleteResolvedIPv4
+	ArpConfCh               chan ArpConf
+	dumpArpTable            bool
+	InitDone                chan bool
 
 	ArpActionCh                chan ArpActionMsg
 	arpDeleteArpEntryFromRibCh chan string
@@ -143,7 +122,6 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.logger = logger
 	arpServer.arpCache = make(map[string]ArpEntry)
 	arpServer.AsicdSubSocketCh = make(chan commonDefs.AsicdNotifyMsg)
-	//arpServer.AsicdSubSocketErrCh = make(chan error)
 	arpServer.l3IntfPropMap = make(map[int]L3IntfProperty)
 	arpServer.lagPropMap = make(map[int]LagProperty)
 	arpServer.vlanPropMap = make(map[int]VlanProperty)
@@ -151,7 +129,6 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.arpSlice = make([]string, 0)
 	arpServer.arpEntryUpdateCh = make(chan UpdateArpEntryMsg)
 	arpServer.arpEntryDeleteCh = make(chan DeleteArpEntryMsg)
-	//arpServer.arpEntryCreateCh = make(chan CreateArpEntryMsg)
 	arpServer.arpEntryCntUpdateCh = make(chan int)
 	arpServer.arpSliceRefreshStartCh = make(chan bool)
 	arpServer.arpSliceRefreshDoneCh = make(chan bool)
@@ -226,7 +203,6 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
 	}
 	server.logger.Debug("Listen for ASICd updates")
 	server.buildArpInfra()
-	server.processArpInfra()
 
 	err := server.initiateDB()
 	if err != nil {
@@ -234,7 +210,6 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
 	} else {
 		server.logger.Debug("ArpCache DB has been initiated successfully...")
 		server.updateArpCacheFromDB()
-		server.refreshArpDB()
 	}
 
 	if server.dbHdl != nil {
@@ -272,7 +247,6 @@ func (server *ARPServer) StartServer(asicdPlugin asicdClient.AsicdClientIntf) {
 			server.processArpAction(arpActionMsg)
 		case msg := <-server.AsicdSubSocketCh:
 			server.processAsicdNotification(msg)
-			//case <-server.AsicdSubSocketErrCh:
 		}
 	}
 }
