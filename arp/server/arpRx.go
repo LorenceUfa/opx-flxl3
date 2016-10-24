@@ -24,38 +24,13 @@
 package server
 
 import (
-	"asicd/asicdCommonDefs"
 	"errors"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"net"
-	"utils/commonDefs"
 )
-
-/*
-func (server *ARPServer) StartArpRx(port int) {
-        portEnt, _ := server.portPropMap[port]
-        //var filter string = "not ether proto 0x8809"
-        filter := fmt.Sprintln("not ether src", portEnt.MacAddr, "and not ether proto 0x8809")
-        server.logger.Info(fmt.Sprintln("Port: ", port, "filter:", filter))
-        pcapHdl, err := pcap.OpenLive(portEnt.IfName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
-        if pcapHdl == nil {
-                server.logger.Info(fmt.Sprintln("Unable to open pcap handler on:", portEnt.IfName, "error:", err))
-                return
-        } else {
-                err := pcapHdl.SetBPFFilter(filter)
-                if err != nil {
-                        server.logger.Err(fmt.Sprintln("Unable to set filter on port:", port))
-                }
-        }
-
-        portEnt.PcapHdl = pcapHdl
-        server.portPropMap[port] = portEnt
-        server.processRxPkts(port)
-}
-*/
 
 func (server *ARPServer) StartArpRxTx(ifName string, macAddr string) (*pcap.Handle, error) {
 	filter := fmt.Sprintf(`not ether src %s`, macAddr)
@@ -74,23 +49,33 @@ func (server *ARPServer) StartArpRxTx(ifName string, macAddr string) (*pcap.Hand
 	return pcapHdl, nil
 }
 
-func (server *ARPServer) processRxPkts(port int) {
-	portEnt, _ := server.portPropMap[port]
-	src := gopacket.NewPacketSource(portEnt.PcapHdl, layers.LayerTypeEthernet)
+func (server *ARPServer) processRxPkts(portIfIdx int) {
+	portEnt, _ := server.portPropMap[portIfIdx]
+	src := gopacket.NewPacketSource(portEnt.PcapHdl, portEnt.PcapHdl.LinkType())
 	in := src.Packets()
 	for {
 		select {
 		case packet, ok := <-in:
 			if ok {
+				ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
+				if ethernetLayer == nil {
+					continue
+				}
 				arpLayer := packet.Layer(layers.LayerTypeARP)
-				if arpLayer != nil {
-					server.processArpPkt(arpLayer, port)
+				ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+				if arpLayer == nil && ipv4Layer == nil {
+					continue
+				}
+				dot1QLayer := packet.Layer(layers.LayerTypeDot1Q)
+				if dot1QLayer != nil {
+					dot1Q := dot1QLayer.(*layers.Dot1Q)
+					server.processTagPacket(ethernetLayer, arpLayer, ipv4Layer, portIfIdx, int(dot1Q.VLANIdentifier))
 				} else {
-					server.processIpPkt(packet, port)
+					server.processUntagPacket(ethernetLayer, arpLayer, ipv4Layer, portIfIdx)
 				}
 			}
 		case <-portEnt.CtrlCh:
-			server.logger.Info("Recevd shutdown for:", port)
+			server.logger.Info("Recevd shutdown for:", portIfIdx, portEnt.IfName)
 			portEnt.CtrlReplyCh <- true
 			return
 		}
@@ -98,276 +83,205 @@ func (server *ARPServer) processRxPkts(port int) {
 	return
 }
 
-func (server *ARPServer) processArpPkt(arpLayer gopacket.Layer, port int) {
+func (server *ARPServer) processTagPacket(ethernetLayer, arpLayer, ipv4Layer gopacket.Layer, portIfIdx int, vlanId int) {
+	if arpLayer != nil {
+		server.processArpPkt(arpLayer, portIfIdx, vlanId)
+	} else if ipv4Layer != nil {
+		server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, vlanId)
+	}
+
+}
+
+func (server *ARPServer) processUntagPacket(ethernetLayer, arpLayer, ipv4Layer gopacket.Layer, portIfIdx int) {
+	if arpLayer != nil {
+		server.processArpPkt(arpLayer, portIfIdx, -1)
+	} else if ipv4Layer != nil {
+		server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, -1)
+	}
+}
+
+func (server *ARPServer) processArpPkt(arpLayer gopacket.Layer, portIfIdx, vlanId int) {
 	arp := arpLayer.(*layers.ARP)
 	if arp == nil {
-		server.logger.Err("Arp layer returns nil")
 		return
 	}
-	portEnt, _ := server.portPropMap[port]
+	portEnt, _ := server.portPropMap[portIfIdx]
 	if portEnt.MacAddr == (net.HardwareAddr(arp.SourceHwAddress)).String() {
-		server.logger.Err("Received ARP Packet with our own MAC Address, hence not processing it")
 		return
 	}
 
 	if arp.Operation == layers.ARPReply {
-		server.processArpReply(arp, port)
+		server.processArpReply(arp, portIfIdx, vlanId)
 	} else if arp.Operation == layers.ARPRequest {
-		server.processArpRequest(arp, port)
+		server.processArpRequest(arp, portIfIdx, vlanId)
 	}
 }
 
-func (server *ARPServer) processArpRequest(arp *layers.ARP, port int) {
-	srcMac := (net.HardwareAddr(arp.SourceHwAddress)).String()
-	//dstMac := (net.HardwareAddr(arp.DstHwAddress)).String()
-	srcIp := (net.IP(arp.SourceProtAddress)).String()
-	destIp := (net.IP(arp.DstProtAddress)).String()
-
-	/* Check for Local Subnet for SrcIP */
-	/* Check for Local Subnet for DestIP */
-	if srcIp != "0.0.0.0" {
-		portEnt, _ := server.portPropMap[port]
-		myIP := net.ParseIP(portEnt.IpAddr)
-		mask := portEnt.Netmask
-		myNet := myIP.Mask(mask)
-		srcIpAddr := net.ParseIP(srcIp)
-		srcNet := srcIpAddr.Mask(mask)
-		destIpAddr := net.ParseIP(destIp)
-		destNet := destIpAddr.Mask(mask)
-		if myNet.Equal(srcNet) != true ||
-			myNet.Equal(destNet) != true {
-			//server.logger.Info(fmt.Sprintln("Received Arp Request but srcIp:", srcIp, " and destIp:", destIp, "are not in same network. Hence, not processing it"))
-			//server.logger.Info(fmt.Sprintln("Ip and Netmask on the recvd interface is", myIP, mask))
-			//server.logger.Info(fmt.Sprintln("SrcIP:", srcIp, "DstIP:", destIp, "SrcMac:", srcMac, "DstMac:", dstMac, "intfIP:", myIP, "intfPort:", port, "intfMask:", mask, "srcNet:", srcNet, "dstNet:", destNet, "myNet:", myNet))
-			return
-		}
-	} else {
-		portEnt, _ := server.portPropMap[port]
-		myIP := net.ParseIP(portEnt.IpAddr)
-		mask := portEnt.Netmask
-		myNet := myIP.Mask(mask)
-		destIpAddr := net.ParseIP(destIp)
-		destNet := destIpAddr.Mask(mask)
-		if myNet.Equal(destNet) != true {
-			//server.logger.Info(fmt.Sprintln("Received Arp Probe but destIp:", destIp, "is not in same network. Hence, not processing it"))
-			//server.logger.Info(fmt.Sprintln("Ip and Netmask on the recvd interface is", myIP, mask))
-			return
-		}
+func (server *ARPServer) getMyIPAndNetAddr(portIfIdx, vlanId int) (net.IP, net.IP, net.IPMask, error, int, int, int) {
+	portEnt, _ := server.portPropMap[portIfIdx]
+	if vlanId == -1 {
+		vlanId = portEnt.UntagVlanId
 	}
-
-	//server.logger.Info(fmt.Sprintln("Received Arp Request SrcIP:", srcIp, "SrcMAC: ", srcMac, "DstIP:", destIp))
-
-	srcExist := false
-	destExist := false
-	portEnt, _ := server.portPropMap[port]
-	if portEnt.L3IfIdx != -1 {
-		l3Ent, exist := server.l3IntfPropMap[portEnt.L3IfIdx]
-		if exist {
-			if srcIp == l3Ent.IpAddr {
-				srcExist = true
-			}
-			if destIp == l3Ent.IpAddr {
-				destExist = true
-			}
-		} else {
-			server.logger.Err(fmt.Sprintln("Port:", port, "belong to L3 Interface which doesnot exist"))
-			return
-		}
-	} else {
-		server.logger.Err(fmt.Sprintln("Port:", port, "doesnot belong to L3 Interface"))
-		return
+	l3PortProp, exist := portEnt.L3PortPropMap[vlanId]
+	if !exist {
+		return nil, nil, nil, errors.New("L3 Intf doesnot exist"), -1, -1, -1
 	}
-	if srcExist == true &&
-		destExist == true {
-		server.logger.Err(fmt.Sprintln("Received our own gratituous ARP with our own SrcIP:", srcIp, "and destIp:", destIp))
-		return
-	} else if srcExist != true &&
-		destExist != true {
-		if srcIp == destIp &&
-			srcIp != "0.0.0.0" {
-			server.logger.Debug(fmt.Sprintln("Received Gratuitous Arp with IP:", srcIp))
-			//server.logger.Info(fmt.Sprintln("1 Installing Arp entry IP:", srcIp, "MAC:", srcMac))
-			server.arpEntryUpdateCh <- UpdateArpEntryMsg{
-				PortNum: port,
-				IpAddr:  srcIp,
-				MacAddr: srcMac,
-				Type:    false,
-			}
-		} else {
-			if srcIp == "0.0.0.0" {
-				server.logger.Debug(fmt.Sprintln("Received Arp Probe for IP:", destIp))
-				//server.logger.Info(fmt.Sprintln("2 Installing Arp entry IP:", destIp, "MAC: incomplete"))
-				server.arpEntryUpdateCh <- UpdateArpEntryMsg{
-					PortNum: port,
-					IpAddr:  destIp,
-					MacAddr: "incomplete",
-					Type:    false,
-				}
-			} else {
-				// Arp Request Pkt from neighbor1 for neighbor2 IP
-				//server.logger.Info(fmt.Sprintln("Received Arp Request from Neighbor1( IP:", srcIp, "MAC:", srcMac, ") for Neighbor2 (IP:", destIp, "Mac: incomplete)"))
-
-				//server.logger.Info(fmt.Sprintln("3 Installing Arp entry IP:", srcIp, "MAC:", srcMac))
-				server.arpEntryUpdateCh <- UpdateArpEntryMsg{
-					PortNum: port,
-					IpAddr:  srcIp,
-					MacAddr: srcMac,
-					Type:    false,
-				}
-
-				//server.logger.Info(fmt.Sprintln("4 Installing Arp entry IP:", destIp, "MAC: incomplete"))
-				server.arpEntryUpdateCh <- UpdateArpEntryMsg{
-					PortNum: port,
-					IpAddr:  destIp,
-					MacAddr: "incomplete",
-					Type:    false,
-				}
-			}
-		}
-	} else if srcExist == true {
-		//server.logger.Info(fmt.Sprintln("Received our own ARP Request with SrcIP:", srcIp, "DestIP:", destIp))
-	} else if destExist == true {
-		server.logger.Debug(fmt.Sprintln("Received ARP Request for our IP with SrcIP:", srcIp, "DestIP:", destIp, "linux should respond to this request"))
-		if srcIp != "0.0.0.0" {
-			//server.logger.Info(fmt.Sprintln("5 Installing Arp entry IP:", srcIp, "MAC:", srcMac))
-			server.arpEntryUpdateCh <- UpdateArpEntryMsg{
-				PortNum: port,
-				IpAddr:  srcIp,
-				MacAddr: srcMac,
-				Type:    false,
-			}
-		} else {
-			server.logger.Debug(fmt.Sprintln("Received Arp Probe for IP:", destIp, "linux should respond to this"))
-		}
-	}
+	myIP := net.ParseIP(l3PortProp.IpAddr)
+	myNet := myIP.Mask(l3PortProp.Netmask)
+	return myIP, myNet, l3PortProp.Netmask, nil, l3PortProp.L3IfIdx, l3PortProp.LagIfIdx, vlanId
 }
 
-func (server *ARPServer) processArpReply(arp *layers.ARP, port int) {
+func (server *ARPServer) processArpReply(arp *layers.ARP, portIfIdx, vlanId int) {
 	srcMac := (net.HardwareAddr(arp.SourceHwAddress)).String()
-	srcIp := (net.IP(arp.SourceProtAddress)).String()
-	//destMac := (net.HardwareAddr(arp.DstHwAddress)).String()
-	destIp := (net.IP(arp.DstProtAddress)).String()
-
-	//server.logger.Info(fmt.Sprintln("Received Arp Response SrcIP:", srcIp, "SrcMAC: ", srcMac, "DstIP:", destIp, "DestMac:", destMac))
-
-	if destIp == "0.0.0.0" {
-		server.logger.Err(fmt.Sprintln("Recevied Arp reply for ARP Probe and there is a conflicting IP Address:", srcIp))
+	srcIpAddr := (net.IP(arp.SourceProtAddress)).String()
+	destIpAddr := (net.IP(arp.DstProtAddress)).String()
+	if destIpAddr == "0.0.0.0" {
 		return
 	}
 
-	/* Check for Local Subnet for SrcIP */
-	/* Check for Local Subnet for DestIP */
-	portEnt, _ := server.portPropMap[port]
-	myIP := net.ParseIP(portEnt.IpAddr)
-	mask := portEnt.Netmask
-	myNet := myIP.Mask(mask)
-	srcIpAddr := net.ParseIP(srcIp)
-	srcNet := srcIpAddr.Mask(mask)
-	destIpAddr := net.ParseIP(destIp)
-	destNet := destIpAddr.Mask(mask)
-	if myNet.Equal(srcNet) != true ||
-		myNet.Equal(destNet) != true {
-		server.logger.Err(fmt.Sprintln("Received Arp Reply but srcIp:", srcIp, " and destIp:", destIp, "are not in same network. Hence, not processing it"))
-		//server.logger.Info(fmt.Sprintln("Netmask on the recvd interface is", mask))
+	_, myNet, myMask, err, l3IfIdx, lagIfIdx, vlanId := server.getMyIPAndNetAddr(portIfIdx, vlanId)
+	if err != nil {
 		return
 	}
-	//server.logger.Info(fmt.Sprintln("6 Installing Arp entry IP:", srcIp, "MAC:", srcMac))
+	srcIP := net.ParseIP(srcIpAddr)
+	srcNet := srcIP.Mask(myMask)
+	destIP := net.ParseIP(destIpAddr)
+	destNet := destIP.Mask(myMask)
+	if myNet.Equal(srcNet) == false ||
+		myNet.Equal(destNet) == false {
+		return
+	}
+	server.SendArpEntryUpdateMsg(portIfIdx, srcIpAddr, srcMac, false, vlanId, l3IfIdx, lagIfIdx)
+}
+
+func (server *ARPServer) SendArpEntryUpdateMsg(portIfIdx int, IpAddr string, macAddr string, Type bool, VlanId, L3IfIdx, LagIfIdx int) {
+	server.logger.Debug("Sending Arp Entry Update Msg: portIfIdx:", portIfIdx, "IpAddr:", IpAddr, "macAddr:", macAddr, "Type:", Type, "VlanId:", VlanId, "L3IfIdx:", L3IfIdx, "LagIfIdx:", LagIfIdx)
 	server.arpEntryUpdateCh <- UpdateArpEntryMsg{
-		PortNum: port,
-		IpAddr:  srcIp,
-		MacAddr: srcMac,
-		Type:    false,
+		PortIfIdx: portIfIdx,
+		IpAddr:    IpAddr,
+		MacAddr:   macAddr,
+		Type:      Type,
+		VlanId:    VlanId,
+		L3IfIdx:   L3IfIdx,
+		LagIfIdx:  LagIfIdx,
 	}
+
 }
 
-func (server *ARPServer) processIpPkt(packet gopacket.Packet, port int) {
-	if nw := packet.NetworkLayer(); nw != nil {
-		sIpAddr, dIpAddr := nw.NetworkFlow().Endpoints()
-		dstIp := dIpAddr.String()
-		srcIp := sIpAddr.String()
+func (server *ARPServer) processArpRequest(arp *layers.ARP, portIfIdx, vlanId int) {
+	srcMac := (net.HardwareAddr(arp.SourceHwAddress)).String()
+	srcIpAddr := (net.IP(arp.SourceProtAddress)).String()
+	destIpAddr := (net.IP(arp.DstProtAddress)).String()
 
-		ethLayer := packet.Layer(layers.LayerTypeEthernet)
-		if ethLayer == nil {
-			server.logger.Err("Not an Ethernet frame")
+	myIP, myNet, myMask, err, l3IfIdx, lagIfIdx, vlanId := server.getMyIPAndNetAddr(portIfIdx, vlanId)
+	if err != nil {
+		return
+	}
+	srcIP := net.ParseIP(srcIpAddr)
+	srcNet := srcIP.Mask(myMask)
+	destIP := net.ParseIP(destIpAddr)
+	destNet := destIP.Mask(myMask)
+	if srcIpAddr != "0.0.0.0" {
+		if myNet.Equal(srcNet) == false ||
+			myNet.Equal(destNet) == false {
 			return
 		}
-		eth := ethLayer.(*layers.Ethernet)
-		srcMac := (eth.SrcMAC).String()
-		//dstMac := (eth.DstMAC).String()
-		// server.logger.Info(fmt.Sprintln("========Hello======= SrcIP:", srcIp, "DstIP:", dstIp, "SrcMac:", srcMac, "DstMac:", dstMac))
-
-		l3IntfIdx := server.getL3IntfOnSameSubnet(srcIp)
-
-		//server.logger.Info(fmt.Sprintln("---Hello---", l3IntfIdx))
-		if l3IntfIdx != -1 {
-			arpEnt, exist := server.arpCache[srcIp]
-			//server.logger.Info(fmt.Sprintln("====Hello2===", arpEnt, exist))
-			if exist {
-				ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(l3IntfIdx))
-				flag := false
-				if ifType == commonDefs.IfTypeVlan {
-					vlanEnt, exist := server.vlanPropMap[l3IntfIdx]
-					if exist {
-						vlanId := int(asicdCommonDefs.GetIntfIdFromIfIndex(int32(l3IntfIdx)))
-						for p, _ := range vlanEnt.UntagPortMap {
-							if p == port &&
-								arpEnt.VlanId == vlanId {
-								flag = true
-							}
-						}
-					} else {
-						flag = false
-					}
-				} else if ifType == commonDefs.IfTypePort {
-					if l3IntfIdx == port &&
-						arpEnt.VlanId == asicdCommonDefs.SYS_RSVD_VLAN {
-						flag = true
-					}
-				} else if ifType == commonDefs.IfTypeLag {
-					lagEnt, exist := server.lagPropMap[l3IntfIdx]
-					if exist {
-						for p, _ := range lagEnt.PortMap {
-							if p == port &&
-								arpEnt.VlanId == asicdCommonDefs.SYS_RSVD_VLAN {
-								flag = true
-							}
-						}
-					} else {
-						flag = false
-					}
-
-				}
-				if !(exist && arpEnt.MacAddr == srcMac &&
-					port == arpEnt.PortNum && flag == true) {
-					server.sendArpReqL3Intf(srcIp, l3IntfIdx)
-				}
-			} else {
-				server.sendArpReqL3Intf(srcIp, l3IntfIdx)
+	} else if myNet.Equal(destNet) == false {
+		return
+	}
+	srcIpEqual := myIP.Equal(srcIP)
+	destIPEqual := myIP.Equal(destIP)
+	if srcIpEqual == true &&
+		destIPEqual == true {
+		// Our Own Gratuitous ARP
+		return
+	} else if destIPEqual == true {
+		if srcIpAddr != "0.0.0.0" {
+			server.SendArpEntryUpdateMsg(portIfIdx, srcIpAddr, srcMac, false, vlanId, l3IfIdx, lagIfIdx)
+		}
+	} else if srcIpEqual {
+		return
+	} else {
+		if srcIpAddr == destIpAddr &&
+			srcIpAddr == "0.0.0.0" {
+			// Gratuitous Arp
+			server.SendArpEntryUpdateMsg(portIfIdx, srcIpAddr, srcMac, false, vlanId, l3IfIdx, lagIfIdx)
+		} else {
+			if srcIpAddr != "0.0.0.0" {
+				server.SendArpEntryUpdateMsg(portIfIdx, srcIpAddr, srcMac, false, vlanId, l3IfIdx, lagIfIdx)
 			}
+			server.updateL3ArpEntry(destIpAddr, false, l3IfIdx)
+			server.sendArpReq(destIpAddr, l3IfIdx)
 		}
-
-		l3IntfIdx = server.getL3IntfOnSameSubnet(dstIp)
-		if l3IntfIdx != -1 {
-			server.sendArpReqL3Intf(dstIp, l3IntfIdx)
-		}
-
 	}
 }
 
-func (server *ARPServer) sendArpReqL3Intf(ip string, l3IfIdx int) {
+func (server *ARPServer) processIpPkt(ethernetLayer, ipv4Layer gopacket.Layer, portIfIdx, vlanId int) {
+	ethernet := ethernetLayer.(*layers.Ethernet)
+	if ethernet == nil {
+		return
+	}
+	ipv4 := ipv4Layer.(*layers.IPv4)
+	if ipv4 == nil {
+		return
+	}
+	srcIP := ipv4.SrcIP
+	srcIpAddr := srcIP.String()
+	destIP := ipv4.DstIP
+	destIpAddr := destIP.String()
+	l3Intf := server.getL3IntfOnSameSubnet(srcIpAddr)
+	if l3Intf != -1 {
+		arpEnt, exist := server.arpCache[srcIpAddr]
+		if !exist {
+			server.updateL3ArpEntry(srcIpAddr, false, l3Intf)
+		} else {
+			if arpEnt.PortNum != portIfIdx ||
+				arpEnt.MacAddr != (ethernet.SrcMAC).String() ||
+				arpEnt.L3IfIdx != l3Intf {
+				server.sendArpReq(srcIpAddr, l3Intf)
+			}
+		}
+	}
+	l3Intf = server.getL3IntfOnSameSubnet(destIpAddr)
+	if l3Intf != -1 {
+		arpEnt, exist := server.arpCache[destIpAddr]
+		if !exist {
+			server.updateL3ArpEntry(destIpAddr, false, l3Intf)
+		} else {
+			if arpEnt.PortNum != portIfIdx ||
+				arpEnt.MacAddr != (ethernet.DstMAC).String() ||
+				arpEnt.L3IfIdx != l3Intf {
+				server.sendArpReq(destIpAddr, l3Intf)
+			}
+		}
+	}
+}
 
-	ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(l3IfIdx))
-	if ifType == commonDefs.IfTypeVlan {
-		vlanEnt, _ := server.vlanPropMap[l3IfIdx]
-		for port, _ := range vlanEnt.UntagPortMap {
-			server.sendArpReq(ip, port)
+func (server *ARPServer) getL3IntfOnSameSubnet(ip string) int {
+	ipAddr := net.ParseIP(ip)
+	for l3Idx, l3Ent := range server.l3IntfPropMap {
+		if l3Ent.IpAddr == ip {
+			return -1
 		}
-	} else if ifType == commonDefs.IfTypeLag {
-		lagEnt, _ := server.lagPropMap[l3IfIdx]
-		for port, _ := range lagEnt.PortMap {
-			server.sendArpReq(ip, port)
+
+		l3IpAddr := net.ParseIP(l3Ent.IpAddr)
+		l3Net := l3IpAddr.Mask(l3Ent.Netmask)
+		ipNet := ipAddr.Mask(l3Ent.Netmask)
+		if l3Net.Equal(ipNet) {
+			return l3Idx
 		}
-	} else if ifType == commonDefs.IfTypePort {
-		server.sendArpReq(ip, l3IfIdx)
+	}
+	return -1
+}
+
+func (server *ARPServer) updateL3ArpEntry(TargetIP string, Type bool, l3IfIdx int) {
+	server.arpEntryUpdateCh <- UpdateArpEntryMsg{
+		IpAddr:    TargetIP,
+		MacAddr:   "incomplete",
+		Type:      Type,
+		L3IfIdx:   l3IfIdx,
+		PortIfIdx: -1,
+		VlanId:    -1,
+		LagIfIdx:  -1,
 	}
 }
