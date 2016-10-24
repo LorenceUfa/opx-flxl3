@@ -57,12 +57,21 @@ func (server *ARPServer) processRxPkts(portIfIdx int) {
 		select {
 		case packet, ok := <-in:
 			if ok {
+				ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
+				if ethernetLayer == nil {
+					continue
+				}
+				arpLayer := packet.Layer(layers.LayerTypeARP)
+				ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+				if arpLayer == nil && ipv4Layer == nil {
+					continue
+				}
 				dot1QLayer := packet.Layer(layers.LayerTypeDot1Q)
 				if dot1QLayer != nil {
 					dot1Q := dot1QLayer.(*layers.Dot1Q)
-					server.processTagPacket(packet, portIfIdx, int(dot1Q.VLANIdentifier))
+					server.processTagPacket(ethernetLayer, arpLayer, ipv4Layer, portIfIdx, int(dot1Q.VLANIdentifier))
 				} else {
-					server.processUntagPacket(packet, portIfIdx)
+					server.processUntagPacket(ethernetLayer, arpLayer, ipv4Layer, portIfIdx)
 				}
 			}
 		case <-portEnt.CtrlCh:
@@ -74,36 +83,20 @@ func (server *ARPServer) processRxPkts(portIfIdx int) {
 	return
 }
 
-func (server *ARPServer) processTagPacket(packet gopacket.Packet, portIfIdx int, vlanId int) {
-	arpLayer := packet.Layer(layers.LayerTypeARP)
+func (server *ARPServer) processTagPacket(ethernetLayer, arpLayer, ipv4Layer gopacket.Layer, portIfIdx int, vlanId int) {
 	if arpLayer != nil {
 		server.processArpPkt(arpLayer, portIfIdx, vlanId)
-	} else {
-		ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
-		if ethernetLayer == nil {
-			return
-		}
-		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
-		if ipv4Layer != nil {
-			server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, vlanId)
-		}
+	} else if ipv4Layer != nil {
+		server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, vlanId)
 	}
 
 }
 
-func (server *ARPServer) processUntagPacket(packet gopacket.Packet, portIfIdx int) {
-	arpLayer := packet.Layer(layers.LayerTypeARP)
+func (server *ARPServer) processUntagPacket(ethernetLayer, arpLayer, ipv4Layer gopacket.Layer, portIfIdx int) {
 	if arpLayer != nil {
 		server.processArpPkt(arpLayer, portIfIdx, -1)
-	} else {
-		ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
-		if ethernetLayer == nil {
-			return
-		}
-		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
-		if ipv4Layer != nil {
-			server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, -1)
-		}
+	} else if ipv4Layer != nil {
+		server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, -1)
 	}
 }
 

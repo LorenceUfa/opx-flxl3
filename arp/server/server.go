@@ -203,7 +203,6 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
 	}
 	server.logger.Debug("Listen for ASICd updates")
 	server.buildArpInfra()
-	server.processArpInfra()
 
 	err := server.initiateDB()
 	if err != nil {

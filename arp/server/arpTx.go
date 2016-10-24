@@ -124,12 +124,13 @@ func (server *ARPServer) sendArpReq(targetIp string, l3IfIdx int) {
  *@fn sendArpProbe
  *  Send the ARP Probe for ip localIP
  */
-func (server *ARPServer) sendArpProbe(l3IfIdx int, macAddr string) {
+func (server *ARPServer) sendArpProbe(l3IfIdx int) {
 	l3Ent, exist := server.l3IntfPropMap[l3IfIdx]
 	if !exist {
 		server.logger.Err("SendArpProbe(): L3 interface does not exist", l3IfIdx)
 		return
 	}
+	macAddr := server.GetMacAddr(l3IfIdx)
 	localIp := l3Ent.IpAddr
 	server.logger.Debug("sendArpReq(): sending arp requeust for localIp ", localIp, "to port:", l3Ent.IfName)
 
@@ -192,7 +193,7 @@ func (server *ARPServer) sendArpProbe(l3IfIdx int, macAddr string) {
 	return
 }
 
-func (server *ARPServer) SendArpProbe(l3IfIdx int, macAddr string) {
+func (server *ARPServer) SendArpProbe(l3IfIdx int) {
 	s1 := rand.NewSource(time.Now().UnixNano())
 	r1 := rand.New(s1)
 	s2 := rand.NewSource(time.Now().UnixNano())
@@ -200,7 +201,7 @@ func (server *ARPServer) SendArpProbe(l3IfIdx int, macAddr string) {
 	wait := r1.Intn(server.probeWait)
 	time.Sleep(time.Duration(wait) * time.Second)
 	for i := 0; i < server.probeNum; i++ {
-		server.sendArpProbe(l3IfIdx, macAddr)
+		server.sendArpProbe(l3IfIdx)
 		diff := r2.Intn(server.probeMax - server.probeMin)
 		diff = diff + server.probeMin
 		time.Sleep(time.Duration(diff) * time.Second)

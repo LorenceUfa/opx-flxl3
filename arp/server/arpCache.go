@@ -40,10 +40,15 @@ type UpdateArpEntryMsg struct {
 	LagIfIdx  int
 }
 
+const (
+	DeleteBasedOnPort uint8 = 0
+	DeleteBasedOnVlan uint8 = 1
+	DeleteBasedOnL3   uint8 = 2
+)
+
 type DeleteArpEntryMsg struct {
-	PortIfIdx int
-	VlanId    int
-	L3IfIdx   int
+	Type  uint8
+	IfIdx int
 }
 
 type DeleteResolvedIPv4 struct {
@@ -149,9 +154,22 @@ func (server *ARPServer) processArpEntryMacMoveMsg(msg commonDefs.IPv4NbrMacMove
 func (server *ARPServer) processArpEntryDeleteMsg(msg DeleteArpEntryMsg) {
 	server.logger.Debug("DeleteArpEntryMsg:", msg)
 	for key, ent := range server.arpCache {
-		if msg.PortIfIdx == ent.PortNum &&
-			msg.VlanId == ent.VlanId &&
-			msg.L3IfIdx == ent.L3IfIdx {
+		flag := false
+		switch msg.Type {
+		case DeleteBasedOnL3:
+			if msg.IfIdx == ent.L3IfIdx {
+				flag = true
+			}
+		case DeleteBasedOnVlan:
+			if msg.IfIdx == ent.VlanId {
+				flag = true
+			}
+		case DeleteBasedOnPort:
+			if msg.IfIdx == ent.PortNum {
+				flag = true
+			}
+		}
+		if flag == true {
 			server.logger.Debug("1 Calling Asicd Delete Ip:", key)
 			asicdMsg := AsicdMsg{
 				MsgType: DeleteAsicdEntry,
@@ -163,6 +181,7 @@ func (server *ARPServer) processArpEntryDeleteMsg(msg DeleteArpEntryMsg) {
 			}
 			delete(server.arpCache, key)
 			server.deleteArpEntryInDB(key)
+			server.deleteLinuxArp(key)
 		}
 	}
 }
@@ -192,6 +211,7 @@ func (server *ARPServer) processArpIncompleteUpdateMsg(IpAddr string, Type bool,
 		server.storeArpEntryInDB(IpAddr, l3IfIdx)
 	}
 	server.arpCache[IpAddr] = arpEnt
+	server.updateArpSlice(IpAddr)
 }
 
 func (server *ARPServer) processLearnedArpEntryUpdateMsg(msg UpdateArpEntryMsg) {
@@ -280,23 +300,25 @@ func (server *ARPServer) processArpCounterUpdateMsg() {
 					if err != nil {
 						continue
 					}
+					server.deleteLinuxArp(ip)
 					server.PublishEvents(ip, arpEnt.MacAddr, arpEnt.IfName, events.ArpEntryDeleted)
 				}
 				server.printArpEntries()
 			} else {
-				server.logger.Debug("Nexthop", ip, " installed by Rib hence not deleting it")
+				//server.logger.Debug("Nexthop", ip, " installed by Rib hence not deleting it")
 				if arpEnt.MacAddr != "incomplete" {
 					server.logger.Debug("5 Calling Asicd Delete Ip:", ip)
 					asicdMsg := AsicdMsg{
 						MsgType: DeleteAsicdEntry,
 						IpAddr:  ip,
 					}
+					server.deleteLinuxArp(ip)
 					err := server.processAsicdMsg(asicdMsg)
 					if err != nil {
 						continue
 					}
 				}
-				server.logger.Debug("Reseting the counter to max", ip)
+				//server.logger.Debug("Reseting the counter to max", ip)
 				arpEnt.MacAddr = "incomplete"
 				arpEnt.Counter = server.timeoutCounter
 				server.arpCache[ip] = arpEnt
@@ -327,7 +349,7 @@ func (server *ARPServer) processArpCounterUpdateMsg() {
 					delete(server.arpCache, ip)
 					server.printArpEntries()
 				} else {
-					server.logger.Debug("Nexthop", ip, " installed by Rib hence not deleting it")
+					//server.logger.Debug("Nexthop", ip, " installed by Rib hence not deleting it")
 				}
 			}
 		}
