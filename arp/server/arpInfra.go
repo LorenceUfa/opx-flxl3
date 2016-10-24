@@ -76,9 +76,6 @@ type PortProperty struct {
 	CtrlReplyCh   chan bool
 	PcapHdl       *pcap.Handle
 	OperState     bool
-
-	//TO be deleted
-	L3IfIdx int
 }
 
 type VlanProperty struct {
@@ -474,7 +471,6 @@ func (server *ARPServer) deleteVlanWithL3(l3IfIdx int) {
 		if ifType == commonDefs.IfTypeLag {
 			server.deleteLagWithL3(l3IfIdx, uIfIdx, vlanId)
 		} else {
-			//server.deletePortWithL3(l3IfIdx, -1, uIfIdx, vlanId)
 			server.deletePortWithL3(l3IfIdx, uIfIdx, vlanId)
 		}
 	}
@@ -483,7 +479,6 @@ func (server *ARPServer) deleteVlanWithL3(l3IfIdx int) {
 		if ifType == commonDefs.IfTypeLag {
 			server.deleteLagWithL3(l3IfIdx, tIfIdx, vlanId)
 		} else {
-			//server.deletePortWithL3(l3IfIdx, -1, tIfIdx, vlanId)
 			server.deletePortWithL3(l3IfIdx, tIfIdx, vlanId)
 		}
 	}
@@ -523,9 +518,9 @@ func (server *ARPServer) processL2StateChange(msg commonDefs.L2IntfStateNotifyMs
 		case commonDefs.IfTypeVlan:
 			server.DisableArpOnVlan(ifIdx)
 		case commonDefs.IfTypeLag:
-			server.DisableArpOnLag(-1, ifIdx)
+			server.DisableArpOnLag(ifIdx, ifIdx)
 		case commonDefs.IfTypePort:
-			server.DisableArpOnPort(-1, ifIdx)
+			server.DisableArpOnPort(ifIdx, ifIdx)
 			server.DisablePort(ifIdx)
 		}
 	} else {
@@ -533,10 +528,10 @@ func (server *ARPServer) processL2StateChange(msg commonDefs.L2IntfStateNotifyMs
 		case commonDefs.IfTypeVlan:
 			server.EnableArpOnVlan(ifIdx)
 		case commonDefs.IfTypeLag:
-			server.EnableArpOnLag(-1, ifIdx)
+			server.EnableArpOnLag(ifIdx, ifIdx)
 		case commonDefs.IfTypePort:
 			server.EnablePort(ifIdx)
-			server.EnableArpOnPort(-1, ifIdx)
+			server.EnableArpOnPort(ifIdx, ifIdx)
 		}
 
 	}
@@ -581,7 +576,7 @@ func (server *ARPServer) DisableArpOnLag(l3IfIdx int, lagIfIdx int) {
 }
 
 func (server *ARPServer) DisableArpOnPort(l3IfIdx int, portIfIdx int) {
-	//var err error
+	server.logger.Debug("Disabling Arp on Port", l3IfIdx, portIfIdx)
 	_, exist := server.l3IntfPropMap[l3IfIdx]
 	if !exist {
 		return
@@ -590,7 +585,9 @@ func (server *ARPServer) DisableArpOnPort(l3IfIdx int, portIfIdx int) {
 	var vlanId int
 	portEnt := server.portPropMap[portIfIdx]
 	if portEnt.OperState == true {
+		server.logger.Debug("Disabling Arp on Port: OperState=true", l3IfIdx, portIfIdx)
 		if portEnt.PcapHdl != nil {
+			server.logger.Debug("Disabling Arp on Port: PcapHdl != nil", l3IfIdx, portIfIdx)
 			if l3IfIdx != -1 {
 				for id, l3PortProp := range portEnt.L3PortPropMap {
 					if l3PortProp.L3IfIdx == l3IfIdx {
@@ -599,7 +596,9 @@ func (server *ARPServer) DisableArpOnPort(l3IfIdx int, portIfIdx int) {
 					}
 					l3Ent, _ := server.l3IntfPropMap[l3PortProp.L3IfIdx]
 					if l3Ent.OperState == true {
+						server.logger.Debug("Pcap Not Closed:Another L3 Interface on port:", portIfIdx)
 						flag = true
+						break
 					}
 				}
 			}
@@ -672,8 +671,8 @@ func (server *ARPServer) EnableArpOnPort(l3IfIdx int, portIfIdx int) {
 				return
 			}
 			server.portPropMap[portIfIdx] = portEnt
+			go server.processRxPkts(portIfIdx)
 		}
-		go server.processRxPkts(portIfIdx)
 		go server.SendArpProbe(l3IfIdx, portEnt.MacAddr)
 	}
 }

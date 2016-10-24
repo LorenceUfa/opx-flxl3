@@ -24,14 +24,12 @@
 package server
 
 import (
-	//"asicd/asicdCommonDefs"
 	"errors"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"net"
-	//"utils/commonDefs"
 )
 
 func (server *ARPServer) StartArpRxTx(ifName string, macAddr string) (*pcap.Handle, error) {
@@ -62,7 +60,6 @@ func (server *ARPServer) processRxPkts(portIfIdx int) {
 				dot1QLayer := packet.Layer(layers.LayerTypeDot1Q)
 				if dot1QLayer != nil {
 					dot1Q := dot1QLayer.(*layers.Dot1Q)
-					server.logger.Info("Vlan Tag Packet")
 					server.processTagPacket(packet, portIfIdx, int(dot1Q.VLANIdentifier))
 				} else {
 					server.processUntagPacket(packet, portIfIdx)
@@ -80,7 +77,6 @@ func (server *ARPServer) processRxPkts(portIfIdx int) {
 func (server *ARPServer) processTagPacket(packet gopacket.Packet, portIfIdx int, vlanId int) {
 	arpLayer := packet.Layer(layers.LayerTypeARP)
 	if arpLayer != nil {
-		server.logger.Info("ARP Packet")
 		server.processArpPkt(arpLayer, portIfIdx, vlanId)
 	} else {
 		ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
@@ -89,7 +85,6 @@ func (server *ARPServer) processTagPacket(packet gopacket.Packet, portIfIdx int,
 		}
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
 		if ipv4Layer != nil {
-			server.logger.Info("IPv4 Packet")
 			server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, vlanId)
 		}
 	}
@@ -107,7 +102,6 @@ func (server *ARPServer) processUntagPacket(packet gopacket.Packet, portIfIdx in
 		}
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
 		if ipv4Layer != nil {
-			server.logger.Info("IPv4 Packet")
 			server.processIpPkt(ethernetLayer, ipv4Layer, portIfIdx, -1)
 		}
 	}
@@ -124,26 +118,24 @@ func (server *ARPServer) processArpPkt(arpLayer gopacket.Layer, portIfIdx, vlanI
 	}
 
 	if arp.Operation == layers.ARPReply {
-		server.logger.Info("ARP Reply Packet")
 		server.processArpReply(arp, portIfIdx, vlanId)
 	} else if arp.Operation == layers.ARPRequest {
-		server.logger.Info("ARP Request Packet")
 		server.processArpRequest(arp, portIfIdx, vlanId)
 	}
 }
 
-func (server *ARPServer) getMyIPAndNetAddr(portIfIdx, vlanId int) (net.IP, net.IP, net.IPMask, error, int, int) {
+func (server *ARPServer) getMyIPAndNetAddr(portIfIdx, vlanId int) (net.IP, net.IP, net.IPMask, error, int, int, int) {
 	portEnt, _ := server.portPropMap[portIfIdx]
 	if vlanId == -1 {
 		vlanId = portEnt.UntagVlanId
 	}
 	l3PortProp, exist := portEnt.L3PortPropMap[vlanId]
 	if !exist {
-		return nil, nil, nil, errors.New("L3 Intf doesnot exist"), -1, -1
+		return nil, nil, nil, errors.New("L3 Intf doesnot exist"), -1, -1, -1
 	}
 	myIP := net.ParseIP(l3PortProp.IpAddr)
 	myNet := myIP.Mask(l3PortProp.Netmask)
-	return myIP, myNet, l3PortProp.Netmask, nil, l3PortProp.L3IfIdx, l3PortProp.LagIfIdx
+	return myIP, myNet, l3PortProp.Netmask, nil, l3PortProp.L3IfIdx, l3PortProp.LagIfIdx, vlanId
 }
 
 func (server *ARPServer) processArpReply(arp *layers.ARP, portIfIdx, vlanId int) {
@@ -154,7 +146,7 @@ func (server *ARPServer) processArpReply(arp *layers.ARP, portIfIdx, vlanId int)
 		return
 	}
 
-	_, myNet, myMask, err, l3IfIdx, lagIfIdx := server.getMyIPAndNetAddr(portIfIdx, vlanId)
+	_, myNet, myMask, err, l3IfIdx, lagIfIdx, vlanId := server.getMyIPAndNetAddr(portIfIdx, vlanId)
 	if err != nil {
 		return
 	}
@@ -170,7 +162,7 @@ func (server *ARPServer) processArpReply(arp *layers.ARP, portIfIdx, vlanId int)
 }
 
 func (server *ARPServer) SendArpEntryUpdateMsg(portIfIdx int, IpAddr string, macAddr string, Type bool, VlanId, L3IfIdx, LagIfIdx int) {
-	server.logger.Info("Sending Arp Entry Update Msg: portIfIdx:", portIfIdx, "IpAddr:", IpAddr, "macAddr:", macAddr, "Type:", Type, "VlanId:", VlanId, "L3IfIdx:", L3IfIdx, "LagIfIdx:", LagIfIdx)
+	server.logger.Debug("Sending Arp Entry Update Msg: portIfIdx:", portIfIdx, "IpAddr:", IpAddr, "macAddr:", macAddr, "Type:", Type, "VlanId:", VlanId, "L3IfIdx:", L3IfIdx, "LagIfIdx:", LagIfIdx)
 	server.arpEntryUpdateCh <- UpdateArpEntryMsg{
 		PortIfIdx: portIfIdx,
 		IpAddr:    IpAddr,
@@ -188,7 +180,7 @@ func (server *ARPServer) processArpRequest(arp *layers.ARP, portIfIdx, vlanId in
 	srcIpAddr := (net.IP(arp.SourceProtAddress)).String()
 	destIpAddr := (net.IP(arp.DstProtAddress)).String()
 
-	myIP, myNet, myMask, err, l3IfIdx, lagIfIdx := server.getMyIPAndNetAddr(portIfIdx, vlanId)
+	myIP, myNet, myMask, err, l3IfIdx, lagIfIdx, vlanId := server.getMyIPAndNetAddr(portIfIdx, vlanId)
 	if err != nil {
 		return
 	}
@@ -232,7 +224,6 @@ func (server *ARPServer) processArpRequest(arp *layers.ARP, portIfIdx, vlanId in
 }
 
 func (server *ARPServer) processIpPkt(ethernetLayer, ipv4Layer gopacket.Layer, portIfIdx, vlanId int) {
-	server.logger.Info("IPv4 Packet")
 	ethernet := ethernetLayer.(*layers.Ethernet)
 	if ethernet == nil {
 		return

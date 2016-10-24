@@ -24,9 +24,6 @@
 package server
 
 import (
-	//	"asicd/asicdCommonDefs"
-	//"errors"
-	"fmt"
 	"models/events"
 	"time"
 	"utils/commonDefs"
@@ -150,6 +147,7 @@ func (server *ARPServer) processArpEntryMacMoveMsg(msg commonDefs.IPv4NbrMacMove
 }
 
 func (server *ARPServer) processArpEntryDeleteMsg(msg DeleteArpEntryMsg) {
+	server.logger.Debug("DeleteArpEntryMsg:", msg)
 	for key, ent := range server.arpCache {
 		if msg.PortIfIdx == ent.PortNum &&
 			msg.VlanId == ent.VlanId &&
@@ -384,7 +382,7 @@ func (server *ARPServer) arpCacheTimeout() {
 			server.logger.Debug("===============Message from ARP Timeout Thread==============")
 			server.printArpEntries()
 			server.logger.Debug("========================================================")
-			server.logger.Debug(fmt.Sprintln("Arp Slice: ", server.arpSlice))
+			server.logger.Debug("Arp Slice: ", server.arpSlice)
 		}
 		server.arpCounterUpdateCh <- true
 	}
