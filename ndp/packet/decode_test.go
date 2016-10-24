@@ -26,6 +26,7 @@ import (
 	"encoding/binary"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"l3/ndp/config"
 	"net"
 	"reflect"
 	"testing"
@@ -174,6 +175,7 @@ func TestDecodeNDUsingNAPkt(t *testing.T) {
 		DstMac:        testNaDstMac, // Update DST MAC from ethernet
 		SrcIp:         testNaSrcIp,  // copy sender ip address to this
 		DstIp:         testNaDstIp,  // copy destination ip
+		Dot1Q:         config.INTERNAL_VLAN,
 		TargetAddress: net.ParseIP("2149::61:123:1"),
 		PktType:       layers.ICMPv6TypeNeighborAdvertisement,
 	}
@@ -196,6 +198,7 @@ func constructBaseWantNDInfoForRA() *NDInfo {
 		DstMac:         testRADstMac,
 		SrcIp:          testRALinkScopeIp,
 		DstIp:          testRADstIp,
+		Dot1Q:          config.INTERNAL_VLAN,
 	}
 
 	sourcendOpt := &NDOption{

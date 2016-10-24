@@ -514,42 +514,47 @@ func initNbrEntries() {
 		MacAddr: "aa:bb:cc:dd:ee:ff",
 		IpAddr:  "fe80::1",
 	}
-	testNdpServer.insertNeigborInfo(port)
+	testNdpServer.insertNeigborInfo(port, port.IfIndex, port.Intf)
 	port = &config.NeighborConfig{
 		Intf:    "lo1",
 		IfIndex: 96,
 		MacAddr: "aa:bb:cc:dd:ee:ff",
 		IpAddr:  "fe80::2",
 	}
-	testNdpServer.insertNeigborInfo(port)
+	//testNdpServer.insertNeigborInfo(port)
+	testNdpServer.insertNeigborInfo(port, port.IfIndex, port.Intf)
 	port = &config.NeighborConfig{
 		Intf:    "lo2",
 		IfIndex: 97,
 		MacAddr: "aa:bb:cc:dd:ee:ff",
 		IpAddr:  "fe80::3",
 	}
-	testNdpServer.insertNeigborInfo(port)
+	//testNdpServer.insertNeigborInfo(port)
+	testNdpServer.insertNeigborInfo(port, port.IfIndex, port.Intf)
 	port = &config.NeighborConfig{
 		Intf:    "lo3",
 		IfIndex: 98,
 		MacAddr: "aa:bb:cc:dd:ee:ff",
 		IpAddr:  "fe80::4",
 	}
-	testNdpServer.insertNeigborInfo(port)
+	//testNdpServer.insertNeigborInfo(port)
+	testNdpServer.insertNeigborInfo(port, port.IfIndex, port.Intf)
 	port = &config.NeighborConfig{
 		Intf:    "lo4",
 		IfIndex: 99,
 		MacAddr: "aa:bb:cc:dd:ee:ff",
 		IpAddr:  "fe80::5",
 	}
-	testNdpServer.insertNeigborInfo(port)
+	//testNdpServer.insertNeigborInfo(port)
+	testNdpServer.insertNeigborInfo(port, port.IfIndex, port.Intf)
 	port = &config.NeighborConfig{
 		Intf:    "lo5",
 		IfIndex: 95,
 		MacAddr: "aa:bb:cc:dd:ee:ff",
 		IpAddr:  "fe80::6",
 	}
-	testNdpServer.insertNeigborInfo(port)
+	//testNdpServer.insertNeigborInfo(port)
+	testNdpServer.insertNeigborInfo(port, port.IfIndex, port.Intf)
 
 }
 
