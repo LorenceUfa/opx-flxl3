@@ -355,13 +355,19 @@ func (p *PeerConn) DecodeMessage(header *packet.BGPHeader, buf []byte) (*packet.
 		msgErr = &bgpErr
 		msgOk = false
 	} else if header.Type == packet.BGPMsgTypeOpen {
-		p.peerAttrs.ASSize = packet.GetASSize(msg.Body.(*packet.BGPOpen))
-		p.peerAttrs.AddPathFamily = packet.GetAddPathFamily(msg.Body.(*packet.BGPOpen))
-		addPathsTxFarEnd := packet.IsAddPathsTxEnabledForIPv4(p.peerAttrs.AddPathFamily)
-		p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "Far end can send add paths")
-		if addPathsTxFarEnd && p.fsm.pConf.AddPathsRx {
-			p.peerAttrs.AddPathsRxActual = true
-			p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "negotiated to recieve add paths from far end")
+		peerAS := packet.GetPeerAS(msg.Body.(*packet.BGPOpen))
+		if peerAS != p.fsm.pConf.PeerAS {
+			msgOk = false
+			msgErr = &packet.BGPMessageError{packet.BGPOpenMsgError, packet.BGPBadPeerAS, nil, "Bad peer AS"}
+		} else {
+			p.peerAttrs.ASSize = packet.GetASSize(msg.Body.(*packet.BGPOpen))
+			p.peerAttrs.AddPathFamily = packet.GetAddPathFamily(msg.Body.(*packet.BGPOpen))
+			addPathsTxFarEnd := packet.IsAddPathsTxEnabledForIPv4(p.peerAttrs.AddPathFamily)
+			p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "Far end can send add paths")
+			if addPathsTxFarEnd && p.fsm.pConf.AddPathsRx {
+				p.peerAttrs.AddPathsRxActual = true
+				p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "negotiated to recieve add paths from far end")
+			}
 		}
 	}
 

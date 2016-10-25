@@ -738,6 +738,24 @@ func GetASSize(openMsg *BGPOpen) uint8 {
 	return 2
 }
 
+func GetPeerAS(openMsg *BGPOpen) uint32 {
+	var as uint32
+	as = openMsg.MyAS
+	for _, optParam := range openMsg.OptParams {
+		if optParam.GetCode() == BGPOptParamTypeCapability {
+			capabilities := optParam.(*BGPOptParamCapability)
+			for _, capability := range capabilities.Value {
+				if capability.GetCode() == BGPCapTypeAS4Path {
+					as4Path := capability.(*BGPCapAS4Path)
+					as = as4Path.Value
+				}
+			}
+		}
+	}
+
+	return as
+}
+
 func GetAddPathFamily(openMsg *BGPOpen) map[AFI]map[SAFI]uint8 {
 	addPathFamily := make(map[AFI]map[SAFI]uint8)
 	for _, optParam := range openMsg.OptParams {
