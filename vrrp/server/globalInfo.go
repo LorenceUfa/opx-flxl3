@@ -39,35 +39,6 @@ import (
 	"utils/logging"
 )
 
-type VrrpFsm struct {
-	key     string
-	vrrpHdr *VrrpPktHeader
-	inPkt   gopacket.Packet
-}
-
-type VrrpClientJson struct {
-	Name string `json:Name`
-	Port int    `json:Port`
-}
-
-type VrrpClientBase struct {
-	Address            string
-	Transport          thrift.TTransport
-	PtrProtocolFactory *thrift.TBinaryProtocolFactory
-	IsConnected        bool
-}
-
-type VrrpAsicdClient struct {
-	VrrpClientBase
-	ClientHdl *asicdServices.ASICDServicesClient
-}
-
-type VrrpUpdateConfig struct {
-	OldConfig vrrpd.VrrpIntf
-	NewConfig vrrpd.VrrpIntf
-	AttrSet   []bool
-}
-
 type VrrpTxChannelInfo struct {
 	key      string
 	priority uint16 // any value > 255 means ignore it
@@ -89,6 +60,11 @@ type V6Intf struct {
 	Vrrpkey *KeyInfo
 }
 
+type IntfState struct {
+	State StateInfo
+	Key   KeyInfo
+}
+
 type VrrpServer struct {
 	// All System Related Information
 	dmnBase            *dmnBase.FSBaseDmn
@@ -98,37 +74,12 @@ type VrrpServer struct {
 	VlanInfo           map[int32]config.VlanInfo
 	V4                 map[int32]V4Intf
 	V6                 map[int32]V6Intf
-	Intf               map[KeyInfo]VrrpInterface
-	V4IntfRefToIfIndex map[string]int32
-	V6IntfRefToIfIndex map[string]int32
-	// All Channels Used during Events
-	CfgCh    chan *config.IntfCfg
-	StateCh  chan *StateInfo
-	GblCfgCh chan *config.GlobalConfig
-
-	//L3Port           map[int32]L3Info
-	//	logger                        *logging.Writer
-	//	vrrpDbHdl                     *dbutils.DBUtil
-	//paramsDir                     string
-	//asicdClient                   VrrpAsicdClient
-	//asicdSubSocket                *nanomsg.SubSocket
-	/*
-		vrrpGblInfo                   map[string]VrrpGlobalInfo // IfIndex + VRID
-		vrrpIntfStateSlice            []string
-		vrrpLinuxIfIndex2AsicdIfIndex map[int32]*net.Interface
-		vrrpIfIndexIpAddr             map[int32]string
-		vrrpVlanId2Name               map[int]string
-		VrrpCreateIntfConfigCh        chan vrrpd.VrrpIntf
-		VrrpDeleteIntfConfigCh        chan vrrpd.VrrpIntf
-		VrrpUpdateIntfConfigCh        chan VrrpUpdateConfig
-		vrrpTxPktCh                   chan VrrpTxChannelInfo
-		vrrpFsmCh                     chan VrrpFsm
-		vrrpMacConfigAdded            bool
-		vrrpSnapshotLen               int32
-		vrrpPromiscuous               bool
-		vrrpTimeout                   time.Duration
-		vrrpPktSend                   chan bool
-	*/
+	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
+	V4IntfRefToIfIndex map[string]int32          // key is intfRef and value is ifIndex
+	V6IntfRefToIfIndex map[string]int32          // key is intfRef and valud if ifIndex
+	CfgCh              chan *config.IntfCfg      // Starting from hereAll Channels Used during Events
+	StateCh            chan *IntfState
+	GblCfgCh           chan *config.GlobalConfig
 }
 
 const (

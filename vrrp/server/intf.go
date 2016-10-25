@@ -50,18 +50,19 @@ type L3Intf struct {
 
 //type VrrpGlobalInfo struct {
 type VrrpInterface struct {
-	// Vrrp config for interface
-	Config config.IntfCfg
-	// Vrrp state for interface
-	State *StateInfo
-	// Vrrp Port Information Collected From System
-	L3 *L3Intf
-	// Vrrp fsm information
-	Fsm *FSM
+	Config config.IntfCfg // Vrrp config for interface
+	State  *StateInfo     // Vrrp state for interface
+	L3     *L3Intf        // Vrrp Port Information Collected From System
+	Fsm    *FSM           // Vrrp fsm information
 }
 
-func (intf *VrrpInterface) Init(cfg *config.IntfCfg, l3Info *L3Intf, stCh *StateInfo) {
+func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) {
 	intf.Config = *cfg
 	intf.L3 = *l3Info
+	// Init fsm
 	intf.Fsm = InitFsm(&intf.Config, l3Info, stCh)
+}
+
+func (intf *VrrpInterface) UpdateStateInfo(stInfo StateInfo) {
+	intf.State = stInfo
 }

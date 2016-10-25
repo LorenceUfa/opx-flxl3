@@ -39,7 +39,7 @@ const (
 const (
 	_ = iota
 	CREATE
-	UDPATE
+	UPDATE
 	DELETE
 )
 

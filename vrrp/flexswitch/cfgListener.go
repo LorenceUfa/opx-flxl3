@@ -56,15 +56,8 @@ func (h *ConfigHandler) DeleteVrrpGlobal(config *vrrpd.VrrpGlobal) (r bool, err 
 }
 
 func (h *ConfigHandler) CreateVrrpV4Intf(config *vrrpd.VrrpV4Intf) (r bool, err error) {
-	debug.Logger.Debug("Thrift request for creating vrrp v4 interface config for:", *config)
-	/*
-		r, err = VrrpCheckConfig(config, h)
-		if err != nil {
-			return r, err
-		}
-	*/
+	debug.Logger.Debug("Thrift request received for creating vrrp v4 interface config for:", *config)
 	v4Cfg := &config.IntfCfg{
-		//	IfIndex              : ,
 		IntfRef:               config.IntfRef,
 		VRID:                  config.VRID,
 		Priority:              config.Priority,
@@ -75,38 +68,98 @@ func (h *ConfigHandler) CreateVrrpV4Intf(config *vrrpd.VrrpV4Intf) (r bool, err 
 		Version:               config.VERSION2,
 		Operation:             config.CREATE,
 	}
-	api.VrrpIntfConfig(v4Cfg)
-	debug.Logger.Debug("Thrift request for creating vrrp v4 interface config returning:", err)
-	//h.server.VrrpCreateIntfConfigCh <- *config
-	return true, err
+	r, err = api.VrrpIntfConfig(v4Cfg)
+	debug.Logger.Debug("Thrift request returning for creating vrrp v4 interface config returning:", r, err)
+	return r, err
 }
-func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpIntf,
-	newconfig *vrrpd.VrrpIntf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
-	// Verify orig config
-	if (origconfig.IfIndex != newconfig.IfIndex) ||
-		(origconfig.VRID != newconfig.VRID) {
-		return false, errors.New(VRRP_NEED_UNIQUE_INFO)
+func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig *vrrpd.VrrpV4Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
+	debug.Logger.Debug("Thrift request received for updating vrrp v4 interface config for:", origconfig, "to new:", newconfig)
+	v4Cfg := &config.IntfCfg{
+		IntfRef:               config.IntfRef,
+		VRID:                  config.VRID,
+		Priority:              config.Priority,
+		VirtualIPv4Addr:       config.VirtualIPv4Addr,
+		AdvertisementInterval: config.AdvertisementInterval,
+		PreemptMode:           config.PreemptMode,
+		AcceptMode:            config.AcceptMode,
+		Version:               config.VERSION2,
+		Operation:             config.UPDATE,
 	}
-	r, err = VrrpCheckConfig(origconfig, h)
-	if err != nil {
-		return r, err
-	}
-	// Verify new config
-	r, err = VrrpCheckConfig(newconfig, h)
-	if err != nil {
-		return r, err
-	}
-	updConfg := vrrpServer.VrrpUpdateConfig{
-		OldConfig: *origconfig,
-		NewConfig: *newconfig,
-		AttrSet:   attrset,
-	}
-	h.server.VrrpUpdateIntfConfigCh <- updConfg
-
+	r, err = api.VrrpIntfConfig(v4Cfg)
+	debug.Logger.Debug("Thrift request returning for updating vrrp v4 interface config for:", origconfig, "to new:",
+		newconfig, "returning:", r, err)
 	return true, nil
 }
 
-func (h *ConfigHandler) DeleteVrrpV4Intf(config *vrrpd.VrrpIntf) (r bool, err error) {
-	h.server.VrrpDeleteIntfConfigCh <- *config
+func (h *ConfigHandler) DeleteVrrpV4Intf(config *vrrpd.VrrpV4Intf) (r bool, err error) {
+	debug.Logger.Debug("Thrift request received for deleting vrrp v4 interface config for:", *config)
+	v4Cfg := &config.IntfCfg{
+		IntfRef:               config.IntfRef,
+		VRID:                  config.VRID,
+		Priority:              config.Priority,
+		VirtualIPv4Addr:       config.VirtualIPv4Addr,
+		AdvertisementInterval: config.AdvertisementInterval,
+		PreemptMode:           config.PreemptMode,
+		AcceptMode:            config.AcceptMode,
+		Version:               config.VERSION2,
+		Operation:             config.DELETE,
+	}
+	r, err = api.VrrpIntfConfig(v4Cfg)
+	debug.Logger.Debug("Thrift request returning for deleting vrrp v4 interface config returning:", r, err)
+	return r, err
+}
+
+func (h *ConfigHandler) CreateVrrpV6Intf(config *vrrpd.VrrpV6Intf) (r bool, err error) {
+	debug.Logger.Debug("Thrift request received for creating vrrp v6 interface config for:", *config)
+	v6Cfg := &config.IntfCfg{
+		IntfRef:               config.IntfRef,
+		VRID:                  config.VRID,
+		Priority:              config.Priority,
+		VirtualIPv4Addr:       config.VirtualIPv4Addr,
+		AdvertisementInterval: config.AdvertisementInterval,
+		PreemptMode:           config.PreemptMode,
+		AcceptMode:            config.AcceptMode,
+		Version:               config.VERSION3,
+		Operation:             config.CREATE,
+	}
+	r, err = api.VrrpIntfConfig(v6Cfg)
+	debug.Logger.Debug("Thrift request returning for creating vrrp v6 interface config returning:", r, err)
+	return r, err
+}
+
+func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig *vrrpd.VrrpV6Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
+	debug.Logger.Debug("Thrift request received for updating vrrp v6 interface config for:", origconfig, "to new:", newconfig)
+	v6Cfg := &config.IntfCfg{
+		IntfRef:               config.IntfRef,
+		VRID:                  config.VRID,
+		Priority:              config.Priority,
+		VirtualIPv4Addr:       config.VirtualIPv4Addr,
+		AdvertisementInterval: config.AdvertisementInterval,
+		PreemptMode:           config.PreemptMode,
+		AcceptMode:            config.AcceptMode,
+		Version:               config.VERSION3,
+		Operation:             config.UPDATE,
+	}
+	r, err = api.VrrpIntfConfig(v6Cfg)
+	debug.Logger.Debug("Thrift request returning for updating vrrp v6 interface config for:", origconfig, "to new:",
+		newconfig, "returning:", r, err)
 	return true, nil
+}
+
+func (h *ConfigHandler) DeleteVrrpV6Intf(config *vrrpd.VrrpV6Intf) (r bool, err error) {
+	debug.Logger.Debug("Thrift request received for deleting vrrp v6 interface config for:", *config)
+	v6Cfg := &config.IntfCfg{
+		IntfRef:               config.IntfRef,
+		VRID:                  config.VRID,
+		Priority:              config.Priority,
+		VirtualIPv4Addr:       config.VirtualIPv4Addr,
+		AdvertisementInterval: config.AdvertisementInterval,
+		PreemptMode:           config.PreemptMode,
+		AcceptMode:            config.AcceptMode,
+		Version:               config.VERSION3,
+		Operation:             config.DELETE,
+	}
+	r, err = api.VrrpIntfConfig(v6Cfg)
+	debug.Logger.Debug("Thrift request returning for deleting vrrp v6 interface config returning:", r, err)
+	return r, err
 }

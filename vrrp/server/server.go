@@ -25,11 +25,9 @@ package server
 
 import (
 	"asicd/asicdCommonDefs"
-	"asicdServices"
 	"encoding/json"
 	"errors"
 	"fmt"
-	_ "github.com/google/gopacket"
 	"io/ioutil"
 	"net"
 	"os"
@@ -41,7 +39,6 @@ import (
 	"time"
 	"utils/ipcutils"
 	"utils/logging"
-	"vrrpd"
 )
 
 /*
@@ -261,289 +258,6 @@ func (svr *VrrpServer) VrrpCloseAllPcapHandlers() {
 	}
 }
 
-/*
-func (svr *VrrpServer) VrrpConnectToAsicd(client VrrpClientJson) error {
-	svr.logger.Info(fmt.Sprintln("VRRP: Connecting to asicd at port",
-		client.Port))
-	var err error
-	svr.asicdClient.Address = "localhost:" + strconv.Itoa(client.Port)
-	svr.asicdClient.Transport, svr.asicdClient.PtrProtocolFactory, err =
-		ipcutils.CreateIPCHandles(svr.asicdClient.Address)
-	if svr.asicdClient.Transport == nil ||
-		svr.asicdClient.PtrProtocolFactory == nil ||
-		err != nil {
-		return err
-	}
-	svr.asicdClient.ClientHdl =
-		asicdServices.NewASICDServicesClientFactory(
-			svr.asicdClient.Transport,
-			svr.asicdClient.PtrProtocolFactory)
-	svr.asicdClient.IsConnected = true
-	return nil
-}
-
-func (svr *VrrpServer) VrrpConnectToUnConnectedClient(client VrrpClientJson) error {
-	switch client.Name {
-	case "asicd":
-		return svr.VrrpConnectToAsicd(client)
-	default:
-		return errors.New(VRRP_CLIENT_CONNECTION_NOT_REQUIRED)
-	}
-}
-func (svr *VrrpServer) VrrpConnectAndInitPortVlan() error {
-	configFile := svr.paramsDir + "/clients.json"
-	bytes, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		svr.logger.Err(fmt.Sprintln("VRRP:Error while reading configuration file",
-			configFile))
-		return err
-	}
-	var unConnectedClients []VrrpClientJson
-	err = json.Unmarshal(bytes, &unConnectedClients)
-	if err != nil {
-		svr.logger.Err("VRRP: Error in Unmarshalling Json")
-		return err
-	}
-	re_connect := 25
-	count := 0
-	// connect to client
-	for {
-		time.Sleep(time.Millisecond * 500)
-		for i := 0; i < len(unConnectedClients); i++ {
-			err := svr.VrrpConnectToUnConnectedClient(
-				unConnectedClients[i])
-			if err == nil {
-				svr.logger.Info("VRRP: Connected to " +
-					unConnectedClients[i].Name)
-				unConnectedClients = append(
-					unConnectedClients[:i],
-					unConnectedClients[i+1:]...)
-
-			} else if err.Error() ==
-				VRRP_CLIENT_CONNECTION_NOT_REQUIRED {
-				unConnectedClients = append(
-					unConnectedClients[:i],
-					unConnectedClients[i+1:]...)
-			} else {
-				count++
-				if count == re_connect {
-					svr.logger.Err(fmt.Sprintln(
-						"Connecting to",
-						unConnectedClients[i].Name,
-						"failed ", err))
-					count = 0
-				}
-			}
-		}
-		if len(unConnectedClients) == 0 {
-			break
-		}
-	}
-
-	svr.VrrpGetInfoFromAsicd()
-
-	// OS Signal channel listener thread
-	svr.VrrpOSSignalHandle()
-	return err
-}
-*/
-
-/*
-func (svr *VrrpServer) VrrpValidateIntfConfig(IfIndex int32) error {
-	// Check Vlan is created
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(IfIndex)
-	_, created := svr.vrrpVlanId2Name[vlanId]
-	if !created {
-		return errors.New(VRRP_VLAN_NOT_CREATED)
-	}
-
-	// Check ipv4 interface is created
-	_, created = svr.vrrpLinuxIfIndex2AsicdIfIndex[IfIndex]
-	if !created {
-		return errors.New(VRRP_IPV4_INTF_NOT_CREATED)
-	}
-
-	return nil
-}
-*/
-
-func (svr *VrrpServer) VrrpChecknUpdateGblInfo(IfIndex int32, IpAddr string) {
-	for _, key := range svr.vrrpIntfStateSlice {
-		startFsm := false
-		splitString := strings.Split(key, "_")
-		// splitString = { IfIndex, VRID }
-		ifindex, _ := strconv.Atoi(splitString[0])
-		if int32(ifindex) != IfIndex {
-			// Key doesn't match
-			continue
-		}
-		// If IfIndex matches then use that key and check if gblInfo is
-		// created or not
-		gblInfo, found := svr.vrrpGblInfo[key]
-		if !found {
-			svr.logger.Err("No entry found for Ifindex:" +
-				splitString[0] + " VRID:" + splitString[1] +
-				" hence not updating ip addr, " +
-				"it will be updated during create")
-			continue
-		}
-		gblInfo.IpAddr = IpAddr
-		gblInfo.StateNameLock.Lock()
-		if gblInfo.StateName == VRRP_UNINTIALIZE_STATE {
-			startFsm = true
-			gblInfo.StateName = VRRP_INITIALIZE_STATE
-		}
-		gblInfo.StateNameLock.Unlock()
-		svr.vrrpGblInfo[key] = gblInfo
-		// Create Pkt Listener if not created... This will handle a
-		// scneario when VRRP configs are done before IF Index is up
-		gblInfo.PcapHdlLock.Lock()
-		if gblInfo.pHandle == nil {
-			gblInfo.PcapHdlLock.Unlock()
-			svr.VrrpInitPacketListener(key, IfIndex)
-		} else {
-			gblInfo.PcapHdlLock.Unlock()
-		}
-		if !svr.vrrpMacConfigAdded {
-			svr.logger.Info("Adding protocol mac for punting packets to CPU")
-			svr.VrrpUpdateProtocolMacEntry(true /*add vrrp protocol mac*/)
-		}
-		if startFsm {
-			svr.vrrpFsmCh <- VrrpFsm{
-				key: key,
-			}
-		}
-	}
-}
-
-func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
-	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
-	intf, exists := svr.Intf[key]
-	if exists {
-		debug.Logger.Err("During Create we should not any entry in the DB")
-		return
-	}
-	l3Info := &L3Intf{}
-	l3Info.IfName = cfg.IntfRef
-	switch cfg.Version {
-	case config.VERSION2:
-		ifIndex, exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
-		if exists {
-			l3Info.IfIndex = ifIndex
-			v4, exists := svr.V4[ifIndex]
-			if exists {
-				l3Info.IpAddr = v4.Cfg.IpAddr
-			}
-		}
-		// if cross reference exists then only set l3Info else just pass go defaults and it will updated
-		// later once we have configured ipv4 or ipv6 interface
-	case config.VERSION3:
-		ifIndex, exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
-		l3Info.IfIndex = ifIndex
-		if exists {
-			v6, exists := svr.V6[ifIndex]
-			if exists {
-				// @TODO: do we have to use linkscope ip or global scope ip Check RFC
-				l3Info.IpAddr = v6.Cfg.IpAddr
-			}
-		}
-	}
-	intf.Init(cfg, l3Info, svr.StateCh)
-	// @TODO: NEED TO ADD PRE - PROCESSOR SUB INTERFACE OBJECT
-}
-
-func (svr *VrrpServer) HandleIntfConfig(cfg *config.IntfCfg) {
-	switch cfg.Operation {
-	case config.CREATE:
-		svr.HandlerCreateConfig(cfg)
-	case config.UPDATE:
-
-	case config.DELETE:
-	}
-	/*
-		key := strconv.Itoa(int(config.IfIndex)) + "_" + strconv.Itoa(int(config.VRID))
-		gblInfo := svr.vrrpGblInfo[key]
-
-		gblInfo.IntfConfig.IfIndex = config.IfIndex
-		gblInfo.IntfConfig.VRID = config.VRID
-		gblInfo.IntfConfig.VirtualIPv4Addr = config.VirtualIPv4Addr
-		gblInfo.IntfConfig.PreemptMode = config.PreemptMode
-		gblInfo.IntfConfig.Priority = config.Priority
-		if config.AdvertisementInterval == 0 {
-			gblInfo.IntfConfig.AdvertisementInterval = 1
-		} else {
-			gblInfo.IntfConfig.AdvertisementInterval = config.AdvertisementInterval
-		}
-
-		if config.AcceptMode == true {
-			gblInfo.IntfConfig.AcceptMode = true
-		} else {
-			gblInfo.IntfConfig.AcceptMode = false
-		}
-
-		if gblInfo.IntfConfig.VRID < 10 {
-			gblInfo.VirtualRouterMACAddress = VRRP_IEEE_MAC_ADDR +
-				"0" + strconv.Itoa(int(gblInfo.IntfConfig.VRID))
-
-		} else {
-			gblInfo.VirtualRouterMACAddress = VRRP_IEEE_MAC_ADDR +
-				strconv.Itoa(int(gblInfo.IntfConfig.VRID))
-		}
-
-		// Initialize Locks for accessing shared ds
-		gblInfo.PcapHdlLock = &sync.RWMutex{}
-		gblInfo.StateNameLock = &sync.RWMutex{}
-		gblInfo.MasterDownLock = &sync.RWMutex{}
-		gblInfo.StateInfoLock = &sync.RWMutex{}
-
-		// Update Ip Addr at last
-		svr.VrrpUpdateIntfIpAddr(&gblInfo)
-
-		// Set Initial state
-		gblInfo.StateNameLock.Lock()
-		gblInfo.StateName = VRRP_INITIALIZE_STATE
-		gblInfo.StateNameLock.Unlock()
-		svr.vrrpGblInfo[key] = gblInfo
-		svr.vrrpIntfStateSlice = append(svr.vrrpIntfStateSlice, key)
-
-		// Create Packet listener first so that pcap handler is created...
-		// We will not receive any vrrp packets as punt to CPU is not yet done
-		svr.VrrpInitPacketListener(key, config.IfIndex)
-
-		// Register Protocol Mac
-		if !svr.vrrpMacConfigAdded {
-			svr.logger.Info("Adding protocol mac for punting packets to CPU")
-			svr.VrrpUpdateProtocolMacEntry(true /*add vrrp protocol mac*/ /*)
-	}
-	// Start FSM
-	svr.vrrpFsmCh <- VrrpFsm{
-		key: key,
-	}
-	*/
-}
-
-func (svr *VrrpServer) UpdateProtocolMacEntry(add bool) {
-	switch add {
-	case true:
-		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC)
-	case false:
-		svr.SwitchPlugin.DisablePacketReception(packet.VRRP_PROTOCOL_MAC)
-		// @TODO: tear down all fsm states and configuration
-	}
-}
-
-func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
-	debug.Logger.Info("Handling Global Config for:", *gCfg)
-	switch gCfg.Operation {
-	case config.CREATE:
-		debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac")
-		svr.UpdateProtocolMacEntry(true /*Enable*/)
-	case config.UPDATE:
-		debug.Logger.Info("Vrrp Disabled, deleting Protocol Mac")
-		svr.UpdateProtocolMacEntry(false /*Enable*/)
-	}
-}
-
 func (svr *VrrpServer) EventListener() {
 	// Start receviing in rpc values in the channell
 	for {
@@ -556,6 +270,10 @@ func (svr *VrrpServer) EventListener() {
 		case cfg, ok := <-svr.CfgCh:
 			if ok {
 				svr.HandleIntfConfig(cfg)
+			}
+		case stInfo, ok := <-svr.StateCh:
+			if ok {
+				svr.HandleStateUpdate(stInfo)
 			}
 			/*
 				case rxChInfo, ok := <-svr.RxPktCh:
@@ -597,31 +315,13 @@ func (svr *VrrpServer) InitGlobalDS() {
 	svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6 = make(map[int32]V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4 = make(map[int32]V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	//svr.L3Port = make(map[int32]IpIntf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.StateCh = make(chan StateInfo, VRRP_RX_BUF_CHANNEL_SIZE)
+	svr.StateCh = make(chan *IntfState, VRRP_RX_BUF_CHANNEL_SIZE)
 	svr.GblCfgCh = make(chan config.GlobalConfig)
-	/*
-		svr.vrrpGblInfo = make(map[string]VrrpGlobalInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-		svr.vrrpIfIndexIpAddr = make(map[int32]string, VRRP_INTF_IPADDR_MAPPING_DEFAULT_SIZE)
-		svr.vrrpLinuxIfIndex2AsicdIfIndex = make(map[int32]*net.Interface, VRRP_LINUX_INTF_MAPPING_DEFAULT_SIZE)
-		svr.vrrpVlanId2Name = make(map[int]string, VRRP_VLAN_MAPPING_DEFAULT_SIZE)
-		svr.VrrpCreateIntfConfigCh = make(chan vrrpd.VrrpIntf, VRRP_INTF_CONFIG_CH_SIZE)
-		svr.VrrpDeleteIntfConfigCh = make(chan vrrpd.VrrpIntf, VRRP_INTF_CONFIG_CH_SIZE)
-		svr.vrrpRxPktCh = make(chan VrrpPktChannelInfo, VRRP_RX_BUF_CHANNEL_SIZE)
-		svr.vrrpTxPktCh = make(chan VrrpTxChannelInfo, VRRP_TX_BUF_CHANNEL_SIZE)
-		svr.VrrpUpdateIntfConfigCh = make(chan VrrpUpdateConfig, VRRP_INTF_CONFIG_CH_SIZE)
-		svr.vrrpFsmCh = make(chan VrrpFsm, VRRP_FSM_CHANNEL_SIZE)
-		svr.vrrpSnapshotLen = 1024
-		svr.vrrpPromiscuous = false
-		svr.vrrpTimeout = 10 * time.Microsecond
-		svr.vrrpMacConfigAdded = false
-		svr.vrrpPktSend = make(chan bool)
-	*/
+	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {
@@ -658,39 +358,17 @@ func (svr *VrrpServer) OSSignalHandle() {
 	go svr.signalHandler(sigChannel)
 }
 
-/*
-
-*/
-
 func (svr *VrrpServer) VrrpStartServer(paramsDir string) {
 	svr.OSSignalHandle()
 	svr.ReadDB()
 	svr.InitGlobalDS()
 	svr.GetSystemInfo()
 	go svr.EventListener()
-	/*
-		svr.paramsDir = paramsDir
-		// First connect to client to avoid any issues with start/re-start
-		svr.VrrpConnectAndInitPortVlan()
-
-		// Initialize DB
-		err := svr.VrrpInitDB()
-		if err != nil {
-			svr.logger.Err("VRRP: DB init failed")
-		} else {
-			// Populate Gbl Configs
-			svr.VrrpReadDB()
-			svr.VrrpCloseDB()
-		}
-		go svr.VrrpChannelHanlder()
-	*/
 }
 
 func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
 	svr := &VrrpServer{}
 	svr.SwitchPlugin = sPlugin
 	svr.dmnBase = dmnBase
-	// Allocate memory to all the Data Structures
-	//vrrpServerInfo.VrrpInitGlobalDS()
 	return svr
 }
