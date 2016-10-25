@@ -300,26 +300,22 @@ func (f *FSM) StopMasterAdverTimer() {
 	}
 }
 
-func (f *FSM) StartMasterDownTimer(key string) {
+func (f *FSM) HandleMasterDownTimer() {
 	if f.MasterDownTimer != nil {
-		gblInfo.MasterDownTimer.Reset(time.Duration(f.MasterDownValue) * time.Second)
+		f.MasterDownTimer.Reset(time.Duration(f.MasterDownValue) * time.Second)
 	} else {
 		var MasterDownTimer_func func()
 		// On Timer expiration we will transition to master
 		MasterDownTimer_func = func() {
 			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
 			// @TODO: do timer expiry handling here
-			svr.VrrpTransitionToMaster(key, "Master Down Timer expired")
+			//svr.VrrpTransitionToMaster(key, "Master Down Timer expired")
+			f.TransitionToMaster()
 		}
 		debug.logger.Info("setting down timer to", f.MasterDownValue)
 		// Set Timer expire func...
-		gblInfo.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second,
-			MasterDownTimer_func)
+		f.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second, MasterDownTimer_func)
 	}
-	gblInfo.StateNameLock.Lock()
-	gblInfo.StateName = VRRP_BACKUP_STATE
-	gblInfo.StateNameLock.Unlock()
-	svr.vrrpGblInfo[key] = gblInfo
 }
 
 func (f *FSM) CalculateDownValue(advInt int32) {
@@ -358,7 +354,7 @@ func (f *FSM) TransitionToBackup(advInt int32) {
 
 	// Re-Calculate Down timer value
 	f.CalculateDownValue(advInt)
-	f.StartMasterDownTimer()
+	f.HandleMasterDownTimer()
 	//(165) + Transition to the {Backup} state
 	f.State = VRRP_BACKUP_STATE
 	//svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
@@ -447,42 +443,33 @@ func (f *FSM) BackupState(stInfo *FsmStateInfo) {
 		svr.logger.Err("dst ip is equal to interface ip, dropping the packet")
 		return
 	}
-
+	//(420) - If an ADVERTISEMENT is received, then:
 	if hdr.Type == VRRP_PKT_TYPE_ADVERTISEMENT {
-		if vrrpHdr.Priority == 0 {
-			// Change down Value to Skew time
-			gblInfo.MasterDownLock.Lock()
-			gblInfo.MasterDownValue = gblInfo.SkewTime
-			gblInfo.MasterDownLock.Unlock()
-			svr.vrrpGblInfo[key] = gblInfo
-			svr.VrrpHandleMasterDownTimer(key)
-		} else {
-			// local preempt is false
-			if gblInfo.IntfConfig.PreemptMode == false {
-				// if remote priority is higher update master down
-				// timer and move on
-				if vrrpHdr.Priority >= uint8(gblInfo.IntfConfig.Priority) {
-					gblInfo.MasterDownLock.Lock()
-					svr.VrrpCalculateDownValue(int32(vrrpHdr.MaxAdverInt),
-						&gblInfo)
-					gblInfo.MasterDownLock.Unlock()
-					svr.vrrpGblInfo[key] = gblInfo
-					svr.VrrpHandleMasterDownTimer(key)
-				} else {
-					// Do nothing.... same as discarding packet
-					svr.logger.Info("Discarding advertisment")
-					return
-				}
-			} else { // local preempt is true
-				if vrrpHdr.Priority >= uint8(gblInfo.IntfConfig.Priority) {
-					// Do nothing..... same as discarding packet
-					svr.logger.Info("Discarding advertisment")
-					return
-				} else { // Preempt is true... need to take over
-					// as master
-					svr.VrrpTransitionToMaster(key,
-						"Preempt is true and local Priority is higher than remote")
-				}
+		f.UpdateRxStateInformation(pktInfo)
+		// (425) + If the Priority in the ADVERTISEMENT is zero, then:
+		if hdr.Priority == 0 {
+			//(430) * Set the Master_Down_Timer to Skew_Time
+			f.MasterDownValue = f.SkewTime
+			f.HandleMasterDownTimer()
+		} else { // (440) priority non-zero
+			/*
+			 *	(445) * If Preempt_Mode is False, or if the Priority in the
+			 *	ADVERTISEMENT is greater than or equal to the local
+			 *	Priority, then:
+			 */
+			if f.Config.PreemptMode == false || hdr.Priority >= f.Config.Priority {
+				/*
+				 * (450) @ Set Master_Adver_Interval to Adver Interval contained in the ADVERTISEMENT
+				 * (460) @ Reset the Master_Down_Timer to Master_Down_Interval
+				 * (455) @ Recompute the Master_Down_Interval
+				 *
+				 * api used will be TransitionToBackup() which will do the exact
+				 * things mentioned above, sorry if you think the naming doesn't
+				 * sound correct
+				 */
+				f.TransitionToBackup(int32(hdr.MaxAdverInt))
+			} else { //     (465) * else // preempt was true or priority was less
+				//          (470) @ Discard the ADVERTISEMENT
 			} // endif preempt test
 		} // endif was priority zero
 	} // endif was advertisement received
