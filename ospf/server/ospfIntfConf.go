@@ -205,17 +205,18 @@ func (server *OSPFServer) initDefaultIntfConf(key IntfConfKey, ipIntfProp IPIntf
 		ent.IfLsaCount = 0
 		ent.IfLsaCksumSum = 0
 		ent.IfMetricTOSMap = make(map[uint8]uint32)
-		txEntry, exist := server.IntfTxMap[key]
-		if !exist {
-			sendHdl, err := pcap.OpenLive(ent.IfName, snapshot_len, promiscuous, timeout_pcap)
-			if sendHdl == nil {
-				server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ent.IfName, err))
-				return
-			}
-			txEntry.SendPcapHdl = sendHdl
-			txEntry.SendMutex = &sync.Mutex{}
-			server.IntfTxMap[key] = txEntry
-		}
+		/*
+			txEntry, exist := server.IntfTxMap[key]
+			if !exist {
+				sendHdl, err := pcap.OpenLive(ent.IfName, snapshot_len, promiscuous, timeout_pcap)
+				if sendHdl == nil {
+					server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ent.IfName, err))
+					return
+				}
+				txEntry.SendPcapHdl = sendHdl
+				txEntry.SendMutex = &sync.Mutex{}
+				server.updateIntfTxMap(txEntry, key)
+			} */
 		rxEntry, exist := server.IntfRxMap[key]
 		if !exist {
 			recvHdl, err := pcap.OpenLive(ent.IfName, snapshot_len, promiscuous, timeout_pcap)
@@ -313,7 +314,7 @@ func (server *OSPFServer) createIPIntfConfMap(msg IPv4IntfNotifyMsg, mtu int32, 
 func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int32) {
 	var flag bool = false
 	var ifIdx int32
-	server.logger.Info(fmt.Sprintln("calling deleteIPIntfConfMap for....:", msg))
+	server.logger.Debug(fmt.Sprintln("calling deleteIPIntfConfMap for....:", msg))
 	ip, _, err := net.ParseCIDR(msg.IpAddr)
 	if err != nil {
 		server.logger.Err(fmt.Sprintln("Unable to parse IP address", msg.IpAddr))
@@ -325,7 +326,7 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 	} else {
 		ifIdx = 0
 	}
-	server.logger.Info(fmt.Sprintln("delete IPIntfConfMap for ", msg, "ifIndex:", ifIdx))
+	server.logger.Debug(fmt.Sprintln("delete IPIntfConfMap for ", msg, "ifIndex:", ifIdx))
 
 	// Set ifIdx = 0 for time being --- Need to be revisited
 	intfConfKey := IntfConfKey{
@@ -337,11 +338,18 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 		server.logger.Err("No such inteface exists")
 		return
 	}
+	ipKey := convertAreaOrRouterIdUint32(ip.String())
+	ipPropKey, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("Intf: Delete , l3 intf doesnt exist ", ip))
+		return
+	}
 	areaId := convertIPv4ToUint32(ent.IfAreaId)
 	oldAreaId := convertIPInByteToString(ent.IfAreaId)
 	server.updateIntfToAreaMap(intfConfKey, oldAreaId, "none")
 
 	if server.ospfGlobalConf.AdminStat == config.Enabled &&
+		ipPropKey.IpState == config.Intf_Up &&
 		ent.IfAdminStat == config.Enabled {
 		server.StopSendRecvPkts(intfConfKey)
 		flag = true
@@ -351,8 +359,9 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 	delete(server.IntfConfMap, intfConfKey)
 	if flag == true {
 		msg := NetworkLSAChangeMsg{
-			areaId:  areaId,
-			intfKey: intfConfKey,
+			areaId:    areaId,
+			intfKey:   intfConfKey,
+			intfState: config.Intf_Down,
 		}
 		server.IntfStateChangeCh <- msg
 	}
@@ -393,13 +402,6 @@ func (server *OSPFServer) updateIPIntfConfMap(ifConf config.InterfaceConf) {
 		ent.IfHelloInterval = uint16(ifConf.IfHelloInterval)
 		ent.IfRtrDeadInterval = uint32(ifConf.IfRtrDeadInterval)
 		ent.IfPollInterval = ifConf.IfPollInterval
-		//authKey := convertAuthKey(string(ifConf.IfAuthKey))
-		//if authKey == nil {
-		//	server.logger.Err("Invalid authKey")
-		//	return
-		//}
-		//ent.IfAuthKey = authKey
-		ent.IfAuthType = uint16(ifConf.IfAuthType)
 		/* Re initiate the Interface State */
 		ent.IfDRIp = []byte{0, 0, 0, 0}
 		ent.IfBDRIp = []byte{0, 0, 0, 0}
@@ -409,7 +411,7 @@ func (server *OSPFServer) updateIPIntfConfMap(ifConf config.InterfaceConf) {
 		ent.IfLsaCount = 0
 		ent.IfLsaCksumSum = 0
 		server.IntfConfMap[intfConfKey] = ent
-		server.logger.Info(fmt.Sprintln("1:Update IPIntfConfMap for ", intfConfKey))
+		server.logger.Debug(fmt.Sprintln("1:Update IPIntfConfMap for ", intfConfKey))
 	}
 }
 
@@ -423,6 +425,13 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 		server.logger.Err(fmt.Sprintln("No such L3 interface exists ", intfConfKey.IPAddr, intfConfKey.IntfIdx))
 		err := errors.New("No such L3 interface exists")
 		return err
+	}
+	ipKey := convertAreaOrRouterIdUint32(string(ifConf.IfIpAddress))
+	ip, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("No such L3 interface exists ", intfConfKey.IPAddr,
+			intfConfKey.IntfIdx))
+		return errors.New("No L3 intf exist")
 	}
 	if intfConfKey.IPAddr == "0.0.0.0" &&
 		ifConf.IfType == config.NumberedP2P || ifConf.IfType == config.UnnumberedP2P {
@@ -441,21 +450,192 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 			return err
 		}
 	}
-
+	server.logger.Debug(fmt.Sprintln("Intf: ifadmin ", ent.IfAdminStat, " ipstate",
+		ip.IpState, " global admin ", server.ospfGlobalConf.AdminStat))
 	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.StopSendRecvPkts(intfConfKey)
 	}
 
 	server.updateIPIntfConfMap(ifConf)
 
-	server.logger.Info(fmt.Sprintln("InterfaceConf:", server.IntfConfMap))
 	ent, _ = server.IntfConfMap[intfConfKey]
+	server.logger.Info(fmt.Sprintln("InterfaceConf:", server.IntfConfMap))
+	server.logger.Debug(fmt.Sprintln("Intf: ifadmin ", ent.IfAdminStat, " ipstate",
+		ip.IpState, " global admin ", server.ospfGlobalConf.AdminStat))
 	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up &&
 		server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.StartSendRecvPkts(intfConfKey)
 	}
 	return nil
+}
+
+func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) error {
+	server.logger.Debug(fmt.Sprintln("Intf: Update interface ", ifConf))
+	updateFlags := server.DiffWithIntfConfObjAndSetFlags(ifConf)
+	if updateFlags == 0 {
+		server.logger.Info("Intf: Update nothing changed. Return ", ifConf)
+	}
+	ifKey := IntfConfKey{
+		IPAddr:  ifConf.IfIpAddress,
+		IntfIdx: ifConf.AddressLessIf,
+	}
+	ipKey := convertAreaOrRouterIdUint32(string(ifConf.IfIpAddress))
+	ip, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("Intf : Update , no L3 interface exist. No updates made.", ipKey))
+		return errors.New("No L3 intf exist")
+	}
+	//stop interface state machine.
+	server.logger.Debug(fmt.Sprintln("Intf: Update - Stop interface FSM"))
+	ent, exist := server.IntfConfMap[ifKey]
+	if !exist {
+		server.logger.Err(fmt.Sprintln("Intf: Update failed as ospf intf does not exist ", ifKey))
+		return errors.New("Ospf Interface does not exist ")
+	}
+	server.logger.Debug(fmt.Sprintln("Intf admin stat ", ent.IfAdminStat,
+		"ip state", ip.IpState, "global admin_stat", server.ospfGlobalConf.AdminStat))
+	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up &&
+		server.ospfGlobalConf.AdminStat == config.Enabled {
+		server.logger.Debug(fmt.Sprintln("Intf: Update Stop send recv packets ", ifKey))
+		server.StopSendRecvPkts(ifKey)
+	}
+
+	//update interface config.
+	server.logger.Debug(fmt.Sprintln("Intf: Update - Update intfconf map "))
+	server.updateIPIntfConfMap(ifConf)
+	//send notification to lsdb
+	//(it will update LSDB and clear neighbor datastructures
+	server.logger.Debug(fmt.Sprintln("Intf: Update - send message to neighbor"))
+	ent, _ = server.IntfConfMap[ifKey]
+	if !exist {
+		server.logger.Err(fmt.Sprintln("Intf: Failed to get interface entry ", ifKey))
+		return errors.New("Interface entry does not exist.")
+	}
+	var intfState config.Status
+	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up {
+		intfState = config.Intf_Up
+	} else {
+		intfState = config.Intf_Down
+	}
+	msg := NetworkLSAChangeMsg{
+		areaId:    convertAreaOrRouterIdUint32(string(ifConf.IfAreaId)),
+		intfKey:   ifKey,
+		intfState: intfState,
+	}
+	if server.ospfGlobalConf.AdminStat != config.Enabled {
+		server.IntfStateChangeCh <- msg
+	}
+	//start interface state machine.
+	ent, _ = server.IntfConfMap[ifKey]
+
+	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up &&
+		server.ospfGlobalConf.AdminStat == config.Enabled {
+		server.logger.Debug(fmt.Sprintln("Intf: Update Start send recv packets ", ifKey))
+		server.StartSendRecvPkts(ifKey)
+	} else {
+		server.logger.Debug(fmt.Sprintln("Intf: Update - admin state down . Stop fsm ", ifKey))
+	}
+	return nil
+}
+
+func (server *OSPFServer) processIntfConfigDelete(ifConf config.InterfaceConf) error {
+	server.logger.Debug(fmt.Sprintln("Intf: Delete called ", ifConf))
+	return nil
+}
+
+/*
+ * When interface state changes
+ * 1) Update ip property map .
+ * 2) If intrface config map exist , process interface config
+      based on UP/DOWN state.
+ *  If ifState == Intf_Down , stop sending packets.
+ *  If ifState == Intf_Up, check other flags and start sending packets.
+*/
+func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
+	ifState config.Status, msgType uint8) {
+	var ifIdx int32
+	var updateIfConf bool
+	server.logger.Debug(fmt.Sprintln("Intf : intf state change ", ipAddr, " state ", ifState))
+	if ipAddr == "0.0.0.0" {
+		ifIdx = ifIndex
+	} else {
+		ifIdx = 0
+	}
+	intf, _, _ := net.ParseCIDR(ipAddr)
+
+	intfKey := IntfConfKey{
+		IPAddr:  config.IpAddress(intf.String()),
+		IntfIdx: config.InterfaceIndexOrZero(ifIdx),
+	}
+	ent, exist := server.IntfConfMap[intfKey]
+	if exist {
+		server.logger.Debug(fmt.Sprintln("Intf: Ospf intf exist for ", ipAddr))
+		updateIfConf = true
+	} else {
+		server.logger.Debug(fmt.Sprintln("Intf: Ospf intf does not exist ", ipAddr))
+		updateIfConf = false
+	}
+	ipAddrKey, _, _ := net.ParseCIDR(ipAddr)
+	ipKey := convertAreaOrRouterIdUint32(ipAddrKey.String())
+	ip, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("Intf: Ip ", ipAddr,
+			" doesnt exist in ip proprty map. Ospf will not be started. "))
+		return
+	}
+
+	if updateIfConf {
+		server.logger.Debug(fmt.Sprintln("Intf: Update intf config for ", intfKey, " state changed ", ifState))
+		areaId := convertIPv4ToUint32(ent.IfAreaId)
+		AreaId := convertIPInByteToString(ent.IfAreaId)
+
+		var flag bool
+		if ifState == config.Intf_Down {
+			server.logger.Debug(fmt.Sprintln("Intf: Down . Update area id info"))
+			server.updateIntfToAreaMap(intfKey, AreaId, "none")
+			server.logger.Debug(fmt.Sprintln("Intf: Down admin ", ent.IfAdminStat,
+				" admin ", server.ospfGlobalConf.AdminStat))
+			if ent.IfAdminStat == config.Enabled &&
+				ip.IpState == config.Intf_Up &&
+				server.ospfGlobalConf.AdminStat == config.Enabled {
+				server.logger.Debug(fmt.Sprintln("Intf: Down. Stop send receive packets"))
+				server.StopSendRecvPkts(intfKey)
+				flag = true
+			}
+			server.IntfKeyToSliceIdxMap[intfKey] = false
+			if flag {
+				msg := NetworkLSAChangeMsg{
+					areaId:    areaId,
+					intfKey:   intfKey,
+					intfState: config.Intf_Down,
+				}
+				server.IntfStateChangeCh <- msg
+
+			}
+			server.logger.Debug(fmt.Sprintln("Intf: Intf is down . Stop ospf on ", ipAddr))
+		}
+
+		if ifState == config.Intf_Up {
+			server.updateIntfToAreaMap(intfKey, "none", AreaId)
+			if ent.IfAdminStat == config.Enabled &&
+				ifState == config.Intf_Up &&
+				server.ospfGlobalConf.AdminStat == config.Enabled {
+				server.StartSendRecvPkts(intfKey)
+				flag = true
+				server.logger.Debug(fmt.Sprintln("Intf: Intf is Up . Start ospf on ", ipAddr))
+			}
+			server.IntfKeyToSliceIdxMap[intfKey] = true
+		}
+	}
+
+	ip.IpState = ifState
+	server.ipPropertyMap[ipKey] = ip
 }
 
 func (server *OSPFServer) StopSendRecvPkts(intfConfKey IntfConfKey) {
@@ -464,14 +644,16 @@ func (server *OSPFServer) StopSendRecvPkts(intfConfKey IntfConfKey) {
 	server.logger.Info("Stop Receiving Hello Pkt")
 	server.StopOspfRecvPkts(intfConfKey)
 	ent, _ := server.IntfConfMap[intfConfKey]
-	ent.NeighborMap = nil
+	ent.NeighborMap = make(map[NeighborConfKey]NeighborData)
 	ent.IfEvents = ent.IfEvents + 1
 	ent.IfFSMState = config.Down
 	server.IntfConfMap[intfConfKey] = ent
+	server.updateIntfTxMap(intfConfKey, config.Intf_Down, ent.IfName)
 }
 
 func (server *OSPFServer) StartSendRecvPkts(intfConfKey IntfConfKey) {
 	ent, _ := server.IntfConfMap[intfConfKey]
+	server.updateIntfTxMap(intfConfKey, config.Intf_Up, ent.IfName)
 	helloInterval := time.Duration(ent.IfHelloInterval) * time.Second
 	ent.HelloIntervalTicker = time.NewTicker(helloInterval)
 	if ent.IfType == config.Broadcast {
@@ -514,4 +696,113 @@ func (server *OSPFServer) refreshIntfKeySlice() {
 		server.IntfKeySlice = append(server.IntfKeySlice, key)
 		server.IntfKeyToSliceIdxMap[key] = true
 	}
+}
+
+func (server *OSPFServer) updateIntfTxMap(key IntfConfKey, status config.Status, ifName string) {
+	var txEntry IntfTxHandle
+	var exist bool
+	txEntry, exist = server.IntfTxMap[key]
+
+	if status == config.Intf_Up {
+		if exist {
+			if txEntry.SendMutex == nil {
+				sendHdl, err := pcap.OpenLive(ifName, snapshot_len, promiscuous, timeout_pcap)
+				if sendHdl == nil {
+					server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ifName, err))
+					return
+				}
+				txEntry.SendPcapHdl = sendHdl
+			}
+		} else {
+			sendHdl, err := pcap.OpenLive(ifName, snapshot_len, promiscuous, timeout_pcap)
+			if sendHdl == nil {
+				server.logger.Err(fmt.Sprintln("SendHdl: No device found.", ifName, err))
+				return
+			}
+			txEntry.SendPcapHdl = sendHdl
+			txEntry.SendMutex = &sync.Mutex{}
+			server.logger.Debug(fmt.Sprintln("Pcap : Created successfully for ", ifName))
+		}
+		server.IntfTxMutex.Lock()
+		server.IntfTxMap[key] = txEntry
+		server.IntfTxMutex.Unlock()
+	}
+
+	if status == config.Intf_Down {
+		if exist {
+			server.IntfTxMutex.Lock()
+			delete(server.IntfTxMap, key)
+			server.IntfTxMutex.Unlock()
+			server.logger.Debug(fmt.Sprintln("Pcap : Deleted successfully for ", ifName))
+		}
+	}
+}
+
+func (server *OSPFServer) ProcessIntfConfChange(ifMsg config.InterfaceRpcMsg) {
+	if ifMsg.Op == config.CREATE {
+		err := server.processIntfConfig(ifMsg.IntfConf)
+		if err == nil {
+			//Handle Intf Configuration
+		}
+	}
+	if ifMsg.Op == config.UPDATE {
+		err := server.processIntfConfigUpdate(ifMsg.IntfConf)
+		if err != nil {
+			server.logger.Debug(fmt.Sprintln("intf : Failed to update interface config ", ifMsg))
+		}
+	}
+
+	if ifMsg.Op == config.DELETE {
+		err := server.processIntfConfigDelete(ifMsg.IntfConf)
+		if err != nil {
+			server.logger.Debug(fmt.Sprintln("Intf: Failed to delete interface config ", ifMsg))
+		}
+	}
+}
+
+/**** UTIL APIs ******/
+func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.InterfaceConf) config.ConfFlag {
+	var flags config.ConfFlag = 0
+
+	intfConfKey := IntfConfKey{
+		IPAddr:  ifConf.IfIpAddress,
+		IntfIdx: config.InterfaceIndexOrZero(ifConf.AddressLessIf),
+	}
+	ent, exist := server.IntfConfMap[intfConfKey]
+	if !exist {
+		server.logger.Err(fmt.Sprintln("Intf Update: No such L3 interface exists ", intfConfKey.IPAddr, intfConfKey.IntfIdx))
+		server.logger.Debug("No such L3 interface exists")
+		return 0
+	}
+	if ent.IfHelloInterval != uint16(ifConf.IfHelloInterval) {
+		flags |= config.IF_HELLO_INTERVAL
+	}
+	entAreaId := convertIPInByteToString(ent.IfAreaId)
+	confAreaId := string(ifConf.IfAreaId)
+	if entAreaId != confAreaId {
+		flags |= config.IF_AREA_ID
+	}
+
+	if ent.IfType != ifConf.IfType {
+		flags |= config.IF_TYPE
+	}
+	if ent.IfAdminStat != ifConf.IfAdminStat {
+		flags |= config.IF_ADMIN_STAT
+	}
+	if ent.IfRtrPriority != uint8(ifConf.IfRtrPriority) {
+		flags |= config.IF_RTR_PRIORITY
+	}
+	if ent.IfTransitDelay != ifConf.IfTransitDelay {
+		flags |= config.IF_TRANSIT_DELAY
+	}
+	if ent.IfRetransInterval != ifConf.IfRetransInterval {
+		flags |= config.IF_RETRANS_INTERVAL
+	}
+	if ent.IfRtrDeadInterval != uint32(ifConf.IfRtrDeadInterval) {
+		flags |= config.IF_RTR_DEAD_INTERVAL
+	}
+	if ent.IfPollInterval != ifConf.IfPollInterval {
+		flags |= config.IF_POLL_INTERVAL
+	}
+	return flags
 }

@@ -136,6 +136,7 @@ func (server *OSPFServer) readGlobalConfFromDB() {
 func (server *OSPFServer) applyOspfGlobalConf(conf *ospfd.OspfGlobal) error {
 	gConf := config.GlobalConf{
 		RouterId:        config.RouterId(conf.RouterId),
+		AdminStat:       config.Status(conf.AdminStat),
 		ASBdrRtrStatus:  conf.ASBdrRtrStatus,
 		TOSSupport:      conf.TOSSupport,
 		RestartSupport:  config.RestartSupport(conf.RestartSupport),
@@ -177,11 +178,10 @@ func (server *OSPFServer) readAreaConfFromDB() {
 
 func (server *OSPFServer) applyOspfAreaConf(conf *ospfd.OspfAreaEntry) error {
 	aConf := config.AreaConf{
-		AreaId:                 config.AreaId(conf.AreaId),
-		AuthType:               config.AuthType(conf.AuthType),
-		ImportAsExtern:         config.ImportAsExtern(conf.ImportAsExtern),
-		AreaSummary:            config.AreaSummary(conf.AreaSummary),
-		AreaNssaTranslatorRole: config.NssaTranslatorRole(conf.AreaNssaTranslatorRole),
+		AreaId:         config.AreaId(conf.AreaId),
+		AuthType:       config.AuthType(conf.AuthType),
+		ImportAsExtern: config.ImportAsExtern(conf.ImportAsExtern),
+		AreaSummary:    config.AreaSummary(conf.AreaSummary),
 	}
 	err := server.processAreaConfig(aConf)
 	if err != nil {
@@ -211,7 +211,7 @@ func (server *OSPFServer) readIntfConfFromDB() {
 		objects.ConvertospfdOspfIfEntryObjToThrift(&dbObject, obj)
 		err := server.applyOspfIntfConf(obj)
 		if err != nil {
-			server.logger.Err("Error applying Ospf Area Configuration")
+			server.logger.Err("Error applying Ospf IntfConfiguration")
 		}
 	}
 }
@@ -221,14 +221,13 @@ func (server *OSPFServer) applyOspfIntfConf(conf *ospfd.OspfIfEntry) error {
 		IfIpAddress:       config.IpAddress(conf.IfIpAddress),
 		AddressLessIf:     config.InterfaceIndexOrZero(conf.AddressLessIf),
 		IfAreaId:          config.AreaId(conf.IfAreaId),
+		IfAdminStat:       config.Status(conf.IfAdminStat),
 		IfRtrPriority:     config.DesignatedRouterPriority(conf.IfRtrPriority),
 		IfTransitDelay:    config.UpToMaxAge(conf.IfTransitDelay),
 		IfRetransInterval: config.UpToMaxAge(conf.IfRetransInterval),
 		IfHelloInterval:   config.HelloRange(conf.IfHelloInterval),
 		IfRtrDeadInterval: config.PositiveInteger(conf.IfRtrDeadInterval),
 		IfPollInterval:    config.PositiveInteger(conf.IfPollInterval),
-		IfAuthKey:         conf.IfAuthKey,
-		IfAuthType:        config.AuthType(conf.IfAuthType),
 	}
 
 	for index, ifName := range config.IfTypeList {
@@ -240,8 +239,8 @@ func (server *OSPFServer) applyOspfIntfConf(conf *ospfd.OspfIfEntry) error {
 
 	err := server.processIntfConfig(ifConf)
 	if err != nil {
-		server.logger.Err("Error Configuring Ospf Area Configuration")
-		err := errors.New("Error Configuring Ospf Area Configuration")
+		server.logger.Err("Error Configuring Ospf Intf Configuration")
+		err := errors.New("Error Configuring Ospf Intf Configuration")
 		return err
 	}
 	return nil
@@ -319,7 +318,7 @@ func (server *OSPFServer) DelIPv4RoutesState(entry RoutingTblEntryKey) error {
 	obj.DestType = string(entry.DestType)
 
 	objects.ConvertThriftToospfdOspfIPv4RouteStateObj(obj, &dbObj)
-	if  server.dbHdl == nil {
+	if server.dbHdl == nil {
 		return errors.New(fmt.Sprintln("Nil dbobj or db handle.", entry))
 	}
 	err := dbObj.DeleteObjectFromDb(server.dbHdl)
@@ -453,7 +452,7 @@ func (server *OSPFServer) AddOspfEventState(eventType string, eventInfo string) 
 	}
 	err := dbObj.StoreObjectInDb(server.dbHdl)
 	if server.dbHdl == nil {
-	return errors.New(fmt.Sprintln("Nil db handle"))
+		return errors.New(fmt.Sprintln("Nil db handle"))
 	}
 	if err != nil {
 		server.logger.Err(fmt.Sprintln("DB: Failed to add event object in db , err ", err))
@@ -475,7 +474,7 @@ func (server *OSPFServer) DelOspfEventState(entry config.OspfEventState) error {
 
 	objects.ConvertThriftToospfdOspfEventStateObj(obj, &dbObj)
 	if server.dbHdl == nil {
-	 return errors.New(fmt.Sprintln("Nil db handle"))
+		return errors.New(fmt.Sprintln("Nil db handle"))
 	}
 	err := dbObj.DeleteObjectFromDb(server.dbHdl)
 	if err != nil {

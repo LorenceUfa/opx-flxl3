@@ -166,6 +166,7 @@ service RIBDINTServices
 	int GetTotalv4RouteCount();
 	int GetTotalv6RouteCount();
 	string Getv4RouteCreatedTime(1:int number);
+	string Getv6RouteCreatedTime(1:int number);
 	oneway void OnewayCreateBulkIPv4Route(1: list<IPv4RouteConfig> config);
 	bool CreatePolicyAction(1: PolicyAction config);
 	bool UpdatePolicyAction(1: PolicyAction origconfig, 2: PolicyAction newconfig, 3: list<bool> attrset, 4: list<PatchOpInfo> op);

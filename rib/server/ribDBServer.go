@@ -144,8 +144,8 @@ func (m RIBDServer) WriteIPv4RouteStateEntryToDB(dbInfo RouteDBInfo) error {
 }
 
 func (m RIBDServer) WriteIPv6RouteStateEntryToDB(dbInfo RouteDBInfo) error {
-	//logger.Info("WriteIPv6RouteStateEntryToDB")
 	entry := dbInfo.entry
+	logger.Debug("WriteIPv6RouteStateEntryToDB for entry :", entry)
 	routeList := dbInfo.routeList
 	m.DelIPv6RouteStateEntryFromDB(dbInfo)
 	var dbObj objects.IPv6RouteState
@@ -158,7 +158,6 @@ func (m RIBDServer) WriteIPv6RouteStateEntryToDB(dbInfo RouteDBInfo) error {
 	nextHopInfo := make([]ribd.NextHopInfo, len(routeInfoList))
 	i := 0
 	for sel := 0; sel < len(routeInfoList); sel++ {
-		logger.Info("nextHop ", sel, " weight = ", routeInfoList[sel].weight, " ip ", routeInfoList[sel].nextHopIp, " intref ", routeInfoList[sel].nextHopIfIndex)
 		nextHopInfo[i].NextHopIp = routeInfoList[sel].nextHopIp.String()
 		if nextHopInfo[i].NextHopIp == "0.0.0.0" {
 			nextHopInfo[i].NextHopIp = "::"
@@ -166,7 +165,6 @@ func (m RIBDServer) WriteIPv6RouteStateEntryToDB(dbInfo RouteDBInfo) error {
 		nextHopInfo[i].NextHopIntRef = strconv.Itoa(int(routeInfoList[sel].nextHopIfIndex))
 		intfEntry, ok := IntfIdNameMap[int32(routeInfoList[sel].nextHopIfIndex)]
 		if ok {
-			logger.Debug("Map foud for ifndex : ", routeInfoList[sel].nextHopIfIndex, "Name = ", intfEntry.name)
 			nextHopInfo[i].NextHopIntRef = intfEntry.name
 		}
 		if nextHopInfo[i].NextHopIp == "255.255.255.255" {
@@ -213,11 +211,10 @@ func (m RIBDServer) WriteIPv6RouteStateEntryToDB(dbInfo RouteDBInfo) error {
 	obj.NextBestRoute = &ribd.NextBestRouteInfo{}
 	obj.NextBestRoute.Protocol = SelectNextBestRoute(routeList, routeList.selectedRouteProtocol)
 	nextbestrouteInfoList := routeList.routeInfoProtocolMap[obj.NextBestRoute.Protocol]
-	//logger.Info("len of routeInfoList - ", len(routeInfoList), "selected route protocol = ", routeList.selectedRouteProtocol, " route Protocol: ", entry.protocol, " route nwAddr: ", entry.networkAddr)
 	nextBestRouteNextHopInfo := make([]ribd.NextHopInfo, len(nextbestrouteInfoList))
 	i1 := 0
 	for sel1 := 0; sel1 < len(nextbestrouteInfoList); sel1++ {
-		//logger.Info("nextHop ", sel, " weight = ", routeInfoList[sel].weight, " ip ", routeInfoList[sel].nextHopIp, " intref ", routeInfoList[sel].nextHopIfIndex)
+		//logger.Info("WriteIPv6RouteStateEntryToDB:nextHop ", sel, " weight = ", routeInfoList[sel].weight, " ip ", routeInfoList[sel].nextHopIp, " intref ", routeInfoList[sel].nextHopIfIndex)
 		nextBestRouteNextHopInfo[i1].NextHopIp = nextbestrouteInfoList[sel1].nextHopIp.String()
 		nextBestRouteNextHopInfo[i1].NextHopIntRef = strconv.Itoa(int(nextbestrouteInfoList[sel1].nextHopIfIndex))
 		intfEntry, ok := IntfIdNameMap[int32(nextbestrouteInfoList[sel1].nextHopIfIndex)]
@@ -230,13 +227,14 @@ func (m RIBDServer) WriteIPv6RouteStateEntryToDB(dbInfo RouteDBInfo) error {
 		obj.NextBestRoute.NextHopList = append(obj.NextBestRoute.NextHopList, &nextBestRouteNextHopInfo[i1])
 		i1++
 	}
+	logger.Debug("WriteIPv6RouteStateEntryToDB for nwAddr:", entry.networkAddr, " converting and updating in db")
 	objects.ConvertThriftToribdIPv6RouteStateObj(obj, &dbObj)
 	err := dbObj.StoreObjectInDb(m.DbHdl)
 	if err != nil {
-		//logger.Err("Failed to store IPv6RouteState entry in DB, err - ", err)
+		logger.Err("WriteIPv6RouteStateEntryToDB:Failed to store IPv6RouteState entry in DB, err - ", err, " for entry:", entry)
 		return errors.New(fmt.Sprintln("Failed to add IPv6RouteState db : ", entry))
 	}
-	//logger.Info("returned successfully after write to DB for IPv6RouteState")
+	logger.Info("WriteIPv6RouteStateEntryToDB:returned successfully after write to DB for IPv6RouteState for nwAddr:", entry.networkAddr)
 	return nil
 }
 

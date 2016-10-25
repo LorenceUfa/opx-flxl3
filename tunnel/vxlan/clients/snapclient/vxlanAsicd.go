@@ -6,12 +6,13 @@ import (
 	"asicdServices"
 	"encoding/json"
 	"fmt"
-	nanomsg "github.com/op/go-nanomsg"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"net"
 	"strconv"
 	"strings"
 	"utils/commonDefs"
+
+	nanomsg "github.com/op/go-nanomsg"
 )
 
 type AsicdClient struct {
@@ -30,10 +31,12 @@ var PortVlanDb map[uint16][]*portVlanValue
 func ConvertVxlanConfigToVxlanAsicdConfig(c *vxlan.VxlanConfig) *asicdInt.Vxlan {
 
 	return &asicdInt.Vxlan{
-		Vni:      int32(c.VNI),
-		VlanId:   int16(c.VlanId),
-		McDestIp: c.Group.String(),
-		Mtu:      int32(c.MTU),
+		Vni:              int32(c.VNI),
+		VlanId:           int16(c.VlanId),
+		McDestIp:         c.Group.String(),
+		Mtu:              int32(c.MTU),
+		IntfRefList:      c.IntfRefList,
+		UntagIntfRefList: c.UntagIntfRefList,
 	}
 }
 
@@ -78,7 +81,7 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 			currMarker = asicdServices.Int(bulkInfo.EndIdx)
 			for i := 0; i < objCount; i++ {
 				if bulkInfo.PortStateList[i].IntfRef != bulkCfgInfo.PortList[i].IntfRef {
-					logger.Err(fmt.Sprintln("Error IntfRef differ at index",bulkInfo.PortStateList[i].IntfRef, bulkCfgInfo.PortList[i].IntfRef))
+					logger.Err(fmt.Sprintln("Error IntfRef differ at index", bulkInfo.PortStateList[i].IntfRef, bulkCfgInfo.PortList[i].IntfRef))
 				}
 				ifindex := bulkInfo.PortStateList[i].IfIndex
 				netMac, _ := net.ParseMAC(bulkCfgInfo.PortList[i].MacAddr)
@@ -150,17 +153,19 @@ func (intf VXLANSnapClient) processAsicdNotification(asicdrxBuf []byte) {
 		logger.Err(fmt.Sprintln("Unable to unmarshal asicdrxBuf:", asicdrxBuf))
 		return
 	}
-	if rxMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_UPDATE {
-		//Vlan Create Msg
-		logger.Info("Recvd VLAN notification")
-		var vlanMsg asicdCommonDefs.VlanNotifyMsg
-		err = json.Unmarshal(rxMsg.Msg, &vlanMsg)
-		if err != nil {
-			logger.Err(fmt.Sprintln("Unable to unmashal vlanNotifyMsg:", rxMsg.Msg))
-			return
-		}
-		intf.updateVlanAccessPorts(vlanMsg, rxMsg.MsgType)
-	} else if rxMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE ||
+	/*
+		if rxMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_UPDATE {
+			//Vlan Create Msg
+			logger.Info("Recvd VLAN notification")
+			var vlanMsg asicdCommonDefs.VlanNotifyMsg
+			err = json.Unmarshal(rxMsg.Msg, &vlanMsg)
+			if err != nil {
+				logger.Err(fmt.Sprintln("Unable to unmashal vlanNotifyMsg:", rxMsg.Msg))
+				return
+			}
+			intf.updateVlanAccessPorts(vlanMsg, rxMsg.MsgType)
+		} */
+	if rxMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE ||
 		rxMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_DELETE {
 		logger.Info("Recvd IPV4INTF notification")
 		var v4Msg asicdCommonDefs.IPv4IntfNotifyMsg
@@ -220,6 +225,7 @@ func (intf VXLANSnapClient) processAsicdNotification(asicdrxBuf []byte) {
 // GetAccessPorts:
 // Discovered the ports which have been provisioned with membership to the
 // vxlan vlan.   This method will be called after Vxlan has been provisioned
+/*
 func (intf VXLANSnapClient) GetAccessPortVlan(vlan uint16) {
 	curMark := 0
 	logger.Info("Calling Asicd for getting Vlan Property")
@@ -231,7 +237,7 @@ func (intf VXLANSnapClient) GetAccessPortVlan(vlan uint16) {
 			if bulkVlanInfo == nil {
 				break
 			}
-			/* Get bulk on vlan state can re-use curMark and count used by get bulk vlan, as there is a 1:1 mapping in terms of cfg/state objs */
+			// Get bulk on vlan state can re-use curMark and count used by get bulk vlan, as there is a 1:1 mapping in terms of cfg/state objs
 			bulkVlanStateInfo, _ := asicdclnt.ClientHdl.GetBulkVlanState(asicdServices.Int(curMark), asicdServices.Int(count))
 			if bulkVlanStateInfo == nil {
 				break
@@ -279,7 +285,7 @@ func (intf VXLANSnapClient) updateVlanAccessPorts(msg asicdCommonDefs.VlanNotify
 		serverchannels.VxlanAccessPortVlanUpdate <- config
 	}
 }
-
+*/
 func (intf VXLANSnapClient) updateIpv4Intf(msg asicdCommonDefs.IPv4IntfNotifyMsg, msgType uint8) {
 	ipAddr := net.ParseIP(msg.IpAddr)
 	IfIndex := msg.IfIndex
@@ -354,6 +360,20 @@ func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanConfig) {
 	if asicdclnt.ClientHdl != nil {
 		asicdclnt.ClientHdl.DeleteVxlan(ConvertVxlanConfigToVxlanAsicdConfig(vxlan))
 	}
+}
+
+func (intf VXLANSnapClient) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
+	if asicdclnt.ClientHdl != nil {
+		asicdclnt.ClientHdl.AddHostInterfaceToVxlan(vni, intfreflist, untagintfreflist)
+	}
+
+}
+
+func (intf VXLANSnapClient) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
+	if asicdclnt.ClientHdl != nil {
+		asicdclnt.ClientHdl.DelHostInterfaceFromVxlan(vni, intfreflist, untagintfreflist)
+	}
+
 }
 
 // CreateVtep:

@@ -8,14 +8,15 @@ package vxlan
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"io/ioutil"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 )
 
 // constants for the status of the VTEP based on FSM and provisioning
@@ -376,55 +377,55 @@ func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 	// every vtep is tied to a port
 	if p, ok := portDB[vtep.SrcIfName]; ok {
 		phandle := p.handle
-                if phandle != nil {
+		if phandle != nil {
 
-		// outer ethernet header
-		eth := layers.VxlanEthernet{
-			layers.Ethernet{SrcMAC:       vtep.SrcMac,
-			DstMAC:       vtep.DstMac,
-			EthernetType: layers.EthernetTypeIPv4,
-			},
-		}
-		ip := layers.IPv4{
-			Version:    4,
-			IHL:        20,
-			TOS:        0,
-			//Length:     20 + uint16(origpktlen),
-			Id:         0xd2c0,
-			Flags:      layers.IPv4DontFragment, //IPv4Flag
-			FragOffset: 0,                       //uint16
-			TTL:        255,
-			Protocol:   layers.IPProtocolUDP, //IPProtocol
-			SrcIP:      vtep.SrcIp,
-			DstIP:      vtep.DstIp,
-		}
+			// outer ethernet header
+			eth := layers.VxlanEthernet{
+				layers.Ethernet{SrcMAC: vtep.SrcMac,
+					DstMAC:       vtep.DstMac,
+					EthernetType: layers.EthernetTypeIPv4,
+				},
+			}
+			ip := layers.IPv4{
+				Version: 4,
+				IHL:     20,
+				TOS:     0,
+				//Length:     20 + uint16(origpktlen),
+				Id:         0xd2c0,
+				Flags:      layers.IPv4DontFragment, //IPv4Flag
+				FragOffset: 0,                       //uint16
+				TTL:        255,
+				Protocol:   layers.IPProtocolUDP, //IPProtocol
+				SrcIP:      vtep.SrcIp,
+				DstIP:      vtep.DstIp,
+			}
 
-		udp := layers.UDP{
-			SrcPort: layers.UDPPort(vtep.UDP), // TODO need a src port
-			DstPort: layers.UDPPort(vtep.UDP),
-			//Length:  8 + uint16(origpktlen),
-		}
-		udp.SetNetworkLayerForChecksum(&ip)
+			udp := layers.UDP{
+				SrcPort: layers.UDPPort(vtep.UDP), // TODO need a src port
+				DstPort: layers.UDPPort(vtep.UDP),
+				//Length:  8 + uint16(origpktlen),
+			}
+			udp.SetNetworkLayerForChecksum(&ip)
 
-		vxlan := layers.VXLAN{
-			Flags: 0x08,
-		}
-		vxlan.SetVNI(vtep.Vni)
+			vxlan := layers.VXLAN{
+				Flags: 0x08,
+			}
+			vxlan.SetVNI(vtep.Vni)
 
-		// Set up buffer and options for serialization.
-		buf := gopacket.NewSerializeBuffer()
-		opts := gopacket.SerializeOptions{
-			FixLengths:       true,
-			ComputeChecksums: true,
+			// Set up buffer and options for serialization.
+			buf := gopacket.NewSerializeBuffer()
+			opts := gopacket.SerializeOptions{
+				FixLengths:       true,
+				ComputeChecksums: true,
+			}
+			// Send one packet for every address.
+			gopacket.SerializeLayers(buf, opts, &eth, &ip, &udp, &vxlan, gopacket.Payload(packet.Data()))
+			//logger.Info(fmt.Sprintf("Rx Packet now encapsulating and sending packet to if", vtep.SrcIfName, buf.Bytes()))
+			if err := phandle.WritePacketData(buf.Bytes()); err != nil {
+				logger.Err("Error writing packet to interface")
+				return
+			}
+			vtep.txpkts++
 		}
-		// Send one packet for every address.
-		gopacket.SerializeLayers(buf, opts, &eth, &ip, &udp, &vxlan, gopacket.Payload(packet.Data()))
-		//logger.Info(fmt.Sprintf("Rx Packet now encapsulating and sending packet to if", vtep.SrcIfName, buf.Bytes()))
-		if err := phandle.WritePacketData(buf.Bytes()); err != nil {
-			logger.Err("Error writing packet to interface")
-			return
-		}
-		vtep.txpkts++
-                }
 	}
 }

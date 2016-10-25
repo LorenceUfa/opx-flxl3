@@ -115,7 +115,7 @@ func TestProcessRA(t *testing.T) {
 		t.Error("Want Neigbor Info:", *wantNbrInfo, "but received nbrInfo:", *nbrInfo)
 		return
 	}
-	testNdpServer.CreateNeighborInfo(nbrInfo)
+	testNdpServer.CreateNeighborInfo(nbrInfo, testIfIndex, testIntfRef)
 	if len(testNdpServer.NeighborInfo) == 0 {
 		t.Error("Failed to add new learned neighbor information after processing router advertisement")
 		return
