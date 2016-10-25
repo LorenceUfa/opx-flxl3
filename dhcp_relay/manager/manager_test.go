@@ -401,6 +401,9 @@ func (dbHdl DbFake) Publish(string, interface{}, interface{}) {}
 func (dbHdl DbFake) StoreValInDb(interface{}, interface{}, interface{}) error {
 	return nil
 }
+func (dbHdl DbFake) DeleteValFromDb(interface{}) error {
+	return nil
+}
 func (dbHdl DbFake) GetAllKeys(interface{}) (interface{}, error) {
 	return nil, nil
 }
