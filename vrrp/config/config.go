@@ -32,6 +32,8 @@ const (
 
 const (
 	USE_CONFIG_ADVERTISEMENT = -100
+	STATE_UP                 = "UP"
+	STATE_DOWN               = "DOWN"
 )
 
 const (
