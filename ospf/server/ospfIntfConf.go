@@ -359,8 +359,9 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 	delete(server.IntfConfMap, intfConfKey)
 	if flag == true {
 		msg := NetworkLSAChangeMsg{
-			areaId:  areaId,
-			intfKey: intfConfKey,
+			areaId:    areaId,
+			intfKey:   intfConfKey,
+			intfState: config.Intf_Down,
 		}
 		server.IntfStateChangeCh <- msg
 	}
@@ -514,10 +515,17 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 		server.logger.Err(fmt.Sprintln("Intf: Failed to get interface entry ", ifKey))
 		return errors.New("Interface entry does not exist.")
 	}
-
+	var intfState config.Status
+	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up {
+		intfState = config.Intf_Up
+	} else {
+		intfState = config.Intf_Down
+	}
 	msg := NetworkLSAChangeMsg{
-		areaId:  convertAreaOrRouterIdUint32(string(ifConf.IfAreaId)),
-		intfKey: ifKey,
+		areaId:    convertAreaOrRouterIdUint32(string(ifConf.IfAreaId)),
+		intfKey:   ifKey,
+		intfState: intfState,
 	}
 	if server.ospfGlobalConf.AdminStat != config.Enabled {
 		server.IntfStateChangeCh <- msg
@@ -603,8 +611,9 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 			server.IntfKeyToSliceIdxMap[intfKey] = false
 			if flag {
 				msg := NetworkLSAChangeMsg{
-					areaId:  areaId,
-					intfKey: intfKey,
+					areaId:    areaId,
+					intfKey:   intfKey,
+					intfState: config.Intf_Down,
 				}
 				server.IntfStateChangeCh <- msg
 
