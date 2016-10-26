@@ -26,7 +26,7 @@ func TestProcessResolveIPv4(t *testing.T) {
 
 func (server *ARPServer) recvConf(t *testing.T) {
 	conf := <-server.arpEntryUpdateCh
-	if conf.PortNum != 20 ||
+	if conf.PortIfIdx != 20 ||
 		conf.IpAddr != "10.10.10.10" ||
 		conf.MacAddr != "incomplete" ||
 		conf.Type != true {

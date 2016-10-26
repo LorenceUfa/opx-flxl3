@@ -34,6 +34,10 @@ import (
 
 func (h *OSPFHandler) UpdateOspfGlobal(origConf *ospfd.OspfGlobal, newConf *ospfd.OspfGlobal, attrset []bool, op []*ospfd.PatchOpInfo) (bool, error) {
 	h.logger.Info(fmt.Sprintln("Original global config attrs:", origConf))
+	err := h.SendOspfGlobal(newConf)
+	if err != nil {
+		return false, err
+	}
 	h.logger.Info(fmt.Sprintln("New global config attrs:", newConf))
 	return true, nil
 }

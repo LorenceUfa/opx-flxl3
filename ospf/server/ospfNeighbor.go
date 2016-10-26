@@ -923,11 +923,6 @@ func (server *OSPFServer) neighborDeadTimerEvent(nbrConfKey NeighborConfKey) {
 		_, exists := server.NeighborConfigMap[nbrConfKey]
 		if exists {
 			nbrConf := server.NeighborConfigMap[nbrConfKey]
-			msg := DbEventMsg{
-				eventType: config.ADJACENCY,
-				eventInfo: "Neighbor Dead " + nbrConf.OspfNbrIPAddr.String(),
-			}
-			server.DbEventOp <- msg
 			nbrConfMsg := ospfNeighborConfMsg{
 				ospfNbrConfKey: nbrConfKey,
 				ospfNbrEntry: OspfNeighborEntry{

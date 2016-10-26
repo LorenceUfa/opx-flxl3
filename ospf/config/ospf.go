@@ -281,6 +281,7 @@ const (
 )
 
 type GlobalConf struct {
+	Vrf                string
 	RouterId           RouterId
 	AdminStat          Status
 	ASBdrRtrStatus     bool

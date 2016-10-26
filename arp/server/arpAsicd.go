@@ -79,6 +79,9 @@ func (server *ARPServer) processAsicdNotification(msg commonDefs.AsicdNotifyMsg)
 }
 
 func (server *ARPServer) processAsicdMsg(msg AsicdMsg) error {
+	if server.AsicdPlugin == nil {
+		return errors.New("No asicd plugin")
+	}
 	switch msg.MsgType {
 	case CreateAsicdEntry:
 		server.logger.Debug("CreateAsicdEntry:", msg)
