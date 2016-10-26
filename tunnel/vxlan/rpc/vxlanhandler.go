@@ -249,7 +249,7 @@ func (v *VXLANDServiceHandler) CreateVxlanVtepInstance(config *vxland.VxlanVtepI
 	v.logger.Info(fmt.Sprintf("CreateVxlanVtepInstance %#v", config))
 	c, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(config)
 	if err == nil {
-		err = vxlan.VtepConfigCheck(c)
+		err = vxlan.VtepConfigCheck(c, true)
 		if err == nil {
 			v.server.Configchans.Vtepcreate <- *c
 			return true, err
@@ -273,7 +273,7 @@ func (v *VXLANDServiceHandler) UpdateVxlanVtepInstance(origconfig *vxland.VxlanV
 	oc, _ := vxlan.ConvertVxlanVtepInstanceToVtepConfig(origconfig)
 	nc, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(newconfig)
 	if err == nil {
-		err = vxlan.VtepConfigCheck(nc)
+		err = vxlan.VtepConfigCheck(nc, false)
 		if err == nil {
 			strattr := make([]string, 0)
 			objTyp := reflect.TypeOf(*origconfig)
@@ -371,10 +371,11 @@ func (la *VXLANDServiceHandler) GetBulkVxlanInstanceState(fromIndex vxland.Int, 
 	return obj, nil
 }
 
-func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string) (*vxland.VxlanVtepInstanceState, error) {
+func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32) (*vxland.VxlanVtepInstanceState, error) {
 	vis := &vxland.VxlanVtepInstanceState{}
 	key := vxlan.VtepDbKey{
 		Name: intf,
+		Vni:  uint32(vni),
 	}
 	if v, ok := vxlan.GetVtepDB()[key]; ok {
 		if v.Enable {

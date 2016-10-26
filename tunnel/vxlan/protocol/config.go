@@ -139,6 +139,15 @@ func VxlanConfigCheck(c *VxlanConfig) error {
 	if GetVxlanDBEntry(c.VNI) != nil {
 		return errors.New(fmt.Sprintln("Error VxlanInstance Exists vni is not unique", c))
 	}
+	if len(c.VlanId) > 1 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Only support one VNI->VLAN map", c))
+	}
+	if len(c.UntaggedVlan) > 1 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Only support one VNI->VLAN map", c))
+	}
+	if len(c.UntaggedVlan) > 0 && len(c.VlanId) > 0 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Only support one VNI->VLAN map", c))
+	}
 
 	// could optimize by making this call once on startup and listen for vlan create
 	// updates from asicd but for now this is the simple call (will only affect speed
@@ -154,7 +163,7 @@ func VxlanConfigCheck(c *VxlanConfig) error {
 
 		for _, provvlan := range vlanList {
 			if vlan == provvlan {
-				foundVlan = false
+				foundVlan = true
 			}
 		}
 		if !foundVlan {
@@ -175,6 +184,16 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 	vxlan := GetVxlanDBEntry(nc.VNI)
 	if vxlan == nil {
 		return errors.New(fmt.Sprintln("Error Error VxlanInstance Does not exists"))
+	}
+
+	if len(nc.VlanId) > 1 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Update Only support one VNI->VLAN map", nc))
+	}
+	if len(nc.UntaggedVlan) > 1 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Update Only support one VNI->VLAN map", nc))
+	}
+	if len(nc.UntaggedVlan) > 0 && len(nc.VlanId) > 0 {
+		return errors.New(fmt.Sprintln("Error VxlanInstance Update Only support one VNI->VLAN map", nc))
 	}
 
 	// could optimize by making this call once on startup and listen for vlan create
@@ -207,11 +226,12 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 
 // VtepConfigCheck
 // Validate the VTEP provisioning
-func VtepConfigCheck(c *VtepConfig) error {
+func VtepConfigCheck(c *VtepConfig, create bool) error {
 	key := VtepDbKey{
 		Name: c.VtepName,
+		Vni:  c.Vni,
 	}
-	if GetVtepDBEntry(&key) != nil {
+	if GetVtepDBEntry(&key) != nil && create {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
 	}
 
@@ -433,6 +453,7 @@ func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
 	if disableobj {
 		key := &VtepDbKey{
 			Name: c.Newconfig.VtepName,
+			Vni:  c.Newconfig.Vni,
 		}
 		vtep := GetVtepDBEntry(key)
 		if vtep != nil {
@@ -442,6 +463,7 @@ func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
 	} else if enableobj {
 		key := &VtepDbKey{
 			Name: c.Newconfig.VtepName,
+			Vni:  c.Newconfig.Vni,
 		}
 		vtep := GetVtepDBEntry(key)
 		if vtep != nil {

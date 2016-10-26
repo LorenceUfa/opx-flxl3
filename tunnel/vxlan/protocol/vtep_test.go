@@ -91,13 +91,13 @@ func (b mockintf) DeleteVtep(vtep *VtepDbEntry) {
 		vtepdeletedone <- true
 	}
 }
-func (b mockintf) CreateVxlan(vxlan *VxlanConfig) {
+func (b mockintf) CreateVxlan(vxlan *VxlanDbEntry) {
 	if !b.failCreateVxlan {
 		logger.Info("MOCK: Calling Vxlan Create done")
 		vxlancreatedone <- true
 	}
 }
-func (b mockintf) DeleteVxlan(vxlan *VxlanConfig) {
+func (b mockintf) DeleteVxlan(vxlan *VxlanDbEntry) {
 	if !b.failDeleteVxlan {
 		logger.Info("MOCK: calling Delete Vxlan")
 		vxlandeletedone <- true
@@ -269,6 +269,7 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -332,6 +333,7 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -374,6 +376,88 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 
 }
 
+// TestFSMInValidNumVlanInVxlanMapVtepVxlanCreate:
+// check validation, this is a temporary test till we can support multiple vlans in the
+// vni map
+func TestFSMInValidNumVlanInVxlanMapVtepVxlanCreate(t *testing.T) {
+
+	// setup common test info
+	vxlanConfig := &VxlanConfig{
+		Enable: true,
+		VNI:    100,
+		VlanId: []uint16{200, 300},
+	}
+
+	err := VxlanConfigCheck(vxlanConfig)
+	if err == nil {
+		t.Errorf("Error don't support more than one vlan in create")
+	}
+	vxlanConfig = &VxlanConfig{
+		Enable:       true,
+		VNI:          100,
+		VlanId:       []uint16{200},
+		UntaggedVlan: []uint16{300},
+	}
+	err = VxlanConfigCheck(vxlanConfig)
+	if err == nil {
+		t.Errorf("Error don't support more than one vlan in create")
+	}
+	vxlanConfig = &VxlanConfig{
+		Enable:       true,
+		VNI:          100,
+		UntaggedVlan: []uint16{200, 300},
+	}
+	err = VxlanConfigCheck(vxlanConfig)
+	if err == nil {
+		t.Errorf("Error don't support more than one vlan in create")
+	}
+
+	// check update
+	oc := &VxlanConfig{
+		Enable:       true,
+		VNI:          100,
+		UntaggedVlan: []uint16{200},
+	}
+	nc := &VxlanConfig{
+		Enable:       true,
+		VNI:          100,
+		UntaggedVlan: []uint16{200, 300},
+	}
+	err = VxlanConfigUpdateCheck(oc, nc)
+	if err == nil {
+		t.Errorf("Error don't support more than one vlan in create")
+	}
+	oc = &VxlanConfig{
+		Enable: true,
+		VNI:    100,
+		VlanId: []uint16{200},
+	}
+	nc = &VxlanConfig{
+		Enable: true,
+		VNI:    100,
+		VlanId: []uint16{200, 300},
+	}
+	err = VxlanConfigUpdateCheck(oc, nc)
+	if err == nil {
+		t.Errorf("Error don't support more than one vlan in create")
+	}
+	oc = &VxlanConfig{
+		Enable: true,
+		VNI:    100,
+		VlanId: []uint16{200},
+	}
+	nc = &VxlanConfig{
+		Enable:       true,
+		VNI:          100,
+		VlanId:       []uint16{200},
+		UntaggedVlan: []uint16{300},
+	}
+	err = VxlanConfigUpdateCheck(oc, nc)
+	if err == nil {
+		t.Errorf("Error don't support more than one vlan in create")
+	}
+}
+
 // TestFSMCreateVtepNoVxlan
 // Test that FSM is not running when vxlan is not configured
 func TestFSMCreateVtepNoVxlan(t *testing.T) {
@@ -406,6 +490,7 @@ func TestFSMCreateVtepNoVxlan(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -467,6 +552,7 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -557,6 +643,7 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -674,6 +761,7 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -769,6 +857,7 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -885,6 +974,7 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -982,6 +1072,7 @@ func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
 	// should only be one entry
 	key := &VtepDbKey{
 		Name: vtepConfig.VtepName,
+		Vni:  vtepConfig.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 

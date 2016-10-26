@@ -36,6 +36,7 @@ const (
 // Holds the key for the VtepDB
 type VtepDbKey struct {
 	Name string
+	Vni  uint32
 }
 
 // vtepStatus
@@ -83,13 +84,16 @@ type VtepDbEntry struct {
 	// handle name used to rx/tx packets to linux if
 	VtepHandleName string
 	// handle used to rx/tx packets to linux if
-	handle *pcap.Handle
+	handle     *pcap.Handle
+	taghandles map[uint16]*pcap.Handle
 
 	// Reference to the vxlan server
 	server *VXLANServer
 
-	rxpkts uint64
-	txpkts uint64
+	rxpkts    uint64
+	txpkts    uint64
+	rxfwdpkts uint64
+	txfwdpkts uint64
 
 	VxlanVtepMachineFsm *VxlanVtepMachine
 
@@ -195,6 +199,7 @@ func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 		DstMac:         c.TunnelDstMac,
 		VlanId:         c.VlanId,
 		Enable:         true,
+		taghandles:     make(map[uint16]*pcap.Handle, 0),
 	}
 	if c.InnerVlanHandlingMode == 0 {
 		vtep.FilterUnknownCustVlan = true
@@ -278,6 +283,7 @@ func DeleteVtep(c *VtepConfig) {
 
 	key := &VtepDbKey{
 		Name: c.VtepName,
+		Vni:  c.Vni,
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -313,11 +319,13 @@ func DeleteVtep(c *VtepConfig) {
 func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 	key := &VtepDbKey{
 		Name: c.VtepName,
+		Vni:  c.Vni,
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep == nil {
 		vtep = NewVtepDbEntry(c)
 		vtepDB[*key] = vtep
+		vtepDbList = append(vtepDbList, vtep)
 	} else {
 		vtep.SrcIfName = c.SrcIfName
 		vtep.UDP = c.UDP
@@ -363,12 +371,7 @@ func CreateVtepRxTx(vtep *VtepDbEntry) {
 	vtep.createVtepSenderListener()
 }
 
-// createVtepSenderListener:
-// This will listen for packets from the linux stack on the VtepHandleName
-// Similarly if the MAC was learned against this VTEP traffic will be transmited
-// back to the linux stack from this interface.
-func (vtep *VtepDbEntry) createVtepSenderListener() error {
-
+func (vtep *VtepDbEntry) createUntaggedVtepSenderListener() error {
 	// TODO need to revisit the timeout interval in case of processing lots of
 	// data frames
 	handle, err := pcap.OpenLive(vtep.VtepHandleName, 65536, true, 50*time.Millisecond)
@@ -376,18 +379,18 @@ func (vtep *VtepDbEntry) createVtepSenderListener() error {
 		logger.Err(fmt.Sprintf("%s: Error opening pcap.OpenLive for %s err=%s", vtep.VtepName, vtep.VtepHandleName, err))
 		return err
 	}
-	logger.Info(fmt.Sprintf("Creating VXLAN Listener for intf ", vtep.VtepName))
+	logger.Info(fmt.Sprintf("Creating VXLAN Listener for intf ", vtep.VtepHandleName))
 	vtep.handle = handle
 	src := gopacket.NewPacketSource(vtep.handle, layers.LayerTypeEthernet)
 	in := src.Packets()
 
-	go func(rxchan chan gopacket.Packet) {
+	go func(rxchan chan gopacket.Packet, vlan uint16) {
 		for {
 			select {
 			// packets received from applications which should be sent out
 			case packet, ok := <-rxchan:
 				if ok {
-					if !vtep.filterPacket(packet) {
+					if !vtep.filterPacket(packet, vlan) {
 						go vtep.encapAndDispatchPkt(packet)
 					}
 				} else {
@@ -396,27 +399,110 @@ func (vtep *VtepDbEntry) createVtepSenderListener() error {
 				}
 			}
 		}
-	}(in)
+	}(in, 0)
+	return nil
+}
+
+func (vtep *VtepDbEntry) createTaggedVtepSenderListener() error {
+	vxlan := GetVxlanDBEntry(vtep.Vni)
+
+	for _, vlan := range vxlan.VlanId {
+		vlanhandlename := fmt.Sprintf("%s.%d", vtep.VtepHandleName, vlan)
+		handle, err := pcap.OpenLive(vlanhandlename, 65536, true, 50*time.Millisecond)
+		if err != nil {
+			logger.Err(fmt.Sprintf("%s: Error opening pcap.OpenLive for %s err=%s", vtep.VtepName, vtep.VtepHandleName, err))
+			return err
+		}
+		logger.Info(fmt.Sprintf("Creating VXLAN Listener for intf ", vlanhandlename))
+		vtep.taghandles[vlan] = handle
+		src := gopacket.NewPacketSource(vtep.handle, layers.LayerTypeEthernet)
+		in := src.Packets()
+
+		go func(rxchan chan gopacket.Packet, vlan uint16) {
+			for {
+				select {
+				// packets received from applications which should be sent out
+				case packet, ok := <-rxchan:
+					if ok {
+						if !vtep.filterPacket(packet, vlan) {
+							go vtep.encapAndDispatchPkt(packet)
+						}
+					} else {
+						// channel closed
+						return
+					}
+				}
+			}
+		}(in, vlan)
+	}
+	return nil
+}
+
+// createVtepSenderListener:
+// This will listen for packets from the linux stack on the VtepHandleName
+// Similarly if the MAC was learned against this VTEP traffic will be transmited
+// back to the linux stack from this interface.
+func (vtep *VtepDbEntry) createVtepSenderListener() error {
+
+	// need to create a listener for each bridge instance within
+	// the vni, thus one for untagged and one for each tagged
+	// member
+	vxlan := GetVxlanDBEntry(vtep.Vni)
+	if vxlan != nil {
+		if len(vxlan.UntaggedVlanId) > 0 {
+			vtep.createUntaggedVtepSenderListener()
+		}
+		if len(vxlan.VlanId) > 0 {
+			vtep.createTaggedVtepSenderListener()
+		}
+	}
 
 	return nil
 }
 
 // do not process packets which contain the vtep src mac
-func (vtep *VtepDbEntry) filterPacket(packet gopacket.Packet) bool {
+func (vtep *VtepDbEntry) filterPacket(packet gopacket.Packet, vlan uint16) bool {
 
-	ethernetL := packet.Layer(layers.LayerTypeEthernet)
-	if ethernetL != nil {
-		ethernet := ethernetL.(*layers.Ethernet)
-		//logger.Info("filterPacket pkt:", ethernet.SrcMAC, "vtep:", vtep.SrcMac)
-		if ethernet.SrcMAC[0] == vtep.SrcMac[0] &&
-			ethernet.SrcMAC[1] == vtep.SrcMac[1] &&
-			ethernet.SrcMAC[2] == vtep.SrcMac[2] &&
-			ethernet.SrcMAC[3] == vtep.SrcMac[3] &&
-			ethernet.SrcMAC[4] == vtep.SrcMac[4] &&
-			ethernet.SrcMAC[5] == vtep.SrcMac[5] {
-			return true
-		}
-	}
+	//ethernetL := packet.Layer(layers.LayerTypeEthernet)
+	//vlanL := packet.Layer(layers.LayerTypeDot1Q)
+	//if ethernetL != nil {
+	//	ethernet := ethernetL.(*layers.Ethernet)
+	//	if vlan == 0 && vlanL != nil {
+	/*
+		vxlan := GetVxlanDBEntry(vtep.Vni)
+		if vxlan != nil {
+			dot1q := vlanL.(layers.Dot1Q)
+
+			foundVlan := false
+			for _, vlan := range vxlan.VlanId {
+				if dot1q.VLANIdentifier == vlan {
+					foundVlan = true
+				}
+			}
+			if !foundVlan {
+				vtep.r
+			}
+	*/
+	//		return true
+	//	} else if vlan != 0 && vlanL == nil {
+	//		return true
+	//	} else if vlanL != nil && vlan != 0 {
+	//		dot1q := vlanL.(*layers.Dot1Q)
+	//		if dot1q.VLANIdentifier != vlan {
+	//			return true
+	//		}
+	//	}
+
+	//logger.Info("filterPacket pkt:", ethernet.SrcMAC, "vtep:", vtep.SrcMac)
+	/*if ethernet.SrcMAC[0] == vtep.SrcMac[0] &&
+		ethernet.SrcMAC[1] == vtep.SrcMac[1] &&
+		ethernet.SrcMAC[2] == vtep.SrcMac[2] &&
+		ethernet.SrcMAC[3] == vtep.SrcMac[3] &&
+		ethernet.SrcMAC[4] == vtep.SrcMac[4] &&
+		ethernet.SrcMAC[5] == vtep.SrcMac[5] {
+		return true
+	}*/
+	//}
 	return false
 }
 
@@ -427,7 +513,7 @@ func (vtep *VtepDbEntry) snoop(data []byte) {
 		ethernet, _ := ethernetL.(*layers.Ethernet)
 		learnmac := ethernet.SrcMAC
 		// fdb entry mac -> vtep ip interface
-		logger.Debug(fmt.Sprintln("Learning mac", learnmac, "against", strings.TrimRight(vtep.VtepName, "Int")))
+		logger.Debug(fmt.Sprintln("TODO Learning mac", learnmac, "against", strings.TrimRight(vtep.VtepName, "Int")))
 		//asicDLearnFwdDbEntry(learnmac, vtep.VtepName, vtep.VtepIfIndex)
 	}
 
@@ -441,9 +527,19 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 		buf := vxlan.LayerPayload()
 		//logger.Info(fmt.Sprintf("Sending Packet to %s %#v", vtep.VtepName, buf))
 		vtep.snoop(buf)
-		if err := vtep.handle.WritePacketData(buf); err != nil {
-			logger.Err("Error writing packet to interface")
+		if vtep.handle != nil {
+			if err := vtep.handle.WritePacketData(buf); err != nil {
+				logger.Err("Error writing packet to interface")
+			}
+		} else {
+			for _, handle := range vtep.taghandles {
+				if err := handle.WritePacketData(buf); err != nil {
+					logger.Err("Error writing packet to interface")
+				}
+			}
 		}
+		vtep.rxfwdpkts++
+		vtep.rxpkts++
 	}
 }
 
@@ -452,7 +548,7 @@ func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 	if p, ok := portDB[vtep.SrcIfName]; ok {
 		phandle := p.handle
 		if phandle != nil {
-
+			//logger.Info("RX packet from Vtep", packet)
 			// outer ethernet header
 			eth := layers.VxlanEthernet{
 				layers.Ethernet{SrcMAC: vtep.SrcMac,
@@ -499,7 +595,10 @@ func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 				logger.Err("Error writing packet to interface")
 				return
 			}
+			vtep.snoop(packet.Data())
+
 			vtep.txpkts++
+			vtep.txfwdpkts++
 		}
 	}
 }

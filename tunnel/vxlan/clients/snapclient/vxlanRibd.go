@@ -130,7 +130,7 @@ func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxl
 	if ribdclnt.ClientHdl != nil {
 		nexthopinfo, err := ribdclnt.ClientHdl.GetRouteReachabilityInfo(ip.String(), -1)
 		if err == nil {
-			fmt.Println("GetNextHopInfo", ip, nexthopinfo, vxlan.PortConfigMap[3].Name)
+			fmt.Println("GetNextHopInfo", ip, nexthopinfo)
 
 			nexthopip := net.ParseIP(nexthopinfo.NextHopIp)
 			if nexthopinfo.IsReachable &&
