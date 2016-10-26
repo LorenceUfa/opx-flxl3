@@ -235,6 +235,11 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 		}
 		if vtep.handle != nil {
 			vtep.handle.Close()
+			vtep.handle = nil
+		}
+		for vlan, handle := range vtep.taghandles {
+			handle.Close()
+			delete(vtep.taghandles, vlan)
 		}
 		// need to check the ref count on the port
 		VxlanDelPortRxTx(vtep.NextHop.IfName, vtep.UDP)
@@ -379,7 +384,7 @@ func (vtep *VtepDbEntry) createUntaggedVtepSenderListener() error {
 		logger.Err(fmt.Sprintf("%s: Error opening pcap.OpenLive for %s err=%s", vtep.VtepName, vtep.VtepHandleName, err))
 		return err
 	}
-	logger.Info(fmt.Sprintf("Creating VXLAN Listener for intf ", vtep.VtepHandleName))
+	logger.Info("Creating VXLAN Listener for intf ", vtep.VtepHandleName)
 	vtep.handle = handle
 	src := gopacket.NewPacketSource(vtep.handle, layers.LayerTypeEthernet)
 	in := src.Packets()
@@ -390,6 +395,7 @@ func (vtep *VtepDbEntry) createUntaggedVtepSenderListener() error {
 			// packets received from applications which should be sent out
 			case packet, ok := <-rxchan:
 				if ok {
+					//logger.Info("Rx untagged pkg", packet)
 					if !vtep.filterPacket(packet, vlan) {
 						go vtep.encapAndDispatchPkt(packet)
 					}
@@ -413,9 +419,9 @@ func (vtep *VtepDbEntry) createTaggedVtepSenderListener() error {
 			logger.Err(fmt.Sprintf("%s: Error opening pcap.OpenLive for %s err=%s", vtep.VtepName, vtep.VtepHandleName, err))
 			return err
 		}
-		logger.Info(fmt.Sprintf("Creating VXLAN Listener for intf ", vlanhandlename))
+		logger.Info("Creating VXLAN Listener for intf ", vlanhandlename)
 		vtep.taghandles[vlan] = handle
-		src := gopacket.NewPacketSource(vtep.handle, layers.LayerTypeEthernet)
+		src := gopacket.NewPacketSource(handle, layers.LayerTypeEthernet)
 		in := src.Packets()
 
 		go func(rxchan chan gopacket.Packet, vlan uint16) {
@@ -424,6 +430,7 @@ func (vtep *VtepDbEntry) createTaggedVtepSenderListener() error {
 				// packets received from applications which should be sent out
 				case packet, ok := <-rxchan:
 					if ok {
+						//logger.Info("Rx tagged pkg", packet)
 						if !vtep.filterPacket(packet, vlan) {
 							go vtep.encapAndDispatchPkt(packet)
 						}
@@ -545,7 +552,7 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 
 func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 	// every vtep is tied to a port
-	if p, ok := portDB[vtep.SrcIfName]; ok {
+	if p, ok := portDB[vtep.NextHop.IfName]; ok {
 		phandle := p.handle
 		if phandle != nil {
 			//logger.Info("RX packet from Vtep", packet)

@@ -3,7 +3,7 @@ package snapclient
 
 import (
 	"arpd"
-	//"arpdInt"
+	"arpdInt"
 	"fmt"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"net"
@@ -17,7 +17,7 @@ type ArpdClient struct {
 
 var arpdclnt ArpdClient
 
-func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, macchan chan<- vxlan.MachineEvent) {
+func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, nexthopIfName string, macchan chan<- vxlan.MachineEvent) {
 	if arpdclnt.ClientHdl != nil {
 		arpentrystate, err := arpdclnt.ClientHdl.GetArpEntryState(nexthopip.String())
 		logger.Info(fmt.Sprintln("calling GetArpEntryState", nexthopip, nexthopip.String(), arpentrystate, err))
@@ -29,14 +29,11 @@ func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, macchan chan<- v
 				Data: nexthopmac,
 			}
 			macchan <- event
-		}
-		/* RIB should resolve
-		else {
-			logger.Info(fmt.Sprintln("calling ResolveArpIPV4", nexthopip))
-			portstate, _ := asicdclnt.ClientHdl.GetPortState("em4")
+		} else {
+			logger.Info(fmt.Sprintln("calling ResolveArpIPV4", nexthopip, nexthopIfName))
+			portstate, _ := asicdclnt.ClientHdl.GetPortState(nexthopIfName)
 			//arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.Pvid))
 			arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.IfIndex))
 		}
-		*/
 	}
 }

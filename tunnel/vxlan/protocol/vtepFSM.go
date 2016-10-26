@@ -314,7 +314,7 @@ func (vm *VxlanVtepMachine) VxlanVtepNextHopInfo(m fsm.Machine, data interface{}
 	}
 	// lets resolve the next hop mac
 	for _, client := range ClientIntf {
-		client.ResolveNextHopMac(vtep.NextHop.Ip, vm.VxlanVtepEvents)
+		client.ResolveNextHopMac(vtep.NextHop.Ip, vtep.NextHop.IfName, vm.VxlanVtepEvents)
 	}
 
 	return VxlanVtepStateNextHopInfo

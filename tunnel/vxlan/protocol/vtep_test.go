@@ -143,7 +143,7 @@ func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
 		logger.Info("MOCK: force fail")
 	}
 }
-func (b mockintf) ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent) {
+func (b mockintf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
 	logger.Info("MOCK: Calling ResolveNextHopMac")
 	mac, _ := net.ParseMAC("00:55:44:33:22:11")
 	if !b.failResolveNexHop {

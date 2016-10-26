@@ -32,7 +32,7 @@ type VXLANClientIntf interface {
 	// vtep fsm
 	GetIntfInfo(name string, intfchan chan<- MachineEvent)
 	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent)
-	ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent)
+	ResolveNextHopMac(nextHopIp net.IP, nexthopif string, nexthopmacchan chan<- MachineEvent)
 
 	GetLinkState(ifname string) string
 	GetAllVlans() []uint16
@@ -89,7 +89,7 @@ func (b BaseClientIntf) DeleteVxlanAccess() {
 func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
 
 }
-func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent) {
+func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
 
 }
 func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
