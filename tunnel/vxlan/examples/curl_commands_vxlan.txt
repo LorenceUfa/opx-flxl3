@@ -22,9 +22,6 @@ curl  -i "Content-Type: application/json" -d '{"Vni":10, "UntaggedVlanId":[300],
 // create vtep
 curl  -i "Content-Type: application/json" -d '{"Intf":"Vtep1000", "IntfRef":"eth2", "Vni":10, "DstIp":"172.31.40.230", "DstUDP":8472, "TOS":0, "Mtu":1550, "InnerVlanHandlingMode":0, "TTL":64, "AdminState":"UP"}' http://52.53.219.54:8080/public/v1/config/VxlanVtepInstance
 
-
-
-
 // node 2  54.153.102.187
 curl  -i "Content-Type: application/json" -d '{"Module":"asicd", "Level":"debug"}' -X PATCH http://54.153.102.187:8080/public/v1/config/ComponentLogging
 curl  -i "Content-Type: application/json" -d '{"Module":"ribd", "Level":"debug"}' -X PATCH http://54.153.102.187:8080/public/v1/config/ComponentLogging
@@ -42,8 +39,6 @@ curl  -i "Content-Type: application/json" -d '{"IntfRef":"vlan300", "IPAddr":"30
 // assign ip address to physical interface
 curl  -i "Content-Type: application/json" -d '{"IntfRef":"eth2", "IPAddr":"172.31.40.230/24", "AdminState":"UP"}' http://54.153.102.187:8080/public/v1/config/IPv4Intf
 
-
-curl  -i "Content-Type: application/json" -d '{"DestinationNw":"172.31.32.0", "NetworkMask":"255.255.240.0", "Protocol":"STATIC", "NextHop":[{"NextHopIp": "172.31.40.175"}]}' http://54.153.102.187:8080/public/v1/config/IPv4Route
 
 // create vni to vlan mapping for the vxlan domain
 curl  -i "Content-Type: application/json" -d '{"Vni":10, "UntaggedVlanId":[300], "AdminState":"UP"}' http://54.153.102.187:8080/public/v1/config/VxlanInstance
