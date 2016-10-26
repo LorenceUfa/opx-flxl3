@@ -136,6 +136,7 @@ func (server *ARPServer) processArpEntryCntUpdateMsg(cnt int) {
 	for key, ent := range server.arpCache {
 		if ent.Counter > cnt {
 			ent.Counter = cnt
+			ent.TimeStamp = time.Now()
 			server.arpCache[key] = ent
 		}
 	}
