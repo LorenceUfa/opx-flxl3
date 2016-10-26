@@ -104,6 +104,9 @@ func (pProc *Processor) GetClientStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.ClientStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPRelayClientState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -142,6 +145,9 @@ func (pProc *Processor) GetIntfStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.IntfStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPRelayIntfState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -180,6 +186,9 @@ func (pProc *Processor) GetIntfServerStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.IntfServerStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPRelayIntfServerState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -252,11 +261,16 @@ func (pProc *Processor) deleteIntfState(
 	if !ok {
 		return
 	}
+	sliceEntIdx := -1
 	for i, intfState := range pProc.IntfStateSlice {
 		if intfState.IntfRef == ifName {
-			pProc.IntfStateSlice = append(pProc.IntfStateSlice[:i],
-				pProc.IntfStateSlice[i+1:]...)
+			sliceEntIdx = i
+			break
 		}
+	}
+	if sliceEntIdx != -1 {
+		pProc.IntfStateSlice = append(pProc.IntfStateSlice[:sliceEntIdx],
+			pProc.IntfStateSlice[sliceEntIdx+1:]...)
 	}
 	delete(pProc.IntfStateMap, ifIdx)
 }
