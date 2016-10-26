@@ -27,6 +27,7 @@ import ()
 
 func (server *ARPServer) printArpEntries() {
 	server.logger.Debug("************")
+	server.logger.Debug("Time Out Counter:", server.timeoutCounter, "Timer granularity:", server.timerGranularity)
 	for ip, arpEnt := range server.arpCache {
 		server.logger.Debug("IP:", ip, "MAC:", arpEnt.MacAddr, "VlanId:", arpEnt.VlanId, "IfName:", arpEnt.IfName, "IfIndex", arpEnt.L3IfIdx, "Counter:", arpEnt.Counter, "Timestamp:", arpEnt.TimeStamp, "PortNum:", arpEnt.PortNum, "Type:", arpEnt.Type)
 	}
