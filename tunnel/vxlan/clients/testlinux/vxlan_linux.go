@@ -13,13 +13,13 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 // vxlan_linux.go
 // NOTE: this is meant for testing, it should eventually live in asicd
@@ -27,10 +27,11 @@ package test_linux
 
 import (
 	"fmt"
-	"github.com/vishvananda/netlink"
-	"github.com/vishvananda/netlink/nl"
 	"net"
 	"time"
+
+	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netlink/nl"
 	//"os/exec"
 	"utils/logging"
 )
@@ -104,7 +105,7 @@ func initVxlanDB() {
 // createVxLAN is the equivalent to creating a bridge in the linux
 // The VNI is actually associated with the VTEP so lets just create a bridge
 // if necessary
-func (v *VxlanLinux) CreateVxLAN(c *VxlanConfig) {
+func (v *VxlanLinux) CreateVxLAN(c *VxlanDbEntry) {
 
 	if _, ok := VxlanDB[c.VNI]; !ok {
 		VxlanDB[c.VNI] = VxlanDbEntry{
@@ -144,7 +145,7 @@ func (v *VxlanLinux) CreateVxLAN(c *VxlanConfig) {
 	}
 }
 
-func (v *VxlanLinux) DeleteVxLAN(c *VxlanConfig) {
+func (v *VxlanLinux) DeleteVxLAN(c *VxlanDbEntry) {
 
 	if vxlan, ok := VxlanDB[c.VNI]; ok {
 		for i, link := range vxlan.Links {
