@@ -329,6 +329,16 @@ func (draMgr *DRAMgr) DeleteDRAv6Global(Vrf string) (bool, error) {
 	return true, nil
 }
 
+func checkStringSliceUnique(stringList []string) bool {
+	uniqueMap := make(map[string]bool)
+	for _, s := range stringList {
+		if _, ok := uniqueMap[s]; ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (draMgr *DRAMgr) CreateDRAv6Interface(
 	cfg *dhcprelayd.DHCPv6RelayIntf) (bool, error) {
 
@@ -340,6 +350,12 @@ func (draMgr *DRAMgr) CreateDRAv6Interface(
 			draMgr.Logger.Err(errMsg)
 			return false, errors.New(errMsg)
 		}
+	}
+	if !checkStringSliceUnique(cfg.UpstreamIntfs) {
+		errMsg := fmt.Sprintln(
+			"DRA: Non unique upstream interfaces")
+		draMgr.Logger.Err(errMsg)
+		return false, errors.New(errMsg)
 	}
 	for _, val := range cfg.ServerIp {
 		ip := net.ParseIP(val)
