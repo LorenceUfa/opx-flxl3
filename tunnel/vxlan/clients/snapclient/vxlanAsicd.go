@@ -632,6 +632,14 @@ func (intf VXLANSnapClient) DeleteVtep(vtep *vxlan.VtepDbEntry) {
 	}
 }
 
+func (intf VXLANSnapClient) UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16) {
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+		asicdclnt.ClientHdl.UpdateVxlanVtepAttr(vtepName, int32(vni), int16(tos), int16(ttl), int32(mtu))
+		intf.asicdmutex.Unlock()
+	}
+}
+
 func (intf VXLANSnapClient) GetAllVlans() []uint16 {
 	vlanlist := make([]uint16, 0)
 

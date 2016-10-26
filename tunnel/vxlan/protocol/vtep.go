@@ -55,9 +55,9 @@ type VtepDbEntry struct {
 	// dst UDP port
 	UDP uint16
 	// TTL used in the ip header in the vxlan header
-	TTL uint16
+	TTL uint8
 	// TOS used in ip header in the vxlan header
-	TOS uint16
+	TOS uint8
 	// MTU of the vtep
 	MTU uint16
 	// Source Ip used in ip header in the vxlan header
@@ -190,8 +190,8 @@ func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 		VtepHandleName: c.VtepName + "Int",
 		SrcIfName:      c.SrcIfName,
 		UDP:            c.UDP,
-		TTL:            c.TTL,
-		TOS:            c.TOS,
+		TTL:            uint8(c.TTL),
+		TOS:            uint8(c.TOS),
 		MTU:            uint16(c.MTU),
 		DstIp:          c.TunnelDstIp,
 		SrcIp:          c.TunnelSrcIp,
@@ -334,8 +334,8 @@ func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 	} else {
 		vtep.SrcIfName = c.SrcIfName
 		vtep.UDP = c.UDP
-		vtep.TTL = c.TTL
-		vtep.TOS = c.TOS
+		vtep.TTL = uint8(c.TTL)
+		vtep.TOS = uint8(c.TOS)
 		vtep.MTU = uint16(c.MTU)
 		vtep.DstIp = c.TunnelDstIp
 		vtep.SrcIp = c.TunnelSrcIp
@@ -397,7 +397,7 @@ func (vtep *VtepDbEntry) createUntaggedVtepSenderListener() error {
 				if ok {
 					//logger.Info("Rx untagged pkg", packet)
 					if !vtep.filterPacket(packet, vlan) {
-						go vtep.encapAndDispatchPkt(packet)
+						vtep.encapAndDispatchPkt(packet)
 					}
 				} else {
 					// channel closed
@@ -432,7 +432,7 @@ func (vtep *VtepDbEntry) createTaggedVtepSenderListener() error {
 					if ok {
 						//logger.Info("Rx tagged pkg", packet)
 						if !vtep.filterPacket(packet, vlan) {
-							go vtep.encapAndDispatchPkt(packet)
+							vtep.encapAndDispatchPkt(packet)
 						}
 					} else {
 						// channel closed
@@ -566,12 +566,12 @@ func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 			ip := layers.IPv4{
 				Version: 4,
 				IHL:     20,
-				TOS:     0,
+				TOS:     uint8(vtep.TOS),
 				//Length:     20 + uint16(origpktlen),
 				Id:         0xd2c0,
 				Flags:      layers.IPv4DontFragment, //IPv4Flag
 				FragOffset: 0,                       //uint16
-				TTL:        255,
+				TTL:        uint8(vtep.TTL),
 				Protocol:   layers.IPProtocolUDP, //IPProtocol
 				SrcIP:      vtep.SrcIp,
 				DstIP:      vtep.DstIp,
