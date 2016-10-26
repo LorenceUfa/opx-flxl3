@@ -31,6 +31,8 @@ import (
 func (h *OSPFHandler) GetOspfGlobalState(routerId string) (*ospfd.OspfGlobalState, error) {
 	h.logger.Info(fmt.Sprintln("Get global attrs"))
 	ospfGlobalResponse := ospfd.NewOspfGlobalState()
+	ospfGlobalState := h.server.GetOspfGlobalState()
+	ospfGlobalResponse = h.convertGlobalStateToThrift(*ospfGlobalState)
 	return ospfGlobalResponse, nil
 }
 
