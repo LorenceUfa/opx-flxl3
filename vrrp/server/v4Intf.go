@@ -23,42 +23,21 @@
 package server
 
 import (
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
-	"l3/vrrp/config"
-	"l3/vrrp/debug"
-	"l3/vrrp/fsm"
-	"strconv"
+	"config"
+	"utils/commonDefs"
 )
 
-type IPIntf interface {
-	Init()
-	//GetDb()
-	//GetIpAddr()
+type V4Intf struct {
+	Cfg     config.Ipv4Info // ipv4 interface created on the system config
+	Vrrpkey *KeyInfo
 }
 
-type L3Intf struct {
-	IfIndex   int32
-	IpAddr    string // cached info for IfName is required in future
-	OperState string
-}
-
-type VrrpInterface struct {
-	Config *config.IntfCfg // Vrrp config for interface
-	State  *config.State   // Vrrp state for interface
-	L3     *L3Intf         // Vrrp Port Information Collected From System
-	Fsm    *fsm.FSM        // Vrrp fsm information
-}
-
-func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) {
-	intf.Config = *cfg
-	intf.L3 = *l3Info
-	intf.State = &config.State{}
-	// Init fsm
-	intf.Fsm = fsm.InitFsm(&intf.Config, l3Info, stCh)
-}
-
-func (intf *VrrpInterface) UpdateStateInfo(stInfo config.State) {
-	intf.State = stInfo
+func (intf *V4Intf) Init(obj *commonDefs.IPv4IntfState) {
+	ipInfo := intf.Cfg.Info
+	//if !exists {
+	ipInfo.IntfRef = obj.IntfRef
+	ipInfo.IfIndex = obj.IfIndex
+	ipInfo.OperState = obj.OperState
+	intf.Cfg.IpAddr = obj.IpAddr
+	intf.Vrrpkey = nil
 }

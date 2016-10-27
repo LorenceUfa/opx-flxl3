@@ -142,8 +142,8 @@ func (svr *VrrpServer) GetSystemInfo() {
 
 func (svr *VrrpServer) InitGlobalDS() {
 	svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.V6 = make(map[int32]V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.V4 = make(map[int32]V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.V6 = make(map[int32]*V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.V4 = make(map[int32]*V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
@@ -196,8 +196,14 @@ func (svr *VrrpServer) VrrpStartServer(paramsDir string) {
 }
 
 func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
-	svr := &VrrpServer{}
-	svr.SwitchPlugin = sPlugin
-	svr.dmnBase = dmnBase
-	return svr
+	vrrpServer := &VrrpServer{}
+	vrrpServer.SwitchPlugin = sPlugin
+	vrrpServer.dmnBase = dmnBase
+	/*
+			svr := &VrrpServer{}
+			svr.SwitchPlugin = sPlugin
+			svr.dmnBase = dmnBase
+		return svr
+	*/
+	return vrrpServer
 }

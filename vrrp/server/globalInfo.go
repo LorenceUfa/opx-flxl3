@@ -50,20 +50,12 @@ type KeyInfo struct {
 	Version uint8
 }
 
-type V4Intf struct {
-	Cfg     config.Ipv4Info
-	Vrrpkey *KeyInfo
-}
-
-type V6Intf struct {
-	Cfg     config.Ipv6Info
-	Vrrpkey *KeyInfo
-}
-
 type IntfState struct {
 	State StateInfo
 	Key   KeyInfo
 }
+
+var vrrpServer *VrrpServer
 
 type VrrpServer struct {
 	// All System Related Information
@@ -72,8 +64,8 @@ type VrrpServer struct {
 	GlobalConfig       config.GlobalConfig
 	L2Port             map[int32]config.PhyPort
 	VlanInfo           map[int32]config.VlanInfo
-	V4                 map[int32]V4Intf
-	V6                 map[int32]V6Intf
+	V4                 map[int32]*V4Intf
+	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
 	V4IntfRefToIfIndex map[string]int32          // key is intfRef and value is ifIndex
 	V6IntfRefToIfIndex map[string]int32          // key is intfRef and valud if ifIndex
@@ -116,11 +108,4 @@ const (
 	VRRP_TOTAL_INTF_CONFIG_ELEMENTS       = 7
 
 	VRRP_IEEE_MAC_ADDR = "00-00-5E-00-01-"
-
-	/*
-		VRRP_UNINTIALIZE_STATE = "Un-Initialize"
-		VRRP_INITIALIZE_STATE  = "Initialize"
-		VRRP_BACKUP_STATE      = "Backup"
-		VRRP_MASTER_STATE      = "Master"
-	*/
 )

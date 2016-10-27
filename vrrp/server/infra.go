@@ -30,12 +30,6 @@ import (
 	"l3/vrrp/debug"
 )
 
-type IPIntf interface {
-	Init()
-	GetDb()
-	GetIpAddr()
-}
-
 func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
 	if _, exists := svr.Intf[key]; exists {
@@ -92,6 +86,7 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 	}
 	l3Info := &L3Intf{}
 	l3Info.IfName = cfg.IntfRef
+	// Get DB based on config version
 	switch cfg.Version {
 	case config.VERSION2:
 		ifIndex, exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
@@ -100,18 +95,20 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 			v4, exists := svr.V4[ifIndex]
 			if exists {
 				l3Info.IpAddr = v4.Cfg.IpAddr
+				l3Info.OperState = v4.Cfg.OperState
 			}
 		}
-		// if cross reference exists then only set l3Info else just pass go defaults and it will updated
-		// later once we have configured ipv4 or ipv6 interface
+	// if cross reference exists then only set l3Info else just pass go defaults and it will updated
+	// later once we have configured ipv4 or ipv6 interface
 	case config.VERSION3:
 		ifIndex, exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
-		l3Info.IfIndex = ifIndex
 		if exists {
+			l3Info.IfIndex = ifIndex
 			v6, exists := svr.V6[ifIndex]
 			if exists {
 				// @TODO: do we have to use linkscope ip or global scope ip Check RFC
 				l3Info.IpAddr = v6.Cfg.IpAddr
+				l3Info.OperState = v6.Cfg.OperState
 			}
 		}
 	}

@@ -119,7 +119,7 @@ type FSM struct {
 	SkewTime                int32       // (((256 - priority) * Master_Adver_Interval) / 256)
 	MasterDownValue         int32       // (3 * Master_Adver_Interval) + Skew_time
 	MasterDownTimer         *time.Timer
-	StInfo                  config.State    // this is state information for this fsm which will be used for get bulk
+	StInfo                  *config.State   // this is state information for this fsm which will be used for get bulk
 	StateCh                 chan *IntfState // push current state information on to this channel so that server can update information
 	pktCh                   *PktChannelInfo
 	fsmStCh                 *FsmStateInfo
@@ -129,7 +129,8 @@ type FSM struct {
 
 func InitFsm(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) *FSM {
 	f := &FSM{}
-	f.Config = cfg
+	f.Config = *cfg
+	f.StInfo = &config.State{}
 	f.IpAddr = l3Info.IpAddr
 	f.IfIndex = l3Info.IfIndex
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)

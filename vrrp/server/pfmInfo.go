@@ -26,7 +26,7 @@ package server
 import (
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
-	"net"
+	_ "net"
 	"utils/commonDefs"
 )
 
@@ -77,16 +77,20 @@ func (svr *VrrpServer) getIPv4Intfs() {
 		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
 			continue
 		}
-		v4Info, _ := svr.V4[obj.IfIndex]
-		ipInfo := v4Info.Cfg.Info
-		//if !exists {
-		ipInfo.IntfRef = obj.IntfRef
-		ipInfo.IfIndex = obj.IfIndex
-		ipInfo.OperState = obj.OperState
-		v4Info.Cfg.IpAddr = obj.IpAddr
-		v4Info.Vrrpkey = nil
-		//		}
-		svr.V4[obj.IfIndex] = ipInfo
+		v4Obj := &V4Intf{}
+		v4Obj.Init(obj)
+		/*
+			v4Info, _ := svr.V4[obj.IfIndex]
+			ipInfo := v4Info.Cfg.Info
+			//if !exists {
+			ipInfo.IntfRef = obj.IntfRef
+			ipInfo.IfIndex = obj.IfIndex
+			ipInfo.OperState = obj.OperState
+			v4Info.Cfg.IpAddr = obj.IpAddr
+			v4Info.Vrrpkey = nil
+			//		}
+		*/
+		svr.V4[obj.IfIndex] = v4Obj //ipInfo
 		svr.V4IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
@@ -102,21 +106,24 @@ func (svr *VrrpServer) getIPv6Intfs() {
 		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
 			continue
 		}
-		v6Info, _ := svr.V6[obj.IfIndex]
-		ipInfo := v6Info.Cfg.Info
-		//if !exists {
-		ipInfo.IntfRef = obj.IntfRef
-		ipInfo.IfIndex = obj.IfIndex
-		ipInfo.OperState = obj.OperState
-		ip, _, _ := net.ParseCIDR(obj.IpAddr)
-		if ip.IsLinkLocalUnicast() {
-			v6Info.Cfg.LinkScopeAddr = ip.String()
-		} else {
-			v6Info.Cfg.IPv6Addr = ip.String()
-		}
-		//		}
-		v6Info.Vrrpkey = nil
-		svr.V6[obj.IfIndex] = ipInfo
+		v6Obj := &V6Intf{}
+		/*
+			v6Info, _ := svr.V6[obj.IfIndex]
+			ipInfo := v6Info.Cfg.Info
+			//if !exists {
+			ipInfo.IntfRef = obj.IntfRef
+			ipInfo.IfIndex = obj.IfIndex
+			ipInfo.OperState = obj.OperState
+			ip, _, _ := net.ParseCIDR(obj.IpAddr)
+			if ip.IsLinkLocalUnicast() {
+				v6Info.Cfg.LinkScopeAddr = ip.String()
+			} else {
+				v6Info.Cfg.IPv6Addr = ip.String()
+			}
+			//		}
+			v6Info.Vrrpkey = nil
+		*/
+		svr.V6[obj.IfIndex] = v6Obj //ipInfo
 		svr.V6IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
