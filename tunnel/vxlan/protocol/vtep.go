@@ -219,7 +219,7 @@ func CreateVtep(c *VtepConfig) *VtepDbEntry {
 		vtep.VxlanVtepMachineMain()
 		vtep.VxlanVtepMachineFsm.BEGIN()
 	}
-	logger.Info(fmt.Sprintln("Vtep CreateVtep", vtep))
+	logger.Info(fmt.Sprintln("Vtep CreateVtep", *vtep))
 
 	return vtep
 }
@@ -534,14 +534,15 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 		buf := vxlan.LayerPayload()
 		//logger.Info(fmt.Sprintf("Sending Packet to %s %#v", vtep.VtepName, buf))
 		vtep.snoop(buf)
+		//logger.Debug(vtep.VtepName, vtep.Vni, packet, buf)
 		if vtep.handle != nil {
 			if err := vtep.handle.WritePacketData(buf); err != nil {
-				logger.Err("Error writing packet to interface")
+				logger.Err("Error writing packet to interface", err)
 			}
 		} else {
 			for _, handle := range vtep.taghandles {
 				if err := handle.WritePacketData(buf); err != nil {
-					logger.Err("Error writing packet to interface")
+					logger.Err("Error writing packet to interface", err)
 				}
 			}
 		}

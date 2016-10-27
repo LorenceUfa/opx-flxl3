@@ -49,6 +49,7 @@ func ConvertVtepToVxlanAsicdConfig(vtep *vxlan.VtepDbEntry) *asicdInt.Vtep {
 		SrcIfName:      vtep.SrcIfName,
 		UDP:            int16(vtep.UDP),
 		TTL:            int16(vtep.TTL),
+		MTU:            int32(vtep.MTU),
 		SrcIp:          vtep.SrcIp.String(),
 		DstIp:          vtep.DstIp.String(),
 		VlanId:         int16(vtep.VlanId),

@@ -330,6 +330,7 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 		Vni:       uint32(c.Vni),
 		VtepName:  vtepName,
 		SrcIfName: name,
+		MTU:       uint32(c.Mtu),
 		UDP:       uint16(c.DstUDP),
 		TTL:       uint16(c.TTL),
 		TOS:       uint16(c.TOS),
