@@ -7,7 +7,7 @@ dhcp_relay/rpc/dhcprelayd.thrift
 ospf/rpc/ospfd.thrift
 rib/rpc/ribd.thrift
 tunnel/vxlan/rpc/vxland.thrift
-vrrp/rpc/vrrpd.thrift
+vrrp/flexswitch/vrrpd.thrift
 ndp/flexswitch/ndpd.thrift
 isis/rpc/isisd.thrift
 #ignore cscope files
