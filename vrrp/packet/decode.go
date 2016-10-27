@@ -27,7 +27,6 @@ import (
 	"errors"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
 )
@@ -57,7 +56,7 @@ import (
 	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 
-func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error { //, key string) error {
+func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error {
 	// @TODO: need to check for version 2 type...RFC requests to drop the pkt
 	// but cisco uses version 2...
 	if hdr.Version != config.VERSION2 && hdr.Version != config.VERSION3 {
@@ -138,17 +137,24 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 		return nil
 	}
 	var ipHdr interface{}
+	var dstIp string
+	var srcIp string
 	switch version {
 	case config.VERSION2:
 		// Get Ip Hdr and start doing basic check according to RFC
 		ipHdr = ipLayer.(*layers.IPv4)
-		if ipHdr.TTL != VRRP_TTL {
-			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL, "dropping packet from", ipHdr.SrcIP)
+		if ipHdr.(layers.IPv4).TTL != VRRP_TTL {
+			debug.Logger.Err("ttl should be 255 instead of", ipHdr.(layers.IPv4).TTL,
+				"dropping packet from", ipHdr.(layers.IPv4).SrcIP)
 			return nil
 		}
+		dstIp = ipHdr.(layers.IPv4).DstIP.String()
+		srcIp = ipHdr.(layers.IPv4).SrcIP.String()
 	case config.VERSION3:
 		// @TODO: need to read rfc for validation
 		ipHdr = ipLayer.(*layers.IPv6)
+		dstIp = ipHdr.(layers.IPv6).DstIP.String()
+		srcIp = ipHdr.(layers.IPv6).SrcIP.String()
 	}
 	// Get Payload as checks are succesful
 	ipPayload := ipLayer.LayerPayload()
@@ -160,15 +166,15 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 	hdr := DecodeHeader(ipPayload, version)
 	// Do Basic Vrrp Header Check
 	if err := p.ValidateHeader(hdr, ipPayload); err != nil {
-		debug.Logger.Err(err.Error(), ". Dropping received packet from", ipHdr.SrcIP)
+		debug.Logger.Err(err.Error(), ". Dropping received packet from", srcIp)
 		return nil
 	}
 	pktInfo := &PacketInfo{
 		Hdr:    hdr,
-		DstIp:  ipHdr.DstIP.String(),
-		IpAddr: ipHdr.SrcIP.String(),
+		DstIp:  dstIp,
+		IpAddr: srcIp,
 		DstMac: (eth.DstMAC).String(),
 		SrcMac: (eth.SrcMAC).String(),
 	}
-	return hdr
+	return pktInfo
 }

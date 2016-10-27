@@ -24,12 +24,10 @@ package packet
 
 import (
 	"encoding/binary"
-	_ "errors"
-	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"l3/vrrp/config"
 	"net"
-	"time"
 )
 
 /*
@@ -57,7 +55,7 @@ Octet Offset--> 0                   1                   2                   3
 		+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 func EncodeHeader(hdr *Header) ([]byte, uint16) {
-	pktLen := VRRP_HEADER_SIZE_EXCLUDING_IPVX + (hdr.CountIPv4Addr * 4)
+	pktLen := VRRP_HEADER_SIZE_EXCLUDING_IPVX + (hdr.CountIPAddr * 4)
 	if pktLen < VRRP_HEADER_MIN_SIZE {
 		pktLen = VRRP_HEADER_MIN_SIZE
 	}
@@ -75,19 +73,19 @@ func EncodeHeader(hdr *Header) ([]byte, uint16) {
 		baseIpByte += 4
 	}
 	// Create Checksum for the header and store it
-	binary.BigEndian.PutUint16(bytes[6:8], svr.computeChecksum(hdr.Version, bytes))
+	binary.BigEndian.PutUint16(bytes[6:8], computeChecksum(hdr.Version, bytes))
 	return bytes, uint16(pktLen)
 }
 
 func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
-	hdr := VrrpPktHeader{
+	hdr := Header{
 		Version:      pInfo.Version,
 		Type:         VRRP_PKT_TYPE_ADVERTISEMENT,
-		VirtualRtrId: pInfo.Vrid,     //uint8(gblInfo.IntfConfig.VRID),
-		Priority:     pInfo.Priority, //uint8(gblInfo.IntfConfig.Priority),
-		CountIPAddr:  1,              // FIXME for more than 1 vip
+		VirtualRtrId: pInfo.Vrid,
+		Priority:     pInfo.Priority,
+		CountIPAddr:  1, // FIXME for more than 1 vip
 		Rsvd:         VRRP_RSVD,
-		MaxAdverInt:  pInfo.AdvertiseInt, //uint16(gblInfo.IntfConfig.AdvertisementInterval),
+		MaxAdverInt:  pInfo.AdvertiseInt,
 		CheckSum:     VRRP_HDR_CREATE_CHECKSUM,
 	}
 	ip, _, _ := net.ParseCIDR(pInfo.IpAddr)
@@ -96,50 +94,8 @@ func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
 		ip = net.ParseIP(pInfo.IpAddr)
 	}
 	hdr.IpAddr = append(hdr.IpAddr, ip)
-	return EncodeHeader(hdr)
+	return EncodeHeader(&hdr)
 }
-
-/*
-func createSendPkt(gblInfo VrrpGlobalInfo, vrrpEncHdr []byte, hdrLen uint16) []byte {
-	// Ethernet Layer
-	srcMAC, _ := net.ParseMAC(gblInfo.VirtualRouterMACAddress)
-	dstMAC, _ := net.ParseMAC(VRRP_PROTOCOL_MAC)
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv4,
-	}
-
-	// IP Layer
-	sip, _, _ := net.ParseCIDR(gblInfo.IpAddr)
-	ipv4 := &layers.IPv4{
-		Version:  uint8(4),
-		IHL:      uint8(VRRP_IPV4_HEADER_MIN_SIZE),
-		Protocol: layers.IPProtocol(VRRP_PROTO_ID),
-		Length:   uint16(VRRP_IPV4_HEADER_MIN_SIZE + hdrLen),
-		TTL:      uint8(VRRP_TTL),
-		SrcIP:    sip,
-		DstIP:    net.ParseIP(VRRP_GROUP_IP),
-	}
-	return svr.VrrpCreateWriteBuf(eth, nil, ipv4, vrrpEncHdr)
-}
-func (svr *VrrpServer) VrrpCreateWriteBuf(eth *layers.Ethernet,
-	arp *layers.ARP, ipv4 *layers.IPv4, payload []byte) []byte {
-
-	buffer := gopacket.NewSerializeBuffer()
-	options := gopacket.SerializeOptions{
-		FixLengths:       true,
-		ComputeChecksums: true,
-	}
-	if ipv4 != nil {
-		gopacket.SerializeLayers(buffer, options, eth, ipv4,
-			gopacket.Payload(payload))
-	} else {
-		gopacket.SerializeLayers(buffer, options, eth, arp)
-	}
-	return buffer.Bytes()
-}
-*/
 
 func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 	payload, hdrLen := CreateHeader(pInfo)

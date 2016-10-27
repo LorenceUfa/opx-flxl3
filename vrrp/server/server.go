@@ -24,13 +24,13 @@
 package server
 
 import (
-	"fmt"
-	"io/ioutil"
 	"l3/vrrp/config"
+	"l3/vrrp/debug"
 	"os"
 	"os/signal"
 	"syscall"
-	"utils/ipcutils"
+	"utils/asicdClient"
+	"utils/dmnBase"
 )
 
 /*
@@ -115,9 +115,9 @@ func (svr *VrrpServer) EventListener() {
 			if ok {
 				svr.HandleIntfConfig(cfg)
 			}
-		case stInfo, ok := <-svr.StateCh:
+		case l3NotifyInfo, ok := <-svr.L3IntfNotifyCh:
 			if ok {
-				svr.HandleStateUpdate(stInfo)
+				svr.HandleIpNotification(l3NotifyInfo)
 			}
 		}
 	}
@@ -133,29 +133,21 @@ func (svr *VrrpServer) GetSystemInfo() {
 }
 
 func (svr *VrrpServer) InitGlobalDS() {
-	svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	//svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6 = make(map[int32]*V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4 = make(map[int32]*V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	//svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.StateCh = make(chan *IntfState, VRRP_RX_BUF_CHANNEL_SIZE)
-	svr.GblCfgCh = make(chan config.GlobalConfig)
+	//svr.StateCh = make(chan *IntfState, VRRP_RX_BUF_CHANNEL_SIZE)
+	svr.GblCfgCh = make(chan *config.GlobalConfig)
 	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
+	svr.L3IntfNotifyCh = make(chan *config.BaseIpInfo)
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {
-	svr.vrrpGblInfo = nil
-	svr.vrrpIfIndexIpAddr = nil
-	svr.vrrpLinuxIfIndex2AsicdIfIndex = nil
-	svr.vrrpVlanId2Name = nil
-	svr.vrrpRxPktCh = nil
-	svr.vrrpTxPktCh = nil
-	svr.VrrpDeleteIntfConfigCh = nil
-	svr.VrrpCreateIntfConfigCh = nil
-	svr.VrrpUpdateIntfConfigCh = nil
-	svr.vrrpFsmCh = nil
+	// @TODO:
 }
 
 func (svr *VrrpServer) signalHandler(sigChannel <-chan os.Signal) {
@@ -179,7 +171,7 @@ func (svr *VrrpServer) OSSignalHandle() {
 	go svr.signalHandler(sigChannel)
 }
 
-func (svr *VrrpServer) VrrpStartServer(paramsDir string) {
+func (svr *VrrpServer) VrrpStartServer() {
 	svr.OSSignalHandle()
 	svr.ReadDB()
 	svr.InitGlobalDS()

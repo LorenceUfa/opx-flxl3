@@ -24,7 +24,6 @@ package server
 
 import (
 	"l3/vrrp/config"
-	"l3/vrrp/packet"
 	"utils/asicdClient"
 	"utils/dmnBase"
 )
@@ -40,11 +39,6 @@ type KeyInfo struct {
 	Version uint8
 }
 
-type IntfState struct {
-	State StateInfo
-	Key   KeyInfo
-}
-
 var vrrpServer *VrrpServer
 
 type VrrpServer struct {
@@ -52,16 +46,16 @@ type VrrpServer struct {
 	dmnBase            *dmnBase.FSBaseDmn
 	SwitchPlugin       asicdClient.AsicdClientIntf
 	GlobalConfig       config.GlobalConfig
-	L2Port             map[int32]config.PhyPort
-	VlanInfo           map[int32]config.VlanInfo
 	V4                 map[int32]*V4Intf
 	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
 	V4IntfRefToIfIndex map[string]int32          // key is intfRef and value is ifIndex
 	V6IntfRefToIfIndex map[string]int32          // key is intfRef and valud if ifIndex
 	CfgCh              chan *config.IntfCfg      // Starting from hereAll Channels Used during Events
-	StateCh            chan *IntfState
 	GblCfgCh           chan *config.GlobalConfig
+	L3IntfNotifyCh     chan *config.BaseIpInfo
+	//L2Port             map[int32]config.PhyPort
+	//VlanInfo           map[int32]config.VlanInfo
 }
 
 const (
@@ -77,14 +71,6 @@ const (
 	VRRP_IPV4_INTF_NOT_CREATED          = "Create IPv4 interface before configuring VRRP"
 	VRRP_DATABASE_LOCKED                = "database is locked"
 
-	// VRRP multicast ip address for join
-	VRRP_BPF_FILTER      = "ip host " + packet.VRRP_GROUP_IP
-	VRRP_MAC_MASK        = "ff:ff:ff:ff:ff:ff"
-	VRRP_PROTO_ID        = 112
-	VRRP_SNAPSHOT_LEN    = 1024
-	VRRP_PROMISCOUS_MODE = false
-	VRRP_TIMEOUT         = 1 // in seconds
-
 	// Default Size
 	VRRP_GLOBAL_INFO_DEFAULT_SIZE         = 50
 	VRRP_VLAN_MAPPING_DEFAULT_SIZE        = 5
@@ -96,6 +82,4 @@ const (
 	VRRP_FSM_CHANNEL_SIZE                 = 1
 	VRRP_INTF_CONFIG_CH_SIZE              = 1
 	VRRP_TOTAL_INTF_CONFIG_ELEMENTS       = 7
-
-	VRRP_IEEE_MAC_ADDR = "00-00-5E-00-01-"
 )

@@ -25,7 +25,7 @@ package server
 import (
 	"l3/vrrp/config"
 	"net"
-	"utils/commonDefs"
+	_ "utils/commonDefs"
 )
 
 type V6Intf struct {
@@ -33,7 +33,7 @@ type V6Intf struct {
 	Vrrpkey *KeyInfo
 }
 
-func (intf *V6Intf) Init(obj *commonDefs.IPv6IntfState) {
+func (intf *V6Intf) Init(obj *config.BaseIpInfo) {
 	ipInfo := intf.Cfg.Info
 	//if !exists {
 	ipInfo.IntfRef = obj.IntfRef
@@ -41,9 +41,16 @@ func (intf *V6Intf) Init(obj *commonDefs.IPv6IntfState) {
 	ipInfo.OperState = obj.OperState
 	ip, _, _ := net.ParseCIDR(obj.IpAddr)
 	if ip.IsLinkLocalUnicast() {
-		v6Info.Cfg.LinkScopeAddr = ip.String()
+		intf.Cfg.LinkScopeAddr = ip.String()
 	} else {
-		v6Info.Cfg.IPv6Addr = ip.String()
+		ipInfo.IpAddr = ip.String()
 	}
 	intf.Vrrpkey = nil
+}
+
+func (intf *V6Intf) Update(obj *config.BaseIpInfo) {
+
+}
+
+func (intf *V6Intf) DeInit(obj *config.BaseIpInfo) {
 }

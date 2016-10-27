@@ -29,10 +29,10 @@ import (
 	"utils/dbutils"
 )
 
-func (svr *vrrpserver) readVrrpGblCfg(dbhdl *dbutils.dbutil) {
+func (svr *VrrpServer) readVrrpGblCfg(dbhdl *dbutils.DBUtil) {
 }
 
-func (svr *vrrpserver) readVrrpIntfCfg(dbhdl *dbutils.dbutil) {
+func (svr *VrrpServer) readVrrpIntfCfg(dbhdl *dbutils.DBUtil) {
 }
 
 func (svr *VrrpServer) ReadDB() {

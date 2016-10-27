@@ -25,6 +25,7 @@ package fsm
 
 import (
 	"l3/vrrp/debug"
+	"l3/vrrp/packet"
 )
 
 func (f *FSM) TransitionToBackup(advInt int32) {
@@ -55,17 +56,17 @@ func (f *FSM) BackupState(stInfo *FsmStateInfo) {
 	*/
 	// Check dmac address from the inPacket and if it is same discard the packet
 	if pktInfo.DstMac == f.VirtualRouterMACAddress {
-		svr.logger.Err("DMAC is equal to VMac and hence discarding the packet")
+		debug.Logger.Err("DMAC is equal to VMac and hence discarding the packet")
 		return
 	}
 	// MUST NOT accept packets addressed to the IPvX address(es)
 	// associated with the virtual router. @TODO: check with Hari
 	if pktInfo.DstIp == f.IpAddr {
-		svr.logger.Err("dst ip is equal to interface ip, dropping the packet")
+		debug.Logger.Err("dst ip is equal to interface ip, dropping the packet")
 		return
 	}
 	//(420) - If an ADVERTISEMENT is received, then:
-	if hdr.Type == VRRP_PKT_TYPE_ADVERTISEMENT {
+	if hdr.Type == packet.VRRP_PKT_TYPE_ADVERTISEMENT {
 		f.UpdateRxStateInformation(pktInfo)
 		// (425) + If the Priority in the ADVERTISEMENT is zero, then:
 		if hdr.Priority == 0 {
@@ -78,7 +79,7 @@ func (f *FSM) BackupState(stInfo *FsmStateInfo) {
 			 *	ADVERTISEMENT is greater than or equal to the local
 			 *	Priority, then:
 			 */
-			if f.Config.PreemptMode == false || hdr.Priority >= f.Config.Priority {
+			if f.Config.PreemptMode == false || int32(hdr.Priority) >= f.Config.Priority {
 				/*
 				 * (450) @ Set Master_Adver_Interval to Adver Interval contained in the ADVERTISEMENT
 				 * (460) @ Reset the Master_Down_Timer to Master_Down_Interval

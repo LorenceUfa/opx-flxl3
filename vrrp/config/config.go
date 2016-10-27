@@ -33,6 +33,9 @@ const (
 	USE_CONFIG_ADVERTISEMENT = -100
 	STATE_UP                 = "UP"
 	STATE_DOWN               = "DOWN"
+	IP_MSG_CREATE            = "create"
+	IP_MSG_DELETE            = "delete"
+	IP_MSG_STATE_CHANGE      = "state_change"
 )
 
 const (
@@ -67,18 +70,26 @@ type VlanInfo struct {
 type BaseIpInfo struct {
 	IfIndex   int32
 	IntfRef   string
+	IpAddr    string
 	OperState string
 	MsgType   string
+	IpType    int // useful information for server
 }
 
+/*
+type L3Intf struct {
+	IfIndex   int32
+	IpAddr    string // cached info for IfName is required in future
+	OperState string
+}
+*/
+
 type Ipv4Info struct {
-	Info   BaseIpInfo
-	IpAddr string
+	Info BaseIpInfo
 }
 
 type Ipv6Info struct {
 	Info          BaseIpInfo
-	IpAddr        string
 	LinkScopeAddr string
 }
 

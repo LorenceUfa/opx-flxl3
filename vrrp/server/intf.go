@@ -28,32 +28,28 @@ import (
 )
 
 type IPIntf interface {
-	Init()
+	Init(*config.BaseIpInfo)
+	Update(*config.BaseIpInfo)
+	DeInit(*config.BaseIpInfo)
 	//GetDb()
 	//GetIpAddr()
 }
 
-type L3Intf struct {
-	IfIndex   int32
-	IpAddr    string // cached info for IfName is required in future
-	OperState string
-}
-
 type VrrpInterface struct {
-	Config *config.IntfCfg // Vrrp config for interface
-	State  *config.State   // Vrrp state for interface
-	L3     *L3Intf         // Vrrp Port Information Collected From System
-	Fsm    *fsm.FSM        // Vrrp fsm information
+	L3     *config.BaseIpInfo // Vrrp Port Information Collected From System
+	Config *config.IntfCfg    // Vrrp config for interface
+	Fsm    *fsm.FSM           // Vrrp fsm information
+	//State  *config.State      // Vrrp state for interface
 }
 
-func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) {
-	intf.Config = *cfg
-	intf.L3 = *l3Info
-	intf.State = &config.State{}
+func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) { //, stCh chan *IntfState) {
+	intf.Config = cfg
+	intf.L3 = l3Info
+	//intf.State = &config.State{}
 	// Init fsm
-	intf.Fsm = fsm.InitFsm(&intf.Config, l3Info, stCh)
+	intf.Fsm = fsm.InitFsm(intf.Config, l3Info) //, stCh)
 }
 
-func (intf *VrrpInterface) UpdateStateInfo(stInfo config.State) {
-	intf.State = stInfo
+func (intf *VrrpInterface) UpdateStateInfo() {
+
 }

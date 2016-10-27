@@ -24,16 +24,12 @@
 package fsm
 
 import (
-	"asicdServices"
-	"bytes"
-	"fmt"
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"l3/vrrp/config"
+	"l3/vrrp/debug"
 	"l3/vrrp/packet"
-	"net"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -52,6 +48,11 @@ const (
 	VRRP_INITIALIZE_STATE_STRING = "Initialize"
 	VRRP_BACKUP_STATE_STRING     = "Backup"
 	VRRP_MASTER_STATE_STRING     = "Master"
+	VRRP_SNAPSHOT_LEN            = 1024
+	VRRP_PROMISCOUS_MODE         = false
+	VRRP_TIMEOUT                 = 1 // in seconds
+	VRRP_BPF_FILTER              = "ip host " + packet.VRRP_GROUP_IP
+	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
 
 	FSM_PREFIX = "FSM ------> "
 )
@@ -109,32 +110,32 @@ type IntfEvent struct {
 type FSM struct {
 	Config                  *config.IntfCfg // config attributes like virtual rtr ip, vrid, intfRef, etc...
 	pHandle                 *pcap.Handle    // Pcap Handler for receiving packets
-	IpAddr                  string          // My own ip address
-	IfIndex                 int32           // My own ifIndex
-	VirtualRouterMACAddress string          // VRRP MAC aka VMAC
+	PktInfo                 *packet.PacketInfo
+	IpAddr                  string // My own ip address
+	IfIndex                 int32  // My own ifIndex
+	VirtualRouterMACAddress string // VRRP MAC aka VMAC
 	State                   uint8
-	PktInfo                 *PacketInfo
-	AdverTimer              *time.Timer // Advertisement Timer
 	MasterAdverInterval     int32       // The initial value is the same as Advertisement_Interval.
 	SkewTime                int32       // (((256 - priority) * Master_Adver_Interval) / 256)
 	MasterDownValue         int32       // (3 * Master_Adver_Interval) + Skew_time
+	AdverTimer              *time.Timer // Advertisement Timer
 	MasterDownTimer         *time.Timer
-	StInfo                  *config.State   // this is state information for this fsm which will be used for get bulk
-	StateCh                 chan *IntfState // push current state information on to this channel so that server can update information
-	pktCh                   *PktChannelInfo
-	fsmStCh                 *FsmStateInfo
-	txPktCh                 *packet.PacketInfo
-	IntfEventCh             *IntfEvent
+	StInfo                  *config.State // this is state information for this fsm which will be used for get bulk
+	pktCh                   chan *PktChannelInfo
+	fsmStCh                 chan *FsmStateInfo
+	txPktCh                 chan *packet.PacketInfo
+	IntfEventCh             chan *IntfEvent
+	//StateCh                 chan *IntfState // push current state information on to this channel so that server can update information
 }
 
-func InitFsm(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) *FSM {
+func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) *FSM { //stCh chan *IntfState) *FSM {
 	f := &FSM{}
-	f.Config = *cfg
+	f.Config = cfg
 	f.StInfo = &config.State{}
 	f.IpAddr = l3Info.IpAddr
 	f.IfIndex = l3Info.IfIndex
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
-	f.StateCh = stCh
+	//f.StateCh = stCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.fsmStCh = make(chan *FsmStateInfo)
 	f.txPktCh = make(chan *packet.PacketInfo)
@@ -148,10 +149,10 @@ func InitFsm(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) *FSM {
 
 func createVirtualMac(vrid int32) (vmac string) {
 	if vrid < 10 {
-		vmac = VRRP_IEEE_MAC_ADDR + "0" + strconv.Itoa(int(vrid))
+		vmac = packet.VRRP_IEEE_MAC_ADDR + "0" + strconv.Itoa(int(vrid))
 
 	} else {
-		vmac = VRRP_IEEE_MAC_ADDR + strconv.Itoa(int(vrid))
+		vmac = packet.VRRP_IEEE_MAC_ADDR + strconv.Itoa(int(vrid))
 	}
 	return vmac
 }
@@ -185,7 +186,7 @@ func (f *FSM) ReceiveVrrpPackets() {
 		select {
 		case pkt, ok := <-in:
 			if !ok {
-				debug.Logger.Debug("Pcap closed for interface:", intf.L3.IfName, "exiting RX go routine")
+				debug.Logger.Debug("Pcap closed for interface:", f.Config.IntfRef, "exiting RX go routine")
 				return
 			}
 			pktCh <- &PktChannelInfo{
@@ -203,7 +204,7 @@ func (f *FSM) InitPacketListener() error {
 		pHandle, err = pcap.OpenLive(ifName, VRRP_SNAPSHOT_LEN, VRRP_PROMISCOUS_MODE, VRRP_TIMEOUT)
 		if err != nil {
 			debug.Logger.Err("Creating Pcap Handle for l3 interface:", ifName, "failed with error:", err)
-			return
+			return err
 		}
 
 		err = pHandle.SetBPFFilter(VRRP_BPF_FILTER)
@@ -215,9 +216,10 @@ func (f *FSM) InitPacketListener() error {
 		// if everything is success then only start receiving packets
 		go f.ReceiveVrrpPackets()
 	}
+	return nil
 }
 
-func (f *FSM) ProcessRcvdPkt(pktCh *config.PktChannelInfo) {
+func (f *FSM) ProcessRcvdPkt(pktCh *PktChannelInfo) {
 	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.Version)
 	if pktInfo == nil {
 		debug.Logger.Err("Decoding Vrrp Header Failed")
@@ -250,12 +252,12 @@ func (f *FSM) SendPkt(pktInfo *packet.PacketInfo) {
 	}
 }
 
-func (f *FSM) getPacketInfo() *PacketInfo {
+func (f *FSM) getPacketInfo() *packet.PacketInfo {
 	pktInfo := &packet.PacketInfo{
 		Version:      f.Config.Version,
-		Vrid:         f.Config.VRID,
-		Priority:     VRRP_IGNORE_PRIORITY,
-		AdvertiseInt: f.Config.AdvertisementInterval,
+		Vrid:         uint8(f.Config.VRID),
+		Priority:     uint8(f.Config.Priority), //VRRP_IGNORE_PRIORITY,
+		AdvertiseInt: uint16(f.Config.AdvertisementInterval),
 		VirutalMac:   f.VirtualRouterMACAddress,
 	}
 	if f.Config.VirtualIPAddr == "" {
@@ -275,8 +277,8 @@ func (f *FSM) CalculateDownValue(advInt int32) {
 		f.MasterAdverInterval = advInt
 	}
 	//(160) + Set the Master_Down_Timer to Master_Down_Interval
-	if f.Config.Priority != 0 && f.Config.MasterAdverInterval != 0 {
-		f.Config.SkewTime = ((256 - f.Config.Priority) * f.Config.MasterAdverInterval) / 256
+	if f.Config.Priority != 0 && f.MasterAdverInterval != 0 {
+		f.SkewTime = ((256 - f.Config.Priority) * f.MasterAdverInterval) / 256
 	}
 	f.MasterDownValue = (3 * f.MasterAdverInterval) + f.SkewTime
 }

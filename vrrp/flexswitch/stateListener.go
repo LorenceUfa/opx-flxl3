@@ -24,42 +24,46 @@
 package flexswitch
 
 import (
-	"errors"
-	"l3/vrrp/api"
+	_ "errors"
+	_ "l3/vrrp/api"
 	"l3/vrrp/config"
-	"l3/vrrp/debug"
+	_ "l3/vrrp/debug"
 	"vrrpd"
 )
 
-func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state vrrpd.VrrpV4IntfState) *vrrpd.VrrpV4IntfState {
+func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state config.IntfCfg) *vrrpd.VrrpV4IntfState {
 	entry := vrrpd.NewVrrpV4IntfState()
-	entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
-	entry.PreemptMode = bool(state.PreemptMode)
-	entry.AdvertisementInterval = int32(state.AdvertisementInterval)
-	entry.VRID = int32(state.VRID)
-	entry.Priority = int32(state.Priority)
-	entry.SkewTime = int32(state.SkewTime)
-	entry.VirtualIPv4Addr = state.VirtualIPv4Addr
-	//entry.IfIndex = int32(state.IfIndex)
-	entry.MasterDownTimer = int32(state.MasterDownTimer)
-	entry.IntfIpAddr = state.IntfIpAddr
-	entry.VrrpState = state.VrrpState
+	/*
+		entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
+		entry.PreemptMode = bool(state.PreemptMode)
+		entry.AdvertisementInterval = int32(state.AdvertisementInterval)
+		entry.VRID = int32(state.VRID)
+		entry.Priority = int32(state.Priority)
+		entry.SkewTime = int32(state.SkewTime)
+		entry.VirtualIPv4Addr = state.VirtualIPAddr
+		//entry.IfIndex = int32(state.IfIndex)
+		entry.MasterDownTimer = int32(state.MasterDownTimer)
+		entry.IntfIpAddr = state.IntfIpAddr
+		entry.VrrpState = state.VrrpState
+	*/
 	return entry
 }
 
-func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state vrrpd.VrrpV6IntfState) *vrrpd.VrrpV6IntfState {
-	entry := vrrpd.NewVrrpV4IntfState()
-	entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
-	entry.PreemptMode = bool(state.PreemptMode)
-	entry.AdvertisementInterval = int32(state.AdvertisementInterval)
-	entry.VRID = int32(state.VRID)
-	entry.Priority = int32(state.Priority)
-	entry.SkewTime = int32(state.SkewTime)
-	entry.VirtualIPv4Addr = state.VirtualIPv4Addr
-	//entry.IfIndex = int32(state.IfIndex)
-	entry.MasterDownTimer = int32(state.MasterDownTimer)
-	entry.IntfIpAddr = state.IntfIpAddr
-	entry.VrrpState = state.VrrpState
+func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state config.IntfCfg) *vrrpd.VrrpV6IntfState {
+	entry := vrrpd.NewVrrpV6IntfState()
+	/*
+		entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
+		entry.PreemptMode = bool(state.PreemptMode)
+		entry.AdvertisementInterval = int32(state.AdvertisementInterval)
+		entry.VRID = int32(state.VRID)
+		entry.Priority = int32(state.Priority)
+		entry.SkewTime = int32(state.SkewTime)
+		entry.VirtualIPv6Addr = state.VirtualIPAddr
+		//entry.IfIndex = int32(state.IfIndex)
+		entry.MasterDownTimer = int32(state.MasterDownTimer)
+		entry.IntfIpAddr = state.IntfIpAddr
+		entry.VrrpState = state.VrrpState
+	*/
 	return entry
 }
 
@@ -84,7 +88,7 @@ func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIndex vrrpd.Int, count vrrpd.
 	return nil, nil
 }
 
-func (h *ConfigHandler) GetVrrpV4IntfState(ifIndex int32, vrId int32) (*vrrpd.VrrpV4IntfState, error) {
+func (h *ConfigHandler) GetVrrpV4IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV4IntfState, error) {
 	/*
 		response := vrrpd.NewVrrpV4IntfState()
 		key := strconv.Itoa(int(ifIndex)) + "_" + strconv.Itoa(int(vrId))
@@ -119,7 +123,7 @@ func (h *ConfigHandler) GetBulkVrrpV6IntfState(fromIndex vrrpd.Int, count vrrpd.
 	return nil, nil
 }
 
-func (h *ConfigHandler) GetVrrpV6IntfState(ifIndex int32, vrId int32) (*vrrpd.VrrpV6IntfState, error) {
+func (h *ConfigHandler) GetVrrpV6IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV6IntfState, error) {
 	/*
 		response := vrrpd.NewVrrpV4IntfState()
 		key := strconv.Itoa(int(ifIndex)) + "_" + strconv.Itoa(int(vrId))

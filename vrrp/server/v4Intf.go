@@ -24,7 +24,6 @@ package server
 
 import (
 	"l3/vrrp/config"
-	"utils/commonDefs"
 )
 
 type V4Intf struct {
@@ -32,12 +31,19 @@ type V4Intf struct {
 	Vrrpkey *KeyInfo
 }
 
-func (intf *V4Intf) Init(obj *commonDefs.IPv4IntfState) {
+func (intf *V4Intf) Init(obj *config.BaseIpInfo) {
 	ipInfo := intf.Cfg.Info
 	//if !exists {
 	ipInfo.IntfRef = obj.IntfRef
 	ipInfo.IfIndex = obj.IfIndex
 	ipInfo.OperState = obj.OperState
-	intf.Cfg.IpAddr = obj.IpAddr
+	ipInfo.IpAddr = obj.IpAddr
 	intf.Vrrpkey = nil
+}
+
+func (intf *V4Intf) Update(obj *config.BaseIpInfo) {
+	// most likely no-op
+}
+
+func (intf *V4Intf) DeInit(obj *config.BaseIpInfo) {
 }

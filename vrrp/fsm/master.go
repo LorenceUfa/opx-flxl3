@@ -24,6 +24,9 @@
 package fsm
 
 import (
+	"bytes"
+	"l3/vrrp/debug"
+	"net"
 	"time"
 )
 
@@ -80,7 +83,7 @@ func (f *FSM) HandleMasterDownTimer() {
 			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
 			f.TransitionToMaster()
 		}
-		debug.logger.Info("setting down timer to", f.MasterDownValue)
+		debug.Logger.Info("setting down timer to", f.MasterDownValue)
 		// Set Timer expire func...
 		f.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second, MasterDownTimer_func)
 	}

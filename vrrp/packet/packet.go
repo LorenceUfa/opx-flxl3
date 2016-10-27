@@ -23,29 +23,23 @@
 package packet
 
 import (
-	"asicdInt"
-	"encoding/binary"
-	"errors"
-	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"l3/vrrp/config"
-	_ "net"
-	_ "time"
+	"net"
 )
 
 const (
 	// ip/vrrp header Check Defines
-	VRRP_TTL                        = 255
-	VRRP_PKT_TYPE_ADVERTISEMENT     = 1 // Only one type is supported which is advertisement
-	VRRP_RSVD                       = 0
-	VRRP_HDR_CREATE_CHECKSUM        = 0
-	VRRP_HEADER_SIZE_EXCLUDING_IPVX = 8 // 8 bytes...
-	VRRP_IPV4_HEADER_MIN_SIZE       = 20
-	VRRP_HEADER_MIN_SIZE            = 20
-	VRRP_PROTOCOL_MAC               = "01:00:5e:00:00:12"
-	VRRP_GROUP_IP                   = "224.0.0.18"
+	VRRP_TTL                        = uint8(255)
+	VRRP_PKT_TYPE_ADVERTISEMENT     = 1                   // Only one type is supported which is advertisement
+	VRRP_PROTO_ID                   = 112                 // vrrp protocol id
+	VRRP_RSVD                       = 0                   // vrrp rsvd bits
+	VRRP_HDR_CREATE_CHECKSUM        = 0                   // inital hdr checksum
+	VRRP_HEADER_SIZE_EXCLUDING_IPVX = 8                   // 8 bytes...
+	VRRP_IPV4_HEADER_MIN_SIZE       = 20                  // min ipv4 header size
+	VRRP_HEADER_MIN_SIZE            = 20                  // min vrrp header size
+	VRRP_PROTOCOL_MAC               = "01:00:5e:00:00:12" // protocol mac used in the encoding packet
+	VRRP_GROUP_IP                   = "224.0.0.18"        // ipv4 group address
+	VRRP_IEEE_MAC_ADDR              = "00-00-5E-00-01-"   // vrrp base ieee mac address
 
 	// error message from Packet
 	VRRP_CHECKSUM_ERR      = "VRRP checksum failure"
@@ -80,12 +74,12 @@ Octet Offset--> 0                   1                   2                   3
 
 /*
  *  VRRP Packet INTERFACE
- */
 type Packet interface {
-	Decode(gopacket.Packet) *Header
+	Decode(gopacket.Packet, uint8) *PacketInfo
 	ValidateHeader(*Header, []byte) error
 	Encode(*PacketInfo) []byte
 }
+*/
 
 type Header struct {
 	Version      uint8
@@ -103,7 +97,7 @@ type PacketInfo struct {
 	Hdr          *Header
 	DstMac       string
 	SrcMac       string
-	Version      string
+	Version      uint8
 	Vrid         uint8
 	Priority     uint8
 	AdvertiseInt uint16
@@ -113,8 +107,7 @@ type PacketInfo struct {
 }
 
 func Init() *PacketInfo {
-	var pktInfo Packet
-	pktInfo = &PacketInfo{}
+	pktInfo := &PacketInfo{}
 	return pktInfo
 }
 

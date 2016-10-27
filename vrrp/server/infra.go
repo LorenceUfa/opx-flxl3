@@ -28,35 +28,38 @@ import (
 	"fmt"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
-	"utils/commonDefs"
+	"l3/vrrp/packet"
+	"syscall"
 )
 
 func (svr *VrrpServer) GetPorts() {
-	debug.Logger.Info("Get Port State List")
-	portsInfo, err := svr.SwitchPlugin.GetAllPortState()
-	if err != nil {
-		debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
-		return
-	}
-	for _, obj := range portsInfo {
-		var empty struct{}
-		port := config.PhyPort{
-			IntfRef:   obj.IntfRef,
-			IfIndex:   obj.IfIndex,
-			OperState: obj.OperState,
-		}
-		pObj, err := svr.SwitchPlugin.GetPort(obj.IntfRef)
+	/*
+		debug.Logger.Info("Get Port State List")
+		portsInfo, err := svr.SwitchPlugin.GetAllPortState()
 		if err != nil {
-			debug.Logger.Err("Getting mac address for", obj.IntfRef, "failed, error:", err)
-		} else {
-			port.MacAddr = pObj.MacAddr
+			debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
+			return
 		}
-		l2Port := svr.L2Port[port.IfIndex]
-		l2Port.Info = port
-		svr.L2Port[port.IfIndex] = l2Port
-	}
+		for _, obj := range portsInfo {
+			var empty struct{}
+			port := config.PhyPort{
+				IntfRef:   obj.IntfRef,
+				IfIndex:   obj.IfIndex,
+				OperState: obj.OperState,
+			}
+			pObj, err := svr.SwitchPlugin.GetPort(obj.IntfRef)
+			if err != nil {
+				debug.Logger.Err("Getting mac address for", obj.IntfRef, "failed, error:", err)
+			} else {
+				port.MacAddr = pObj.MacAddr
+			}
+			l2Port := svr.L2Port[port.IfIndex]
+			l2Port.Info = port
+			svr.L2Port[port.IfIndex] = l2Port
+		}
 
-	debug.Logger.Info("Done with Port State list")
+		debug.Logger.Info("Done with Port State list")
+	*/
 	return
 }
 
@@ -77,7 +80,13 @@ func (svr *VrrpServer) getIPv4Intfs() {
 			continue
 		}
 		v4Obj := &V4Intf{}
-		v4Obj.Init(obj)
+		ipInfo := &config.BaseIpInfo{
+			IntfRef:   obj.IntfRef,
+			IfIndex:   obj.IfIndex,
+			OperState: obj.OperState,
+			IpAddr:    obj.IpAddr,
+		}
+		v4Obj.Init(ipInfo)
 		/*
 			v4Info, _ := svr.V4[obj.IfIndex]
 			ipInfo := v4Info.Cfg.Info
@@ -106,6 +115,13 @@ func (svr *VrrpServer) getIPv6Intfs() {
 			continue
 		}
 		v6Obj := &V6Intf{}
+		ipInfo := &config.BaseIpInfo{
+			IntfRef:   obj.IntfRef,
+			IfIndex:   obj.IfIndex,
+			OperState: obj.OperState,
+			IpAddr:    obj.IpAddr,
+		}
+		v6Obj.Init(ipInfo)
 		/*
 			v6Info, _ := svr.V6[obj.IfIndex]
 			ipInfo := v6Info.Cfg.Info
@@ -167,9 +183,9 @@ func (svr *VrrpServer) ValidateDeleteConfig(cfg *config.IntfCfg) (bool, error) {
 
 func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 	if cfg.VRID == 0 {
-		return false, errors.New(fmt.Sprintln(server.VRRP_INVALID_VRID, config.VRID))
+		return false, errors.New(fmt.Sprintln(VRRP_INVALID_VRID, cfg.VRID))
 	}
-	switch config.Operation {
+	switch cfg.Operation {
 	// @TODO: jgheewala need to handle verification during the specific operations
 	case config.CREATE:
 		return svr.ValidateCreateConfig(cfg)
@@ -188,8 +204,8 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 		debug.Logger.Err("During Create we should not any entry in the DB")
 		return
 	}
-	l3Info := &L3Intf{}
-	l3Info.IfName = cfg.IntfRef
+	l3Info := &config.BaseIpInfo{}
+	l3Info.IntfRef = cfg.IntfRef
 	// Get DB based on config version
 	switch cfg.Version {
 	case config.VERSION2:
@@ -198,8 +214,8 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 			l3Info.IfIndex = ifIndex
 			v4, exists := svr.V4[ifIndex]
 			if exists {
-				l3Info.IpAddr = v4.Cfg.IpAddr
-				l3Info.OperState = v4.Cfg.OperState
+				l3Info.IpAddr = v4.Cfg.Info.IpAddr
+				l3Info.OperState = v4.Cfg.Info.OperState
 			}
 		}
 	// if cross reference exists then only set l3Info else just pass go defaults and it will updated
@@ -211,12 +227,12 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 			v6, exists := svr.V6[ifIndex]
 			if exists {
 				// @TODO: do we have to use linkscope ip or global scope ip Check RFC
-				l3Info.IpAddr = v6.Cfg.IpAddr
-				l3Info.OperState = v6.Cfg.OperState
+				l3Info.IpAddr = v6.Cfg.Info.IpAddr
+				l3Info.OperState = v6.Cfg.Info.OperState
 			}
 		}
 	}
-	intf.InitVrrpIntf(cfg, l3Info, svr.StateCh)
+	intf.InitVrrpIntf(cfg, l3Info) //, svr.StateCh)
 	svr.Intf[key] = intf
 	// @TODO: NEED TO ADD PRE - PROCESSOR SUB INTERFACE OBJECT
 }
@@ -234,9 +250,9 @@ func (svr *VrrpServer) HandleIntfConfig(cfg *config.IntfCfg) {
 func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
 	switch add {
 	case true:
-		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC)
+		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC, -1, 1)
 	case false:
-		svr.SwitchPlugin.DisablePacketReception(packet.VRRP_PROTOCOL_MAC)
+		svr.SwitchPlugin.DisablePacketReception(packet.VRRP_PROTOCOL_MAC, -1, 1)
 		// @TODO: tear down all fsm states and configuration
 	}
 }
@@ -253,11 +269,47 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	}
 }
 
-func (svr *VrrpServer) HandleStateUpdate(intfSt *IntfState) {
-	intf, exists := svr.Intf[intfSt.Key]
-	if !exists {
-		return
+func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
+	switch msg.MsgType {
+	case config.IP_MSG_CREATE:
+		switch msg.IpType {
+		case syscall.AF_INET:
+			v4, exists := svr.V4[msg.IfIndex]
+			if !exists {
+				//v4Obj := &V4Intf{}
+				v4.Init(msg)
+			}
+		case syscall.AF_INET6:
+			v6, exists := svr.V6[msg.IfIndex]
+			if !exists {
+				v6.Init(msg)
+			} else {
+				// maybe we need to update linkscope or global scope ip
+			}
+		}
+	case config.IP_MSG_DELETE:
+		switch msg.IpType {
+		case syscall.AF_INET:
+			v4, exists := svr.V4[msg.IfIndex]
+			if exists {
+				//v4Obj := &V4Intf{}
+				v4.DeInit(msg)
+			}
+		case syscall.AF_INET6:
+			// most likely we will get two delete one for linkscope and other for global-scope
+			v6, exists := svr.V6[msg.IfIndex]
+			if exists {
+				v6.DeInit(msg)
+			}
+		}
+
+	case config.IP_MSG_STATE_CHANGE:
+		switch msg.OperState {
+		case config.STATE_UP:
+			// start fsm now
+
+		case config.STATE_DOWN:
+			// stop fsm
+		}
 	}
-	intf.UpdateStateInfo(intfSt.State)
-	svr.Intf[key] = intf
 }

@@ -38,6 +38,16 @@ func NewConfigHandler() *ConfigHandler {
 	return handler
 }
 
+type ConfigPlugin struct {
+	handler  *ConfigHandler
+	fileName string
+}
+
+type ClientJson struct {
+	Name string `json:Name`
+	Port int    `json:Port`
+}
+
 func NewConfigPlugin(handler *ConfigHandler, fileName string) *ConfigPlugin {
 	l := &ConfigPlugin{handler, fileName}
 	return l
