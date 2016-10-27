@@ -457,7 +457,7 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 	for key, ent := range server.IntfConfMap {
 		AreaId := convertIPv4ToUint32(ent.IfAreaId)
 		if areaId != AreaId {
-			server.logger.Debug(fmt.Sprintln("LSDB: Area id not matching. i/p ", areaId, "if areaid ", AreaId, ent.IfIpAddr))
+			server.logger.Warning(fmt.Sprintln("LSDB: Area id not matching. i/p ", areaId, "if areaid ", AreaId, ent.IfIpAddr))
 			continue
 		}
 		msg := DbEventMsg{
