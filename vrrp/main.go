@@ -26,7 +26,7 @@ package main
 import (
 	"fmt"
 	"l3/vrrp/debug"
-	"l3/vrrp/rpc"
+	"l3/vrrp/flexswitch"
 	"l3/vrrp/server"
 	"utils/dmnBase"
 )
