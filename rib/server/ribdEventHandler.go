@@ -41,12 +41,26 @@ func (ribdServiceHandler *RIBDServer) ProcessLogicalIntfCreateEvent(logicalIntfN
 		IntfIdNameMap = make(map[int32]IntfEntry)
 	}
 	intfEntry := IntfEntry{name: logicalIntfNotifyMsg.LogicalIntfName}
-	ribdServiceHandler.Logger.Info("Updating IntfIdMap at index ", ifId, " with name ", logicalIntfNotifyMsg.LogicalIntfName)
+	ribdServiceHandler.Logger.Info("ProcessLogicalIntfCreateEvent:Updating IntfIdMap at index ", ifId, " with name ", logicalIntfNotifyMsg.LogicalIntfName)
 	IntfIdNameMap[int32(ifId)] = intfEntry
 	if IfNameToIfIndex == nil {
 		IfNameToIfIndex = make(map[string]int32)
 	}
 	IfNameToIfIndex[logicalIntfNotifyMsg.LogicalIntfName] = ifId
+
+}
+func (ribdServiceHandler *RIBDServer) ProcessLagIntfCreateEvent(lagIntfNotifyMsg asicdCommonDefs.LagNotifyMsg) {
+	ifId := lagIntfNotifyMsg.IfIndex
+	if IntfIdNameMap == nil {
+		IntfIdNameMap = make(map[int32]IntfEntry)
+	}
+	intfEntry := IntfEntry{name: lagIntfNotifyMsg.LagName}
+	ribdServiceHandler.Logger.Info("ProcessLagIntfCreateEvent:Updating IntfIdMap at index ", ifId, " with name ", lagIntfNotifyMsg.LagName)
+	IntfIdNameMap[int32(ifId)] = intfEntry
+	if IfNameToIfIndex == nil {
+		IfNameToIfIndex = make(map[string]int32)
+	}
+	IfNameToIfIndex[lagIntfNotifyMsg.LagName] = ifId
 
 }
 func (ribdServiceHandler *RIBDServer) ProcessVlanCreateEvent(vlanNotifyMsg asicdCommonDefs.VlanNotifyMsg) {
@@ -206,6 +220,16 @@ func (ribdServiceHandler *RIBDServer) ProcessAsicdEvents(sub *nanomsg.SubSocket)
 				return
 			}
 			ribdServiceHandler.ProcessLogicalIntfCreateEvent(logicalIntfNotifyMsg)
+			break
+		case asicdCommonDefs.NOTIFY_LAG_CREATE:
+			ribdServiceHandler.Logger.Info(".NOTIFY_LAG_CREATE received")
+			var lagIntfNotifyMsg asicdCommonDefs.LagNotifyMsg
+			err = json.Unmarshal(Notif.Msg, &lagIntfNotifyMsg)
+			if err != nil {
+				ribdServiceHandler.Logger.Info("Unable to unmashal lagIntfNotifyMsg:", Notif.Msg)
+				return
+			}
+			ribdServiceHandler.ProcessLagIntfCreateEvent(lagIntfNotifyMsg)
 			break
 		case asicdCommonDefs.NOTIFY_VLAN_CREATE:
 			ribdServiceHandler.Logger.Info("asicdCommonDefs.NOTIFY_VLAN_CREATE")

@@ -208,7 +208,7 @@ func (p *VxlanPort) enablePortSenderListener() error {
 					if vtep, ok := p.IsMyVtepPkt(packet); ok {
 						//fmt.Println("FOUND MY PACKET: ", packet)
 						p.rxPkts++
-						go vtep.decapAndDispatchPkt(packet)
+						vtep.decapAndDispatchPkt(packet)
 					}
 					//}
 				} else {

@@ -23,9 +23,11 @@ type VXLANClientIntf interface {
 	// create/delete
 	CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent)
 	DeleteVtep(vtep *VtepDbEntry)
+	UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16)
 	CreateVxlan(vxlan *VxlanDbEntry)
 	DeleteVxlan(vxlan *VxlanDbEntry)
 	UpdateVxlan(vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16)
+
 	// access ports
 	//AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
 	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
@@ -65,6 +67,9 @@ func (b BaseClientIntf) GetIntfInfo(name string, intfchan chan<- MachineEvent) {
 
 }
 func (b BaseClientIntf) CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent) {
+
+}
+func (b BaseClientIntf) UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16) {
 
 }
 func (b BaseClientIntf) DeleteVtep(vtep *VtepDbEntry) {
