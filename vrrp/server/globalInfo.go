@@ -23,20 +23,10 @@
 package server
 
 import (
-	"asicdServices"
-	"git.apache.org/thrift.git/lib/go/thrift"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
-	nanomsg "github.com/op/go-nanomsg"
 	"l3/vrrp/config"
 	"l3/vrrp/packet"
-	"net"
-	"sync"
-	"time"
 	"utils/asicdClient"
-	"utils/dbutils"
 	"utils/dmnBase"
-	"utils/logging"
 )
 
 type VrrpTxChannelInfo struct {

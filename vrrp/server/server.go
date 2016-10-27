@@ -24,22 +24,13 @@
 package server
 
 import (
-	"asicd/asicdCommonDefs"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"l3/vrrp/config"
-	"net"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
-	"sync"
 	"syscall"
-	"time"
 	"utils/ipcutils"
-	"utils/logging"
 )
 
 /*

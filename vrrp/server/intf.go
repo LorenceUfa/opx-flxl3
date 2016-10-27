@@ -23,13 +23,8 @@
 package server
 
 import (
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"l3/vrrp/config"
-	"l3/vrrp/debug"
 	"l3/vrrp/fsm"
-	"strconv"
 )
 
 type IPIntf interface {

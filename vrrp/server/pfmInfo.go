@@ -26,7 +26,6 @@ package server
 import (
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
-	_ "net"
 	"utils/commonDefs"
 )
 
@@ -53,8 +52,6 @@ func (svr *VrrpServer) GetPorts() {
 		l2Port := svr.L2Port[port.IfIndex]
 		l2Port.Info = port
 		svr.L2Port[port.IfIndex] = l2Port
-		//svr.SwitchMacMapEntries[port.MacAddr] = empty
-		//svr.SwitchMac = port.MacAddr // @HACK.... need better solution
 	}
 
 	debug.Logger.Info("Done with Port State list")
