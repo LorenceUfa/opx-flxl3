@@ -109,6 +109,9 @@ func (pProc *Processor) GetClientStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.ClientStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPv6RelayClientState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -147,6 +150,9 @@ func (pProc *Processor) GetIntfStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.IntfStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPv6RelayIntfState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -185,6 +191,9 @@ func (pProc *Processor) GetIntfServerStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.IntfServerStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPv6RelayIntfServerState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -277,6 +286,30 @@ func (pProc *Processor) initIntfState(
 		pProc.IntfStateMap[ifIdx] = intfState
 	}
 	return intfState
+}
+
+func (pProc *Processor) deleteIntfState(
+	ifIdx int, ifName string) {
+
+	defer pProc.StateMutex.Unlock()
+	pProc.StateMutex.Lock()
+
+	_, ok := pProc.IntfStateMap[ifIdx]
+	if !ok {
+		return
+	}
+	sliceEntIdx := -1
+	for i, intfState := range pProc.IntfStateSlice {
+		if intfState.IntfRef == ifName {
+			sliceEntIdx = i
+			break
+		}
+	}
+	if sliceEntIdx != -1 {
+		pProc.IntfStateSlice = append(pProc.IntfStateSlice[:sliceEntIdx],
+			pProc.IntfStateSlice[sliceEntIdx+1:]...)
+	}
+	delete(pProc.IntfStateMap, ifIdx)
 }
 
 func (pProc *Processor) initIntfServerState(
@@ -717,6 +750,22 @@ func (pProc *Processor) DeregisterMcast(ifRef string) {
 		)
 		return
 	}
+}
+
+func (pProc *Processor) ProcessCreateDRAIntf(ifIdx int) {
+	ipv6Intf, ok := pProc.InfraMgr.GetIPv6Intf(ifIdx)
+	if !ok {
+		Logger.Debug("DRA: Unable to find interface with index", ifIdx)
+	}
+	pProc.initIntfState(ifIdx, ipv6Intf.IfRef)
+}
+
+func (pProc *Processor) ProcessDeleteDRAIntf(ifIdx int) {
+	ipv6Intf, ok := pProc.InfraMgr.GetIPv6Intf(ifIdx)
+	if !ok {
+		Logger.Debug("DRA: Unable to find interface with index", ifIdx)
+	}
+	pProc.deleteIntfState(ifIdx, ipv6Intf.IfRef)
 }
 
 func (pProc *Processor) ProcessActiveDRAIntf(ifIdx int) {

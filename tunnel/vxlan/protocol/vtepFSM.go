@@ -55,15 +55,15 @@ var VxlanVtepStateStrMap map[fsm.State]string
 // VxlanVtepState map converts state to string
 func VxlanVtepMachineStrStateMapInit() {
 	VxlanVtepStateStrMap = make(map[fsm.State]string)
-	VxlanVtepStateStrMap[VxlanVtepStateNone] = "None"
-	VxlanVtepStateStrMap[VxlanVtepStateDisabled] = "Disabled"
-	VxlanVtepStateStrMap[VxlanVtepStateInit] = "Init"
-	VxlanVtepStateStrMap[VxlanVtepStateDetached] = "Detached"
-	VxlanVtepStateStrMap[VxlanVtepStateInterface] = "Interface"
-	VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo] = "Next Hop Info"
-	VxlanVtepStateStrMap[VxlanVtepStateResolveNextHopMac] = "Resolve Next Hop Mac"
-	VxlanVtepStateStrMap[VxlanVtepStateHwConfig] = "Hw Config"
-	VxlanVtepStateStrMap[VxlanVtepStateStart] = "Listener"
+	VxlanVtepStateStrMap[VxlanVtepStateNone] = "UNINITIALIZED"
+	VxlanVtepStateStrMap[VxlanVtepStateDisabled] = "DISABLED"
+	VxlanVtepStateStrMap[VxlanVtepStateInit] = "INIT"
+	VxlanVtepStateStrMap[VxlanVtepStateDetached] = "DETACHED"
+	VxlanVtepStateStrMap[VxlanVtepStateInterface] = "INTERFACE"
+	VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo] = "NEXT HOP INFO"
+	VxlanVtepStateStrMap[VxlanVtepStateResolveNextHopMac] = "RESOLVE NEXT HOP INFO"
+	VxlanVtepStateStrMap[VxlanVtepStateHwConfig] = "HW CONFIG"
+	VxlanVtepStateStrMap[VxlanVtepStateStart] = "LISTENER"
 }
 
 // VxlanVtepEvent is used to transition VTEP FSM to various
@@ -207,9 +207,10 @@ func (vm *VxlanVtepMachine) BEGIN() {
 func (vm *VxlanVtepMachine) Stop() {
 
 	vtep := vm.vtep
-
 	logger.Info("Close VTEP MACHINE")
 	close(vm.VxlanVtepEvents)
+
+	vtep.wg.Wait()
 
 	if vtep.retrytimer != nil {
 		vtep.retrytimer.Stop()
@@ -313,7 +314,7 @@ func (vm *VxlanVtepMachine) VxlanVtepNextHopInfo(m fsm.Machine, data interface{}
 	}
 	// lets resolve the next hop mac
 	for _, client := range ClientIntf {
-		client.ResolveNextHopMac(vtep.NextHop.Ip, vm.VxlanVtepEvents)
+		client.ResolveNextHopMac(vtep.NextHop.Ip, vtep.NextHop.IfName, vm.VxlanVtepEvents)
 	}
 
 	return VxlanVtepStateNextHopInfo

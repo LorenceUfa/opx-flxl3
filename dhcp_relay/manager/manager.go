@@ -206,6 +206,7 @@ func (draMgr *DRAMgr) CreateDRAv4Interface(
 		return false, errors.New(errMsg)
 	}
 	draMgr.IMgr.UpdateDRAv4Intf(cfg)
+	draMgr.PProc4.ProcessCreateDRAIntf(ifIdx)
 	if _, ok := draMgr.IMgr.GetActiveDRAv4Intf(ifIdx); ok {
 		draMgr.PProc4.StartRxTx()
 		draMgr.PProc4.ProcessActiveDRAIntf(ifIdx)
@@ -263,6 +264,7 @@ func (draMgr *DRAMgr) DeleteDRAv4Interface(intfRef string) (bool, error) {
 	}
 	_, draPreState := draMgr.IMgr.GetActiveDRAv4Intf(ifIdx)
 	draMgr.IMgr.DeleteDRAv4Intf(intfRef)
+	draMgr.PProc4.ProcessDeleteDRAIntf(ifIdx)
 	if draMgr.IMgr.GetActiveDRAv4IntfCount() <= 0 {
 		draMgr.PProc4.StopRxTx()
 		return true, nil
@@ -329,6 +331,16 @@ func (draMgr *DRAMgr) DeleteDRAv6Global(Vrf string) (bool, error) {
 	return true, nil
 }
 
+func checkStringSliceUnique(stringList []string) bool {
+	uniqueMap := make(map[string]bool)
+	for _, s := range stringList {
+		if _, ok := uniqueMap[s]; ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (draMgr *DRAMgr) CreateDRAv6Interface(
 	cfg *dhcprelayd.DHCPv6RelayIntf) (bool, error) {
 
@@ -340,6 +352,12 @@ func (draMgr *DRAMgr) CreateDRAv6Interface(
 			draMgr.Logger.Err(errMsg)
 			return false, errors.New(errMsg)
 		}
+	}
+	if !checkStringSliceUnique(cfg.UpstreamIntfs) {
+		errMsg := fmt.Sprintln(
+			"DRA: Non unique upstream interfaces")
+		draMgr.Logger.Err(errMsg)
+		return false, errors.New(errMsg)
 	}
 	for _, val := range cfg.ServerIp {
 		ip := net.ParseIP(val)
@@ -359,6 +377,7 @@ func (draMgr *DRAMgr) CreateDRAv6Interface(
 		return false, errors.New(errMsg)
 	}
 	draMgr.IMgr.UpdateDRAv6Intf(cfg)
+	draMgr.PProc6.ProcessCreateDRAIntf(ifIdx)
 	if _, ok := draMgr.IMgr.GetActiveDRAv6Intf(ifIdx); ok {
 		draMgr.PProc6.StartRxTx()
 		draMgr.PProc6.ProcessActiveDRAIntf(ifIdx)
@@ -428,6 +447,7 @@ func (draMgr *DRAMgr) DeleteDRAv6Interface(intfRef string) (bool, error) {
 	}
 	_, draPreState := draMgr.IMgr.GetActiveDRAv6Intf(ifIdx)
 	draMgr.IMgr.DeleteDRAv6Intf(intfRef)
+	draMgr.PProc6.ProcessDeleteDRAIntf(ifIdx)
 	if draMgr.IMgr.GetActiveDRAv6IntfCount() <= 0 {
 		draMgr.PProc6.StopRxTx()
 		return true, nil

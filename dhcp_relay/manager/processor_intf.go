@@ -32,6 +32,8 @@ type IPv4ProcessorIntf interface {
 	StopRxTx()
 	GetEnabledFlag() bool
 	SetEnabledFlag()
+	ProcessCreateDRAIntf(int)
+	ProcessDeleteDRAIntf(int)
 	ProcessActiveDRAIntf(int)
 	ProcessInactiveDRAIntf(int)
 	GetClientState(string) (*dhcprelayd.DHCPRelayClientState, bool)
@@ -47,6 +49,8 @@ type IPv6ProcessorIntf interface {
 	StopRxTx()
 	GetEnabledFlag() bool
 	SetEnabledFlag()
+	ProcessCreateDRAIntf(int)
+	ProcessDeleteDRAIntf(int)
 	ProcessActiveDRAIntf(int)
 	ProcessInactiveDRAIntf(int)
 	GetClientState(string) (*dhcprelayd.DHCPv6RelayClientState, bool)
