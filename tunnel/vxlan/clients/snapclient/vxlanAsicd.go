@@ -49,6 +49,7 @@ func ConvertVtepToVxlanAsicdConfig(vtep *vxlan.VtepDbEntry) *asicdInt.Vtep {
 		SrcIfName:      vtep.SrcIfName,
 		UDP:            int16(vtep.UDP),
 		TTL:            int16(vtep.TTL),
+		MTU:            int32(vtep.MTU),
 		SrcIp:          vtep.SrcIp.String(),
 		DstIp:          vtep.DstIp.String(),
 		VlanId:         int16(vtep.VlanId),
@@ -628,6 +629,14 @@ func (intf VXLANSnapClient) DeleteVtep(vtep *vxlan.VtepDbEntry) {
 				}
 			}
 		}
+		intf.asicdmutex.Unlock()
+	}
+}
+
+func (intf VXLANSnapClient) UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16) {
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+		asicdclnt.ClientHdl.UpdateVxlanVtepAttr(vtepName, int32(vni), int16(tos), int16(ttl), int32(mtu))
 		intf.asicdmutex.Unlock()
 	}
 }
