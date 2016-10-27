@@ -25,7 +25,7 @@ package server
 
 import (
 	"l3/vrrp/debug"
-	"models/objects"
+	_ "models/objects"
 	"utils/dbutils"
 )
 

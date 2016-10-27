@@ -23,7 +23,7 @@
 package server
 
 import (
-	"config"
+	"l3/vrrp/config"
 	"net"
 	"utils/commonDefs"
 )

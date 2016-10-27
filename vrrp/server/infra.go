@@ -28,7 +28,112 @@ import (
 	"fmt"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
+	"utils/commonDefs"
 )
+
+func (svr *VrrpServer) GetPorts() {
+	debug.Logger.Info("Get Port State List")
+	portsInfo, err := svr.SwitchPlugin.GetAllPortState()
+	if err != nil {
+		debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
+		return
+	}
+	for _, obj := range portsInfo {
+		var empty struct{}
+		port := config.PhyPort{
+			IntfRef:   obj.IntfRef,
+			IfIndex:   obj.IfIndex,
+			OperState: obj.OperState,
+		}
+		pObj, err := svr.SwitchPlugin.GetPort(obj.IntfRef)
+		if err != nil {
+			debug.Logger.Err("Getting mac address for", obj.IntfRef, "failed, error:", err)
+		} else {
+			port.MacAddr = pObj.MacAddr
+		}
+		l2Port := svr.L2Port[port.IfIndex]
+		l2Port.Info = port
+		svr.L2Port[port.IfIndex] = l2Port
+	}
+
+	debug.Logger.Info("Done with Port State list")
+	return
+}
+
+func (svr *VrrpServer) GetVlans() {
+
+}
+
+func (svr *VrrpServer) getIPv4Intfs() {
+	ipv4Info, err := svr.SwitchPlugin.GetAllIPv4IntfState()
+	if err != nil {
+		debug.Logger.Err("Failed to get all IPv4 interfaces, err:", err)
+		return
+	}
+
+	for _, obj := range ipv4Info {
+		// do not care for loopback interface
+		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
+			continue
+		}
+		v4Obj := &V4Intf{}
+		v4Obj.Init(obj)
+		/*
+			v4Info, _ := svr.V4[obj.IfIndex]
+			ipInfo := v4Info.Cfg.Info
+			//if !exists {
+			ipInfo.IntfRef = obj.IntfRef
+			ipInfo.IfIndex = obj.IfIndex
+			ipInfo.OperState = obj.OperState
+			v4Info.Cfg.IpAddr = obj.IpAddr
+			v4Info.Vrrpkey = nil
+			//		}
+		*/
+		svr.V4[obj.IfIndex] = v4Obj //ipInfo
+		svr.V4IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
+	}
+}
+
+func (svr *VrrpServer) getIPv6Intfs() {
+	ipv6Info, err := svr.SwitchPlugin.GetAllIPv6IntfState()
+	if err != nil {
+		debug.Logger.Err("Failed to get all IPv6 interfaces, err:", err)
+		return
+	}
+	for _, obj := range ipv6Info {
+		// do not care for loopback interface
+		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
+			continue
+		}
+		v6Obj := &V6Intf{}
+		/*
+			v6Info, _ := svr.V6[obj.IfIndex]
+			ipInfo := v6Info.Cfg.Info
+			//if !exists {
+			ipInfo.IntfRef = obj.IntfRef
+			ipInfo.IfIndex = obj.IfIndex
+			ipInfo.OperState = obj.OperState
+			ip, _, _ := net.ParseCIDR(obj.IpAddr)
+			if ip.IsLinkLocalUnicast() {
+				v6Info.Cfg.LinkScopeAddr = ip.String()
+			} else {
+				v6Info.Cfg.IPv6Addr = ip.String()
+			}
+			//		}
+			v6Info.Vrrpkey = nil
+		*/
+		svr.V6[obj.IfIndex] = v6Obj //ipInfo
+		svr.V6IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
+	}
+}
+
+func (svr *VrrpServer) GetIPIntfs() {
+
+	debug.Logger.Info("Get all ipv4 interfaces from asicd")
+	svr.getIPv4Intfs()
+	debug.Logger.Info("Get all ipv6 interfaces from asicd")
+	svr.getIPv6Intfs()
+}
 
 func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
@@ -74,7 +179,6 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 		return svr.ValidateDeleteConfig(cfg)
 	}
 	return false, errors.New("Invalid Operation received for Vrrp Interface Config")
-
 }
 
 func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {

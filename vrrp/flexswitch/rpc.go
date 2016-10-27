@@ -52,7 +52,7 @@ func (cfg *ConfigPlugin) StartConfigListener() error {
 	}
 	debug.Logger.Info("Got Client Info for", clientJson.Name, " port", clientJson.Port)
 	// create processor, transport and protocol for server
-	processor := ndpd.NewNDPDServicesProcessor(cfg.handler)
+	processor := vrrpd.NewVRRPDServicesProcessor(cfg.handler)
 	transportFactory := thrift.NewTBufferedTransportFactory(8192)
 	protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
 	transport, err := thrift.NewTServerSocket("localhost:" + strconv.Itoa(clientJson.Port))
