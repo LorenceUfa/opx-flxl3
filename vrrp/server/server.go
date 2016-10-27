@@ -53,7 +53,6 @@ func (svr *VrrpServer) VrrpUpdateIntfIpAddr(gblInfo *VrrpGlobalInfo) bool {
 	gblInfo.IpAddr = IpAddr
 	return true
 }
-*/
 
 func (svr *VrrpServer) VrrpPopulateIntfState(key string, entry *vrrpd.VrrpIntfState) bool {
 	gblInfo, ok := svr.vrrpGblInfo[key]
@@ -97,12 +96,15 @@ func (svr *VrrpServer) VrrpPopulateVridState(key string, entry *vrrpd.VrrpVridSt
 	gblInfo.StateInfoLock.Unlock()
 	return ok
 }
+*/
 
+/*
 func (svr *VrrpServer) VrrpDeleteGblInfo(config vrrpd.VrrpIntf) {
 	key := strconv.Itoa(int(config.IfIndex)) + "_" + strconv.Itoa(int(config.VRID))
 	gblInfo, found := svr.vrrpGblInfo[key]
 	if found {
-		svr.VrrpUpdateSubIntf(gblInfo, false /*disable*/)
+		svr.VrrpUpdateSubIntf(gblInfo, false /*disable*/ //)
+/*
 	}
 	delete(svr.vrrpGblInfo, key)
 	for i := 0; i < len(svr.vrrpIntfStateSlice); i++ {
@@ -116,9 +118,11 @@ func (svr *VrrpServer) VrrpDeleteGblInfo(config vrrpd.VrrpIntf) {
 		return
 	}
 	svr.logger.Info("No more vrrp configured, disabling protocol mac")
-	svr.VrrpUpdateProtocolMacEntry(false /*delete vrrp protocol mac*/)
+	svr.VrrpUpdateProtocolMacEntry(false /*delete vrrp protocol mac*/ //)
+/*
 }
-
+*/
+/*
 func (svr *VrrpServer) VrrpUpdateIntf(origconfig vrrpd.VrrpIntf,
 	newconfig vrrpd.VrrpIntf, attrset []bool) {
 	key := strconv.Itoa(int(origconfig.IfIndex)) + "_" +
@@ -136,7 +140,8 @@ func (svr *VrrpServer) VrrpUpdateIntf(origconfig vrrpd.VrrpIntf,
 		4	5 : i32 AdvertisementInterval
 		5	6 : bool PreemptMode
 		6	7 : bool AcceptMode
-	*/
+*/
+/*
 	updDownTimer := false
 	for elem, _ := range attrset {
 		//for elem <= VRRP_TOTAL_INTF_CONFIG_ELEMENTS {
@@ -257,6 +262,7 @@ func (svr *VrrpServer) VrrpCloseAllPcapHandlers() {
 		}
 	}
 }
+*/
 
 func (svr *VrrpServer) EventListener() {
 	// Start receviing in rpc values in the channell
