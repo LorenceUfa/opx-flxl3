@@ -30,7 +30,7 @@ import (
 	"time"
 )
 
-func v6Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
+func v6Add(client *ribd.RIBDServicesClient, nextHopIpStr string, maxCount int64) (err error) {
 	fmt.Println("v6Add")
 	var count int64 = 0
 	//var maxCount int = 30000
@@ -69,7 +69,7 @@ func v6Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
 		route.DestinationNw = rtNet
 		route.NextHop = make([]*ribd.NextHopInfo, 0)
 		nh := ribd.NextHopInfo{
-			NextHopIp: "2002::1234:5678:9abc:1234",
+			NextHopIp: nextHopIpStr, //"2002::1234:5678:9abc:1234",
 		}
 		route.NextHop = append(route.NextHop, &nh)
 		route.Protocol = "STATIC"
@@ -92,7 +92,7 @@ func v6Add(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
 	//	fmt.Println(" ## Elapsed time is ", elapsed)
 	return nil
 }
-func v6Del(client *ribd.RIBDServicesClient) (err error) {
+func v6Del(client *ribd.RIBDServicesClient, nextHopIpStr string) (err error) {
 	fmt.Println("v6Del")
 	count, _ := client.GetTotalv6RouteCount()
 	startCount := count
@@ -130,7 +130,7 @@ func v6Del(client *ribd.RIBDServicesClient) (err error) {
 		route.DestinationNw = rtNet
 		route.NextHop = make([]*ribd.NextHopInfo, 0)
 		nh := ribd.NextHopInfo{
-			NextHopIp: "2002::1234:5678:9abc:1234",
+			NextHopIp: nextHopIpStr, //"2002::1234:5678:9abc:1234",
 		}
 		route.NextHop = append(route.NextHop, &nh)
 		route.Protocol = "STATIC"
@@ -155,10 +155,10 @@ func v6Del(client *ribd.RIBDServicesClient) (err error) {
 }
 
 //func main() {
-func ScaleV6Add(ribdClient *ribd.RIBDServicesClient, number int64) {
-	v6Add(ribdClient, number) //ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
+func ScaleV6Add(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string, number int64) {
+	v6Add(ribdClient, nextHopIpStr, number) //ribd.NewRIBDServicesClientFactory(transport, protocolFactory))
 }
 
-func ScaleV6Del(ribdClient *ribd.RIBDServicesClient) {
-	v6Del(ribdClient)
+func ScaleV6Del(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string) {
+	v6Del(ribdClient, nextHopIpStr)
 }
