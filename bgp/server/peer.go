@@ -836,7 +836,7 @@ func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) boo
 		} else {
 			packet.SetLocalPref(bgpMsg, path.GetPreference())
 		}
-		if p.NeighborConf.RunningConf.NextHopSelf {
+		if path.NeighborConf == nil || p.NeighborConf.RunningConf.NextHopSelf {
 			packet.SetNextHop(bgpMsg, p.NeighborConf.Neighbor.Transport.Config.LocalAddress)
 		}
 	} else {
