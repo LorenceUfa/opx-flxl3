@@ -1645,7 +1645,6 @@ func (s *BGPServer) Restart(cfg config.GlobalConfig) {
 	s.RemoveRoutesFromAllNeighbor()
 
 	gConf := cfg
-	packet.SetNextHopPathAttrs(s.ConnRoutesPath.PathAttrs, gConf.RouterId)
 	s.copyGlobalConf(gConf)
 	s.constructBGPGlobalState(&gConf)
 

@@ -175,6 +175,14 @@ func (pProc *Processor4Fake) GetIntfServerState(
 	}
 }
 
+func (pProc *Processor4Fake) ProcessCreateDRAIntf(ifIdx int) {
+	return
+}
+
+func (pProc *Processor4Fake) ProcessDeleteDRAIntf(ifIdx int) {
+	return
+}
+
 func (pProc *Processor4Fake) ProcessActiveDRAIntf(ifIdx int) {
 	return
 }
@@ -294,6 +302,14 @@ func (pProc *Processor6Fake) GetIntfServerState(
 	} else {
 		return nil, false
 	}
+}
+
+func (pProc *Processor6Fake) ProcessCreateDRAIntf(ifIdx int) {
+	return
+}
+
+func (pProc *Processor6Fake) ProcessDeleteDRAIntf(ifIdx int) {
+	return
 }
 
 func (pProc *Processor6Fake) ProcessActiveDRAIntf(ifIdx int) {
