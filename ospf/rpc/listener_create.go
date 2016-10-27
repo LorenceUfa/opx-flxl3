@@ -33,6 +33,7 @@ import (
 
 func (h *OSPFHandler) SendOspfGlobal(ospfGlobalConf *ospfd.OspfGlobal) error {
 	gConf := config.GlobalConf{
+		Vrf:                ospfGlobalConf.Vrf,
 		RouterId:           config.RouterId(ospfGlobalConf.RouterId),
 		AdminStat:          config.Status(ospfGlobalConf.AdminStat),
 		ASBdrRtrStatus:     ospfGlobalConf.ASBdrRtrStatus,
