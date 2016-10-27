@@ -96,3 +96,14 @@ type IntfCfg struct {
 	Version   uint8
 	Operation uint8
 }
+
+type State struct {
+	AdverRx             uint32 // Total advertisement received
+	AdverTx             uint32 // Total advertisement send out
+	MasterIp            string // Remote Master Ip Address
+	LastAdverRx         string // Last advertisement received
+	LastAdverTx         string // Last advertisment send out
+	PreviousFsmState    string // previous fsm state
+	CurrentFsmState     string // current fsm state
+	ReasonForTransition string // why did we transition to current state?
+}

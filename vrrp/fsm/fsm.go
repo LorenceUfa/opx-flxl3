@@ -21,7 +21,7 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package server
+package fsm
 
 import (
 	"asicdServices"
@@ -119,7 +119,7 @@ type FSM struct {
 	SkewTime                int32       // (((256 - priority) * Master_Adver_Interval) / 256)
 	MasterDownValue         int32       // (3 * Master_Adver_Interval) + Skew_time
 	MasterDownTimer         *time.Timer
-	StInfo                  StateInfo       // this is state information for this fsm which will be used for get bulk
+	StInfo                  config.State    // this is state information for this fsm which will be used for get bulk
 	StateCh                 chan *IntfState // push current state information on to this channel so that server can update information
 	pktCh                   *PktChannelInfo
 	fsmStCh                 *FsmStateInfo
@@ -266,51 +266,6 @@ func (f *FSM) getPacketInfo() *PacketInfo {
 	return pktInfo
 }
 
-func (f *FSM) StartMasterAdverTimer() {
-	if f.AdverTimer != nil {
-		f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
-	} else {
-		var SendMasterAdveristement_func func()
-		SendMasterAdveristement_func = func() {
-			// Send advertisment every time interval expiration
-			f.SendPkt(f.getPacketInfo())
-			f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
-		}
-		debug.Logger.Debug("Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
-		f.AdverTimer = time.AfterFunc(time.Duration(f.Config.AdvertisementInterval), SendMasterAdveristement_func)
-	}
-}
-
-func (f *FSM) StopMasterAdverTimer() {
-	if f.AdverTimer != nil {
-		f.AdverTimer.Stop()
-		f.AdverTimer = nil
-	}
-}
-
-func (f *FSM) StopMasterDownTimer() {
-	if f.MasterDownTimer != nil {
-		f.MasterDownTimer.Stop()
-		f.MasterDownTimer = nil
-	}
-}
-
-func (f *FSM) HandleMasterDownTimer() {
-	if f.MasterDownTimer != nil {
-		f.MasterDownTimer.Reset(time.Duration(f.MasterDownValue) * time.Second)
-	} else {
-		var MasterDownTimer_func func()
-		// On Timer expiration we will transition to master
-		MasterDownTimer_func = func() {
-			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
-			f.TransitionToMaster()
-		}
-		debug.logger.Info("setting down timer to", f.MasterDownValue)
-		// Set Timer expire func...
-		f.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second, MasterDownTimer_func)
-	}
-}
-
 func (f *FSM) CalculateDownValue(advInt int32) {
 	//(155) + Set Master_Adver_Interval to Advertisement_Interval
 	if advInt == config.USE_CONFIG_ADVERTISEMENT {
@@ -325,35 +280,6 @@ func (f *FSM) CalculateDownValue(advInt int32) {
 	f.MasterDownValue = (3 * f.MasterAdverInterval) + f.SkewTime
 }
 
-func (f *FSM) TransitionToMaster() {
-	pktInfo := f.getPacketInfo()
-	// (110) + Send an ADVERTISEMENT
-	f.SendPkt(pktInfo)
-	// (145) + Transition to the {Master} state
-	f.State = VRRP_MASTER_STATE
-	// @TODO : Set Sub-intf state up and send out garp via linux stack
-	// svr.VrrpUpdateSubIntf(gblInfo, true /*configure or set*/ //)
-
-	// (140) + Set the Adver_Timer to Advertisement_Interval
-	// Start Advertisement Timer
-	f.StartMasterAdverTimer()
-}
-
-func (f *FSM) TransitionToBackup(advInt int32) {
-	debug.Logger.Debug(FSM_PREFIX, "advertisement timer to be used in backup state for",
-		"calculating master down timer is ", f.Config.AdvertisementInterval)
-	// @TODO: Bring Down Sub-Interface
-	//	svr.VrrpUpdateSubIntf(gblInfo, false /*configure or set*/)
-
-	// Re-Calculate Down timer value
-	f.CalculateDownValue(advInt)
-	// Set/Reset Master Down Timer
-	f.HandleMasterDownTimer()
-	//(165) + Transition to the {Backup} state
-	f.State = VRRP_BACKUP_STATE
-	//svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
-}
-
 func (f *FSM) Initialize() {
 	debug.Logger.Debug(FSM_PREFIX, "In Init state deciding next state")
 	switch f.Config.Priority {
@@ -362,111 +288,6 @@ func (f *FSM) Initialize() {
 	default:
 		f.TransitionToBackup(config.USE_CONFIG_ADVERTISEMENT)
 	}
-}
-
-func (f *FSM) MasterState(stInfo *FsmStateInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *stInfo)
-	pktInfo := stInfo.PktInfo
-	hdr := pktInfo.Hdr
-	/* // @TODO:
-	   (645) - MUST forward packets with a destination link-layer MAC
-	   address equal to the virtual router MAC address.
-
-	   (650) - MUST accept packets addressed to the IPvX address(es)
-	   associated with the virtual router if it is the IPvX address owner
-	   or if Accept_Mode is True.  Otherwise, MUST NOT accept these
-	   packets.
-	*/
-	//  (700) - If an ADVERTISEMENT is received, then:
-	//	 (705) -+ If the Priority in the ADVERTISEMENT is zero, then:
-	if hdr.Priority == VRRP_MASTER_DOWN_PRIORITY {
-		// (710) -* Send an ADVERTISEMENT
-		debug.Logger.Debug(FSM_PREFIX, "Priority in the ADVERTISEMENT is zero, then: Send an ADVERTISEMENT")
-		f.SendPkt(f.getPacketInfo())
-		// (715) -* Reset the Adver_Timer to Advertisement_Interval
-		f.StartMasterAdverTimer()
-	} else { // (720) -+ else // priority was non-zero
-		/*     (725) -* If the Priority in the ADVERTISEMENT is greater than the local Priority,
-		*      (730) -* or
-		*      (735) -* If the Priority in the ADVERTISEMENT is equal to
-		*               the local Priority and the primary IPvX Address of the
-		*	        sender is greater than the local primary IPvX Address, then:
-		 */
-		if int32(hdr.Priority) > f.Config.Priority ||
-			(int32(hdr.Priority) == f.Config.Priority &&
-				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.IpAddr)) > 0) {
-			// (740) -@ Cancel Adver_Timer
-			f.StopMasterAdverTimer()
-			/*
-				(745) -@ Set Master_Adver_Interval to Adver Interval contained in the ADVERTISEMENT
-				(750) -@ Recompute the Skew_Time
-				(755) @ Recompute the Master_Down_Interval
-				(760) @ Set Master_Down_Timer to Master_Down_Interval
-				(765) @ Transition to the {Backup} state
-			*/
-			f.TransitionToBackup(int32(hdr.MaxAdverInt))
-		} else { // new Master logic
-			// Discard Advertisement
-			return
-		} // endif new Master Detected
-	} // end if was priority zero
-	// end for Advertisemtn received over the channel
-	// end MASTER STATE
-}
-
-func (f *FSM) BackupState(stInfo *FsmStateInfo) {
-	pktInfo := stInfo.PktInfo
-	hdr := pktInfo.Hdr
-	/* @TODO:
-	   (305) - If the protected IPvX address is an IPv4 address, then:
-	   (310) + MUST NOT respond to ARP requests for the IPv4 address(es) associated with the virtual router.
-	   (315) - else // protected addr is IPv6
-	   (320) + MUST NOT respond to ND Neighbor Solicitation messages for the IPv6 address(es) associated with the virtual router.
-	   (325) + MUST NOT send ND Router Advertisement messages for the virtual router.
-	   (330) -endif // was protected addr IPv4?
-	*/
-	// Check dmac address from the inPacket and if it is same discard the packet
-	if pktInfo.DstMac == f.VirtualRouterMACAddress {
-		svr.logger.Err("DMAC is equal to VMac and hence discarding the packet")
-		return
-	}
-	// MUST NOT accept packets addressed to the IPvX address(es)
-	// associated with the virtual router. @TODO: check with Hari
-	if pktInfo.DstIp == f.IpAddr {
-		svr.logger.Err("dst ip is equal to interface ip, dropping the packet")
-		return
-	}
-	//(420) - If an ADVERTISEMENT is received, then:
-	if hdr.Type == VRRP_PKT_TYPE_ADVERTISEMENT {
-		f.UpdateRxStateInformation(pktInfo)
-		// (425) + If the Priority in the ADVERTISEMENT is zero, then:
-		if hdr.Priority == 0 {
-			//(430) * Set the Master_Down_Timer to Skew_Time
-			f.MasterDownValue = f.SkewTime
-			f.HandleMasterDownTimer()
-		} else { // (440) priority non-zero
-			/*
-			 *	(445) * If Preempt_Mode is False, or if the Priority in the
-			 *	ADVERTISEMENT is greater than or equal to the local
-			 *	Priority, then:
-			 */
-			if f.Config.PreemptMode == false || hdr.Priority >= f.Config.Priority {
-				/*
-				 * (450) @ Set Master_Adver_Interval to Adver Interval contained in the ADVERTISEMENT
-				 * (460) @ Reset the Master_Down_Timer to Master_Down_Interval
-				 * (455) @ Recompute the Master_Down_Interval
-				 *
-				 * api used will be TransitionToBackup() which will do the exact
-				 * things mentioned above, sorry if you think the naming doesn't
-				 * sound correct
-				 */
-				f.TransitionToBackup(int32(hdr.MaxAdverInt))
-			} else { //     (465) * else // preempt was true or priority was less
-				//          (470) @ Discard the ADVERTISEMENT
-			} // endif preempt test
-		} // endif was priority zero
-	} // endif was advertisement received
-	// end BACKUP STATE
 }
 
 func (f *FSM) ProcessStateInfo(fsmStInfo *FsmStateInfo) {

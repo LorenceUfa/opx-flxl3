@@ -28,19 +28,9 @@ import (
 	"github.com/google/gopacket/pcap"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
+	"l3/vrrp/fsm"
 	"strconv"
 )
-
-type StateInfo struct {
-	AdverRx             uint32 // Total advertisement received
-	AdverTx             uint32 // Total advertisement send out
-	MasterIp            string // Remote Master Ip Address
-	LastAdverRx         string // Last advertisement received
-	LastAdverTx         string // Last advertisment send out
-	PreviousFsmState    string // previous fsm state
-	CurrentFsmState     string // current fsm state
-	ReasonForTransition string // why did we transition to current state?
-}
 
 type L3Intf struct {
 	IfIndex int32
@@ -51,18 +41,18 @@ type L3Intf struct {
 //type VrrpGlobalInfo struct {
 type VrrpInterface struct {
 	Config config.IntfCfg // Vrrp config for interface
-	State  *StateInfo     // Vrrp state for interface
+	State  *config.State  // Vrrp state for interface
 	L3     *L3Intf        // Vrrp Port Information Collected From System
-	Fsm    *FSM           // Vrrp fsm information
+	Fsm    *fsm.FSM       // Vrrp fsm information
 }
 
 func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *L3Intf, stCh chan *IntfState) {
 	intf.Config = *cfg
 	intf.L3 = *l3Info
 	// Init fsm
-	intf.Fsm = InitFsm(&intf.Config, l3Info, stCh)
+	intf.Fsm = fsm.InitFsm(&intf.Config, l3Info, stCh)
 }
 
-func (intf *VrrpInterface) UpdateStateInfo(stInfo StateInfo) {
+func (intf *VrrpInterface) UpdateStateInfo(stInfo config.State) {
 	intf.State = stInfo
 }

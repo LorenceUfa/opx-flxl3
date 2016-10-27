@@ -30,6 +30,12 @@ import (
 	"l3/vrrp/debug"
 )
 
+type IPIntf interface {
+	Init()
+	GetDb()
+	GetIpAddr()
+}
+
 func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
 	if _, exists := svr.Intf[key]; exists {
@@ -124,7 +130,7 @@ func (svr *VrrpServer) HandleIntfConfig(cfg *config.IntfCfg) {
 	}
 }
 
-func (svr *VrrpServer) UpdateProtocolMacEntry(add bool) {
+func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
 	switch add {
 	case true:
 		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC)
@@ -139,10 +145,10 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	switch gCfg.Operation {
 	case config.CREATE:
 		debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac")
-		svr.UpdateProtocolMacEntry(true /*Enable*/)
+		svr.HandleProtocolMacEntry(true /*Enable*/)
 	case config.UPDATE:
 		debug.Logger.Info("Vrrp Disabled, deleting Protocol Mac")
-		svr.UpdateProtocolMacEntry(false /*Enable*/)
+		svr.HandleProtocolMacEntry(false /*Enable*/)
 	}
 }
 
