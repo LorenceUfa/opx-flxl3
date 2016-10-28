@@ -52,7 +52,7 @@ type Processor struct {
 	ClientStateSlice     []*dhcprelayd.DHCPRelayClientState
 	ClientStateMap       map[string]*dhcprelayd.DHCPRelayClientState
 	IntfStateSlice       []*dhcprelayd.DHCPRelayIntfState
-	IntfStateMap         map[int]*dhcprelayd.DHCPRelayIntfState
+	IntfStateMap         map[string]*dhcprelayd.DHCPRelayIntfState
 	IntfServerStateSlice []*dhcprelayd.DHCPRelayIntfServerState
 	IntfServerStateMap   map[string]*dhcprelayd.DHCPRelayIntfServerState
 	StateMutex           sync.Mutex
@@ -78,7 +78,7 @@ func NewProcessor(initParams *ProcessorInitParams) *Processor {
 	pProc.ClientStateSlice = []*dhcprelayd.DHCPRelayClientState{}
 	pProc.ClientStateMap = make(map[string]*dhcprelayd.DHCPRelayClientState)
 	pProc.IntfStateSlice = []*dhcprelayd.DHCPRelayIntfState{}
-	pProc.IntfStateMap = make(map[int]*dhcprelayd.DHCPRelayIntfState)
+	pProc.IntfStateMap = make(map[string]*dhcprelayd.DHCPRelayIntfState)
 	pProc.IntfServerStateSlice = []*dhcprelayd.DHCPRelayIntfServerState{}
 	pProc.IntfServerStateMap = make(map[string]*dhcprelayd.DHCPRelayIntfServerState)
 
@@ -164,12 +164,12 @@ func (pProc *Processor) GetIntfStateSlice(
 }
 
 func (pProc *Processor) GetIntfState(
-	ifIdx int) (*dhcprelayd.DHCPRelayIntfState, bool) {
+	ifName string) (*dhcprelayd.DHCPRelayIntfState, bool) {
 
 	defer pProc.StateMutex.Unlock()
 	pProc.StateMutex.Lock()
 
-	if intfState, ok := pProc.IntfStateMap[ifIdx]; ok {
+	if intfState, ok := pProc.IntfStateMap[ifName]; ok {
 		return intfState, true
 	} else {
 		return nil, false
@@ -236,28 +236,28 @@ func (pProc *Processor) initClientState(
 }
 
 func (pProc *Processor) initIntfState(
-	ifIdx int, ifName string) *dhcprelayd.DHCPRelayIntfState {
+	ifName string) *dhcprelayd.DHCPRelayIntfState {
 
 	defer pProc.StateMutex.Unlock()
 	pProc.StateMutex.Lock()
 
-	intfState, ok := pProc.IntfStateMap[ifIdx]
+	intfState, ok := pProc.IntfStateMap[ifName]
 	if !ok {
 		intfState = &dhcprelayd.DHCPRelayIntfState{}
 		intfState.IntfRef = ifName
 		pProc.IntfStateSlice = append(pProc.IntfStateSlice, intfState)
-		pProc.IntfStateMap[ifIdx] = intfState
+		pProc.IntfStateMap[ifName] = intfState
 	}
 	return intfState
 }
 
 func (pProc *Processor) deleteIntfState(
-	ifIdx int, ifName string) {
+	ifName string) {
 
 	defer pProc.StateMutex.Unlock()
 	pProc.StateMutex.Lock()
 
-	_, ok := pProc.IntfStateMap[ifIdx]
+	_, ok := pProc.IntfStateMap[ifName]
 	if !ok {
 		return
 	}
@@ -272,7 +272,7 @@ func (pProc *Processor) deleteIntfState(
 		pProc.IntfStateSlice = append(pProc.IntfStateSlice[:sliceEntIdx],
 			pProc.IntfStateSlice[sliceEntIdx+1:]...)
 	}
-	delete(pProc.IntfStateMap, ifIdx)
+	delete(pProc.IntfStateMap, ifName)
 }
 
 func (pProc *Processor) initIntfServerState(
@@ -534,7 +534,7 @@ func (pProc *Processor) DhcpRelayAgentSendPacketToDhcpClient(
 	gopacket.SerializeLayers(buffer, goOpts, eth, ipv4, udp,
 		gopacket.Payload(outPacket))
 
-	intfState := pProc.initIntfState(ifIdx, outIfName)
+	intfState := pProc.initIntfState(outIfName)
 	clientState := pProc.initClientState(outPacket.GetCHAddr().String())
 	intfServerState := pProc.initIntfServerState(outIfName, serverIp.String())
 	pProc.StateMutex.Lock()
@@ -682,7 +682,7 @@ func (pProc *Processor) DhcpRelayAgentSendPacket(inIfIdx int, inIfName string,
 			return
 		}
 		clientMacAddr := DhcpRelayAgentPacket(inReq).GetCHAddr().String()
-		intfState := pProc.initIntfState(inIfIdx, inIfName)
+		intfState := pProc.initIntfState(inIfName)
 		clientState := pProc.initClientState(clientMacAddr)
 		pProc.PeerAddrIntfMap[clientMacAddr] = inIfName
 		// Send Packet
@@ -782,20 +782,12 @@ func (pProc *Processor) closePcapHandler(ifIdx int) {
 	}
 }
 
-func (pProc *Processor) ProcessCreateDRAIntf(ifIdx int) {
-	ipv4Intf, ok := pProc.InfraMgr.GetIPv4Intf(ifIdx)
-	if !ok {
-		Logger.Debug("DRA: Unable to find interface with index", ifIdx)
-	}
-	pProc.initIntfState(ifIdx, ipv4Intf.IfRef)
+func (pProc *Processor) ProcessCreateDRAIntf(ifName string) {
+	pProc.initIntfState(ifName)
 }
 
-func (pProc *Processor) ProcessDeleteDRAIntf(ifIdx int) {
-	ipv4Intf, ok := pProc.InfraMgr.GetIPv4Intf(ifIdx)
-	if !ok {
-		Logger.Debug("DRA: Unable to find interface with index", ifIdx)
-	}
-	pProc.deleteIntfState(ifIdx, ipv4Intf.IfRef)
+func (pProc *Processor) ProcessDeleteDRAIntf(ifName string) {
+	pProc.deleteIntfState(ifName)
 }
 
 func (pProc *Processor) ProcessActiveDRAIntf(ifIdx int) {
