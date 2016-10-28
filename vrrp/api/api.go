@@ -78,5 +78,5 @@ func UpdateVrrpGbl(cfg *config.GlobalConfig) {
 
 // this includes both v4 & v6 and create & delete
 func SendIpIntfNotification(ipNotify *config.BaseIpInfo) {
-
+	vrrpApi.server.L3IntfNotifyCh <- ipNotify
 }

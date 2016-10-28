@@ -106,12 +106,10 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication CREATE:", ipv6Msg)
 				ipInfo.MsgType = config.IP_MSG_CREATE
 				api.SendIpIntfNotification(ipInfo)
-				//api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_CREATE)
 			} else {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication DELETE:", ipv6Msg)
 				ipInfo.MsgType = config.IP_MSG_DELETE
 				api.SendIpIntfNotification(ipInfo)
-				//api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_DELETE)
 			}
 		}
 
@@ -176,37 +174,5 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 				api.SendIpIntfNotification(ipInfo)
 			}
 		}
-
-		/*
-			case commonDefs.L2IntfStateNotifyMsg:
-				l2Msg := msg.(commonDefs.L2IntfStateNotifyMsg)
-				if l2Msg.IfState == asicdCommonDefs.INTF_STATE_UP {
-					debug.Logger.Debug("Received Asicd L2 Port Notfication UP:", l2Msg)
-					api.SendL3PortNotification(l2Msg.IfIndex, config.STATE_UP, config.L2_NOTIFICATION)
-				} else {
-					debug.Logger.Debug("Received Asicd L2 Port Notfication DOWN:", l2Msg)
-					api.SendL3PortNotification(l2Msg.IfIndex, config.STATE_DOWN, config.L2_NOTIFICATION)
-				}
-			case commonDefs.VlanNotifyMsg:
-				vlanMsg := msg.(commonDefs.VlanNotifyMsg)
-				debug.Logger.Debug("Received Asicd Vlan Notfication:", vlanMsg)
-				oper := ""
-				switch vlanMsg.MsgType {
-				case commonDefs.NOTIFY_VLAN_CREATE:
-					debug.Logger.Debug("Received Asicd VLAN CREATE")
-					oper = config.CONFIG_CREATE
-				case commonDefs.NOTIFY_VLAN_DELETE:
-					debug.Logger.Debug("Received Asicd VLAN DELETE")
-					oper = config.CONFIG_DELETE
-				case commonDefs.NOTIFY_VLAN_UPDATE:
-					debug.Logger.Debug("Received Asicd VLAN UPDATE")
-					oper = config.CONFIG_UPDATE
-				}
-				api.SendVlanNotification(oper, int32(vlanMsg.VlanId), vlanMsg.VlanIfIndex, vlanMsg.VlanName, vlanMsg.UntagPorts, vlanMsg.TagPorts)
-			case commonDefs.IPv6NbrMacMoveNotifyMsg:
-				macMoveMsg := msg.(commonDefs.IPv6NbrMacMoveNotifyMsg)
-				debug.Logger.Debug("Received Asicd IPv6 Neighbor Mac Move Notification:", macMoveMsg)
-				api.SendMacMoveNotification(macMoveMsg.IpAddr, macMoveMsg.IfIndex, macMoveMsg.VlanId)
-		*/
 	}
 }
