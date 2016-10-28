@@ -43,6 +43,23 @@ type VtepDbKey struct {
 // defines the type for the status
 type vtepStatus string
 
+type VtepCounters struct {
+	Rxpkts           uint64
+	Rxbytes          uint64
+	Rxdroppkts       uint64
+	Rxdropbytes      uint64
+	Rxfwdpkts        uint64
+	Rxfwdbytes       uint64
+	Txpkts           uint64
+	Txbytes          uint64
+	Txfwdpkts        uint64
+	Txfwdbytes       uint64
+	Txdroppkts       uint64
+	Txdropbytes      uint64
+	Lastrxdropreason string
+	Lasttxdropreason string
+}
+
 type VtepDbEntry struct {
 	// reference to the vxlan db, and value used in encap/decap
 	Vni uint32
@@ -90,10 +107,7 @@ type VtepDbEntry struct {
 	// Reference to the vxlan server
 	server *VXLANServer
 
-	rxpkts    uint64
-	txpkts    uint64
-	rxfwdpkts uint64
-	txfwdpkts uint64
+	counters VtepCounters
 
 	VxlanVtepMachineFsm *VxlanVtepMachine
 
@@ -148,12 +162,8 @@ var VxlanVtepSrcNetMac net.HardwareAddr
 var VxlanVtepSrcMac [6]uint8
 var VxlanVtepRxTx = CreateVtepRxTx
 
-func (vtep *VtepDbEntry) GetRxStats() uint64 {
-	return vtep.rxpkts
-}
-
-func (vtep *VtepDbEntry) GetTxStats() uint64 {
-	return vtep.txpkts
+func (vtep *VtepDbEntry) GetStats() VtepCounters {
+	return vtep.counters
 }
 
 func GetVtepDB() map[VtepDbKey]*VtepDbEntry {
@@ -255,13 +265,8 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 	vtep.DstMac, _ = net.ParseMAC("00:00:00:00:00:00")
 
 	if !del {
-		// restart the state machine
-		vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-			E:   VxlanVtepEventBegin,
-			Src: VxlanVtepMachineModuleStr,
-		}
-
 		if vtep.Enable {
+			vtep.VxlanVtepMachineFsm.BEGIN()
 			// restart the timer on deprovisioning as we will retry each of the
 			// state transitions again
 			vtep.retrytimer.Reset(retrytime)
@@ -272,10 +277,8 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 }
 
 func ReProvisionVtep(vtep *VtepDbEntry) {
-	vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-		E:   VxlanVtepEventBegin,
-		Src: VxlanVtepMachineModuleStr,
-	}
+
+	vtep.VxlanVtepMachineFsm.BEGIN()
 
 	if vtep.Enable {
 		// restart the timer on deprovisioning as we will retry each of the
@@ -523,7 +526,6 @@ func (vtep *VtepDbEntry) snoop(data []byte) {
 		logger.Debug(fmt.Sprintln("TODO Learning mac", learnmac, "against", strings.TrimRight(vtep.VtepName, "Int")))
 		//asicDLearnFwdDbEntry(learnmac, vtep.VtepName, vtep.VtepIfIndex)
 	}
-
 }
 
 func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
@@ -535,78 +537,115 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 		//logger.Info(fmt.Sprintf("Sending Packet to %s %#v", vtep.VtepName, buf))
 		vtep.snoop(buf)
 		//logger.Debug(vtep.VtepName, vtep.Vni, packet, buf)
+		pktlen := len(buf)
+		vtep.counters.Rxpkts++
+		vtep.counters.Rxbytes += uint64(pktlen)
 		if vtep.handle != nil {
 			if err := vtep.handle.WritePacketData(buf); err != nil {
-				logger.Err("Error writing packet to interface", err)
+				rc := fmt.Sprintln("Error writing packet to interface", vtep.VtepName, err)
+				logger.Err(rc)
+				vtep.counters.Rxdroppkts++
+				vtep.counters.Rxdropbytes += uint64(pktlen)
+				vtep.counters.Lastrxdropreason = rc
+				return
 			}
 		} else {
-			for _, handle := range vtep.taghandles {
+			// TODO need to forward based on customer vlan, but as of 10/28/16
+			// there is only one vlan in the map so can always send it
+			for vlan, handle := range vtep.taghandles {
 				if err := handle.WritePacketData(buf); err != nil {
-					logger.Err("Error writing packet to interface", err)
+					// This is really the Int interface but users should not care about
+					// internal details
+					rc := fmt.Sprintln("Error writing packet to interface", fmt.Sprintf("%s.%d", vtep.VtepName, vlan), err)
+					logger.Err(rc)
+					vtep.counters.Rxdroppkts++
+					vtep.counters.Rxdropbytes += uint64(pktlen)
+					vtep.counters.Lastrxdropreason = rc
+					return
 				}
 			}
 		}
-		vtep.rxfwdpkts++
-		vtep.rxpkts++
+		vtep.counters.Rxfwdpkts++
+		vtep.counters.Rxfwdbytes += uint64(pktlen)
 	}
 }
 
 func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
+	//logger.Info("RX packet from Vtep", packet)
+	// outer ethernet header
+	eth := layers.VxlanEthernet{
+		layers.Ethernet{SrcMAC: vtep.SrcMac,
+			DstMAC:       vtep.DstMac,
+			EthernetType: layers.EthernetTypeIPv4,
+		},
+	}
+	ip := layers.IPv4{
+		Version: 4,
+		IHL:     20,
+		TOS:     uint8(vtep.TOS),
+		//Length:     20 + uint16(origpktlen),
+		Id:         0xd2c0,
+		Flags:      layers.IPv4DontFragment, //IPv4Flag
+		FragOffset: 0,                       //uint16
+		TTL:        uint8(vtep.TTL),
+		Protocol:   layers.IPProtocolUDP, //IPProtocol
+		SrcIP:      vtep.SrcIp,
+		DstIP:      vtep.DstIp,
+	}
+
+	udp := layers.UDP{
+		SrcPort: layers.UDPPort(vtep.UDP), // TODO need a src port
+		DstPort: layers.UDPPort(vtep.UDP),
+		//Length:  8 + uint16(origpktlen),
+	}
+	udp.SetNetworkLayerForChecksum(&ip)
+
+	vxlan := layers.VXLAN{
+		Flags: 0x08,
+	}
+	vxlan.SetVNI(vtep.Vni)
+
+	// Set up buffer and options for serialization.
+	buf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{
+		FixLengths:       true,
+		ComputeChecksums: true,
+	}
+	// Send one packet for every address.
+	gopacket.SerializeLayers(buf, opts, &eth, &ip, &udp, &vxlan, gopacket.Payload(packet.Data()))
+	pktlen := len(packet.Data())
+
+	vtep.counters.Txpkts++
+	vtep.counters.Txbytes += uint64(pktlen)
+
 	// every vtep is tied to a port
 	if p, ok := portDB[vtep.NextHop.IfName]; ok {
 		phandle := p.handle
 		if phandle != nil {
-			//logger.Info("RX packet from Vtep", packet)
-			// outer ethernet header
-			eth := layers.VxlanEthernet{
-				layers.Ethernet{SrcMAC: vtep.SrcMac,
-					DstMAC:       vtep.DstMac,
-					EthernetType: layers.EthernetTypeIPv4,
-				},
-			}
-			ip := layers.IPv4{
-				Version: 4,
-				IHL:     20,
-				TOS:     uint8(vtep.TOS),
-				//Length:     20 + uint16(origpktlen),
-				Id:         0xd2c0,
-				Flags:      layers.IPv4DontFragment, //IPv4Flag
-				FragOffset: 0,                       //uint16
-				TTL:        uint8(vtep.TTL),
-				Protocol:   layers.IPProtocolUDP, //IPProtocol
-				SrcIP:      vtep.SrcIp,
-				DstIP:      vtep.DstIp,
-			}
 
-			udp := layers.UDP{
-				SrcPort: layers.UDPPort(vtep.UDP), // TODO need a src port
-				DstPort: layers.UDPPort(vtep.UDP),
-				//Length:  8 + uint16(origpktlen),
-			}
-			udp.SetNetworkLayerForChecksum(&ip)
-
-			vxlan := layers.VXLAN{
-				Flags: 0x08,
-			}
-			vxlan.SetVNI(vtep.Vni)
-
-			// Set up buffer and options for serialization.
-			buf := gopacket.NewSerializeBuffer()
-			opts := gopacket.SerializeOptions{
-				FixLengths:       true,
-				ComputeChecksums: true,
-			}
-			// Send one packet for every address.
-			gopacket.SerializeLayers(buf, opts, &eth, &ip, &udp, &vxlan, gopacket.Payload(packet.Data()))
 			//logger.Info(fmt.Sprintf("Rx Packet now encapsulating and sending packet to if", vtep.SrcIfName, buf.Bytes()))
 			if err := phandle.WritePacketData(buf.Bytes()); err != nil {
-				logger.Err("Error writing packet to interface")
+				rc := fmt.Sprintln("Error writing packet to interface", vtep.NextHop.IfName, err)
+				logger.Err(rc)
+				vtep.counters.Txdroppkts++
+				vtep.counters.Txdropbytes += uint64(pktlen)
+				vtep.counters.Lasttxdropreason = rc
 				return
 			}
 			vtep.snoop(packet.Data())
 
-			vtep.txpkts++
-			vtep.txfwdpkts++
+			vtep.counters.Txfwdpkts++
+			vtep.counters.Txfwdbytes += uint64(pktlen)
+		} else {
+			rc := fmt.Sprintln("Unable to find vxlan pcap handle for next hop port", vtep.NextHop.IfName)
+			vtep.counters.Txdroppkts++
+			vtep.counters.Txdropbytes += uint64(pktlen)
+			vtep.counters.Lasttxdropreason = rc
 		}
+	} else {
+		rc := fmt.Sprintln("Unable to find vxlan port db handle for port", vtep.NextHop.IfName)
+		vtep.counters.Txdroppkts++
+		vtep.counters.Txdropbytes += uint64(pktlen)
+		vtep.counters.Lasttxdropreason = rc
 	}
 }

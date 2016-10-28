@@ -215,10 +215,11 @@ func (v *VXLANDServiceHandler) DeleteVxlanInstance(config *vxland.VxlanInstance)
 
 func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInstance, newconfig *vxland.VxlanInstance, attrset []bool, op []*vxland.PatchOpInfo) (bool, error) {
 	v.logger.Info(fmt.Sprintf("UpdateVxlanConfigInstance orig[%#v] new[%#v] attrset[%#v]", origconfig, newconfig, attrset))
-	oc, _ := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig, false)
-	nc, err := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig, false)
-	if err == nil {
-		err = vxlan.VxlanConfigUpdateCheck(oc, nc)
+	oc, err1 := vxlan.ConvertVxlanInstanceToVxlanConfig(origconfig, false)
+	nc, err2 := vxlan.ConvertVxlanInstanceToVxlanConfig(newconfig, false)
+	if err1 == nil &&
+		err2 == nil {
+		err := vxlan.VxlanConfigUpdateCheck(oc, nc)
 		if err == nil {
 
 			strattr := make([]string, 0)
@@ -240,9 +241,15 @@ func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInsta
 			}
 			v.server.Configchans.Vxlanupdate <- update
 			return true, nil
+		} else {
+			return false, err
 		}
 	}
-	return false, err
+	if err1 != nil {
+		return false, err1
+	}
+
+	return false, err2
 }
 
 func (v *VXLANDServiceHandler) CreateVxlanVtepInstance(config *vxland.VxlanVtepInstance) (bool, error) {
@@ -397,10 +404,24 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 		}
 		vis.DstIp = v.DstIp.String()
 		vis.SrcIp = v.SrcIp.String()
+		vis.DstMac = v.DstMac.String()
+		vis.SrcMac = v.SrcMac.String()
 		vis.VlanId = int16(v.VlanId)
 		vis.Mtu = int32(v.MTU)
-		vis.RxPkts = int64(v.GetRxStats())
-		vis.TxPkts = int64(v.GetTxStats())
+		vis.RxSwPkts = int64(v.GetStats().Rxpkts)
+		vis.RxSwBytes = int64(v.GetStats().Rxbytes)
+		vis.RxSwDropPkts = int64(v.GetStats().Rxdroppkts)
+		vis.RxSwDropBytes = int64(v.GetStats().Rxdropbytes)
+		vis.RxSwFwdPkts = int64(v.GetStats().Rxfwdpkts)
+		vis.RxSwFwdBytes = int64(v.GetStats().Rxfwdbytes)
+		vis.TxSwPkts = int64(v.GetStats().Txpkts)
+		vis.TxSwBytes = int64(v.GetStats().Txbytes)
+		vis.TxSwDropPkts = int64(v.GetStats().Txdroppkts)
+		vis.TxSwDropBytes = int64(v.GetStats().Txdropbytes)
+		vis.TxSwFwdPkts = int64(v.GetStats().Txfwdpkts)
+		vis.TxSwFwdBytes = int64(v.GetStats().Txfwdbytes)
+		vis.LastSwRxDropReason = v.GetStats().Lastrxdropreason
+		vis.LastSwTxDropReason = v.GetStats().Lasttxdropreason
 		//vis.RxFwdPkts             uint64 `DESCRIPTION: Rx Forwaded Packets`
 		//vis.RxDropPkts            uint64 `DESCRIPTION: Rx Dropped Packets`
 		//vis.RxUnknownVni          uint64 `DESCRIPTION: Rx Unknown Vni in frame`
@@ -452,13 +473,24 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 			}
 			nextVxlanVtepState.DstIp = v.DstIp.String()
 			nextVxlanVtepState.SrcIp = v.SrcIp.String()
+			nextVxlanVtepState.DstMac = v.DstMac.String()
+			nextVxlanVtepState.SrcMac = v.SrcMac.String()
 			nextVxlanVtepState.VlanId = int16(v.VlanId)
 			nextVxlanVtepState.Mtu = int32(v.MTU)
-			nextVxlanVtepState.RxPkts = int64(v.GetRxStats())
-			nextVxlanVtepState.TxPkts = int64(v.GetTxStats())
-			//nextVxlanVtepState.RxFwdPkts             uint64 `DESCRIPTION: Rx Forwaded Packets`
-			//nextVxlanVtepState.RxDropPkts            uint64 `DESCRIPTION: Rx Dropped Packets`
-			//nextVxlanVtepState.RxUnknownVni          uint64 `DESCRIPTION: Rx Unknown Vni in frame`
+			nextVxlanVtepState.RxSwPkts = int64(v.GetStats().Rxpkts)
+			nextVxlanVtepState.RxSwBytes = int64(v.GetStats().Rxbytes)
+			nextVxlanVtepState.RxSwDropPkts = int64(v.GetStats().Rxdroppkts)
+			nextVxlanVtepState.RxSwDropBytes = int64(v.GetStats().Rxdropbytes)
+			nextVxlanVtepState.RxSwFwdPkts = int64(v.GetStats().Rxfwdpkts)
+			nextVxlanVtepState.RxSwFwdBytes = int64(v.GetStats().Rxfwdbytes)
+			nextVxlanVtepState.TxSwPkts = int64(v.GetStats().Txpkts)
+			nextVxlanVtepState.TxSwBytes = int64(v.GetStats().Txbytes)
+			nextVxlanVtepState.TxSwDropPkts = int64(v.GetStats().Txdroppkts)
+			nextVxlanVtepState.TxSwDropBytes = int64(v.GetStats().Txdropbytes)
+			nextVxlanVtepState.TxSwFwdPkts = int64(v.GetStats().Txfwdpkts)
+			nextVxlanVtepState.TxSwFwdBytes = int64(v.GetStats().Txfwdbytes)
+			nextVxlanVtepState.LastSwRxDropReason = v.GetStats().Lastrxdropreason
+			nextVxlanVtepState.LastSwTxDropReason = v.GetStats().Lasttxdropreason
 			nextVxlanVtepState.VtepFsmState = vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.CurrentState()]
 			nextVxlanVtepState.VtepFsmPrevState = vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.PreviousState()]
 
@@ -573,7 +605,7 @@ func (v *VXLANDServiceHandler) ReadConfigFromDB(prevState int) error {
 
 	v.logger.Info(fmt.Sprintf("Global State prev %d curr %d", prevState, currState))
 
-	if currState == vxlan.VXLAN_GLOBAL_DISABLE_PENDING ||
+	if currState == vxlan.VXLAN_GLOBAL_DISABLE_PENDING &&
 		prevState == vxlan.VXLAN_GLOBAL_ENABLE {
 
 		// lets delete the Aggregator first
@@ -586,7 +618,9 @@ func (v *VXLANDServiceHandler) ReadConfigFromDB(prevState int) error {
 			v.logger.Err("Error getting All Vxlan objects")
 			return err
 		}
-	} else if prevState != currState {
+		vxlan.VxlanGlobalStateSet(vxlan.VXLAN_GLOBAL_DISABLE)
+	} else if prevState == vxlan.VXLAN_GLOBAL_DISABLE &&
+		currState == vxlan.VXLAN_GLOBAL_ENABLE {
 
 		if err := v.HandleDbReadVxlanInstance(dbHdl, false); err != nil {
 			fmt.Println("Error getting All Vxlan objects")

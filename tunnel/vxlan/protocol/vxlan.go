@@ -97,10 +97,7 @@ func CreateVxLAN(c *VxlanConfig) {
 			if vtep.Vni == c.VNI {
 				if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateDetached {
 					// restart the state machine
-					vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-						E:   VxlanVtepEventBegin,
-						Src: VxlanVtepMachineModuleStr,
-					}
+					vtep.VxlanVtepMachineFsm.BEGIN()
 				}
 			}
 		}
