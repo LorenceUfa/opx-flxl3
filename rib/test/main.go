@@ -6,6 +6,7 @@ import (
 	"l3/rib/testutils"
 	"os"
 	"strconv"
+	//"time"
 )
 
 func main() {
@@ -74,6 +75,63 @@ func main() {
 			nextHopIpStr := route_ops[i+1]
 			fmt.Println("Scale test for deleting v6 routes with nextHopIpStr", nextHopIpStr)
 			routeThriftTest.ScaleV6Del(ribdClient, nextHopIpStr)
+		case "ECMPScalev4Add":
+			if (i + 2) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main ECMPScalev4Add <num of nextHops> <num of scale routes>")
+				break
+			}
+			ecmpCount, _ := strconv.Atoi(route_ops[i+1])
+			routeThriftTest.Wg.Add(ecmpCount)
+			scaleCount, _ := strconv.Atoi(route_ops[i+2])
+			fmt.Println("Scale test for adding ", ecmpCount, " -way ", scaleCount, " number of v4 routes")
+			count := 1
+			for {
+				nextHopIpStr := "40.1." + strconv.Itoa(count) + ".2"
+				fmt.Println("Adding ", scaleCount, " routes with nextHop:", nextHopIpStr)
+				ribdClientNew := testutils.GetRIBdClient()
+				if ribdClientNew == nil {
+					fmt.Println("RIBd client New nil")
+					return
+				}
+
+				//routeThriftTest.ScaleV4Add(ribdClientNew, nextHopIpStr, int64(scaleCount))
+				routeThriftTest.EcmpScalev4Add(ribdClientNew, nextHopIpStr, int64(scaleCount))
+				if count == ecmpCount {
+					break
+				}
+				count++
+			}
+			routeThriftTest.Wg.Wait()
+			//			time.Sleep(time.Second * 60)
+			//		fmt.Println("After sleep")
+		case "ECMPScalev4Del":
+			if (i + 1) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main ECMPScalev4Del <num of nextHops>")
+				break
+			}
+			ecmpCount, _ := strconv.Atoi(route_ops[i+1])
+			routeThriftTest.Wg.Add(ecmpCount)
+			fmt.Println("Scale test for deleting ", ecmpCount, " -way v4 routes")
+			count := 1
+			for {
+				nextHopIpStr := "40.1." + strconv.Itoa(count) + ".2"
+				fmt.Println("Deleting routes with nextHop:", nextHopIpStr)
+				ribdClientNew := testutils.GetRIBdClient()
+				if ribdClientNew == nil {
+					fmt.Println("RIBd client New nil")
+					return
+				}
+
+				//routeThriftTest.ScaleV4Del(ribdClientNew, nextHopIpStr)
+				routeThriftTest.EcmpScalev4Del(ribdClientNew, nextHopIpStr)
+				if count == ecmpCount {
+					break
+				}
+				count++
+			}
+			routeThriftTest.Wg.Wait()
+			//time.Sleep(time.Second * 60)
+			//fmt.Println("After sleep")
 		case "RouteCount":
 			fmt.Println("RouteCount")
 			routeThriftTest.GetTotalRouteCount(ribdClient)

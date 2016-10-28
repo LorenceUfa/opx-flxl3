@@ -95,6 +95,7 @@ func v4Add(client *ribd.RIBDServicesClient, nextHopIpStr string, maxCount int64)
 	}
 	//elapsed := time.Since(start)
 	//	fmt.Println(" ## Elapsed time is ", elapsed)
+	Wg.Done()
 	return nil
 }
 func v4Del(client *ribd.RIBDServicesClient, nextHopIpStr string) (err error) {
@@ -156,6 +157,7 @@ func v4Del(client *ribd.RIBDServicesClient, nextHopIpStr string) (err error) {
 	}
 	//elapsed := time.Since(start)
 	//	fmt.Println(" ## Elapsed time is ", elapsed)
+	Wg.Done()
 	return nil
 }
 func handleBulkClient(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
@@ -255,4 +257,15 @@ func ScaleV4Add(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string, number
 
 func ScaleV4Del(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string) {
 	v4Del(ribdClient, nextHopIpStr)
+}
+func EcmpScalev4Add(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string, number int64) {
+	fmt.Println("EcmpScalev4Add(", nextHopIpStr, ", ", number, ")")
+	go v4Add(ribdClient, nextHopIpStr, number)
+
+}
+
+func EcmpScalev4Del(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string) {
+	fmt.Println("EcmpScalev4Del(", nextHopIpStr, ")")
+	go v4Del(ribdClient, nextHopIpStr)
+
 }
