@@ -394,11 +394,7 @@ func (server *OSPFServer) ConstructAndSendDbdPacket(nbrKey NeighborConfKey,
 	dbd_mdata.msbit = msbit
 
 	server.logger.Debug(fmt.Sprintln("DBD: MTU ", ifMtu))
-	if ifMtu > 1500 {
-		dbd_mdata.interface_mtu = 1500
-	} else {
-		dbd_mdata.interface_mtu = uint16(ifMtu)
-	}
+	dbd_mdata.interface_mtu = uint16(ifMtu)
 	dbd_mdata.options = options
 	dbd_mdata.dd_sequence_number = seq
 

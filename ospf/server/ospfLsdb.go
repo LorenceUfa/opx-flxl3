@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"l3/ospf/config"
 	"time"
+	"utils/commonDefs"
 )
 
 type LsdbUpdateMsg struct {
@@ -455,6 +456,9 @@ func (server *OSPFServer) constructStubLinkP2P(ent IntfConf, likType config.IfTy
 func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 	var linkDetails []LinkDetail = nil
 	for key, ent := range server.IntfConfMap {
+		ipKey := convertAreaOrRouterIdUint32(string(key.IPAddr))
+		ip, _ := server.ipPropertyMap[ipKey]
+
 		AreaId := convertIPv4ToUint32(ent.IfAreaId)
 		if areaId != AreaId {
 			server.logger.Warning(fmt.Sprintln("LSDB: Area id not matching. i/p ", areaId, "if areaid ", AreaId, ent.IfIpAddr))
@@ -466,7 +470,8 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 		}
 		server.DbEventOp <- msg
 
-		if ent.IfFSMState <= config.Waiting {
+		if ent.IfFSMState <= config.Waiting &&
+			ip.IfType != commonDefs.IfTypeLoopback {
 			server.logger.Debug(fmt.Sprintln("LSDB: If is in waiting. Skip.", ent.IfIpAddr))
 			continue
 		}
