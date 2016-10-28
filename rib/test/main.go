@@ -94,7 +94,6 @@ func main() {
 					return
 				}
 
-				//routeThriftTest.ScaleV4Add(ribdClientNew, nextHopIpStr, int64(scaleCount))
 				routeThriftTest.EcmpScalev4Add(ribdClientNew, nextHopIpStr, int64(scaleCount))
 				if count == ecmpCount {
 					break
@@ -102,8 +101,8 @@ func main() {
 				count++
 			}
 			routeThriftTest.Wg.Wait()
-			//			time.Sleep(time.Second * 60)
-			//		fmt.Println("After sleep")
+			//time.Sleep(time.Second * 60)
+			//fmt.Println("After sleep")
 		case "ECMPScalev4Del":
 			if (i + 1) == len(route_ops) {
 				fmt.Println("Incorrect usage: should be ./main ECMPScalev4Del <num of nextHops>")
@@ -122,7 +121,6 @@ func main() {
 					return
 				}
 
-				//routeThriftTest.ScaleV4Del(ribdClientNew, nextHopIpStr)
 				routeThriftTest.EcmpScalev4Del(ribdClientNew, nextHopIpStr)
 				if count == ecmpCount {
 					break
