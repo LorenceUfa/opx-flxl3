@@ -76,14 +76,6 @@ type BaseIpInfo struct {
 	IpType    int // useful information for server
 }
 
-/*
-type L3Intf struct {
-	IfIndex   int32
-	IpAddr    string // cached info for IfName is required in future
-	OperState string
-}
-*/
-
 type Ipv4Info struct {
 	Info BaseIpInfo
 }

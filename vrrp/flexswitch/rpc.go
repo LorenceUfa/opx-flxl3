@@ -30,8 +30,12 @@ import (
 	"io/ioutil"
 	"l3/vrrp/debug"
 	"strconv"
+	"utils/asicdClient"
 	"vrrpd"
 )
+
+type ConfigHandler struct {
+}
 
 func NewConfigHandler() *ConfigHandler {
 	handler := &ConfigHandler{}
@@ -48,8 +52,9 @@ type ClientJson struct {
 	Port int    `json:Port`
 }
 
-func NewConfigPlugin(handler *ConfigHandler, fileName string) *ConfigPlugin {
+func NewConfigPlugin(handler *ConfigHandler, fileName string, sPlugin asicdClient.AsicdClientIntf) *ConfigPlugin {
 	l := &ConfigPlugin{handler, fileName}
+	fsPlugin = sPlugin
 	return l
 }
 

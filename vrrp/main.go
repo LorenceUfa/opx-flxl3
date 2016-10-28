@@ -55,7 +55,7 @@ func main() {
 		switchPlugin := vrrpBase.InitSwitch("Flexswitch", "vrrpd", "VRRP", *asicdHdl)
 		// create north bound config listener for clients
 		debug.Logger.Info("Creating Config Plugin")
-		cfgPlugin := flexswitch.NewConfigPlugin(flexswitch.NewConfigHandler(), vrrpBase.ParamsDir)
+		cfgPlugin := flexswitch.NewConfigPlugin(flexswitch.NewConfigHandler(), vrrpBase.ParamsDir, switchPlugin)
 		// create new vrrp server and cache the information for switch/asicd plugin
 		vrrpSvr := server.VrrpNewServer(switchPlugin, vrrpBase)
 		// Init API layer after server is created
@@ -66,38 +66,5 @@ func main() {
 		vrrpBase.StartKeepAlive()
 		debug.Logger.Info("Starting Config Listener for FlexSwitch Plugin")
 		cfgPlugin.StartConfigListener()
-		/*
-			paramsDir := flag.String("params", "./params", "Params directory")
-			flag.Parse()
-			fileName := *paramsDir
-			if fileName[len(fileName)-1] != '/' {
-				fileName = fileName + "/"
-			}
-
-			fmt.Println("Start logger")
-			logger, err := logging.NewLogger("vrrpd", "VRRP", true)
-			if err != nil {
-				fmt.Println("Failed to start the logger. Nothing will be logged...")
-			}
-			logger.Info("Started the logger successfully.")
-
-			logger.Info("Starting VRRP server....")
-			// Create vrrp server handler
-			vrrpSvr := vrrpServer.VrrpNewServer(logger)
-			// Until Server is connected to clients do not start with RPC
-			vrrpSvr.VrrpStartServer(*paramsDir)
-
-			// Start keepalive routine
-			go keepalive.InitKeepAlive("vrrpd", fileName)
-
-			// Create vrrp rpc handler
-			vrrpHdl := vrrpRpc.VrrpNewHandler(vrrpSvr, logger)
-			logger.Info("Starting VRRP RPC listener....")
-			err = vrrpRpc.VrrpRpcStartServer(logger, vrrpHdl, *paramsDir)
-			if err != nil {
-				logger.Err(fmt.Sprintln("VRRP: Cannot start vrrp server", err))
-				return
-			}
-		*/
 	}
 }

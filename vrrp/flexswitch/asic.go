@@ -25,13 +25,16 @@ package flexswitch
 
 import (
 	"l3/vrrp/api"
-	_ "l3/vrrp/config"
-	_ "l3/vrrp/debug"
+	"l3/vrrp/config"
+	"l3/vrrp/debug"
 	"sync"
+	"syscall"
+	"utils/asicdClient"
 	"utils/commonDefs"
 )
 
 var switchInst *commonDefs.AsicdClientStruct = nil
+var fsPlugin asicdClient.AsicdClientIntf
 var once sync.Once
 
 func initAsicdNotification() commonDefs.AsicdNotification {
@@ -90,63 +93,89 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 	}
 	switch msg.(type) {
 	case commonDefs.IPv6IntfNotifyMsg:
-	/*
 		// create/delete ipv6 interface notification case
 		ipv6Msg := msg.(commonDefs.IPv6IntfNotifyMsg)
-		if pluginCommon.GetTypeFromIfIndex(ipv6Msg.IfIndex) != commonDefs.IfTypeLoopback {
+		if !fsPlugin.IsLoopbackType(ipv6Msg.IfIndex) {
+			ipInfo := &config.BaseIpInfo{
+				IfIndex: ipv6Msg.IfIndex,
+				IntfRef: ipv6Msg.IntfRef,
+				IpAddr:  ipv6Msg.IpAddr,
+				IpType:  syscall.AF_INET6,
+			}
 			if ipv6Msg.MsgType == commonDefs.NOTIFY_IPV6INTF_CREATE {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication CREATE:", ipv6Msg)
-				api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_CREATE)
+				ipInfo.MsgType = config.IP_MSG_CREATE
+				api.SendIpIntfNotification(ipInfo)
+				//api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_CREATE)
 			} else {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication DELETE:", ipv6Msg)
-				api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_DELETE)
+				ipInfo.MsgType = config.IP_MSG_DELETE
+				api.SendIpIntfNotification(ipInfo)
+				//api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_DELETE)
 			}
 		}
-	*/
+
 	case commonDefs.IPv6L3IntfStateNotifyMsg:
-	/*
 		// state up/down for ipv6 interface case
-		l3Msg := msg.(commonDefs.IPv6L3IntfStateNotifyMsg)
+		ipv6Msg := msg.(commonDefs.IPv6L3IntfStateNotifyMsg)
 		// only get state notification if ip type is v6 && not loopback
-		if pluginCommon.GetTypeFromIfIndex(l3Msg.IfIndex) != commonDefs.IfTypeLoopback {
-			if l3Msg.IfState == asicdCommonDefs.INTF_STATE_UP {
-				debug.Logger.Debug("Received Asicd L3 State Notfication UP:", l3Msg)
-				api.SendL3PortNotification(l3Msg.IfIndex, config.STATE_UP, l3Msg.IpAddr)
+		if !fsPlugin.IsLoopbackType(ipv6Msg.IfIndex) {
+			ipInfo := &config.BaseIpInfo{
+				IfIndex: ipv6Msg.IfIndex,
+				IpAddr:  ipv6Msg.IpAddr,
+				IpType:  syscall.AF_INET6,
+				MsgType: config.IP_MSG_STATE_CHANGE,
+			}
+			if ipv6Msg.IfState == commonDefs.INTF_STATE_UP {
+				debug.Logger.Debug("Received Asicd L3 State Notfication UP:", ipv6Msg)
+				ipInfo.OperState = config.STATE_UP
+				api.SendIpIntfNotification(ipInfo)
 			} else {
-				debug.Logger.Debug("Received Asicd L3 State Notfication DOWN:", l3Msg)
-				api.SendL3PortNotification(l3Msg.IfIndex, config.STATE_DOWN, l3Msg.IpAddr)
+				debug.Logger.Debug("Received Asicd L3 State Notfication DOWN:", ipv6Msg)
+				ipInfo.OperState = config.STATE_DOWN
+				api.SendIpIntfNotification(ipInfo)
 			}
 		}
-	*/
 	case commonDefs.IPv4IntfNotifyMsg:
-	/*
-		// create/delete ipv6 interface notification case
-		ipv6Msg := msg.(commonDefs.IPv6IntfNotifyMsg)
-		if pluginCommon.GetTypeFromIfIndex(ipv6Msg.IfIndex) != commonDefs.IfTypeLoopback {
-			if ipv6Msg.MsgType == commonDefs.NOTIFY_IPV6INTF_CREATE {
-				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication CREATE:", ipv6Msg)
-				api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_CREATE)
+		ipv4Msg := msg.(commonDefs.IPv4IntfNotifyMsg)
+		if !fsPlugin.IsLoopbackType(ipv4Msg.IfIndex) {
+			ipInfo := &config.BaseIpInfo{
+				IfIndex: ipv4Msg.IfIndex,
+				IntfRef: ipv4Msg.IntfRef,
+				IpAddr:  ipv4Msg.IpAddr,
+				IpType:  syscall.AF_INET,
+			}
+			if ipv4Msg.MsgType == commonDefs.NOTIFY_IPV4INTF_CREATE {
+				debug.Logger.Debug("Received Asicd IPV4 INTF Notfication CREATE:", ipv4Msg)
+				ipInfo.MsgType = config.IP_MSG_CREATE
+				api.SendIpIntfNotification(ipInfo)
 			} else {
-				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication DELETE:", ipv6Msg)
-				api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_DELETE)
+				debug.Logger.Debug("Received Asicd IPV4 INTF Notfication DELETE:", ipv4Msg)
+				ipInfo.MsgType = config.IP_MSG_DELETE
+				api.SendIpIntfNotification(ipInfo)
 			}
 		}
-	*/
 	case commonDefs.IPv4L3IntfStateNotifyMsg:
-		/*
-			// state up/down for ipv6 interface case
-			l3Msg := msg.(commonDefs.IPv6L3IntfStateNotifyMsg)
-			// only get state notification if ip type is v6 && not loopback
-			if pluginCommon.GetTypeFromIfIndex(l3Msg.IfIndex) != commonDefs.IfTypeLoopback {
-				if l3Msg.IfState == asicdCommonDefs.INTF_STATE_UP {
-					debug.Logger.Debug("Received Asicd L3 State Notfication UP:", l3Msg)
-					api.SendL3PortNotification(l3Msg.IfIndex, config.STATE_UP, l3Msg.IpAddr)
-				} else {
-					debug.Logger.Debug("Received Asicd L3 State Notfication DOWN:", l3Msg)
-					api.SendL3PortNotification(l3Msg.IfIndex, config.STATE_DOWN, l3Msg.IpAddr)
-				}
+		// state up/down for ipv6 interface case
+		ipv4Msg := msg.(commonDefs.IPv4L3IntfStateNotifyMsg)
+		// only get state notification if ip type is v6 && not loopback
+		if !fsPlugin.IsLoopbackType(ipv4Msg.IfIndex) {
+			ipInfo := &config.BaseIpInfo{
+				IfIndex: ipv4Msg.IfIndex,
+				IpAddr:  ipv4Msg.IpAddr,
+				IpType:  syscall.AF_INET,
+				MsgType: config.IP_MSG_STATE_CHANGE,
 			}
-		*/
+			if ipv4Msg.IfState == commonDefs.INTF_STATE_UP {
+				debug.Logger.Debug("Received Asicd L3 State Notfication UP:", ipv4Msg)
+				ipInfo.OperState = config.STATE_UP
+				api.SendIpIntfNotification(ipInfo)
+			} else {
+				debug.Logger.Debug("Received Asicd L3 State Notfication DOWN:", ipv4Msg)
+				ipInfo.OperState = config.STATE_DOWN
+				api.SendIpIntfNotification(ipInfo)
+			}
+		}
 
 		/*
 			case commonDefs.L2IntfStateNotifyMsg:

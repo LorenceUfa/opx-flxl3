@@ -31,9 +31,6 @@ import (
 	"vrrpd"
 )
 
-type ConfigHandler struct {
-}
-
 func (h *ConfigHandler) CreateVrrpGlobal(cfg *vrrpd.VrrpGlobal) (r bool, err error) {
 	debug.Logger.Debug("Thrift request for creating vrrp global object:", *cfg)
 	gblCfg := &config.GlobalConfig{cfg.Vrf, cfg.Enable, config.CREATE}
