@@ -113,7 +113,6 @@ func (server *OSPFServer) areaStateRefresh() {
 	var areaStateRefFunc func()
 	areaStateRefFunc = func() {
 		//server.AreaStateMutex.Lock()
-		server.logger.Debug("Inside areaStateRefFunc()")
 		server.AreaStateSlice = []AreaConfKey{}
 		server.AreaConfKeyToSliceIdxMap = nil
 		server.AreaConfKeyToSliceIdxMap = make(map[AreaConfKey]int)
@@ -127,7 +126,7 @@ func (server *OSPFServer) areaStateRefresh() {
 	server.AreaStateTimer = time.AfterFunc(server.RefreshDuration, areaStateRefFunc)
 }
 
-func (server *OSPFServer) updateIntfToAreaMap(key IntfConfKey, oldAreaId string, newAreaId string) {
+func (server *OSPFServer) updateIntfToAreaMap(key IntfConfKey, oldAreaId string, newAreaId string, enable bool) {
 
 	server.logger.Debug(fmt.Sprintln("===========1. updateIntfToAreaMap============", server.AreaConfMap, "oldAreaId:", oldAreaId, "newAreaId:", newAreaId, "IntfConfKey:", key))
 	if oldAreaId != "none" && newAreaId != "none" {
@@ -136,7 +135,7 @@ func (server *OSPFServer) updateIntfToAreaMap(key IntfConfKey, oldAreaId string,
 		}
 		oldAreaConfEnt, exist := server.AreaConfMap[oldAreaConfKey]
 		if !exist {
-			server.logger.Err("No such area configuration exist.")
+			server.logger.Err(fmt.Sprintln("Update: No such area configuration exist.", oldAreaConfKey))
 			return
 		}
 
@@ -148,11 +147,14 @@ func (server *OSPFServer) updateIntfToAreaMap(key IntfConfKey, oldAreaId string,
 		}
 		newAreaConfEnt, exist := server.AreaConfMap[newAreaConfKey]
 		if !exist {
-			server.logger.Err("No such area configuration exist")
+			server.logger.Err(fmt.Sprintln("Update: No such area configuration exist.", newAreaConfKey))
 			return
 		}
-
-		newAreaConfEnt.IntfListMap[key] = true
+		if enable {
+			newAreaConfEnt.IntfListMap[key] = true
+		} else {
+			newAreaConfEnt.IntfListMap[key] = false
+		}
 		server.AreaConfMap[newAreaConfKey] = newAreaConfEnt
 	} else if oldAreaId == "none" {
 		newAreaConfKey := AreaConfKey{
@@ -160,7 +162,7 @@ func (server *OSPFServer) updateIntfToAreaMap(key IntfConfKey, oldAreaId string,
 		}
 		newAreaConfEnt, exist := server.AreaConfMap[newAreaConfKey]
 		if !exist {
-			server.logger.Err("No such area configuration exist")
+			server.logger.Err(fmt.Sprintln("Update: No such area configuration exist.", newAreaConfKey))
 			return
 		}
 
@@ -189,8 +191,16 @@ func (server *OSPFServer) updateIntfToAreaMap(key IntfConfKey, oldAreaId string,
 
 func (server *OSPFServer) updateIfABR() {
 	index := 0
+	var validIntf bool
 	for _, areaEnt := range server.AreaConfMap {
-		if len(areaEnt.IntfListMap) > 0 {
+		validIntf = false
+		for _, enable := range areaEnt.IntfListMap {
+			if enable {
+				validIntf = true
+				break
+			}
+		}
+		if validIntf {
 			index++
 		}
 	}

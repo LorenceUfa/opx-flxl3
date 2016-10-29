@@ -150,7 +150,12 @@ func (server *OSPFServer) initDefaultIntfConf(key IntfConfKey, ipIntfProp IPIntf
 		if areaId == nil {
 			return
 		}
-		server.updateIntfToAreaMap(key, "none", "0.0.0.0")
+		ipKey := convertAreaOrRouterIdUint32(string(key.IPAddr))
+		if server.isOspfIfEnabled(key, ipKey) {
+			server.updateIntfToAreaMap(key, "none", "0.0.0.0", true)
+		} else {
+			server.updateIntfToAreaMap(key, "none", "0.0.0.0", false)
+		}
 		ent.IfAreaId = areaId
 		ent.IfType = intfType
 		ent.IfAdminStat = config.Disabled
@@ -339,18 +344,11 @@ func (server *OSPFServer) deleteIPIntfConfMap(msg IPv4IntfNotifyMsg, ifIndex int
 		return
 	}
 	ipKey := convertAreaOrRouterIdUint32(ip.String())
-	ipPropKey, valid := server.ipPropertyMap[ipKey]
-	if !valid {
-		server.logger.Err(fmt.Sprintln("Intf: Delete , l3 intf doesnt exist ", ip))
-		return
-	}
 	areaId := convertIPv4ToUint32(ent.IfAreaId)
 	oldAreaId := convertIPInByteToString(ent.IfAreaId)
-	server.updateIntfToAreaMap(intfConfKey, oldAreaId, "none")
+	server.updateIntfToAreaMap(intfConfKey, oldAreaId, "none", false)
 
-	if server.ospfGlobalConf.AdminStat == config.Enabled &&
-		ipPropKey.IpState == config.Intf_Up &&
-		ent.IfAdminStat == config.Enabled {
+	if server.isOspfIfEnabled(intfConfKey, ipKey) {
 		server.StopSendRecvPkts(intfConfKey)
 		flag = true
 	}
@@ -379,7 +377,12 @@ func (server *OSPFServer) updateIPIntfConfMap(ifConf config.InterfaceConf) {
 		oldAreaId := convertIPInByteToString(ent.IfAreaId)
 		newAreaId := string(ifConf.IfAreaId)
 		if oldAreaId != newAreaId {
-			server.updateIntfToAreaMap(intfConfKey, oldAreaId, newAreaId)
+			ipKey := convertAreaOrRouterIdUint32(string(ifConf.IfIpAddress))
+			if server.isOspfIfEnabled(intfConfKey, ipKey) {
+				server.updateIntfToAreaMap(intfConfKey, oldAreaId, newAreaId, true)
+			} else {
+				server.updateIntfToAreaMap(intfConfKey, oldAreaId, newAreaId, false)
+			}
 		}
 		ent.IfAreaId = convertAreaOrRouterId(newAreaId)
 		/*
@@ -422,52 +425,62 @@ func (server *OSPFServer) processIntfConfig(ifConf config.InterfaceConf) error {
 	}
 	ent, exist := server.IntfConfMap[intfConfKey]
 	if !exist {
-		server.logger.Err(fmt.Sprintln("No such L3 interface exists ", intfConfKey.IPAddr, intfConfKey.IntfIdx))
+		server.logger.Err(fmt.Sprintln("IntfConf: No such L3 interface exists in intfConfMap ", intfConfKey.IPAddr, intfConfKey.IntfIdx))
 		err := errors.New("No such L3 interface exists")
 		return err
 	}
 	ipKey := convertAreaOrRouterIdUint32(string(ifConf.IfIpAddress))
 	ip, valid := server.ipPropertyMap[ipKey]
 	if !valid {
-		server.logger.Err(fmt.Sprintln("No such L3 interface exists ", intfConfKey.IPAddr,
+		server.logger.Err(fmt.Sprintln("IntfConf: No such L3 interface exists in ipProperty ", intfConfKey.IPAddr,
 			intfConfKey.IntfIdx))
-		return errors.New("No L3 intf exist")
+		return errors.New("L3 interface does not exist.")
 	}
-	if intfConfKey.IPAddr == "0.0.0.0" &&
-		ifConf.IfType == config.NumberedP2P || ifConf.IfType == config.UnnumberedP2P {
-		flag := false
-		for key, _ := range server.IntfConfMap {
-			if key.IPAddr != "0.0.0.0" {
-				flag = true
-				break
+
+	switch ip.IfType {
+	case commonDefs.IfTypeLoopback:
+		server.logger.Debug(fmt.Sprintln("Intf: Received intf config on loopback ", ent.IfIpAddr))
+		server.updateIPIntfConfMap(ifConf)
+		server.logger.Info("Intf: Loopback Sending msg for router LSA generation")
+		if server.isOspfIfEnabled(intfConfKey, ipKey) {
+			areaId := convertIPv4ToUint32(ent.IfAreaId)
+
+			msg := NetworkLSAChangeMsg{
+				areaId:    areaId,
+				intfKey:   intfConfKey,
+				intfState: config.Intf_Up,
+			}
+			server.IntfStateChangeCh <- msg
+		}
+		return nil
+	default:
+		if intfConfKey.IPAddr == "0.0.0.0" &&
+			ifConf.IfType == config.NumberedP2P || ifConf.IfType == config.UnnumberedP2P {
+			flag := false
+			for key, _ := range server.IntfConfMap {
+				if key.IPAddr != "0.0.0.0" {
+					flag = true
+					break
+				}
+			}
+
+			if flag == false {
+				server.logger.Err("Invalid Configuration")
+				server.logger.Err("Unnumbered PointToPoint Interface cannot be configured without having any other IP interface")
+				err := errors.New("Invalid Configuration")
+				return err
 			}
 		}
-
-		if flag == false {
-			server.logger.Err("Invalid Configuration")
-			server.logger.Err("Unnumbered PointToPoint Interface cannot be configured without having any other IP interface")
-			err := errors.New("Invalid Configuration")
-			return err
+		if server.isOspfIfEnabled(intfConfKey, ipKey) {
+			server.StopSendRecvPkts(intfConfKey)
 		}
-	}
-	server.logger.Debug(fmt.Sprintln("Intf: ifadmin ", ent.IfAdminStat, " ipstate",
-		ip.IpState, " global admin ", server.ospfGlobalConf.AdminStat))
-	if ent.IfAdminStat == config.Enabled &&
-		ip.IpState == config.Intf_Up &&
-		server.ospfGlobalConf.AdminStat == config.Enabled {
-		server.StopSendRecvPkts(intfConfKey)
-	}
 
-	server.updateIPIntfConfMap(ifConf)
+		server.updateIPIntfConfMap(ifConf)
 
-	ent, _ = server.IntfConfMap[intfConfKey]
-	server.logger.Info(fmt.Sprintln("InterfaceConf:", server.IntfConfMap))
-	server.logger.Debug(fmt.Sprintln("Intf: ifadmin ", ent.IfAdminStat, " ipstate",
-		ip.IpState, " global admin ", server.ospfGlobalConf.AdminStat))
-	if ent.IfAdminStat == config.Enabled &&
-		ip.IpState == config.Intf_Up &&
-		server.ospfGlobalConf.AdminStat == config.Enabled {
-		server.StartSendRecvPkts(intfConfKey)
+		ent, _ = server.IntfConfMap[intfConfKey]
+		if server.isOspfIfEnabled(intfConfKey, ipKey) {
+			server.StartSendRecvPkts(intfConfKey)
+		}
 	}
 	return nil
 }
@@ -485,9 +498,11 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 	ipKey := convertAreaOrRouterIdUint32(string(ifConf.IfIpAddress))
 	ip, valid := server.ipPropertyMap[ipKey]
 	if !valid {
-		server.logger.Err(fmt.Sprintln("Intf : Update , no L3 interface exist. No updates made.", ipKey))
-		return errors.New("No L3 intf exist")
+		server.logger.Err(fmt.Sprintln("IntfUpdate: No such L3 interface exists in ipProperty ", ifKey.IPAddr,
+			ifKey.IntfIdx))
+		return errors.New("Failed to get entry from IP property map. ")
 	}
+
 	//stop interface state machine.
 	server.logger.Debug(fmt.Sprintln("Intf: Update - Stop interface FSM"))
 	ent, exist := server.IntfConfMap[ifKey]
@@ -497,9 +512,8 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 	}
 	server.logger.Debug(fmt.Sprintln("Intf admin stat ", ent.IfAdminStat,
 		"ip state", ip.IpState, "global admin_stat", server.ospfGlobalConf.AdminStat))
-	if ent.IfAdminStat == config.Enabled &&
-		ip.IpState == config.Intf_Up &&
-		server.ospfGlobalConf.AdminStat == config.Enabled {
+	if server.isOspfIfEnabled(ifKey, ipKey) &&
+		ip.IfType != commonDefs.IfTypeLoopback {
 		server.logger.Debug(fmt.Sprintln("Intf: Update Stop send recv packets ", ifKey))
 		server.StopSendRecvPkts(ifKey)
 	}
@@ -533,9 +547,8 @@ func (server *OSPFServer) processIntfConfigUpdate(ifConf config.InterfaceConf) e
 	//start interface state machine.
 	ent, _ = server.IntfConfMap[ifKey]
 
-	if ent.IfAdminStat == config.Enabled &&
-		ip.IpState == config.Intf_Up &&
-		server.ospfGlobalConf.AdminStat == config.Enabled {
+	if server.isOspfIfEnabled(ifKey, ipKey) &&
+		ip.IfType != commonDefs.IfTypeLoopback {
 		server.logger.Debug(fmt.Sprintln("Intf: Update Start send recv packets ", ifKey))
 		server.StartSendRecvPkts(ifKey)
 	} else {
@@ -598,12 +611,10 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 		var flag bool
 		if ifState == config.Intf_Down {
 			server.logger.Debug(fmt.Sprintln("Intf: Down . Update area id info"))
-			server.updateIntfToAreaMap(intfKey, AreaId, "none")
+			server.updateIntfToAreaMap(intfKey, AreaId, "none", false)
 			server.logger.Debug(fmt.Sprintln("Intf: Down admin ", ent.IfAdminStat,
 				" admin ", server.ospfGlobalConf.AdminStat))
-			if ent.IfAdminStat == config.Enabled &&
-				ip.IpState == config.Intf_Up &&
-				server.ospfGlobalConf.AdminStat == config.Enabled {
+			if server.isOspfIfEnabled(intfKey, ipKey) {
 				server.logger.Debug(fmt.Sprintln("Intf: Down. Stop send receive packets"))
 				server.StopSendRecvPkts(intfKey)
 				flag = true
@@ -622,10 +633,8 @@ func (server *OSPFServer) processIntfStateChange(ipAddr string, ifIndex int32,
 		}
 
 		if ifState == config.Intf_Up {
-			server.updateIntfToAreaMap(intfKey, "none", AreaId)
-			if ent.IfAdminStat == config.Enabled &&
-				ifState == config.Intf_Up &&
-				server.ospfGlobalConf.AdminStat == config.Enabled {
+			server.updateIntfToAreaMap(intfKey, "none", AreaId, true)
+			if server.isOspfIfEnabled(intfKey, ipKey) {
 				server.StartSendRecvPkts(intfKey)
 				flag = true
 				server.logger.Debug(fmt.Sprintln("Intf: Intf is Up . Start ospf on ", ipAddr))
@@ -684,7 +693,7 @@ func (server *OSPFServer) initIntfStateSlice() {
 		server.IntfSliceRefreshCh <- true
 		msg := <-server.IntfSliceRefreshDoneCh
 		if msg == true {
-			server.logger.Debug("Interface slice got refreshed")
+			//	server.logger.Debug("Interface slice got refreshed")
 		}
 		server.IntfStateTimer.Reset(server.RefreshDuration)
 	}
@@ -805,4 +814,25 @@ func (server *OSPFServer) DiffWithIntfConfObjAndSetFlags(ifConf config.Interface
 		flags |= config.IF_POLL_INTERVAL
 	}
 	return flags
+}
+
+func (server *OSPFServer) isOspfIfEnabled(intfKey IntfConfKey, ipKey uint32) bool {
+	ent, exist := server.IntfConfMap[intfKey]
+	if !exist {
+		return false
+	}
+
+	ip, valid := server.ipPropertyMap[ipKey]
+	if !valid {
+		server.logger.Err(fmt.Sprintln("isOspfEnabled: No such L3 interface exists in ipProperty ", intfKey.IPAddr,
+			intfKey.IntfIdx))
+		return false
+	}
+
+	if ent.IfAdminStat == config.Enabled &&
+		ip.IpState == config.Intf_Up &&
+		server.ospfGlobalConf.AdminStat == config.Enabled {
+		return true
+	}
+	return false
 }

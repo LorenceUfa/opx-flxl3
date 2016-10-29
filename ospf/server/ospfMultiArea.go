@@ -228,6 +228,7 @@ func (server *OSPFServer) GenerateSummaryLsa() {
 				//TODO: Address Range
 				// By default LSId = network's address
 				// Metric = Routing Table cost
+				server.logger.Debug(fmt.Sprintln("Summary : generated summary 3 lsa ", rKey))
 				lsaKey, summaryLsa := server.GenerateType3SummaryLSA(rKey, rEnt, lsDbKey)
 				sEnt[lsaKey] = summaryLsa
 			}

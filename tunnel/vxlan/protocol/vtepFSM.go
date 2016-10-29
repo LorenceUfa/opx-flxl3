@@ -226,7 +226,7 @@ func (vm *VxlanVtepMachine) VxlanVtepInit(m fsm.Machine, data interface{}) fsm.S
 
 	vtep := vm.vtep
 
-	logger.Info(fmt.Sprintln("vxlandb", GetVxlanDB()))
+	//logger.Info(fmt.Sprintln("vxlandb", GetVxlanDB()))
 	if _, ok := GetVxlanDB()[vtep.Vni]; ok {
 
 		if vtep.Enable {
@@ -372,8 +372,10 @@ func (vm *VxlanVtepMachine) VxlanVtepStartListener(m fsm.Machine, data interface
 func (vm *VxlanVtepMachine) VxlanVtepDisabled(m fsm.Machine, data interface{}) fsm.State {
 
 	vtep := vm.vtep
-
-	DeProvisionVtep(vtep, false)
+	// we only want to deprovision if we are coming from a state other than init
+	if vm.Machine.Curr.PreviousState() != VxlanVtepStateInit {
+		DeProvisionVtep(vtep, false)
+	}
 	return VxlanVtepStateDisabled
 }
 
@@ -479,7 +481,7 @@ func (vtep *VtepDbEntry) VxlanVtepMachineMain() {
 			select {
 			case _, ok := <-vtep.retrytimer.C:
 
-				logger.Info("Timer Expired")
+				//logger.Info("Timer Expired")
 				if ok {
 
 					// in the case that the interface call needs to be polled then add state

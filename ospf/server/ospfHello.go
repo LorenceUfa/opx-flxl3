@@ -305,7 +305,7 @@ func (server *OSPFServer) processOspfHelloNeighbor(TwoWayStatus bool, ospfHelloD
 			neighChangeMsg.BDRtr = append(neighChangeMsg.BDRtr, ospfHelloData.backupDesignatedRtr...)
 			ent.NeighChangeCh <- neighChangeMsg
 		}
-		server.logger.Debug(fmt.Sprintln("Neighbor Entry already exist", neighborEntry))
+		//server.logger.Debug(fmt.Sprintln("Neighbor Entry already exist", neighborEntry))
 	}
 
 	nbrDeadInterval := time.Duration(ent.IfRtrDeadInterval) * time.Second
@@ -363,6 +363,6 @@ func (server *OSPFServer) CreateAndSendHelloRecvdMsg(routerId uint32,
 	msg.IntfConfKey.IntfIdx = key.IntfIdx
 	msg.TwoWayStatus = TwoWayStatus
 
-	server.logger.Debug(fmt.Sprintln("Sending msg to Neighbor State Machine", msg))
+	//	server.logger.Debug(fmt.Sprintln("Sending msg to Neighbor State Machine", msg))
 	server.neighborHelloEventCh <- msg
 }

@@ -235,6 +235,10 @@ func VtepConfigCheck(c *VtepConfig, create bool) error {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
 	}
 
+	if c.MTU < 64 || c.MTU > 65535 {
+		return errors.New("Error VtepInstance MTU must be between 64-65535")
+	}
+
 	if c.TTL > 255 {
 		return errors.New("Error VtepInstance TTL must be between 0-255")
 	}
@@ -446,7 +450,7 @@ func UpdateThriftVtep(c *VtepUpdate) {
 	recreateobj := false
 	for _, objName := range c.Attr {
 		if objName == "TOS" ||
-			objName == "MTU" ||
+			objName == "Mtu" ||
 			objName == "TTL" {
 			updateobj = true
 		} else if objName == "AdminState" {
@@ -467,7 +471,10 @@ func UpdateThriftVtep(c *VtepUpdate) {
 		}
 		vtep := GetVtepDBEntry(key)
 		if vtep != nil {
-			DeProvisionVtep(vtep, false)
+			vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
+				E:   VxlanVtepEventDisable,
+				Src: VxlanVtepMachineModuleStr,
+			}
 			saveVtepConfigData(&(c.Newconfig))
 		}
 	} else if enableobj {
