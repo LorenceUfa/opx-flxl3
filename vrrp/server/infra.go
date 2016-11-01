@@ -247,6 +247,8 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	}
 }
 
+// @TODO: you might get create ip notification after create vrrp need to handle that case
+// @TODO: need to start FSM for state up notification if vrrp is configured
 func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 	switch msg.MsgType {
 	case config.IP_MSG_CREATE:
