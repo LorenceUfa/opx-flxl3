@@ -30,6 +30,7 @@ import (
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
 	"syscall"
+	"utils/netUtils"
 )
 
 func (svr *VrrpServer) GetPorts() {
@@ -87,18 +88,7 @@ func (svr *VrrpServer) getIPv4Intfs() {
 			IpAddr:    obj.IpAddr,
 		}
 		v4Obj.Init(ipInfo)
-		/*
-			v4Info, _ := svr.V4[obj.IfIndex]
-			ipInfo := v4Info.Cfg.Info
-			//if !exists {
-			ipInfo.IntfRef = obj.IntfRef
-			ipInfo.IfIndex = obj.IfIndex
-			ipInfo.OperState = obj.OperState
-			v4Info.Cfg.IpAddr = obj.IpAddr
-			v4Info.Vrrpkey = nil
-			//		}
-		*/
-		svr.V4[obj.IfIndex] = v4Obj //ipInfo
+		svr.V4[obj.IfIndex] = v4Obj
 		svr.V4IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
@@ -122,23 +112,7 @@ func (svr *VrrpServer) getIPv6Intfs() {
 			IpAddr:    obj.IpAddr,
 		}
 		v6Obj.Init(ipInfo)
-		/*
-			v6Info, _ := svr.V6[obj.IfIndex]
-			ipInfo := v6Info.Cfg.Info
-			//if !exists {
-			ipInfo.IntfRef = obj.IntfRef
-			ipInfo.IfIndex = obj.IfIndex
-			ipInfo.OperState = obj.OperState
-			ip, _, _ := net.ParseCIDR(obj.IpAddr)
-			if ip.IsLinkLocalUnicast() {
-				v6Info.Cfg.LinkScopeAddr = ip.String()
-			} else {
-				v6Info.Cfg.IPv6Addr = ip.String()
-			}
-			//		}
-			v6Info.Vrrpkey = nil
-		*/
-		svr.V6[obj.IfIndex] = v6Obj //ipInfo
+		svr.V6[obj.IfIndex] = v6Obj
 		svr.V6IntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
 	}
 }
@@ -197,6 +171,9 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 	return false, errors.New("Invalid Operation received for Vrrp Interface Config")
 }
 
+/*
+ *  Handling Vrrp Interface Configuration
+ */
 func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
 	intf, exists := svr.Intf[key]
@@ -206,17 +183,14 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 	}
 	l3Info := &config.BaseIpInfo{}
 	l3Info.IntfRef = cfg.IntfRef
+	var ipIntf IPIntf
 	// Get DB based on config version
 	switch cfg.Version {
 	case config.VERSION2:
 		ifIndex, exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
 		if exists {
 			l3Info.IfIndex = ifIndex
-			v4, exists := svr.V4[ifIndex]
-			if exists {
-				l3Info.IpAddr = v4.Cfg.Info.IpAddr
-				l3Info.OperState = v4.Cfg.Info.OperState
-			}
+			ipIntf, exists = svr.V4[ifIndex]
 		}
 	// if cross reference exists then only set l3Info else just pass go defaults and it will updated
 	// later once we have configured ipv4 or ipv6 interface
@@ -224,16 +198,20 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 		ifIndex, exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
 		if exists {
 			l3Info.IfIndex = ifIndex
-			v6, exists := svr.V6[ifIndex]
-			if exists {
-				// @TODO: do we have to use linkscope ip or global scope ip Check RFC
-				l3Info.IpAddr = v6.Cfg.Info.IpAddr
-				l3Info.OperState = v6.Cfg.Info.OperState
-			}
+			ipIntf, exists = svr.V6[ifIndex]
 		}
 	}
-	intf.InitVrrpIntf(cfg, l3Info) //, svr.StateCh)
+	// if entry exists then only you should get information from DB otherwise it should be nothing
+	if exists {
+		ipIntf.GetObjFromDb(l3Info)
+	}
+	intf.InitVrrpIntf(cfg, l3Info)
+	if l3Info.OperState == config.STATE_UP {
+		// spawn go routine for fsm only if operstate is UP
+		intf.StartFsm()
+	}
 	svr.Intf[key] = intf
+	ipIntf.SetVrrpIntfKey(&key)
 	// @TODO: NEED TO ADD PRE - PROCESSOR SUB INTERFACE OBJECT
 }
 
@@ -276,15 +254,12 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 		case syscall.AF_INET:
 			v4, exists := svr.V4[msg.IfIndex]
 			if !exists {
-				//v4Obj := &V4Intf{}
 				v4.Init(msg)
 			}
 		case syscall.AF_INET6:
 			v6, exists := svr.V6[msg.IfIndex]
-			if !exists {
+			if !exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
 				v6.Init(msg)
-			} else {
-				// maybe we need to update linkscope or global scope ip
 			}
 		}
 	case config.IP_MSG_DELETE:
@@ -292,13 +267,12 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 		case syscall.AF_INET:
 			v4, exists := svr.V4[msg.IfIndex]
 			if exists {
-				//v4Obj := &V4Intf{}
 				v4.DeInit(msg)
 			}
 		case syscall.AF_INET6:
 			// most likely we will get two delete one for linkscope and other for global-scope
 			v6, exists := svr.V6[msg.IfIndex]
-			if exists {
+			if exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
 				v6.DeInit(msg)
 			}
 		}

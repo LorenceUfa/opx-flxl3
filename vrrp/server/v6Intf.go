@@ -54,3 +54,12 @@ func (intf *V6Intf) Update(obj *config.BaseIpInfo) {
 
 func (intf *V6Intf) DeInit(obj *config.BaseIpInfo) {
 }
+
+func (intf *V6Intf) GetObjFromDb(l3Info *config.BaseIpInfo) {
+	l3Info.IpAddr = intf.Cfg.Info.IpAddr
+	l3Info.OperState = intf.Cfg.Info.OperState
+}
+
+func (intf *V6Intf) SetVrrpIntfKey(key *KeyInfo) {
+	intf.Vrrpkey = key
+}

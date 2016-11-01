@@ -108,24 +108,23 @@ type IntfEvent struct {
 }
 
 type FSM struct {
-	Config                  *config.IntfCfg // config attributes like virtual rtr ip, vrid, intfRef, etc...
-	pHandle                 *pcap.Handle    // Pcap Handler for receiving packets
-	PktInfo                 *packet.PacketInfo
-	IpAddr                  string // My own ip address
-	IfIndex                 int32  // My own ifIndex
-	VirtualRouterMACAddress string // VRRP MAC aka VMAC
-	State                   uint8
-	MasterAdverInterval     int32       // The initial value is the same as Advertisement_Interval.
-	SkewTime                int32       // (((256 - priority) * Master_Adver_Interval) / 256)
-	MasterDownValue         int32       // (3 * Master_Adver_Interval) + Skew_time
-	AdverTimer              *time.Timer // Advertisement Timer
-	MasterDownTimer         *time.Timer
-	StInfo                  *config.State // this is state information for this fsm which will be used for get bulk
+	Config                  *config.IntfCfg    // config attributes like virtual rtr ip, vrid, intfRef, etc...
+	pHandle                 *pcap.Handle       // Pcap Handler for receiving packets
+	PktInfo                 *packet.PacketInfo // fsm will use this packet infor for decode/encode
+	IfIndex                 int32              // My own ifIndex
+	IpAddr                  string             // My own ip address
+	VirtualRouterMACAddress string             // VRRP MAC aka VMAC
+	State                   uint8              // current state in which fsm is running
+	MasterAdverInterval     int32              // The initial value is the same as Advertisement_Interval.
+	SkewTime                int32              // (((256 - priority) * Master_Adver_Interval) / 256)
+	MasterDownValue         int32              // (3 * Master_Adver_Interval) + Skew_time
+	AdverTimer              *time.Timer        // Advertisement Timer
+	MasterDownTimer         *time.Timer        // Master down timer...used for keep-alives from master
+	StInfo                  *config.State      // this is state information for this fsm which will be used for get bulk
 	pktCh                   chan *PktChannelInfo
 	fsmStCh                 chan *FsmStateInfo
 	txPktCh                 chan *packet.PacketInfo
 	IntfEventCh             chan *IntfEvent
-	//StateCh                 chan *IntfState // push current state information on to this channel so that server can update information
 }
 
 func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) *FSM { //stCh chan *IntfState) *FSM {
@@ -135,13 +134,11 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) *FSM { //stCh chan 
 	f.IpAddr = l3Info.IpAddr
 	f.IfIndex = l3Info.IfIndex
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
-	//f.StateCh = stCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.fsmStCh = make(chan *FsmStateInfo)
 	f.txPktCh = make(chan *packet.PacketInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
 	f.PktInfo = packet.Init()
-	go f.StartFsm()
 	f.InitPacketListener()
 	f.State = VRRP_INITIALIZE_STATE
 	return f

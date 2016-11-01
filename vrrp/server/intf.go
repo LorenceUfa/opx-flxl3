@@ -31,23 +31,25 @@ type IPIntf interface {
 	Init(*config.BaseIpInfo)
 	Update(*config.BaseIpInfo)
 	DeInit(*config.BaseIpInfo)
-	//GetDb()
-	//GetIpAddr()
+	GetObjFromDb(*config.BaseIpInfo)
+	SetVrrpIntfKey(*KeyInfo)
 }
 
 type VrrpInterface struct {
 	L3     *config.BaseIpInfo // Vrrp Port Information Collected From System
 	Config *config.IntfCfg    // Vrrp config for interface
 	Fsm    *fsm.FSM           // Vrrp fsm information
-	//State  *config.State      // Vrrp state for interface
 }
 
 func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) { //, stCh chan *IntfState) {
 	intf.Config = cfg
 	intf.L3 = l3Info
-	//intf.State = &config.State{}
 	// Init fsm
-	intf.Fsm = fsm.InitFsm(intf.Config, l3Info) //, stCh)
+	intf.Fsm = fsm.InitFsm(intf.Config, l3Info)
+}
+
+func (intf *VrrpInterface) StartFsm() {
+	go intf.Fsm.StartFsm()
 }
 
 func (intf *VrrpInterface) UpdateStateInfo() {
