@@ -37,8 +37,7 @@ LSDB aging API.
 func (server *OSPFServer) lsdbStateRefresh() {
 	var lsdbStateRefFunc func()
 	lsdbStateRefFunc = func() {
-		server.logger.Info("Inside lsdbStateRefFunc()")
-		server.logger.Info(fmt.Sprintln("The old Lsdb Slice after refresh", server.LsdbSlice))
+		//server.logger.Info(fmt.Sprintln("The old Lsdb Slice after refresh", server.LsdbSlice))
 		server.LsdbSlice = []LsdbSliceEnt{}
 		for lsdbkey, lsdbEnt := range server.AreaLsdb {
 			for lsakey, _ := range lsdbEnt.RouterLsaMap {
@@ -82,7 +81,6 @@ func (server *OSPFServer) lsdbStateRefresh() {
 				server.LsdbSlice = append(server.LsdbSlice, val)
 			}
 		}
-		server.logger.Info(fmt.Sprintln("The new Lsdb Slice after refresh", server.LsdbSlice))
 		server.LsdbStateTimer.Reset(server.RefreshDuration)
 	}
 	server.LsdbStateTimer = time.AfterFunc(server.RefreshDuration, lsdbStateRefFunc)

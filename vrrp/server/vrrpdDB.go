@@ -30,8 +30,6 @@ import (
 	"vrrpd"
 )
 
-const ()
-
 func (svr *VrrpServer) VrrpInitDB() error {
 	svr.logger.Info("Initializing DB")
 	var err error

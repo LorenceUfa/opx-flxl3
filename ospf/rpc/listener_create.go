@@ -33,6 +33,7 @@ import (
 
 func (h *OSPFHandler) SendOspfGlobal(ospfGlobalConf *ospfd.OspfGlobal) error {
 	gConf := config.GlobalConf{
+		Vrf:                ospfGlobalConf.Vrf,
 		RouterId:           config.RouterId(ospfGlobalConf.RouterId),
 		AdminStat:          config.Status(ospfGlobalConf.AdminStat),
 		ASBdrRtrStatus:     ospfGlobalConf.ASBdrRtrStatus,
@@ -47,7 +48,7 @@ func (h *OSPFHandler) SendOspfGlobal(ospfGlobalConf *ospfd.OspfGlobal) error {
 	return nil
 }
 
-func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry) error {
+func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry, msg config.MsgType) error {
 	ifConf := config.InterfaceConf{
 		IfIpAddress:       config.IpAddress(ospfIfConf.IfIpAddress),
 		AddressLessIf:     config.InterfaceIndexOrZero(ospfIfConf.AddressLessIf),
@@ -59,8 +60,6 @@ func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry) error {
 		IfHelloInterval:   config.HelloRange(ospfIfConf.IfHelloInterval),
 		IfRtrDeadInterval: config.PositiveInteger(ospfIfConf.IfRtrDeadInterval),
 		IfPollInterval:    config.PositiveInteger(ospfIfConf.IfPollInterval),
-		IfAuthKey:         ospfIfConf.IfAuthKey,
-		IfAuthType:        config.AuthType(ospfIfConf.IfAuthType),
 	}
 
 	for index, ifName := range config.IfTypeList {
@@ -69,7 +68,13 @@ func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry) error {
 			break
 		}
 	}
-	h.server.IntfConfigCh <- ifConf
+
+	ifMsg := config.InterfaceRpcMsg{
+		IntfConf: ifConf,
+		Op:       msg,
+	}
+	h.logger.Info(fmt.Sprintln("Before sending interface config "))
+	h.server.IntfConfigCh <- ifMsg
 
 	//retMsg := <-h.server.IntfConfigRetCh
 	//return retMsg
@@ -79,12 +84,11 @@ func (h *OSPFHandler) SendOspfIfConf(ospfIfConf *ospfd.OspfIfEntry) error {
 
 func (h *OSPFHandler) SendOspfAreaConf(ospfAreaConf *ospfd.OspfAreaEntry) error {
 	areaConf := config.AreaConf{
-		AreaId:                 config.AreaId(ospfAreaConf.AreaId),
-		AuthType:               config.AuthType(ospfAreaConf.AuthType),
-		ImportAsExtern:         config.ImportAsExtern(ospfAreaConf.ImportAsExtern),
-		AreaSummary:            config.AreaSummary(ospfAreaConf.AreaSummary),
-		StubDefaultCost:        ospfAreaConf.StubDefaultCost,
-		AreaNssaTranslatorRole: config.NssaTranslatorRole(ospfAreaConf.AreaNssaTranslatorRole),
+		AreaId:          config.AreaId(ospfAreaConf.AreaId),
+		AuthType:        config.AuthType(ospfAreaConf.AuthType),
+		ImportAsExtern:  config.ImportAsExtern(ospfAreaConf.ImportAsExtern),
+		AreaSummary:     config.AreaSummary(ospfAreaConf.AreaSummary),
+		StubDefaultCost: ospfAreaConf.StubDefaultCost,
 	}
 
 	h.server.AreaConfigCh <- areaConf
@@ -138,7 +142,7 @@ func (h *OSPFHandler) CreateOspfIfEntry(ospfIfConf *ospfd.OspfIfEntry) (bool, er
 		return false, err
 	}
 	h.logger.Info(fmt.Sprintln("Create interface config attrs:", ospfIfConf))
-	err := h.SendOspfIfConf(ospfIfConf)
+	err := h.SendOspfIfConf(ospfIfConf, config.CREATE)
 	if err != nil {
 		return false, err
 	}
@@ -158,7 +162,9 @@ func (h *OSPFHandler) CreateOspfIfMetricEntry(ospfIfMetricConf *ospfd.OspfIfMetr
 	return true, nil
 }
 
+/* This feature is not supported now
 func (h *OSPFHandler) CreateOspfVirtIfEntry(ospfVirtIfConf *ospfd.OspfVirtIfEntry) (bool, error) {
 	h.logger.Info(fmt.Sprintln("Create virtual interface config attrs:", ospfVirtIfConf))
 	return true, nil
 }
+*/

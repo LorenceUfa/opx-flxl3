@@ -10,6 +10,8 @@ const (
 	VXLANMockClientStr = "SnapMockTestClient"
 )
 
+type PortEvtCb func(ifindex int32)
+
 // interface class is used to store the communication methods
 // for the various daemon communications
 type VXLANClientIntf interface {
@@ -21,17 +23,22 @@ type VXLANClientIntf interface {
 	// create/delete
 	CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent)
 	DeleteVtep(vtep *VtepDbEntry)
-	CreateVxlan(vxlan *VxlanConfig)
-	DeleteVxlan(vxlan *VxlanConfig)
+	UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16)
+	CreateVxlan(vxlan *VxlanDbEntry)
+	DeleteVxlan(vxlan *VxlanDbEntry)
+	UpdateVxlan(vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16)
+
 	// access ports
-	GetAccessPorts(vlan uint16)
-	UpdateAccessPorts()
-	CreateAccessPortVlan(vlan uint16, intfList []int)
-	DeleteAccessPortVlan(vlan uint16, intfList []int)
+	//AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
+	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
 	// vtep fsm
 	GetIntfInfo(name string, intfchan chan<- MachineEvent)
 	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent)
-	ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent)
+	ResolveNextHopMac(nextHopIp net.IP, nexthopif string, nexthopmacchan chan<- MachineEvent)
+
+	GetLinkState(ifname string) string
+	GetAllVlans() []uint16
+	RegisterLinkUpDownEvents(ifindex int32, upcb PortEvtCb, downdb PortEvtCb)
 }
 
 type BaseClientIntf struct {
@@ -62,13 +69,20 @@ func (b BaseClientIntf) GetIntfInfo(name string, intfchan chan<- MachineEvent) {
 func (b BaseClientIntf) CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent) {
 
 }
+func (b BaseClientIntf) UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16) {
+
+}
 func (b BaseClientIntf) DeleteVtep(vtep *VtepDbEntry) {
 
 }
-func (b BaseClientIntf) CreateVxlan(vxlan *VxlanConfig) {
+func (b BaseClientIntf) CreateVxlan(vxlan *VxlanDbEntry) {
 
 }
-func (b BaseClientIntf) DeleteVxlan(vxlan *VxlanConfig) {
+func (b BaseClientIntf) DeleteVxlan(vxlan *VxlanDbEntry) {
+
+}
+func (b BaseClientIntf) UpdateVxlan(
+	vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16) {
 
 }
 func (b BaseClientIntf) CreateVxlanAccess() {
@@ -77,21 +91,25 @@ func (b BaseClientIntf) CreateVxlanAccess() {
 func (b BaseClientIntf) DeleteVxlanAccess() {
 
 }
-func (b BaseClientIntf) GetAccessPorts(vlan uint16) {
-
-}
-func (b BaseClientIntf) UpdateAccessPorts() {
-
-}
-func (b BaseClientIntf) CreateAccessPortVlan(vlan uint16, intfList []int) {
-
-}
-func (b BaseClientIntf) DeleteAccessPortVlan(vlan uint16, intfList []int) {
-
-}
 func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
 
 }
-func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nexthopmacchan chan<- MachineEvent) {
+func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
 
+}
+func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
+
+}
+func (b BaseClientIntf) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
+
+}
+
+func (b BaseClientIntf) GetAllVlans() []uint16 {
+	return []uint16{}
+}
+func (b BaseClientIntf) RegisterLinkUpDownEvents(ifindex int32, upcb PortEvtCb, downdb PortEvtCb) {
+
+}
+func (b BaseClientIntf) GetLinkState(ifname string) string {
+	return "UP"
 }

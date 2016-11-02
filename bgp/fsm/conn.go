@@ -57,7 +57,7 @@ func NewOutTCPConn(fsm *FSM, fsmConnCh chan net.Conn, fsmConnErrCh chan PeerConn
 		ifaceMgr:     utils.NewInterfaceMgr(fsm.logger),
 		fsmConnCh:    fsmConnCh,
 		fsmConnErrCh: fsmConnErrCh,
-		StopConnCh:   make(chan bool),
+		StopConnCh:   make(chan bool, 2),
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	outConn.id = r.Uint32()
@@ -75,7 +75,7 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 		return
 	}
 
-	reachableCh := make(chan bool)
+	reachableCh := make(chan config.ReachabilityResult)
 	reachabilityInfo := config.ReachabilityInfo{
 		IP:          o.fsm.pConf.NeighborAddress.String(),
 		ReachableCh: reachableCh,
@@ -83,7 +83,7 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 	}
 	o.fsm.Manager.reachabilityCh <- reachabilityInfo
 	reachable := <-reachableCh
-	if !reachable {
+	if reachable.Err != nil {
 		duration := uint32(3)
 		if (duration * 2) < seconds {
 			for {
@@ -93,14 +93,23 @@ func (o *OutTCPConn) Connect(seconds uint32, remote, local string, connCh chan n
 					reachable = <-reachableCh
 				}
 				seconds -= duration
-				if reachable || seconds <= (duration*2) {
+				if reachable.Err == nil || seconds <= (duration*2) {
 					break
 				}
 			}
 		}
-		if !reachable {
+		if reachable.Err != nil {
 			errCh <- config.AddressNotResolvedError{"Neighbor is not reachable"}
 			return
+		}
+	}
+
+	if local == "" && reachable.NextHopInfo != nil {
+		nextHopIP := net.ParseIP(strings.TrimSpace(reachable.NextHopInfo.NextHopIp))
+		if nextHopIP != nil && (nextHopIP.Equal(net.IPv4zero) || nextHopIP.Equal(net.IPv6zero)) {
+			o.logger.Info("Neighbor:", o.fsm.pConf.NeighborAddress, "FSM", o.fsm.id, "Next hop ip", nextHopIP,
+				"is 0, Set source ip for the TCP connection to", reachable.NextHopInfo.IPAddr)
+			local = net.JoinHostPort(strings.TrimSpace(reachable.NextHopInfo.IPAddr), "0")
 		}
 	}
 
@@ -346,13 +355,19 @@ func (p *PeerConn) DecodeMessage(header *packet.BGPHeader, buf []byte) (*packet.
 		msgErr = &bgpErr
 		msgOk = false
 	} else if header.Type == packet.BGPMsgTypeOpen {
-		p.peerAttrs.ASSize = packet.GetASSize(msg.Body.(*packet.BGPOpen))
-		p.peerAttrs.AddPathFamily = packet.GetAddPathFamily(msg.Body.(*packet.BGPOpen))
-		addPathsTxFarEnd := packet.IsAddPathsTxEnabledForIPv4(p.peerAttrs.AddPathFamily)
-		p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "Far end can send add paths")
-		if addPathsTxFarEnd && p.fsm.pConf.AddPathsRx {
-			p.peerAttrs.AddPathsRxActual = true
-			p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "negotiated to recieve add paths from far end")
+		peerAS := packet.GetPeerAS(msg.Body.(*packet.BGPOpen))
+		if peerAS != p.fsm.pConf.PeerAS {
+			msgOk = false
+			msgErr = &packet.BGPMessageError{packet.BGPOpenMsgError, packet.BGPBadPeerAS, nil, "Bad peer AS"}
+		} else {
+			p.peerAttrs.ASSize = packet.GetASSize(msg.Body.(*packet.BGPOpen))
+			p.peerAttrs.AddPathFamily = packet.GetAddPathFamily(msg.Body.(*packet.BGPOpen))
+			addPathsTxFarEnd := packet.IsAddPathsTxEnabledForIPv4(p.peerAttrs.AddPathFamily)
+			p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "Far end can send add paths")
+			if addPathsTxFarEnd && p.fsm.pConf.AddPathsRx {
+				p.peerAttrs.AddPathsRxActual = true
+				p.logger.Info("Neighbor:", p.fsm.pConf.NeighborAddress, "negotiated to recieve add paths from far end")
+			}
 		}
 	}
 

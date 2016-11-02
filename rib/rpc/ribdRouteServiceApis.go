@@ -36,7 +36,7 @@ import (
  */
 
 func (m RIBDServicesHandler) CreateIPv4Route(cfg *ribd.IPv4Route) (val bool, err error) {
-	//logger.Info("Received create route request for ip", cfg.DestinationNw, " mask ", cfg.NetworkMask)
+	logger.Info("Received create route request for ip", cfg.DestinationNw, " mask ", cfg.NetworkMask)
 	/* Validate Route config parameters for "add" operation
 	 */
 	err = m.server.RouteConfigValidationCheck(cfg, "add")
@@ -55,7 +55,7 @@ func (m RIBDServicesHandler) CreateIPv4Route(cfg *ribd.IPv4Route) (val bool, err
    OnewayCreate API for route
 */
 func (m RIBDServicesHandler) OnewayCreateIPv4Route(cfg *ribd.IPv4Route) (err error) {
-	//logger.Info("OnewayCreateIPv4Route - Received create route request for ip", cfg.DestinationNw, " mask ", cfg.NetworkMask, "cfg.NextHopIntRef: ", cfg.NextHop[0].NextHopIntRef)
+	logger.Info("OnewayCreateIPv4Route - Received create route request for ip", cfg.DestinationNw, " mask ", cfg.NetworkMask, "cfg.NextHopIntRef: ", cfg.NextHop[0].NextHopIntRef)
 	m.CreateIPv4Route(cfg)
 	/*m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
@@ -484,5 +484,9 @@ func (m RIBDServicesHandler) GetTotalv6RouteCount() (number ribdInt.Int, err err
 }
 func (m RIBDServicesHandler) Getv4RouteCreatedTime(number ribdInt.Int) (time string, err error) {
 	time, err = m.server.Getv4RouteCreatedTime(int(number))
+	return time, err
+}
+func (m RIBDServicesHandler) Getv6RouteCreatedTime(number ribdInt.Int) (time string, err error) {
+	time, err = m.server.Getv6RouteCreatedTime(int(number))
 	return time, err
 }

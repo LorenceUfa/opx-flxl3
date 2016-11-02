@@ -871,6 +871,7 @@ type NLRI interface {
 	GetPrefix() net.IP
 	GetLength() uint8
 	GetPathId() uint32
+	GetCIDR() string
 	String() string
 }
 
@@ -921,11 +922,16 @@ func (ip *IPPrefix) Decode(pkt []byte, afi AFI) error {
 	}
 
 	ipLen := net.IPv4len
-	if afi == AfiIP6 {
+	if afi == AfiIP6 || int(bytes) > ipLen {
 		ipLen = net.IPv6len
 	}
 	ip.Prefix = make(net.IP, ipLen)
 	copy(ip.Prefix, pkt[1:bytes+1])
+	if bytes > 0 {
+		if (ip.Length % 8) > 0 {
+			ip.Prefix[bytes-1] &= (^byte(0xff >> (ip.Length % 8)))
+		}
+	}
 	return nil
 }
 
@@ -947,6 +953,10 @@ func (ip *IPPrefix) GetLength() uint8 {
 
 func (ip *IPPrefix) GetPathId() uint32 {
 	return 0
+}
+
+func (ip *IPPrefix) GetCIDR() string {
+	return ip.Prefix.String() + "/" + strconv.Itoa(int(ip.Length))
 }
 
 func (ip *IPPrefix) String() string {

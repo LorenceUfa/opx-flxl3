@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"l3/ospf/config"
 	"time"
+	"utils/commonDefs"
 )
 
 type LsdbUpdateMsg struct {
@@ -45,8 +46,9 @@ type LSAChangeMsg struct {
 }
 
 type NetworkLSAChangeMsg struct {
-	areaId  uint32
-	intfKey IntfConfKey
+	areaId    uint32
+	intfKey   IntfConfKey
+	intfState config.Status
 }
 
 type DrChangeMsg struct {
@@ -74,7 +76,7 @@ var lsdbTickerCh *time.Timer
 var lsdbRefreshTickerCh *time.Timer
 
 func (server *OSPFServer) initLSDatabase(areaId uint32) {
-	server.logger.Info(fmt.Sprintln("LSDB: Initialise LSDB for area id ", areaId))
+	server.logger.Debug(fmt.Sprintln("LSDB: Initialise LSDB for area id ", areaId))
 	lsdbKey := LsdbKey{
 		AreaId: areaId,
 	}
@@ -96,7 +98,7 @@ func (server *OSPFServer) initLSDatabase(areaId uint32) {
 }
 
 func (server *OSPFServer) StartLSDatabase() {
-	server.logger.Info("Initializing LSA Database")
+	server.logger.Debug("Initializing LSA Database")
 	for key, _ := range server.AreaConfMap {
 		areaId := convertAreaOrRouterIdUint32(string(key.AreaId))
 		server.initLSDatabase(areaId)
@@ -135,7 +137,7 @@ func (server *OSPFServer) compareSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaE
 }
 
 func (server *OSPFServer) updateSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt SummaryLsa) {
-	server.logger.Info(fmt.Sprintln("Need to update Summary Lsa in LSDB:", lsdbKey, lsaKey, lsaEnt))
+	server.logger.Debug(fmt.Sprintln("Need to update Summary Lsa in LSDB:", lsdbKey, lsaKey, lsaEnt))
 	lsDbEnt, _ := server.AreaLsdb[lsdbKey]
 	var sLsa SummaryLsa
 	if lsaKey.LSType == Summary3LSA {
@@ -164,7 +166,7 @@ func (server *OSPFServer) updateSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEn
 }
 
 func (server *OSPFServer) insertSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt SummaryLsa) {
-	server.logger.Info(fmt.Sprintln("Need to Insert Summary Lsa in LSDB:", lsdbKey, lsaKey, lsaEnt))
+	server.logger.Debug(fmt.Sprintln("Need to Insert Summary Lsa in LSDB:", lsdbKey, lsaKey, lsaEnt))
 	selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 	lsDbEnt, _ := server.AreaLsdb[lsdbKey]
 	var sLsa SummaryLsa
@@ -207,7 +209,7 @@ func (server *OSPFServer) insertSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEn
 }
 
 func (server *OSPFServer) flushSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey) {
-	server.logger.Info(fmt.Sprintln("Need to flush Summary Lsa:", lsdbKey, lsaKey))
+	server.logger.Debug(fmt.Sprintln("Need to flush Summary Lsa:", lsdbKey, lsaKey))
 	selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 	lsDbEnt, _ := server.AreaLsdb[lsdbKey]
 	delete(selfOrigLsaEnt, lsaKey)
@@ -224,7 +226,7 @@ func (server *OSPFServer) flushSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey) {
 func (server *OSPFServer) installSummaryLsa() {
 	ifkey := IntfConfKey{}
 	nbr := NeighborConfKey{}
-	server.logger.Info("Installing summary Lsa...")
+	server.logger.Debug("Installing summary Lsa...")
 	for lsdbKey, sLsa := range server.SummaryLsDb {
 		selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 		oldSelfOrigSummaryLsa := make(map[LsaKey]bool)
@@ -242,7 +244,7 @@ func (server *OSPFServer) installSummaryLsa() {
 				if ret == false {
 					server.updateSummaryLsa(lsdbKey, sKey, sEnt)
 					//Flood Updated Summary LSA
-					server.logger.Info(fmt.Sprintln("LSDB: Send message to flood ", sKey, lsdbKey.AreaId))
+					server.logger.Debug(fmt.Sprintln("LSDB: Send message to flood ", sKey, lsdbKey.AreaId))
 					server.sendLsdbToNeighborEvent(ifkey, nbr, lsdbKey.AreaId, 0, 0, sKey, LSASUMMARYFLOOD)
 				} else {
 					continue
@@ -251,7 +253,7 @@ func (server *OSPFServer) installSummaryLsa() {
 				server.insertSummaryLsa(lsdbKey, sKey, sEnt)
 				//Flood New Summary LSA
 				server.sendLsdbToNeighborEvent(ifkey, nbr, lsdbKey.AreaId, 0, 0, sKey, LSASUMMARYFLOOD)
-				server.logger.Info(fmt.Sprintln("LSDB: Send message to flood ", sKey, lsdbKey.AreaId))
+				server.logger.Debug(fmt.Sprintln("LSDB: Send message to flood ", sKey, lsdbKey.AreaId))
 
 			}
 		}
@@ -296,7 +298,7 @@ func (server *OSPFServer) flushNetworkLSA(areaId uint32, key IntfConfKey) {
 		return
 	}
 
-	server.logger.Info(fmt.Sprintln("FLUSH: Network lsa lsid ",
+	server.logger.Debug(fmt.Sprintln("FLUSH: Network lsa lsid ",
 		ent.IfIpAddr, " adv_router ", server.ospfGlobalConf.RouterId))
 	lsa.LsaMd.LSAge = config.MaxAge
 	lsa_pkt := encodeNetworkLsa(lsa, lsaKey)
@@ -349,9 +351,9 @@ func (server *OSPFServer) generateNetworkLSA(areaId uint32, key IntfConfKey, isD
 		return
 	}
 
-	server.logger.Info(fmt.Sprintln("NetworkLSA: attached router"))
+	server.logger.Debug(fmt.Sprintln("NetworkLSA: attached router"))
 	for i := range attachedRtr {
-		server.logger.Info(fmt.Sprintln("NetworkLSA: ", i, " ", attachedRtr[i]))
+		server.logger.Debug(fmt.Sprintln("NetworkLSA: ", i, " ", attachedRtr[i]))
 	}
 	LSType := NetworkLSA
 	LSId := convertAreaOrRouterIdUint32(ent.IfIpAddr.String())
@@ -385,8 +387,8 @@ func (server *OSPFServer) generateNetworkLSA(areaId uint32, key IntfConfKey, isD
 	for i := 0; i < numOfAttachedRtr; i++ {
 		entry.AttachedRtr[i] = attachedRtr[i]
 	}
-	server.logger.Info(fmt.Sprintln("Attached Routers:", entry.AttachedRtr))
-	//server.logger.Info(fmt.Sprintln("Self Originated Router LSA Key:", server.AreaSelfOrigLsa[lsdbKey]))
+	server.logger.Debug(fmt.Sprintln("Attached Routers:", entry.AttachedRtr))
+	//server.logger.Debug(fmt.Sprintln("Self Originated Router LSA Key:", server.AreaSelfOrigLsa[lsdbKey]))
 	LsaEnc := encodeNetworkLsa(entry, lsaKey)
 	checksumOffset := uint16(14)
 	entry.LsaMd.LSChecksum = computeFletcherChecksum(LsaEnc[2:], checksumOffset)
@@ -454,9 +456,12 @@ func (server *OSPFServer) constructStubLinkP2P(ent IntfConf, likType config.IfTy
 func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 	var linkDetails []LinkDetail = nil
 	for key, ent := range server.IntfConfMap {
+		ipKey := convertAreaOrRouterIdUint32(string(key.IPAddr))
+		ip, _ := server.ipPropertyMap[ipKey]
+
 		AreaId := convertIPv4ToUint32(ent.IfAreaId)
 		if areaId != AreaId {
-			server.logger.Info(fmt.Sprintln("LSDB: Area id not matching. i/p ", areaId, "if areaid ", AreaId, ent.IfIpAddr))
+			server.logger.Warning(fmt.Sprintln("LSDB: Area id not matching. i/p ", areaId, "if areaid ", AreaId, ent.IfIpAddr))
 			continue
 		}
 		msg := DbEventMsg{
@@ -465,15 +470,16 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 		}
 		server.DbEventOp <- msg
 
-		if ent.IfFSMState <= config.Waiting {
-			server.logger.Info(fmt.Sprintln("LSDB: If is in waiting. Skip.", ent.IfIpAddr))
+		if ent.IfFSMState <= config.Waiting &&
+			ip.IfType != commonDefs.IfTypeLoopback {
+			server.logger.Debug(fmt.Sprintln("LSDB: If is in waiting. Skip.", ent.IfIpAddr))
 			continue
 		}
 		var linkDetail LinkDetail
 		switch ent.IfType {
 		case config.Broadcast:
 			if len(ent.NeighborMap) == 0 { // Stub Network
-				server.logger.Info("Stub Network")
+				server.logger.Debug("Stub Network")
 				ipAddr := convertAreaOrRouterIdUint32(ent.IfIpAddr.String())
 				netmask := convertIPv4ToUint32(ent.IfNetmask)
 				linkDetail.LinkId = ipAddr & netmask
@@ -485,7 +491,7 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 				linkDetail.NumOfTOS = 0
 				linkDetail.LinkMetric = uint16(ent.IfCost)
 			} else { // Transit Network
-				server.logger.Info("Transit Network")
+				server.logger.Debug("Transit Network")
 				linkDetail.LinkId = convertIPv4ToUint32(ent.IfDRIp)
 				/* For links to transit networks, numbered point-to-point links
 				   and virtual links, this field specifies the IP interface
@@ -495,7 +501,7 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 				/* Todo: Need to handle IfMetricConf */
 				linkDetail.NumOfTOS = 0
 				linkDetail.LinkMetric = uint16(ent.IfCost)
-				server.logger.Info(fmt.Sprintln("LinkDetail: linkid ", ent.IfDRIp,
+				server.logger.Debug(fmt.Sprintln("LinkDetail: linkid ", ent.IfDRIp,
 					" linkdata ", ent.IfIpAddr))
 			}
 		case config.NumberedP2P:
@@ -518,13 +524,13 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 			   cost of the point-to-point interface.
 			*/
 			if len(ent.NeighborMap) == 0 {
-				server.logger.Info(fmt.Sprintln("LSDB: No neighbor detected for P2P link ", ent.IfIpAddr))
+				server.logger.Debug(fmt.Sprintln("LSDB: No neighbor detected for P2P link ", ent.IfIpAddr))
 				continue
 			}
 			if nbrData, exist := ospfIntfToNbrMap[key]; exist {
 				if len(nbrData.nbrList) != 0 {
 					nbr := server.NeighborConfigMap[nbrData.nbrList[0]]
-					server.logger.Info(fmt.Sprintln("LSDB: Numbered P2P Router LSA with link id ", nbr.OspfNbrRtrId))
+					server.logger.Debug(fmt.Sprintln("LSDB: Numbered P2P Router LSA with link id ", nbr.OspfNbrRtrId))
 					linkDetail.LinkId = nbr.OspfNbrRtrId
 				}
 
@@ -538,14 +544,14 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 			stub_link := server.constructStubLinkP2P(ent, config.UnnumberedP2P)
 			linkDetails = append(linkDetails, stub_link)
 			if len(ent.NeighborMap) == 0 {
-				server.logger.Info(fmt.Sprintln("LSDB: No neighbor detected for P2P link ", ent.IfIpAddr))
+				server.logger.Debug(fmt.Sprintln("LSDB: No neighbor detected for P2P link ", ent.IfIpAddr))
 				continue
 			}
 			if nbrData, exist := ospfIntfToNbrMap[key]; exist {
 				if len(nbrData.nbrList) != 0 {
 					nbr := server.NeighborConfigMap[nbrData.nbrList[0]]
 					linkDetail.LinkId = nbr.OspfNbrRtrId
-					server.logger.Info(fmt.Sprintln("LSDB: Unnumbered P2P Router LSA with link id ", nbr.OspfNbrRtrId))
+					server.logger.Debug(fmt.Sprintln("LSDB: Unnumbered P2P Router LSA with link id ", nbr.OspfNbrRtrId))
 				}
 
 			}
@@ -609,7 +615,7 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 	ent.NumOfLinks = uint16(numOfLinks)
 	ent.LinkDetails = make([]LinkDetail, numOfLinks)
 	copy(ent.LinkDetails, linkDetails[0:])
-	server.logger.Info(fmt.Sprintln("LinkDetails:", ent.LinkDetails))
+	server.logger.Debug(fmt.Sprintln("LinkDetails:", ent.LinkDetails))
 	LsaEnc := encodeRouterLsa(ent, lsaKey)
 	checksumOffset := uint16(14)
 	ent.LsaMd.LSChecksum = computeFletcherChecksum(LsaEnc[2:], checksumOffset)
@@ -619,7 +625,7 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 
 	selfOrigLsaEnt[lsaKey] = true
 	server.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
-	server.logger.Info(fmt.Sprintln("Self Originated Router LSA Key:", server.AreaSelfOrigLsa[lsdbKey]))
+	server.logger.Debug(fmt.Sprintln("Self Originated Router LSA Key:", server.AreaSelfOrigLsa[lsdbKey]))
 	if !exist {
 		var val LsdbSliceEnt
 		val.AreaId = lsdbKey.AreaId
@@ -637,7 +643,7 @@ func (server *OSPFServer) generateRouterLSA(areaId uint32) {
 }
 
 func (server *OSPFServer) generateASExternalLsa(route RouteMdata) LsaKey {
-	server.logger.Info(fmt.Sprintln("LSDB: Generating AS External LSA routemdata ", route))
+	server.logger.Debug(fmt.Sprintln("LSDB: Generating AS External LSA routemdata ", route))
 
 	LSType := ASExternalLSA
 	LSId := route.ipaddr & route.mask
@@ -686,7 +692,7 @@ func (server *OSPFServer) generateASExternalLsa(route RouteMdata) LsaKey {
 		} else {
 			selfOrigLsaEnt[lsaKey] = false
 		}
-		server.logger.Info(fmt.Sprintln("ASBR: Added LSA to area ", lsdbKey, " lsaKey ", lsaKey))
+		server.logger.Debug(fmt.Sprintln("ASBR: Added LSA to area ", lsdbKey, " lsaKey ", lsaKey))
 		if !exist {
 			var val LsdbSliceEnt
 			val.AreaId = lsdbKey.AreaId
@@ -760,7 +766,7 @@ func (server *OSPFServer) processRecvdRouterLsa(data []byte, areaId uint32) bool
 	selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 	_, exist := selfOrigLsaEnt[*lsakey]
 	if exist {
-		server.logger.Info("Recvd a self generated Router LSA increment sequence number and flood. ")
+		server.logger.Debug("Recvd a self generated Router LSA increment sequence number and flood. ")
 		//increment sequence number and flood .
 		//	return false
 	}
@@ -790,15 +796,15 @@ func (server *OSPFServer) processRecvdRouterLsa(data []byte, areaId uint32) bool
 		}
 		server.DbLsdbOp <- msg
 	}
-	server.logger.Info(fmt.Sprintln("Router LSA: added to LSDB lsid ",
+	server.logger.Debug(fmt.Sprintln("Router LSA: added to LSDB lsid ",
 		lsakey.LSId, " adv_router ", lsakey.AdvRouter, " lstype ", lsakey.LSType))
 	return true
 }
 
 func (server *OSPFServer) printRouterLsa() {
-	server.logger.Info("AREA  LSDB")
+	server.logger.Debug("AREA  LSDB")
 	for key, val := range server.AreaLsdb {
-		server.logger.Info(fmt.Sprintln("key ", key, " LSA ", val))
+		server.logger.Debug(fmt.Sprintln("key ", key, " LSA ", val))
 	}
 }
 
@@ -826,7 +832,7 @@ func (server *OSPFServer) processRecvdNetworkLsa(data []byte, areaId uint32) boo
 	selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 	_, exist := selfOrigLsaEnt[*lsakey]
 	if exist {
-		server.logger.Info("Recvd a self generated Network LSA")
+		server.logger.Debug("Recvd a self generated Network LSA")
 		return false
 	}
 
@@ -857,7 +863,7 @@ func (server *OSPFServer) processRecvdNetworkLsa(data []byte, areaId uint32) boo
 		val.AdvRtr = lsakey.AdvRouter
 		server.LsdbSlice = append(server.LsdbSlice, val)
 	}
-	server.logger.Info(fmt.Sprintln("Network LSA: added to LSDB lsid ",
+	server.logger.Debug(fmt.Sprintln("Network LSA: added to LSDB lsid ",
 		lsakey.LSId, " adv_router ", lsakey.AdvRouter, " lstype ", lsakey.LSType))
 	return true
 }
@@ -900,7 +906,7 @@ func (server *OSPFServer) processRecvdSummaryLsa(data []byte, areaId uint32, lsa
 	selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 	_, exist := selfOrigLsaEnt[*lsakey]
 	if exist {
-		server.logger.Info("Recvd a self generated Summary LSA")
+		server.logger.Debug("Recvd a self generated Summary LSA")
 		return false
 	}
 
@@ -972,7 +978,7 @@ func (server *OSPFServer) processDeleteASExternalLsa(data []byte, areaId uint32)
 	val.AdvRtr = lsakey.AdvRouter
 	err := server.DelLsdbEntry(val)
 	if err != nil {
-		server.logger.Info(fmt.Sprintln("DB: Failed to delete entry from db ", lsakey))
+		server.logger.Debug(fmt.Sprintln("DB: Failed to delete entry from db ", lsakey))
 	}
 	return true
 }
@@ -987,7 +993,7 @@ func (server *OSPFServer) processRecvdASExternalLsa(data []byte, areaId uint32) 
 	selfOrigLsaEnt, _ := server.AreaSelfOrigLsa[lsdbKey]
 	_, exist := selfOrigLsaEnt[*lsakey]
 	if exist {
-		server.logger.Info("Recvd a self generated AS External LSA")
+		server.logger.Debug("Recvd a self generated AS External LSA")
 		return false
 	}
 
@@ -1030,21 +1036,21 @@ func (server *OSPFServer) processRecvdASExternalLsa(data []byte, areaId uint32) 
 func (server *OSPFServer) processRecvdLsa(data []byte, areaId uint32) bool {
 	LSType := uint8(data[3])
 	if LSType == RouterLSA {
-		server.logger.Info("LSDB: Received router lsa")
+		server.logger.Debug("LSDB: Received router lsa")
 		return server.processRecvdRouterLsa(data, areaId)
 	} else if LSType == NetworkLSA {
-		server.logger.Info("LSDB: Received network lsa")
+		server.logger.Debug("LSDB: Received network lsa")
 		return server.processRecvdNetworkLsa(data, areaId)
 	} else if LSType == Summary3LSA {
-		server.logger.Info("LSDB: Received summary3 lsa")
+		server.logger.Debug("LSDB: Received summary3 lsa")
 		return server.processRecvdSummaryLsa(data, areaId, LSType)
 	} else if LSType == Summary4LSA {
-		server.logger.Info("LSDB: Received summary4 lsa")
+		server.logger.Debug("LSDB: Received summary4 lsa")
 		return server.processRecvdSummaryLsa(data, areaId, LSType)
 	} else if LSType == ASExternalLSA {
 		return server.processRecvdASExternalLsa(data, areaId)
 	} else {
-		server.logger.Info("LSDB: Invalid LSA packet from nbr")
+		server.logger.Debug("LSDB: Invalid LSA packet from nbr")
 		return false
 	}
 }
@@ -1072,74 +1078,73 @@ func (server *OSPFServer) processLSDatabaseUpdates() {
 		select {
 		case msg := <-server.LsdbUpdateCh:
 			if msg.MsgType == LsdbAdd {
-				server.logger.Info("Adding LS in the Lsdb")
-				server.logger.Info("Received New LSA")
+				server.logger.Debug("Received New LSA")
 				ret := server.processRecvdLsa(msg.Data, msg.AreaId)
-				server.logger.Info(fmt.Sprintln("Return Code:", ret))
+				server.logger.Debug(fmt.Sprintln("Return Code:", ret))
 				//server.LsaUpdateRetCodeCh <- ret
 				server.StartCalcSPFCh <- true
 				spfStatus := <-server.DoneCalcSPFCh
-				server.logger.Info(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
+				server.logger.Debug(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
 				if server.ospfGlobalConf.AreaBdrRtrStatus == true {
 					server.installSummaryLsa()
 				}
 			} else if msg.MsgType == LsdbDel {
-				server.logger.Info("Deleting LS in the Lsdb")
+				server.logger.Debug("Deleting LS in the Lsdb")
 				ret := server.processDeleteLsa(msg.Data, msg.AreaId)
 				//server.LsaUpdateRetCodeCh <- ret
-				server.logger.Info(fmt.Sprintln("Return Code:", ret))
+				server.logger.Debug(fmt.Sprintln("Return Code:", ret))
 				server.StartCalcSPFCh <- true
 				spfStatus := <-server.DoneCalcSPFCh
-				server.logger.Info(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
+				server.logger.Debug(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
 				if server.ospfGlobalConf.AreaBdrRtrStatus == true {
 					server.installSummaryLsa()
 				}
 			} else if msg.MsgType == LsdbUpdate {
-				server.logger.Info("Deleting LS in the Lsdb")
+				server.logger.Debug("Deleting LS in the Lsdb")
 				ret := server.processRecvdLsa(msg.Data, msg.AreaId)
 				//server.LsaUpdateRetCodeCh <- ret
-				server.logger.Info(fmt.Sprintln("Return Code:", ret))
+				server.logger.Debug(fmt.Sprintln("Return Code:", ret))
 				server.StartCalcSPFCh <- true
 				spfStatus := <-server.DoneCalcSPFCh
-				server.logger.Info(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
+				server.logger.Debug(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
 				if server.ospfGlobalConf.AreaBdrRtrStatus == true {
 					server.installSummaryLsa()
 				}
 			}
 		case msg := <-server.IntfStateChangeCh:
-			server.logger.Info(fmt.Sprintf("Interface State change msg", msg))
+			server.logger.Debug(fmt.Sprintf("Interface State change msg", msg))
 			server.generateRouterLSA(msg.areaId)
-			//server.logger.Info(fmt.Sprintln("LS Database", server.AreaLsdb))
+			//server.logger.Debug(fmt.Sprintln("LS Database", server.AreaLsdb))
 			server.StartCalcSPFCh <- true
 			spfStatus := <-server.DoneCalcSPFCh
-			server.logger.Info(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
+			server.logger.Debug(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
 			server.processInterfaceChangeMsg(msg)
 			if server.ospfGlobalConf.AreaBdrRtrStatus == true {
 				server.installSummaryLsa()
 			}
 		case msg := <-server.NetworkDRChangeCh:
-			server.logger.Info(fmt.Sprintf("Network DR change msg", msg))
+			server.logger.Debug(fmt.Sprintf("Network DR change msg", msg))
 			// Create a new router LSA
-			//server.logger.Info(fmt.Sprintln("LS Database", server.AreaLsdb))
+			//server.logger.Debug(fmt.Sprintln("LS Database", server.AreaLsdb))
 			server.processDrBdrChangeMsg(msg)
 			server.StartCalcSPFCh <- true
 			spfStatus := <-server.DoneCalcSPFCh
-			server.logger.Info(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
+			server.logger.Debug(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
 			if server.ospfGlobalConf.AreaBdrRtrStatus == true {
 				server.installSummaryLsa()
 			}
 		case msg := <-server.CreateNetworkLSACh:
-			server.logger.Info(fmt.Sprintf("Create Network LSA msg", msg))
+			server.logger.Debug(fmt.Sprintf("Create Network LSA msg", msg))
 			server.processNeighborFullEvent(msg)
 			//server.generateNetworkLSA(msg.areaId, msg.intf, msg.isDR)
 			// Flush the old Network LSA
 			// Check if link is broadcast or not
 			// If link is broadcast
 			// Create Network LSA
-			//server.logger.Info(fmt.Sprintln("LS Database", server.AreaLsdb))
+			//server.logger.Debug(fmt.Sprintln("LS Database", server.AreaLsdb))
 			server.StartCalcSPFCh <- true
 			spfStatus := <-server.DoneCalcSPFCh
-			server.logger.Info(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
+			server.logger.Debug(fmt.Sprintln("SPF Calculation Return Status", spfStatus))
 			if server.ospfGlobalConf.AreaBdrRtrStatus == true {
 				server.installSummaryLsa()
 			}
@@ -1183,7 +1188,9 @@ func (server *OSPFServer) processExtRouteUpd(msg RouteMdata) {
 interface up/down add/delete events.
 */
 func (server *OSPFServer) processInterfaceChangeMsg(msg NetworkLSAChangeMsg) {
-	server.neighborIntfEventCh <- msg.intfKey
+	if msg.intfState == config.Intf_Down {
+		server.neighborIntfEventCh <- msg.intfKey
+	}
 	nbr := NeighborConfKey{}
 	LSType := RouterLSA
 	LSId := convertIPv4ToUint32(server.ospfGlobalConf.RouterId)
@@ -1209,10 +1216,10 @@ func (server *OSPFServer) processNeighborFullEvent(msg ospfNbrMdata) {
 
 	rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
 	intConf := server.IntfConfMap[msg.intf]
-	server.logger.Info(fmt.Sprintln("LSDB: Nbr full. Generate router and network LSA  area id  ",
+	server.logger.Debug(fmt.Sprintln("LSDB: Nbr full. Generate router and network LSA  area id  ",
 		msg.areaId, " intf ", intConf.IfIpAddr))
 	if intConf.IfDRtrId == rtr_id && intConf.IfType == config.Broadcast {
-		server.logger.Info(fmt.Sprintln("Generate network LSA ", msg.intf))
+		server.logger.Debug(fmt.Sprintln("Generate network LSA ", msg.intf))
 		server.generateNetworkLSA(msg.areaId, msg.intf, true)
 	}
 	server.generateRouterLSA(msg.areaId)
@@ -1231,17 +1238,16 @@ func (server *OSPFServer) processDrBdrChangeMsg(msg DrChangeMsg) {
 	lsaKey := LsaKey{}
 	nbr := NeighborConfKey{}
 	intf, _ := server.IntfConfMap[msg.intfKey]
-	server.logger.Info(fmt.Sprintln("LSDB: received DR BDR change message ",
+	server.logger.Debug(fmt.Sprintln("LSDB: received DR BDR change message ",
 		intf.IfIpAddr, "dr ip ", intf.IfDRIp, " bdr ip ", intf.IfBDRIp))
 	nbrExists := false
-	for range intf.NeighborMap {
+	if len(intf.NeighborMap) > 0 {
 		nbrExists = true
-		break
 	}
 	if nbrExists {
 		rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
 		if intf.IfDRtrId == rtr_id {
-			server.logger.Info(fmt.Sprintln("Generate network LSA ", intf.IfIpAddr))
+			server.logger.Debug(fmt.Sprintln("Generate network LSA ", intf.IfIpAddr))
 			server.generateNetworkLSA(msg.areaId, msg.intfKey, true)
 		}
 	}

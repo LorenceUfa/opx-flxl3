@@ -29,6 +29,7 @@ import (
 	"asicdServices"
 	"errors"
 	"fmt"
+	"l3/ospf/config"
 	"net"
 	"utils/commonDefs"
 )
@@ -44,16 +45,23 @@ type VlanProperty struct {
 	UntagPorts []int32
 }
 
+type LogicalIntfProperty struct {
+	Name    string
+	MacAddr net.HardwareAddr
+}
+
 type IPv4IntfNotifyMsg struct {
-	IpAddr string
-	IfId   uint16
-	IfType uint8
+	IpAddr  string
+	IfId    uint16
+	IfType  uint8
+	IfState config.Status
 }
 
 type IpProperty struct {
-	IfId   uint16
-	IfType uint8
-	IpAddr string // CIDR Notation
+	IfId    uint16
+	IfType  uint8
+	IpAddr  string        // CIDR Notation
+	IpState config.Status //interface state
 }
 
 type IPIntfProperty struct {
@@ -65,13 +73,13 @@ type IPIntfProperty struct {
 	Cost    uint32
 }
 
-func (server *OSPFServer) computeMinMTU(msg IPv4IntfNotifyMsg) int32 {
-	var minMtu int32 = 10000                 //in bytes
-	if msg.IfType == commonDefs.IfTypePort { // PHY
-		ent, _ := server.portPropertyMap[int32(msg.IfId)]
+func (server *OSPFServer) computeMinMTU(IfType uint8, IfId uint16) int32 {
+	var minMtu int32 = 10000             //in bytes
+	if IfType == commonDefs.IfTypePort { // PHY
+		ent, _ := server.portPropertyMap[int32(IfId)]
 		minMtu = ent.Mtu
-	} else if msg.IfType == commonDefs.IfTypeVlan { // Vlan
-		ent, _ := server.vlanPropertyMap[msg.IfId]
+	} else if IfType == commonDefs.IfTypeVlan { // Vlan
+		ent, _ := server.vlanPropertyMap[IfId]
 		for _, portNum := range ent.UntagPorts {
 			entry, _ := server.portPropertyMap[portNum]
 			if minMtu > entry.Mtu {
@@ -82,6 +90,12 @@ func (server *OSPFServer) computeMinMTU(msg IPv4IntfNotifyMsg) int32 {
 	return minMtu
 }
 
+func (server *OSPFServer) UpdateMtu(ifIndex int32, mtu int32) {
+	ent, _ := server.portPropertyMap[ifIndex]
+	ent.Mtu = mtu
+	server.portPropertyMap[ifIndex] = ent
+}
+
 func (server *OSPFServer) updateIpPropertyMap(msg IPv4IntfNotifyMsg, msgType uint8) {
 	ipAddr, _, _ := net.ParseCIDR(msg.IpAddr)
 	ip := convertAreaOrRouterIdUint32(ipAddr.String())
@@ -90,6 +104,7 @@ func (server *OSPFServer) updateIpPropertyMap(msg IPv4IntfNotifyMsg, msgType uin
 		ent.IfId = msg.IfId
 		ent.IfType = msg.IfType
 		ent.IpAddr = msg.IpAddr
+		ent.IpState = msg.IfState
 		server.ipPropertyMap[ip] = ent
 	} else { // Delete IP
 		delete(server.ipPropertyMap, ip)
@@ -104,6 +119,18 @@ func (server *OSPFServer) updateVlanPropertyMap(vlanNotifyMsg asicdCommonDefs.Vl
 		server.vlanPropertyMap[vlanNotifyMsg.VlanId] = ent
 	} else { // Delete Vlan
 		delete(server.vlanPropertyMap, vlanNotifyMsg.VlanId)
+	}
+}
+
+func (server *OSPFServer) updateLogicalIntfPropertyMap(logicalNotifyMsg asicdCommonDefs.LogicalIntfNotifyMsg,
+	msgType uint8) {
+	ifid := int32(asicdCommonDefs.GetIntfIdFromIfIndex(logicalNotifyMsg.IfIndex))
+	if msgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_CREATE {
+		ent := server.logicalIntfPropertyMap[ifid]
+		ent.Name = logicalNotifyMsg.LogicalIntfName
+		server.logicalIntfPropertyMap[ifid] = ent
+	} else { // delete interface
+		delete(server.logicalIntfPropertyMap, ifid)
 	}
 }
 
@@ -124,7 +151,7 @@ func (server *OSPFServer) constructVlanInfra() {
 	count := 100
 	for {
 		if server.asicdClient.ClientHdl == nil {
-		server.logger.Err("Infra: Null client handle for asicd ")
+			server.logger.Err("Infra: Null client handle for asicd ")
 			return
 		}
 		bulkVlanInfo, _ := server.asicdClient.ClientHdl.GetBulkVlan(asicdInt.Int(curMark), asicdInt.Int(count))
@@ -158,8 +185,8 @@ func (server *OSPFServer) constructL3Infra() {
 	count := 100
 	for {
 		if server.asicdClient.ClientHdl == nil {
-		    server.logger.Err("Infra: Null asicd client handle")
-		    return
+			server.logger.Err("Infra: Null asicd client handle")
+			return
 		}
 		bulkInfo, _ := server.asicdClient.ClientHdl.GetBulkIPv4IntfState(asicdServices.Int(curMark), asicdServices.Int(count))
 		if bulkInfo == nil {
@@ -170,22 +197,21 @@ func (server *OSPFServer) constructL3Infra() {
 		more := bool(bulkInfo.More)
 		curMark = int(bulkInfo.EndIdx)
 		for i := 0; i < objCnt; i++ {
-			ipAddr, _, _ := net.ParseCIDR(bulkInfo.IPv4IntfStateList[i].IpAddr)
 			ifIdx := bulkInfo.IPv4IntfStateList[i].IfIndex
 			ifType := uint8(asicdCommonDefs.GetIntfTypeFromIfIndex(ifIdx))
 			ifId := uint16(asicdCommonDefs.GetIntfIdFromIfIndex(ifIdx))
-			ip := convertAreaOrRouterIdUint32(ipAddr.String())
-			ent := server.ipPropertyMap[ip]
-			ent.IfId = ifId
-			ent.IfType = ifType
-			ent.IpAddr = bulkInfo.IPv4IntfStateList[i].IpAddr
 			var ipv4IntfMsg IPv4IntfNotifyMsg
-			ipv4IntfMsg.IpAddr = ent.IpAddr
+			ipv4IntfMsg.IpAddr = bulkInfo.IPv4IntfStateList[i].IpAddr
 			ipv4IntfMsg.IfType = ifType
 			ipv4IntfMsg.IfId = ifId
-			mtu := server.computeMinMTU(ipv4IntfMsg)
+			if bulkInfo.IPv4IntfStateList[i].OperState == "UP" {
+				ipv4IntfMsg.IfState = config.Intf_Up
+			} else {
+				ipv4IntfMsg.IfState = config.Intf_Down
+			}
+			server.updateIpPropertyMap(ipv4IntfMsg, asicdCommonDefs.NOTIFY_IPV4INTF_CREATE)
+			mtu := server.computeMinMTU(ipv4IntfMsg.IfType, ipv4IntfMsg.IfId)
 			server.createIPIntfConfMap(ipv4IntfMsg, mtu, ifIdx, broadcast)
-			server.ipPropertyMap[ip] = ent
 		}
 		if more == false {
 			break
@@ -246,11 +272,15 @@ func (server *OSPFServer) getBulkPortConfig() {
 	}
 }
 
-func (server *OSPFServer) getLinuxIntfName(ifId uint16, ifType uint8) (ifName string, err error) {
+func (server *OSPFServer) getLinuxIntfName(ifId int32, ifType uint8) (ifName string, err error) {
+	server.logger.Err(fmt.Sprintln("IF : if id ", ifId, " ifType ", ifType))
+
 	if ifType == commonDefs.IfTypeVlan { // Vlan
-		ifName = server.vlanPropertyMap[ifId].Name
+		ifName = server.vlanPropertyMap[uint16(ifId)].Name
 	} else if ifType == commonDefs.IfTypePort { // PHY
-		ifName = server.portPropertyMap[int32(ifId)].Name
+		ifName = server.portPropertyMap[ifId].Name
+	} else if ifType == commonDefs.IfTypeLoopback {
+		ifName = server.logicalIntfPropertyMap[ifId].Name
 	} else {
 		ifName = ""
 		err = errors.New("Invalid Interface Type")
@@ -269,6 +299,9 @@ func (server *OSPFServer) getIntfCost(ifId uint16, ifType uint8) (ifCost uint32,
 			server.logger.Err(fmt.Sprintln("Port Speed for port = ", server.portPropertyMap[int32(ifId)].Name, " is zero, so something wrong"))
 			ifCost = 0xff00
 		}
+	} else if ifType == commonDefs.IfTypeLoopback {
+		ifCost = DEFAULT_VLAN_COST
+
 	} else {
 		ifCost = 0xff00
 		err = errors.New("Invalid Interface Type")
@@ -286,6 +319,28 @@ func getMacAddrIntfName(ifName string) (macAddr net.HardwareAddr, err error) {
 	return macAddr, nil
 }
 
+func (server *OSPFServer) getMacAddrLogicalIntf(ifName string) (macAddr net.HardwareAddr, err error) {
+	if server.asicdClient.ClientHdl == nil {
+		server.logger.Err("Infra: Null asicd client handle")
+		return macAddr, errors.New("Null asicd handle")
+	}
+	portState, err := server.asicdClient.ClientHdl.GetLogicalIntfState(ifName)
+	if err != nil {
+		server.logger.Err(fmt.Sprintln("Infra : Failed to get logical port config ", ifName))
+		return macAddr, errors.New("Failed to get logical port config")
+	}
+	macAddr, err = net.ParseMAC(portState.SrcMac)
+	if err != nil {
+		server.logger.Err("Infra: Can not convert string to mac addr ", portState.SrcMac)
+		return macAddr, errors.New("Infra : Failed to parse mac addr")
+	}
+	return macAddr, nil
+}
+func (server *OSPFServer) UpdateLogicalIntfInfra(msg asicdCommonDefs.LogicalIntfNotifyMsg,
+	msgType uint8) {
+	server.updateLogicalIntfPropertyMap(msg, msgType)
+}
+
 func (server *OSPFServer) UpdateVlanInfra(msg asicdCommonDefs.VlanNotifyMsg, msgType uint8) {
 	server.updateVlanPropertyMap(msg, msgType)
 }
@@ -295,9 +350,10 @@ func (server *OSPFServer) UpdateIPv4Infra(msg asicdCommonDefs.IPv4IntfNotifyMsg,
 	ipv4IntfMsg.IpAddr = msg.IpAddr
 	ipv4IntfMsg.IfType = uint8(asicdCommonDefs.GetIntfTypeFromIfIndex(msg.IfIndex))
 	ipv4IntfMsg.IfId = uint16(asicdCommonDefs.GetIntfIdFromIfIndex(msg.IfIndex))
-	if msgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE {
-		server.logger.Info(fmt.Sprintln("Receive IPV4INTF_CREATE", ipv4IntfMsg))
-		mtu := server.computeMinMTU(ipv4IntfMsg)
+	if msgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE ||
+		msgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_CREATE {
+		server.logger.Info(fmt.Sprintln("Receive IPV4INTF_CREATE", msg))
+		mtu := server.computeMinMTU(ipv4IntfMsg.IfType, ipv4IntfMsg.IfId)
 		// We need more information from Asicd about numbered/unnumbered p2p
 		// or broadcast
 		//Start
@@ -312,7 +368,7 @@ func (server *OSPFServer) UpdateIPv4Infra(msg asicdCommonDefs.IPv4IntfNotifyMsg,
 				}
 			//End
 		*/
-
+		ipv4IntfMsg.IfState = config.Intf_Down
 		server.createIPIntfConfMap(ipv4IntfMsg, mtu, msg.IfIndex, broadcast)
 		server.updateIpPropertyMap(ipv4IntfMsg, msgType)
 	} else {

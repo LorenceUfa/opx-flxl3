@@ -25,7 +25,6 @@ package server
 
 import (
 	"arpd"
-	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"models/objects"
 	"strconv"
@@ -64,7 +63,7 @@ func (server *ARPServer) getArpGlobalConfig() {
 	obj := arpd.NewArpGlobal()
 	dbObject := objList[0].(objects.ArpGlobal)
 	objects.ConvertarpdArpGlobalObjToThrift(&dbObject, obj)
-	server.logger.Info(fmt.Sprintln("Timeout : ", int(obj.Timeout)))
+	server.logger.Info("Timeout : ", int(obj.Timeout))
 	arpConf := ArpConf{
 		RefTimeout: int(obj.Timeout),
 	}
@@ -74,50 +73,50 @@ func (server *ARPServer) getArpGlobalConfig() {
 func (server *ARPServer) updateArpCacheFromDB() {
 	server.logger.Debug("Populate ARP Cache from DB entries")
 	if server.dbHdl != nil {
-		keyPattern := fmt.Sprintln("ArpCacheEntry#*")
+		keyPattern := "ArpCacheEntry#*"
 		keys, err := redis.Strings(redis.Values(server.dbHdl.Do("KEYS", keyPattern)))
 		if err != nil {
-			server.logger.Err(fmt.Sprintln("Failed to get all keys from DB"))
+			server.logger.Err("Failed to get all keys from DB")
 			return
 		}
 		for idx := 0; idx < len(keys); idx++ {
 			var obj arpDbEntry
 			val, err := redis.Values(server.dbHdl.Do("HGETALL", keys[idx]))
 			if err != nil {
-				server.logger.Err(fmt.Sprintln("Failed to get ARP entry for key:", keys[idx]))
+				server.logger.Err("Failed to get ARP entry for key:", keys[idx])
 				continue
 			}
 			err = redis.ScanStruct(val, &obj)
 			if err != nil {
-				server.logger.Err(fmt.Sprintln("Failed to get values corresponding to ARP entry key:", keys[idx]))
+				server.logger.Err("Failed to get values corresponding to ARP entry key:", keys[idx])
 				continue
 			}
-			server.logger.Debug(fmt.Sprintln("Data Retrived From DB IP:", obj.IpAddr, "L3IfIdx:", obj.L3IfIdx))
-			server.logger.Debug(fmt.Sprintln("Adding arp cache entry for ", obj.IpAddr))
+			server.logger.Debug("Data Retrived From DB IP:", obj.IpAddr, "L3IfIdx:", obj.L3IfIdx)
+			server.logger.Debug("Adding arp cache entry for ", obj.IpAddr)
 			ent := server.arpCache[obj.IpAddr]
 			ent.MacAddr = "incomplete"
 			ent.Counter = (server.minCnt + server.retryCnt + 1)
-			//ent.Valid = false
 			ent.L3IfIdx = obj.L3IfIdx
 			server.arpCache[obj.IpAddr] = ent
 		}
 	} else {
 		server.logger.Err("DB handler is nil")
 	}
-	server.logger.Debug(fmt.Sprintln("Arp Cache after restoring: ", server.arpCache))
+	server.logger.Debug("Arp Cache after restoring: ", server.arpCache)
 }
 
 func (server *ARPServer) refreshArpDB() {
 	if server.dbHdl != nil {
-		keyPattern := fmt.Sprintln("ArpCacheEntry#*")
+		keyPattern := "ArpCacheEntry#*"
 		keys, err := redis.Strings(redis.Values(server.dbHdl.Do("KEYS", keyPattern)))
 		if err != nil {
-			server.logger.Err(fmt.Sprintln("Failed to get all keys from DB"))
+			server.logger.Err("Failed to get all keys from DB")
+			return
 		}
 		for idx := 0; idx < len(keys); idx++ {
 			_, err := server.dbHdl.Do("DEL", keys[idx])
 			if err != nil {
-				server.logger.Err(fmt.Sprintln("Failed to Delete ARP entry for key:", keys[idx]))
+				server.logger.Err("Failed to Delete ARP entry for key:", keys[idx])
 				continue
 			}
 		}
@@ -128,11 +127,18 @@ func (server *ARPServer) refreshArpDB() {
 
 func (server *ARPServer) deleteArpEntryInDB(ipAddr string) {
 	if server.dbHdl != nil {
-		key := fmt.Sprintln("ArpCacheEntry#", ipAddr, "*")
-		_, err := server.dbHdl.Do("DEL", key)
+		keyPattern := "ArpCacheEntry#" + ipAddr + "*"
+		keys, err := redis.Strings(redis.Values(server.dbHdl.Do("KEYS", keyPattern)))
 		if err != nil {
-			server.logger.Err(fmt.Sprintln("Failed to Delete ARP entries from DB for:", ipAddr))
+			server.logger.Err("Failed to get all keys from DB")
 			return
+		}
+		for idx := 0; idx < len(keys); idx++ {
+			_, err := server.dbHdl.Do("DEL", keys[idx])
+			if err != nil {
+				server.logger.Err("Failed to Delete ARP entry for key:", keys[idx])
+				continue
+			}
 		}
 	} else {
 		server.logger.Err("DB handler is nil")
@@ -141,14 +147,14 @@ func (server *ARPServer) deleteArpEntryInDB(ipAddr string) {
 
 func (server *ARPServer) storeArpEntryInDB(ip string, l3IfIdx int) {
 	if server.dbHdl != nil {
-		key := fmt.Sprintln("ArpCacheEntry#", ip, "#", strconv.Itoa(l3IfIdx))
+		key := "ArpCacheEntry#" + ip + "#" + strconv.Itoa(l3IfIdx)
 		obj := arpDbEntry{
 			IpAddr:  ip,
 			L3IfIdx: l3IfIdx,
 		}
 		_, err := server.dbHdl.Do("HMSET", redis.Args{}.Add(key).AddFlat(&obj)...)
 		if err != nil {
-			server.logger.Err(fmt.Sprintln("Failed to add entry to db : ", ip, l3IfIdx, err))
+			server.logger.Err("Failed to add entry to db : ", ip, l3IfIdx, err)
 			return
 		}
 		return

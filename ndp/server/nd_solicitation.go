@@ -23,20 +23,16 @@
 package server
 
 import (
-	_ "encoding/binary"
-	_ "github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"l3/ndp/config"
 	"l3/ndp/debug"
 	"l3/ndp/packet"
-	_ "net"
-	"strings"
 )
 
 /*
  *  Generic API to send Neighbor Solicitation Packet based on inputs..
  */
-func (intf *Interface) sendUnicastNS(srcMac, nbrMac, nbrIp string) NDP_OPERATION {
+func (intf *Interface) sendUnicastNS(srcMac, nbrMac, nbrIp string, isFastProbe bool) NDP_OPERATION {
 	nbrKey := nbrIp + "_" + nbrMac
 	nbr, exists := intf.Neighbor[nbrKey]
 	if !exists {
@@ -60,38 +56,47 @@ func (intf *Interface) sendUnicastNS(srcMac, nbrMac, nbrIp string) NDP_OPERATION
 		pkt.SrcIp = intf.globalScope
 	}
 
-	debug.Logger.Debug("Sending Unicast NS message with (DMAC, SMAC)", pkt.DstMac, pkt.SrcMac,
-		"and (DIP, SIP)", pkt.DstIp, pkt.SrcIp)
-
 	pktToSend := pkt.Encode()
 	err := intf.writePkt(pktToSend)
 	if err != nil {
 		return IGNORE
 	}
+
 	// when sending unicast packet re-start retransmit/delay probe timer.. rest all will be taken care of when
 	// NA packet is received..
-	if nbr.State == REACHABLE {
-		// This means that Reachable Timer has expierd and hence we are sending Unicast Message..
-		// Lets set the time for delay first probe
-		nbr.DelayProbe()
-		nbr.State = DELAY
-		nbr.ProbesSent = 0
+	if isFastProbe == false {
+		debug.Logger.Debug("Reachable Timer is probing Neighbor:", nbrIp, nbrMac)
+		if nbr.State == REACHABLE {
+			// This means that Reachable Timer has expierd and hence we are sending Unicast Message..
+			// Lets set the time for delay first probe
+			nbr.DelayProbe()
+			nbr.State = DELAY
+			nbr.ProbesSent = 0
+		} else if nbr.State == DELAY || nbr.State == PROBE {
+			// Probes Sent can still be zero but the state has changed to Delay..
+			// Start Timer for Probe and move the state from delay to Probe
+			nbr.Timer()
+			nbr.State = PROBE
+			nbr.ProbesSent += 1
+		}
 	} else {
-		// Probes Sent can still be zero but the state has changed to Delay..
-		// Start Timer for Probe and move the state from delay to Probe
-		nbr.Timer()
-		nbr.State = PROBE
-		nbr.ProbesSent += 1
+		// reset the fast probe to reachable timer / 2 * FastProbleMultipliers
+		//if nbr.StopFastProbe == false {
+		debug.Logger.Debug("Fast Probe Timer is probing Neighbor:", nbrIp, nbrMac)
+		//	nbr.FastProbe()
+		//}
 	}
+	intf.counter.Send++
+	nbr.counter.Send++
 	intf.Neighbor[nbrKey] = nbr
 	return IGNORE
 }
 
-func (intf *Interface) SendNS(myMac, nbrMac, nbrIp string) NDP_OPERATION {
+func (intf *Interface) SendNS(myMac, nbrMac, nbrIp string, isFastProbe bool) NDP_OPERATION {
 	if nbrIp == "" {
 		//send multicast solicitation when we take over linux called when port comes up
 	} else {
-		return intf.sendUnicastNS(myMac, nbrMac, nbrIp)
+		return intf.sendUnicastNS(myMac, nbrMac, nbrIp, isFastProbe)
 	}
 
 	return IGNORE
@@ -110,33 +115,33 @@ func (intf *Interface) SendNS(myMac, nbrMac, nbrIp string) NDP_OPERATION {
  *		    Then update the state to STALE
  */
 func (intf *Interface) processNS(ndInfo *packet.NDInfo) (nbrInfo *config.NeighborConfig, oper NDP_OPERATION) {
-	if ndInfo.SrcIp == "" || ndInfo.SrcIp == "::" || strings.Contains(ndInfo.DstIp, "ff02::1") {
+	if ndInfo.SrcIp == "" || ndInfo.SrcIp == "::" || ndInfo.SrcIp == intf.linkScope || ndInfo.SrcIp == intf.globalScope {
 		// NS was generated locally or it is multicast-solicitation message
-		// @TODO: for multicast solicitation add a neigbor entry based of target address and
-		// mark it as inclomple
 		return nil, IGNORE
 	}
-	debug.Logger.Debug("Processing NS packet:", *ndInfo)
 	nbrKey := intf.createNbrKey(ndInfo)
+	if !intf.validNbrKey(nbrKey) {
+		return nil, IGNORE
+	}
 	nbr, exists := intf.Neighbor[nbrKey]
 	if exists {
 		// update the neighbor ??? what to do in this case moving to stale
-		nbr.State = STALE
+		//nbr.State = STALE
 		oper = UPDATE
-		nbrInfo = nil
 	} else {
 		// create new neighbor
 		nbr.InitCache(intf.reachableTime, intf.retransTime, nbrKey, intf.PktDataCh, intf.IfIndex)
-		if len(ndInfo.Options) > 0 {
-			for _, option := range ndInfo.Options {
-				if option.Type == packet.NDOptionTypeSourceLinkLayerAddress {
-					nbr.State = REACHABLE
-				}
-			}
-		}
-		nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
 		oper = CREATE
 	}
+	if len(ndInfo.Options) > 0 {
+		for _, option := range ndInfo.Options {
+			if option.Type == packet.NDOptionTypeSourceLinkLayerAddress {
+				nbr.State = REACHABLE
+			}
+		}
+	}
+	nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
+	nbr.updatePktRxStateInfo()
 	intf.Neighbor[nbrKey] = nbr
 	return nbrInfo, oper
 }

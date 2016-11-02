@@ -13,13 +13,13 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 package rpc
 
@@ -31,6 +31,8 @@ import (
 func (h *OSPFHandler) GetOspfGlobalState(routerId string) (*ospfd.OspfGlobalState, error) {
 	h.logger.Info(fmt.Sprintln("Get global attrs"))
 	ospfGlobalResponse := ospfd.NewOspfGlobalState()
+	ospfGlobalState := h.server.GetOspfGlobalState()
+	ospfGlobalResponse = h.convertGlobalStateToThrift(*ospfGlobalState)
 	return ospfGlobalResponse, nil
 }
 
@@ -88,11 +90,13 @@ func (h *OSPFHandler) GetOspfNbrEntryState(nbrIpAddr string, nbrAddressLessIndex
 	return ospfNbrResponse, nil
 }
 
+/* Not supported
 func (h *OSPFHandler) GetOspfVirtNbrEntryState(virtNbrRtrId string, virtNbrArea string) (*ospfd.OspfVirtNbrEntryState, error) {
 	h.logger.Info(fmt.Sprintln("Get Virtual Neighbor attrs"))
 	ospfVirtNbrResponse := ospfd.NewOspfVirtNbrEntryState()
 	return ospfVirtNbrResponse, nil
 }
+*/
 
 func (h *OSPFHandler) GetOspfIPv4RouteState(destId string, addrMask string, destType string) (*ospfd.OspfIPv4RouteState, error) {
 	return nil, nil

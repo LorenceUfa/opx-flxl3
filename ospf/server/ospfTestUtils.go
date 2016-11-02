@@ -173,7 +173,6 @@ func OSPFNewLogger(name string, tag string, listenToConfig bool) (*logging.Write
 		return srLogger, err
 	}
 
-	srLogger.GlobalLogging = true
 	srLogger.MyLogLevel = sysdCommonDefs.DEBUG
 	return srLogger, err
 }
@@ -193,19 +192,17 @@ func initAttr() {
 		AreaId: config.AreaId("10.0.0.0"),
 	}
 	areaConf = config.AreaConf{
-		AreaId:                 config.AreaId("10.0.0.0"),
-		AuthType:               config.AuthType(1),
-		ImportAsExtern:         config.ImportAsExtern(1),
-		AreaSummary:            config.AreaSummary(2),
-		StubDefaultCost:        int32(20),
-		AreaNssaTranslatorRole: config.NssaTranslatorRole(1),
+		AreaId:          config.AreaId("10.0.0.0"),
+		AuthType:        config.AuthType(1),
+		ImportAsExtern:  config.ImportAsExtern(1),
+		AreaSummary:     config.AreaSummary(2),
+		StubDefaultCost: int32(20),
 	}
 
 	ospfArea = &ospfd.OspfAreaEntry{
-		AuthType:               int32(areaConf.AuthType),
-		ImportAsExtern:         int32(areaConf.ImportAsExtern),
-		AreaSummary:            int32(areaConf.AreaSummary),
-		AreaNssaTranslatorRole: int32(areaConf.AreaNssaTranslatorRole),
+		AuthType:       int32(areaConf.AuthType),
+		ImportAsExtern: int32(areaConf.ImportAsExtern),
+		AreaSummary:    int32(areaConf.AreaSummary),
 	}
 
 	gConf.RouterId = "20.0.1.1"
@@ -228,8 +225,6 @@ func initAttr() {
 		IfHelloInterval:   config.HelloRange(10),
 		IfRtrDeadInterval: config.PositiveInteger(10),
 		IfPollInterval:    config.PositiveInteger(10),
-		IfAuthKey:         string("10.1.10.1"),
-		IfAuthType:        config.AuthType(1),
 	}
 
 	ospfIf = &ospfd.OspfIfEntry{
@@ -242,8 +237,6 @@ func initAttr() {
 		IfHelloInterval:   int32(ifConf.IfHelloInterval),
 		IfRtrDeadInterval: int32(ifConf.IfRtrDeadInterval),
 		IfPollInterval:    int32(ifConf.IfPollInterval),
-		IfAuthKey:         ifConf.IfAuthKey,
-		IfAuthType:        int32(ifConf.IfAuthType),
 	}
 
 	hellodata = OSPFHelloData{

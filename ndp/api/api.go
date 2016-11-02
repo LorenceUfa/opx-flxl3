@@ -36,6 +36,16 @@ type NDPApiLayer struct {
 	server *server.NDPServer
 }
 
+func InitComplete() bool {
+	if ndpApi == nil {
+		return false
+	}
+	if ndpApi.server == nil {
+		return false
+	}
+	return true
+}
+
 /*  Singleton instance should be accessible only within api
  */
 func getApiInstance() *NDPApiLayer {
@@ -48,13 +58,6 @@ func getApiInstance() *NDPApiLayer {
 func Init(svr *server.NDPServer) {
 	ndpApi = getApiInstance()
 	ndpApi.server = svr
-}
-
-func SendL2PortNotification(ifIndex int32, state string) {
-	ndpApi.server.PhyPortStateCh <- &config.PortState{
-		IfIndex: ifIndex,
-		IfState: state,
-	}
 }
 
 func SendL3PortNotification(ifIndex int32, state, ipAddr string) {
@@ -74,13 +77,19 @@ func SendIPIntfNotfication(ifIndex int32, ipaddr, intfRef, msgType string) {
 	}
 }
 
-func SendVlanNotification(oper string, vlanId int32, vlanName string, untagPorts []int32) {
+func SendVlanNotification(oper string, vlanId int32, vlanIfIndex int32, vlanName string, untagPorts []int32, tagPorts []int32) {
 	ndpApi.server.VlanCh <- &config.VlanNotification{
-		Operation:  oper,
-		VlanId:     vlanId,
-		VlanName:   vlanName,
-		UntagPorts: untagPorts,
+		Operation:   oper,
+		VlanId:      vlanId,
+		VlanIfIndex: vlanIfIndex,
+		VlanName:    vlanName,
+		UntagPorts:  untagPorts,
+		TagPorts:    tagPorts,
 	}
+}
+
+func SendMacMoveNotification(ipAddr string, ifIndex, vlanId int32) {
+	ndpApi.server.MacMoveCh <- &config.MacMoveNotification{ipAddr, ifIndex, vlanId}
 }
 
 func GetAllNeigborEntries(from, count int) (int, int, []config.NeighborConfig) {
@@ -102,4 +111,49 @@ func CreateGlobalConfig(vrf string, retransmit uint32, reachableTime uint32, raT
 	}
 	ndpApi.server.GlobalCfg <- server.NdpConfig{vrf, reachableTime, retransmit, raTime}
 	return true, nil
+}
+
+func UpdateGlobalConfig(vrf string, retransmit uint32, reachableTime uint32, raTime uint8) (bool, error) {
+	return CreateGlobalConfig(vrf, retransmit, reachableTime, raTime)
+}
+
+func GetNDPGlobalState(vrf string) (*config.GlobalState, error) {
+	return ndpApi.server.GetGlobalState(vrf), nil
+}
+
+func GetAllNdpIntfState(from, count int) (int, int, []config.InterfaceEntries) {
+	n, c, result := ndpApi.server.GetInterfaceNeighborEntries(from, count)
+	return n, c, result
+}
+
+func GetNdpIntfState(intfRef string) *config.InterfaceEntries {
+	return ndpApi.server.GetInterfaceNeighborEntry(intfRef)
+}
+
+func SendDeleteByIfName(intfRef string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:    config.DELETE_BY_IFNAME,
+		IntfRef: intfRef,
+	}
+}
+
+func SendDeleteByNeighborIp(ipAddr string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:  config.DELETE_BY_IPADDR,
+		NbrIp: ipAddr,
+	}
+}
+
+func SendRefreshByIfName(intfRef string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:    config.REFRESH_BY_IFNAME,
+		IntfRef: intfRef,
+	}
+}
+
+func SendRefreshByNeighborIp(ipAddr string) {
+	ndpApi.server.ActionCh <- &config.ActionData{
+		Type:  config.REFRESH_BY_IPADDR,
+		NbrIp: ipAddr,
+	}
 }

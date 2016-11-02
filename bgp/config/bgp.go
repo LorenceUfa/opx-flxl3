@@ -26,6 +26,7 @@ package config
 
 import (
 	"net"
+	"time"
 )
 
 type SourcePolicyMap struct {
@@ -33,25 +34,27 @@ type SourcePolicyMap struct {
 	Policy  string
 }
 
-type GlobalConfig struct {
+type GlobalBase struct {
+	Vrf                 string
 	AS                  uint32
 	RouterId            net.IP
+	Disabled            bool
 	UseMultiplePaths    bool
 	EBGPMaxPaths        uint32
 	EBGPAllowMultipleAS bool
 	IBGPMaxPaths        uint32
-	Redistribution      []SourcePolicyMap
+}
+
+type GlobalConfig struct {
+	GlobalBase
+	Redistribution []SourcePolicyMap
 }
 
 type GlobalState struct {
-	AS                  uint32
-	RouterId            net.IP
-	UseMultiplePaths    bool
-	EBGPMaxPaths        uint32
-	EBGPAllowMultipleAS bool
-	IBGPMaxPaths        uint32
-	TotalPaths          uint32
-	TotalPrefixes       uint32
+	GlobalBase
+	TotalPaths      uint32
+	Totalv4Prefixes uint32
+	Totalv6Prefixes uint32
 }
 
 type Global struct {
@@ -94,6 +97,7 @@ type BaseConfig struct {
 	LocalAS                 uint32
 	PeerAddressType         PeerAddressType
 	UpdateSource            string
+	NextHopSelf             bool
 	AuthPassword            string
 	Description             string
 	RouteReflectorClusterId uint32
@@ -121,14 +125,17 @@ type NeighborConfig struct {
 	IfIndex         int32
 	IfName          string
 	PeerGroup       string
+	Disabled        bool
 }
 
 type NeighborState struct {
 	NeighborAddress         net.IP
 	IfIndex                 int32
+	Disabled                bool
 	PeerAS                  uint32
 	LocalAS                 uint32
 	UpdateSource            string
+	NextHopSelf             bool
 	PeerType                PeerType
 	AuthPassword            string
 	Description             string
@@ -154,6 +161,7 @@ type NeighborState struct {
 	TotalPrefixes           uint32
 	AdjRIBInFilter          string
 	AdjRIBOutFilter         string
+	SessionStateUpdatedTime time.Time
 }
 
 type TransportConfig struct {

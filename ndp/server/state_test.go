@@ -32,39 +32,39 @@ var nbr []config.NeighborConfig
 
 func populateNbrInfoTest(svr *NDPServer) {
 	nbr1 := config.NeighborConfig{
-		IpAddr:      "2002::1/64",
-		VlanId:      100,
-		IfIndex:     1234,
-		LinkLocalIp: "fe80::1/64",
-		MacAddr:     "aa:bb:cc:dd:ee:01",
+		IpAddr:  "2002::1/64",
+		VlanId:  100,
+		IfIndex: 1234,
+		Intf:    "lo",
+		MacAddr: "aa:bb:cc:dd:ee:01",
 	}
 	nbr2 := config.NeighborConfig{
-		IpAddr:      "2003::1/64",
-		VlanId:      100,
-		IfIndex:     1234,
-		LinkLocalIp: "fe80::2/64",
-		MacAddr:     "aa:bb:cc:dd:ee:02",
+		IpAddr:  "2003::1/64",
+		VlanId:  100,
+		IfIndex: 1234,
+		Intf:    "lo",
+		MacAddr: "aa:bb:cc:dd:ee:02",
 	}
 	nbr3 := config.NeighborConfig{
-		IpAddr:      "2004::1/64",
-		VlanId:      100,
-		IfIndex:     1234,
-		LinkLocalIp: "fe80::3/64",
-		MacAddr:     "aa:bb:cc:dd:ee:03",
+		IpAddr:  "2004::1/64",
+		VlanId:  100,
+		IfIndex: 1234,
+		Intf:    "lo",
+		MacAddr: "aa:bb:cc:dd:ee:03",
 	}
 	nbr4 := config.NeighborConfig{
-		IpAddr:      "2005::1/64",
-		VlanId:      100,
-		IfIndex:     1234,
-		LinkLocalIp: "fe80::4/64",
-		MacAddr:     "aa:bb:cc:dd:ee:04",
+		IpAddr:  "2005::1/64",
+		VlanId:  100,
+		IfIndex: 1234,
+		Intf:    "lo",
+		MacAddr: "aa:bb:cc:dd:ee:04",
 	}
 	nbr5 := config.NeighborConfig{
-		IpAddr:      "2006::1/64",
-		VlanId:      100,
-		IfIndex:     1234,
-		LinkLocalIp: "fe80::5/64",
-		MacAddr:     "aa:bb:cc:dd:ee:05",
+		IpAddr:  "2006::1/64",
+		VlanId:  100,
+		IfIndex: 1234,
+		Intf:    "lo",
+		MacAddr: "aa:bb:cc:dd:ee:05",
 	}
 	nbr = append(nbr, nbr1)
 	nbr = append(nbr, nbr2)
@@ -72,13 +72,14 @@ func populateNbrInfoTest(svr *NDPServer) {
 	nbr = append(nbr, nbr4)
 	nbr = append(nbr, nbr5)
 	for i := 0; i < TEST_NBR_ENTRIES; i++ {
-		svr.insertNeigborInfo(&nbr[i])
+		svr.insertNeigborInfo(&nbr[i], nbr[i].IfIndex, nbr[i].Intf)
 	}
 }
 
 func TestGetAllNbrEntries(t *testing.T) {
 	svr := &NDPServer{}
 	svr.InitGlobalDS()
+	initServerBasic()
 	populateNbrInfoTest(svr)
 	if len(svr.NeighborInfo) < TEST_NBR_ENTRIES || len(svr.neighborKey) < TEST_NBR_ENTRIES {
 		t.Error("Inserting neighbor entries failed")
@@ -99,6 +100,7 @@ func TestGetAllNbrEntries(t *testing.T) {
 func TestGet3NbrEntries(t *testing.T) {
 	svr := &NDPServer{}
 	svr.InitGlobalDS()
+	initServerBasic()
 	populateNbrInfoTest(svr)
 	if len(svr.NeighborInfo) < TEST_NBR_ENTRIES || len(svr.neighborKey) < TEST_NBR_ENTRIES {
 		t.Error("Inserting neighbor entries failed")
@@ -125,6 +127,7 @@ func TestGet3NbrEntries(t *testing.T) {
 func TestGetNbrEntriesNilEntry(t *testing.T) {
 	svr := &NDPServer{}
 	svr.InitGlobalDS()
+	initServerBasic()
 	nextIdx, count, runTimeEntries := svr.GetNeighborEntries(0, TEST_NBR_ENTRIES)
 	if nextIdx != 0 || count != 0 || runTimeEntries != nil {
 		t.Error("Failed to return 0 entries")
@@ -135,6 +138,7 @@ func TestGetNbrEntriesNilEntry(t *testing.T) {
 func TestGetNbrEntry(t *testing.T) {
 	svr := &NDPServer{}
 	svr.InitGlobalDS()
+	initServerBasic()
 	nbrEntry := svr.GetNeighborEntry("2002::1/64")
 	if nbrEntry != nil {
 		t.Error("there is no entry in the database and we received nbr info", nbrEntry)
@@ -145,4 +149,30 @@ func TestGetNbrEntry(t *testing.T) {
 		t.Error("Get Entry for ipAddr 2002::1/64 failed", "received info", nbrEntry, "strore info", nbr[0])
 	}
 	svr.DeInitGlobalDS()
+}
+
+func TestGetGlobalStateEntry(t *testing.T) {
+	TestIPv6IntfCreate(t)
+	gblCfg := NdpConfig{
+		Vrf:               "default",
+		ReachableTime:     30000,
+		RetransTime:       1,
+		RaRestransmitTime: 5,
+	}
+	wantgblState := &config.GlobalState{
+		Vrf:                         gblCfg.Vrf,
+		RetransmitInterval:          int32(gblCfg.RetransTime),
+		ReachableTime:               int32(gblCfg.ReachableTime),
+		RouterAdvertisementInterval: int32(gblCfg.RaRestransmitTime),
+		Neighbors:                   0,
+		TotalTxPackets:              0,
+		TotalRxPackets:              0,
+	}
+	testGlobalConfigNdpOperations(gblCfg, t)
+	gblState := testNdpServer.GetGlobalState(gblCfg.Vrf)
+
+	if !reflect.DeepEqual(gblState, wantgblState) {
+		t.Error("Get Global State entry failed, want:", *wantgblState, "received:", *gblState)
+		return
+	}
 }

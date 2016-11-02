@@ -24,6 +24,7 @@ package server
 
 import (
 	"l3/ndp/config"
+	"l3/ndp/debug"
 	"math/rand"
 	"strings"
 	"time"
@@ -67,12 +68,17 @@ type NeighborInfo struct {
 	RetransTimer         *time.Timer
 	DelayFirstProbeTimer *time.Timer
 	InvalidationTimer    *time.Timer
+	FastProbeTimer       *time.Timer
 	ProbesSent           uint8
+	FastProbesMultiplier uint8
+	StopFastProbe        bool
 	State                int
 	LinkLayerAddress     string // this is our neighbor port mac address
 	IpAddr               string
 	ReturnCh             chan config.PacketData // NDP Server communicator
 	IfIndex              int32                  // Physical Port where to send the packet on timer expiry
+	counter              PktCounter
+	pktRcvdTime          time.Time // last received packet time
 }
 
 /*
@@ -80,11 +86,15 @@ type NeighborInfo struct {
  */
 func (c *NeighborInfo) DeInit() {
 	// stopping all three timers in accending order
+	debug.Logger.Debug("De-Init neighbor", c.IpAddr)
 	c.StopReTransmitTimer()
 	c.StopReachableTimer()
+	c.StopFastProbeTimer()
 	c.StopDelayProbeTimer()
 	c.StopInvalidTimer()
 	c.StopReComputeBaseTimer()
+	c.counter.Rcvd = 0
+	c.counter.Send = 0
 }
 
 /*
@@ -101,16 +111,23 @@ func (c *NeighborInfo) InitCache(reachableTime, retransTime uint32, nbrKey strin
 	c.ReachableTimeConfig = reachableTime
 	c.RetransTimerConfig = retransTime
 	c.BaseReachableTimer = computeBase(reachableTime)
+	// Set the multiplier
+	c.FastProbesMultiplier = 1
 	c.State = INCOMPLETE
 	ipMacStr := strings.Split(nbrKey, "_")
-	c.IpAddr = ipMacStr[0]
-	c.LinkLayerAddress = ipMacStr[1] // this is mac address
+	c.IpAddr = ipMacStr[1]
+	c.LinkLayerAddress = ipMacStr[0] // this is mac address
 	c.ProbesSent = uint8(0)
 	c.ReturnCh = pktCh
 	c.IfIndex = ifIndex
 	// Once initalized start reachable timer... And also start one hour timer for re-computing BaseReachableTimer
+	// Reachable timer will handle Fast Probe Timer
 	c.RchTimer()
 	c.ReComputeBaseReachableTimer()
+	c.counter.Rcvd = 0
+	c.counter.Send = 0
+	debug.Logger.Debug("Neighbor timers are ReachableTimeConfig:", c.ReachableTimeConfig, "RetransTimerConfig:", c.RetransTimerConfig,
+		"BaseReachableTimer:", c.BaseReachableTimer)
 }
 
 func (nbr *NeighborInfo) populateNbrInfo(ifIndex int32, intfRef string) *config.NeighborConfig {
@@ -120,4 +137,9 @@ func (nbr *NeighborInfo) populateNbrInfo(ifIndex int32, intfRef string) *config.
 	nbrInfo.IfIndex = ifIndex
 	nbrInfo.Intf = intfRef
 	return nbrInfo
+}
+
+func (nbr *NeighborInfo) updatePktRxStateInfo() {
+	nbr.pktRcvdTime = time.Now()
+	nbr.counter.Rcvd++
 }

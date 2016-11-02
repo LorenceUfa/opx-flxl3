@@ -4,14 +4,14 @@ import (
 	"asicd/asicdCommonDefs"
 	"asicdInt"
 	"asicdServices"
-	"encoding/json"
 	"fmt"
-	nanomsg "github.com/op/go-nanomsg"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"net"
 	"strconv"
 	"strings"
 	"utils/commonDefs"
+
+	nanomsg "github.com/op/go-nanomsg"
 )
 
 type AsicdClient struct {
@@ -27,14 +27,17 @@ type portVlanValue struct {
 var asicdclnt AsicdClient
 var PortVlanDb map[uint16][]*portVlanValue
 
-func ConvertVxlanConfigToVxlanAsicdConfig(c *vxlan.VxlanConfig) *asicdInt.Vxlan {
-
-	return &asicdInt.Vxlan{
-		Vni:      int32(c.VNI),
-		VlanId:   int16(c.VlanId),
-		McDestIp: c.Group.String(),
-		Mtu:      int32(c.MTU),
+func ConvertVxlanConfigToVxlanAsicdConfig(c *vxlan.VxlanDbEntry) *asicdInt.Vxlan {
+	v := &asicdInt.Vxlan{
+		Vni: int32(c.VNI),
 	}
+	for _, untagvlan := range c.UntaggedVlanId {
+		v.UntaggedVlanId = append(v.UntaggedVlanId, int16(untagvlan))
+	}
+	for _, vlan := range c.VlanId {
+		v.VlanId = append(v.VlanId, int16(vlan))
+	}
+	return v
 }
 
 func ConvertVtepToVxlanAsicdConfig(vtep *vxlan.VtepDbEntry) *asicdInt.Vtep {
@@ -46,6 +49,7 @@ func ConvertVtepToVxlanAsicdConfig(vtep *vxlan.VtepDbEntry) *asicdInt.Vtep {
 		SrcIfName:      vtep.SrcIfName,
 		UDP:            int16(vtep.UDP),
 		TTL:            int16(vtep.TTL),
+		MTU:            int32(vtep.MTU),
 		SrcIp:          vtep.SrcIp.String(),
 		DstIp:          vtep.DstIp.String(),
 		VlanId:         int16(vtep.VlanId),
@@ -62,14 +66,17 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 	currMarker := asicdServices.Int(asicdCommonDefs.MIN_SYS_PORTS)
 	if asicdclnt.ClientHdl != nil {
 		count := asicdServices.Int(asicdCommonDefs.MAX_SYS_PORTS)
+		intf.asicdmutex.Lock()
 		for {
 			bulkInfo, err := asicdclnt.ClientHdl.GetBulkPortState(currMarker, count)
 			if err != nil {
+				intf.asicdmutex.Unlock()
 				return
 			}
 
 			bulkCfgInfo, err := asicdclnt.ClientHdl.GetBulkPort(currMarker, count)
 			if err != nil {
+				intf.asicdmutex.Unlock()
 				return
 			}
 
@@ -77,6 +84,9 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 			more := bool(bulkInfo.More)
 			currMarker = asicdServices.Int(bulkInfo.EndIdx)
 			for i := 0; i < objCount; i++ {
+				if bulkInfo.PortStateList[i].IntfRef != bulkCfgInfo.PortList[i].IntfRef {
+					logger.Err(fmt.Sprintln("Error IntfRef differ at index", bulkInfo.PortStateList[i].IntfRef, bulkCfgInfo.PortList[i].IntfRef))
+				}
 				ifindex := bulkInfo.PortStateList[i].IfIndex
 				netMac, _ := net.ParseMAC(bulkCfgInfo.PortList[i].MacAddr)
 				PortNum, _ := strconv.Atoi(bulkInfo.PortStateList[i].IntfRef)
@@ -86,12 +96,15 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 					Name:         bulkInfo.PortStateList[i].Name,
 					HardwareAddr: netMac,
 				}
+				logger.Info("Creating Port", config)
 				serverchannels.VxlanPortCreate <- config
 			}
 			if more == false {
+				intf.asicdmutex.Unlock()
 				return
 			}
 		}
+		intf.asicdmutex.Unlock()
 	}
 }
 
@@ -134,39 +147,96 @@ func (intf VXLANSnapClient) createASICdSubscriber() error {
 	return nil
 }
 
+func (intf VXLANSnapClient) processLinkDownEvent(ifindex int) {
+	if downcblst, ok := intf.portUpEventList[int32(ifindex)]; ok {
+		for _, downcb := range downcblst {
+			downcb(int32(ifindex))
+		}
+	}
+}
+
+func (intf VXLANSnapClient) processLinkUpEvent(ifindex int) {
+	if upcblst, ok := intf.portUpEventList[int32(ifindex)]; ok {
+		for _, upcb := range upcblst {
+			upcb(int32(ifindex))
+		}
+	}
+}
+
+func (intf VXLANSnapClient) RegisterLinkUpDownEvents(ifindex int32, upcb vxlan.PortEvtCb, downcb vxlan.PortEvtCb) {
+	//if _, ok := intf.portDownEventList[ifindex]; !ok {
+	//	intf.portDownEventList[ifindex] = make([]vxlan.PortEvtCb, 0)
+	//	intf.portUpEventList[ifindex] = make([]vxlan.PortEvtCb, 0)
+	//}
+	intf.portDownEventList[ifindex] = append(intf.portDownEventList[ifindex], downcb)
+	intf.portUpEventList[ifindex] = append(intf.portUpEventList[ifindex], upcb)
+}
+
+func (intf VXLANSnapClient) DeRegisterLinkUpDownEvents(ifindex int32, upcb vxlan.PortEvtCb, downcb vxlan.PortEvtCb) {
+	if cbList, ok := intf.portDownEventList[ifindex]; ok {
+		for idx, cb := range cbList {
+			if &downcb == &cb {
+				intf.portDownEventList[ifindex] = append(intf.portDownEventList[ifindex][:idx], intf.portDownEventList[ifindex][idx+1:]...)
+				intf.portUpEventList[ifindex] = append(intf.portUpEventList[ifindex][:idx], intf.portUpEventList[ifindex][idx+1:]...)
+			}
+		}
+	}
+}
+
+func (intf VXLANSnapClient) GetLinkState(ifname string) string {
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+		bulkInfo, err := asicdclnt.ClientHdl.GetBulkPortState(asicdServices.Int(asicdCommonDefs.MIN_SYS_PORTS), asicdServices.Int(asicdCommonDefs.MAX_SYS_PORTS))
+		intf.asicdmutex.Unlock()
+		if err == nil && bulkInfo.Count != 0 {
+			objCount := int64(bulkInfo.Count)
+			for i := int64(0); i < objCount; i++ {
+				if bulkInfo.PortStateList[i].IntfRef == ifname {
+					return bulkInfo.PortStateList[i].OperState
+				}
+			}
+		}
+		logger.Info(fmt.Sprintf("GetLinkState: could not get status for port %d, failure in get method\n", ifname))
+	}
+	return "DOWN"
+}
+
 // processAsicdNotification:
 // Proceses the various ASICD notifications for the following events
 // 1) Vlan membership updates - to create Virtual Access Ports
 // 2) IPv4 interface updates - to inform when VTEP src interface has an update
 //    for its IP address
-func (intf VXLANSnapClient) processAsicdNotification(asicdrxBuf []byte) {
-	var rxMsg asicdCommonDefs.AsicdNotification
-	err := json.Unmarshal(asicdrxBuf, &rxMsg)
-	if err != nil {
-		logger.Err(fmt.Sprintln("Unable to unmarshal asicdrxBuf:", asicdrxBuf))
-		return
-	}
-	if rxMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_UPDATE {
-		//Vlan Create Msg
-		logger.Info("Recvd VLAN notification")
-		var vlanMsg asicdCommonDefs.VlanNotifyMsg
-		err = json.Unmarshal(rxMsg.Msg, &vlanMsg)
-		if err != nil {
-			logger.Err(fmt.Sprintln("Unable to unmashal vlanNotifyMsg:", rxMsg.Msg))
-			return
+func (intf VXLANSnapClient) processAsicdNotification(msg commonDefs.AsicdNotifyMsg) {
+	switch msg.(type) {
+	case commonDefs.L2IntfStateNotifyMsg:
+		l2Msg := msg.(commonDefs.L2IntfStateNotifyMsg)
+
+		logger.Info("Msg linkstatus = %d msg port = %d\n", l2Msg.IfState, l2Msg.IfIndex)
+		if l2Msg.IfState == asicdCommonDefs.INTF_STATE_DOWN {
+			intf.processLinkDownEvent(asicdCommonDefs.GetIntfIdFromIfIndex(l2Msg.IfIndex)) //asicd always sends out link State events for PHY ports
+		} else {
+			intf.processLinkUpEvent(asicdCommonDefs.GetIntfIdFromIfIndex(l2Msg.IfIndex))
 		}
-		intf.updateVlanAccessPorts(vlanMsg, rxMsg.MsgType)
-	} else if rxMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE ||
-		rxMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_DELETE {
+	case commonDefs.IPv4IntfNotifyMsg:
 		logger.Info("Recvd IPV4INTF notification")
-		var v4Msg asicdCommonDefs.IPv4IntfNotifyMsg
-		err = json.Unmarshal(rxMsg.Msg, &v4Msg)
-		if err != nil {
-			logger.Err(fmt.Sprintln("Unable to unmashal ipv4IntfNotifyMsg:", rxMsg.Msg))
-			return
+		v4Msg := msg.(commonDefs.IPv4IntfNotifyMsg)
+		if v4Msg.MsgType == commonDefs.NOTIFY_IPV4INTF_CREATE ||
+			v4Msg.MsgType == commonDefs.NOTIFY_IPV4INTF_DELETE {
+			intf.updateIpv4Intf(v4Msg, v4Msg.MsgType)
 		}
-		intf.updateIpv4Intf(v4Msg, rxMsg.MsgType)
 	}
+	/*
+		else if rxMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_UPDATE {
+				//Vlan Create Msg
+				logger.Info("Recvd VLAN notification")
+				var vlanMsg asicdCommonDefs.VlanNotifyMsg
+				err = json.Unmarshal(rxMsg.Msg, &vlanMsg)
+				if err != nil {
+					logger.Err(fmt.Sprintln("Unable to unmashal vlanNotifyMsg:", rxMsg.Msg))
+					return
+				}
+				intf.updateVlanAccessPorts(vlanMsg, rxMsg.MsgType)
+			} */
 	/*
 		} else if rxMsg.MsgType == asicdCommonDefs.NOTIFY_L3INTF_STATE_CHANGE {
 			//L3_INTF_STATE_CHANGE
@@ -216,6 +286,7 @@ func (intf VXLANSnapClient) processAsicdNotification(asicdrxBuf []byte) {
 // GetAccessPorts:
 // Discovered the ports which have been provisioned with membership to the
 // vxlan vlan.   This method will be called after Vxlan has been provisioned
+/*
 func (intf VXLANSnapClient) GetAccessPortVlan(vlan uint16) {
 	curMark := 0
 	logger.Info("Calling Asicd for getting Vlan Property")
@@ -227,7 +298,7 @@ func (intf VXLANSnapClient) GetAccessPortVlan(vlan uint16) {
 			if bulkVlanInfo == nil {
 				break
 			}
-			/* Get bulk on vlan state can re-use curMark and count used by get bulk vlan, as there is a 1:1 mapping in terms of cfg/state objs */
+			// Get bulk on vlan state can re-use curMark and count used by get bulk vlan, as there is a 1:1 mapping in terms of cfg/state objs
 			bulkVlanStateInfo, _ := asicdclnt.ClientHdl.GetBulkVlanState(asicdServices.Int(curMark), asicdServices.Int(count))
 			if bulkVlanStateInfo == nil {
 				break
@@ -275,8 +346,8 @@ func (intf VXLANSnapClient) updateVlanAccessPorts(msg asicdCommonDefs.VlanNotify
 		serverchannels.VxlanAccessPortVlanUpdate <- config
 	}
 }
-
-func (intf VXLANSnapClient) updateIpv4Intf(msg asicdCommonDefs.IPv4IntfNotifyMsg, msgType uint8) {
+*/
+func (intf VXLANSnapClient) updateIpv4Intf(msg commonDefs.IPv4IntfNotifyMsg, msgType uint8) {
 	ipAddr := net.ParseIP(msg.IpAddr)
 	IfIndex := msg.IfIndex
 
@@ -286,6 +357,8 @@ func (intf VXLANSnapClient) updateIpv4Intf(msg asicdCommonDefs.IPv4IntfNotifyMsg
 	foundIntf := false
 	if asicdclnt.ClientHdl != nil {
 		exitnotfound := true
+		intf.asicdmutex.Lock()
+
 		// TODO when api is available should just call GetIntf...
 		for exitnotfound && !foundIntf {
 			bulkIntf, _ := asicdclnt.ClientHdl.GetBulkIntf(asicdInt.Int(nextindex), asicdInt.Int(count))
@@ -335,23 +408,78 @@ func (intf VXLANSnapClient) updateIpv4Intf(msg asicdCommonDefs.IPv4IntfNotifyMsg
 				}
 			}
 		}
+		intf.asicdmutex.Unlock()
 	}
 }
 
-func (intf VXLANSnapClient) CreateVxlan(vxlan *vxlan.VxlanConfig) {
+func (intf VXLANSnapClient) CreateVxlan(vxlan *vxlan.VxlanDbEntry) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
 		asicdclnt.ClientHdl.CreateVxlan(ConvertVxlanConfigToVxlanAsicdConfig(vxlan))
+		intf.asicdmutex.Unlock()
 	}
 }
 
-func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanConfig) {
+func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanDbEntry) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
 		asicdclnt.ClientHdl.DeleteVxlan(ConvertVxlanConfigToVxlanAsicdConfig(vxlan))
+		intf.asicdmutex.Unlock()
 	}
 }
 
+func (intf VXLANSnapClient) UpdateVxlan(vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16) {
+	// convert a vxland config to hw config
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+
+		convertadd := make([]int16, 0)
+		if len(addvlanlist) > 0 {
+			for _, vlan := range addvlanlist {
+				convertadd = append(convertadd, int16(vlan))
+			}
+		}
+		convertdel := make([]int16, 0)
+		if len(delvlanlist) > 0 {
+			for _, vlan := range delvlanlist {
+				convertdel = append(convertdel, int16(vlan))
+			}
+		}
+		convertadduntag := make([]int16, 0)
+		if len(addvlanlist) > 0 {
+			for _, vlan := range addUntaggedVlan {
+				convertadd = append(convertadd, int16(vlan))
+			}
+		}
+		convertdeluntag := make([]int16, 0)
+		if len(delvlanlist) > 0 {
+			for _, vlan := range delUntaggedVlan {
+				convertdel = append(convertdel, int16(vlan))
+			}
+		}
+
+		asicdclnt.ClientHdl.UpdateVxlan(int32(vni), convertadd, convertdel, convertadduntag, convertdeluntag)
+		intf.asicdmutex.Unlock()
+	}
+}
+
+/*
+func (intf VXLANSnapClient) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
+	if asicdclnt.ClientHdl != nil {
+		asicdclnt.ClientHdl.AddHostInterfaceToVxlan(vni, intfreflist, untagintfreflist)
+	}
+
+}
+
+func (intf VXLANSnapClient) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
+	if asicdclnt.ClientHdl != nil {
+		asicdclnt.ClientHdl.DelHostInterfaceFromVxlan(vni, intfreflist, untagintfreflist)
+	}
+
+}
+*/
 // CreateVtep:
 // Creates a VTEP interface with the ASICD.  Should create an interface within
 // the HW as well as within Linux stack.   AsicD also requires that vlan membership is
@@ -360,67 +488,69 @@ func (intf VXLANSnapClient) DeleteVxlan(vxlan *vxlan.VxlanConfig) {
 func (intf VXLANSnapClient) CreateVtep(vtep *vxlan.VtepDbEntry, vteplistener chan<- vxlan.MachineEvent) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
-
-		// need to create a vlan membership of the vtep vlan Id
-		if _, ok := PortVlanDb[vtep.VlanId]; !ok {
-			v := &portVlanValue{
-				ifIndex: vtep.SrcIfName,
-				refCnt:  1,
-			}
-			pbmp := []string{}
-			PortVlanDb[vtep.VlanId] = append(PortVlanDb[vtep.VlanId], v)
-			pbmp = append(pbmp, fmt.Sprintf("%d", vtep.NextHop.IfIndex))
-
-			asicdVlan := &asicdServices.Vlan{
-				VlanId:   int32(vtep.VlanId),
-				IntfList: pbmp,
-			}
-			asicdclnt.ClientHdl.CreateVlan(asicdVlan)
-
-		} else {
-			portExists := -1
-			for i, p := range PortVlanDb[vtep.VlanId] {
-				if p.ifIndex == vtep.SrcIfName {
-					portExists = i
-					break
-				}
-			}
-			if portExists == -1 {
-				oldpbmp := []string{}
-				for _, p := range PortVlanDb[vtep.VlanId] {
-					oldpbmp = append(oldpbmp, fmt.Sprintf("%s", p.ifIndex))
-				}
+		intf.asicdmutex.Lock()
+		if vtep.VlanId != 0 {
+			// need to create a vlan membership of the vtep vlan Id
+			if _, ok := PortVlanDb[vtep.VlanId]; !ok {
 				v := &portVlanValue{
 					ifIndex: vtep.SrcIfName,
 					refCnt:  1,
 				}
+				pbmp := []string{}
 				PortVlanDb[vtep.VlanId] = append(PortVlanDb[vtep.VlanId], v)
-				newpbmp := []string{}
-				for _, p := range PortVlanDb[vtep.VlanId] {
-					newpbmp = append(newpbmp, fmt.Sprintf("%s", p.ifIndex))
-				}
+				pbmp = append(pbmp, fmt.Sprintf("%d", vtep.NextHop.IfIndex))
 
-				oldAsicdVlan := &asicdServices.Vlan{
+				asicdVlan := &asicdServices.Vlan{
 					VlanId:   int32(vtep.VlanId),
-					IntfList: oldpbmp,
+					IntfList: pbmp,
 				}
-				newAsicdVlan := &asicdServices.Vlan{
-					VlanId:   int32(vtep.VlanId),
-					IntfList: newpbmp,
-				}
-				// note if the thrift attribute id's change then
-				// this attr may need to be updated
-				attrset := []bool{false, true, false}
-				op := []*asicdServices.PatchOpInfo{}
-				asicdclnt.ClientHdl.UpdateVlan(oldAsicdVlan, newAsicdVlan, attrset, op)
+				asicdclnt.ClientHdl.CreateVlan(asicdVlan)
 			} else {
-				v := PortVlanDb[vtep.VlanId][portExists]
-				v.refCnt++
-				PortVlanDb[vtep.VlanId][portExists] = v
+				portExists := -1
+				for i, p := range PortVlanDb[vtep.VlanId] {
+					if p.ifIndex == vtep.SrcIfName {
+						portExists = i
+						break
+					}
+				}
+				if portExists == -1 {
+					oldpbmp := []string{}
+					for _, p := range PortVlanDb[vtep.VlanId] {
+						oldpbmp = append(oldpbmp, fmt.Sprintf("%s", p.ifIndex))
+					}
+					v := &portVlanValue{
+						ifIndex: vtep.SrcIfName,
+						refCnt:  1,
+					}
+					PortVlanDb[vtep.VlanId] = append(PortVlanDb[vtep.VlanId], v)
+					newpbmp := []string{}
+					for _, p := range PortVlanDb[vtep.VlanId] {
+						newpbmp = append(newpbmp, fmt.Sprintf("%s", p.ifIndex))
+					}
+
+					oldAsicdVlan := &asicdServices.Vlan{
+						VlanId:   int32(vtep.VlanId),
+						IntfList: oldpbmp,
+					}
+					newAsicdVlan := &asicdServices.Vlan{
+						VlanId:   int32(vtep.VlanId),
+						IntfList: newpbmp,
+					}
+					// note if the thrift attribute id's change then
+					// this attr may need to be updated
+					attrset := []bool{false, true, false}
+					op := []*asicdServices.PatchOpInfo{}
+					asicdclnt.ClientHdl.UpdateVlan(oldAsicdVlan, newAsicdVlan, attrset, op)
+				} else {
+					v := PortVlanDb[vtep.VlanId][portExists]
+					v.refCnt++
+					PortVlanDb[vtep.VlanId][portExists] = v
+				}
 			}
 		}
 		// create the vtep
 		asicdclnt.ClientHdl.CreateVxlanVtep(ConvertVtepToVxlanAsicdConfig(vtep))
+		intf.asicdmutex.Unlock()
 
 		event := vxlan.MachineEvent{
 			E:    vxlan.VxlanVtepEventHwConfigComplete,
@@ -440,63 +570,92 @@ func (intf VXLANSnapClient) CreateVtep(vtep *vxlan.VtepDbEntry, vteplistener cha
 func (intf VXLANSnapClient) DeleteVtep(vtep *vxlan.VtepDbEntry) {
 	// convert a vxland config to hw config
 	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
 		// delete the vtep
 		asicdclnt.ClientHdl.DeleteVxlanVtep(ConvertVtepToVxlanAsicdConfig(vtep))
 
-		// update the vlan the vtep was using
-		if _, ok := PortVlanDb[vtep.VlanId]; ok {
-			portExists := -1
-			for i, p := range PortVlanDb[vtep.VlanId] {
-				if p.ifIndex == vtep.SrcIfName {
-					portExists = i
-					break
+		if vtep.VlanId != 0 {
+			// update the vlan the vtep was using
+			if _, ok := PortVlanDb[vtep.VlanId]; ok {
+				portExists := -1
+				for i, p := range PortVlanDb[vtep.VlanId] {
+					if p.ifIndex == vtep.SrcIfName {
+						portExists = i
+						break
+					}
 				}
-			}
-			if portExists != -1 {
-				v := PortVlanDb[vtep.VlanId][portExists]
-				v.refCnt--
-				PortVlanDb[vtep.VlanId][portExists] = v
+				if portExists != -1 {
+					v := PortVlanDb[vtep.VlanId][portExists]
+					v.refCnt--
+					PortVlanDb[vtep.VlanId][portExists] = v
 
-				// lets remove this port from the vlan
-				if v.refCnt == 0 {
-					oldpbmp := []string{}
-					for _, p := range PortVlanDb[vtep.VlanId] {
-						oldpbmp = append(oldpbmp, fmt.Sprintf("%s", p.ifIndex))
-					}
-					// remove from local list
-					PortVlanDb[vtep.VlanId] = append(PortVlanDb[vtep.VlanId][:portExists], PortVlanDb[vtep.VlanId][portExists+1:]...)
-					newpbmp := []string{}
-					for _, p := range PortVlanDb[vtep.VlanId] {
-						newpbmp = append(newpbmp, fmt.Sprintf("%s", p.ifIndex))
-					}
+					// lets remove this port from the vlan
+					if v.refCnt == 0 {
+						oldpbmp := []string{}
+						for _, p := range PortVlanDb[vtep.VlanId] {
+							oldpbmp = append(oldpbmp, fmt.Sprintf("%s", p.ifIndex))
+						}
+						// remove from local list
+						PortVlanDb[vtep.VlanId] = append(PortVlanDb[vtep.VlanId][:portExists], PortVlanDb[vtep.VlanId][portExists+1:]...)
+						newpbmp := []string{}
+						for _, p := range PortVlanDb[vtep.VlanId] {
+							newpbmp = append(newpbmp, fmt.Sprintf("%s", p.ifIndex))
+						}
 
-					oldAsicdVlan := &asicdServices.Vlan{
-						VlanId:   int32(vtep.VlanId),
-						IntfList: oldpbmp,
+						oldAsicdVlan := &asicdServices.Vlan{
+							VlanId:   int32(vtep.VlanId),
+							IntfList: oldpbmp,
+						}
+						newAsicdVlan := &asicdServices.Vlan{
+							VlanId:   int32(vtep.VlanId),
+							IntfList: newpbmp,
+						}
+						// note if the thrift attribute id's change then
+						// this attr may need to be updated
+						attrset := []bool{false, true, false}
+						op := []*asicdServices.PatchOpInfo{}
+						asicdclnt.ClientHdl.UpdateVlan(oldAsicdVlan, newAsicdVlan, attrset, op)
 					}
-					newAsicdVlan := &asicdServices.Vlan{
-						VlanId:   int32(vtep.VlanId),
-						IntfList: newpbmp,
-					}
-					// note if the thrift attribute id's change then
-					// this attr may need to be updated
-					attrset := []bool{false, true, false}
-					op := []*asicdServices.PatchOpInfo{}
-					asicdclnt.ClientHdl.UpdateVlan(oldAsicdVlan, newAsicdVlan, attrset, op)
-				}
-				// lets remove the vlan
-				if len(PortVlanDb[vtep.VlanId]) == 0 {
+					// lets remove the vlan
+					if len(PortVlanDb[vtep.VlanId]) == 0 {
 
-					asicdVlan := &asicdServices.Vlan{
-						VlanId: int32(vtep.VlanId),
-					}
-					asicdclnt.ClientHdl.DeleteVlan(asicdVlan)
-					delete(PortVlanDb, vtep.VlanId)
+						asicdVlan := &asicdServices.Vlan{
+							VlanId: int32(vtep.VlanId),
+						}
+						asicdclnt.ClientHdl.DeleteVlan(asicdVlan)
+						delete(PortVlanDb, vtep.VlanId)
 
+					}
 				}
 			}
 		}
+		intf.asicdmutex.Unlock()
 	}
+}
+
+func (intf VXLANSnapClient) UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16) {
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+		asicdclnt.ClientHdl.UpdateVxlanVtepAttr(vtepName, int32(vni), int16(tos), int16(ttl), int32(mtu))
+		intf.asicdmutex.Unlock()
+	}
+}
+
+func (intf VXLANSnapClient) GetAllVlans() []uint16 {
+	vlanlist := make([]uint16, 0)
+
+	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
+		vlanInfo, _ := asicdclnt.ClientHdl.GetBulkVlan(1, 4094)
+		intf.asicdmutex.Unlock()
+
+		for _, vlandata := range vlanInfo.VlanList {
+			vlanlist = append(vlanlist, uint16(vlandata.VlanId))
+
+		}
+	}
+
+	return vlanlist
 }
 
 func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.MachineEvent) {
@@ -507,6 +666,7 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 	var mac net.HardwareAddr
 	foundIntf := false
 	if asicdclnt.ClientHdl != nil {
+		intf.asicdmutex.Lock()
 		exitnotfound := true
 		// TODO when api is available should just call GetIntf...
 		for exitnotfound && !foundIntf {
@@ -548,6 +708,7 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 					mac, _ = net.ParseMAC(phyIntfState.MacAddr)
 				} else {
 					// did not find src mac exiting
+					intf.asicdmutex.Unlock()
 					return
 				}
 			//case IfTypeLag:
@@ -561,6 +722,7 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 					mac, _ = net.ParseMAC(logicalIntfState.SrcMac)
 				} else {
 					// did not find src mac exiting
+					intf.asicdmutex.Unlock()
 					return
 				}
 
@@ -590,5 +752,6 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 				intfchan <- event
 			}
 		}
+		intf.asicdmutex.Unlock()
 	}
 }

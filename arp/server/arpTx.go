@@ -55,27 +55,24 @@ func getHWAddr(macAddr string) (mac net.HardwareAddr) {
  *@fn sendArpReq
  *  Send the ARP request for ip targetIP
  */
-func (server *ARPServer) sendArpReq(targetIp string, port int) {
-	server.logger.Debug(fmt.Sprintln("sendArpReq(): sending arp requeust for targetIp ", targetIp, "to port:", port))
+func (server *ARPServer) sendArpReq(targetIp string, l3IfIdx int) {
+	server.logger.Debug("sendArpReq(): sending arp requeust for targetIp ", targetIp, "to port:", l3IfIdx)
 
-	portEnt, _ := server.portPropMap[port]
-
-	if portEnt.OperState == false {
+	l3Ent, exist := server.l3IntfPropMap[l3IfIdx]
+	if !exist {
+		server.logger.Err("SendArpReq(): L3 interface does not exist", l3IfIdx)
 		return
 	}
-	pcapHdl, err := pcap.OpenLive(portEnt.IfName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
+	macAddr := server.GetMacAddr(l3IfIdx)
+	pcapHdl, err := pcap.OpenLive(l3Ent.IfName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
 	if pcapHdl == nil {
-		server.logger.Err(fmt.Sprintln("Unable to open pcap handle on:", portEnt.IfName, "error:", err))
+		server.logger.Err("Unable to open pcap handle on:", l3Ent.IfName, "error:", err)
 		return
 	}
 	defer pcapHdl.Close()
-	/*
-	   pcapHdl := portEnt.PcapHdl
-
-	*/
-	srcIpAddr := getIP(portEnt.IpAddr)
+	srcIpAddr := getIP(l3Ent.IpAddr)
 	if srcIpAddr == nil {
-		server.logger.Err(fmt.Sprintf("Corrupted source ip :  ", portEnt.IpAddr))
+		server.logger.Err(fmt.Sprintf("Corrupted source ip :  ", l3Ent.IpAddr))
 		return
 	}
 
@@ -85,9 +82,9 @@ func (server *ARPServer) sendArpReq(targetIp string, port int) {
 		return
 	}
 
-	myMacAddr := getHWAddr(portEnt.MacAddr)
+	myMacAddr := getHWAddr(macAddr)
 	if myMacAddr == nil {
-		server.logger.Err(fmt.Sprintf("corrupted my mac : ", portEnt.MacAddr))
+		server.logger.Err(fmt.Sprintf("corrupted my mac : ", macAddr))
 		return
 	}
 	arp_layer := layers.ARP{
@@ -117,7 +114,7 @@ func (server *ARPServer) sendArpReq(targetIp string, port int) {
 	//logger.Println("Buffer : ", buffer)
 	// send arp request and retry after timeout if arp cache is not updated
 	if err := pcapHdl.WritePacketData(buffer.Bytes()); err != nil {
-		server.logger.Err(fmt.Sprintln("Error writing data to packet buffer for port:", port))
+		server.logger.Err(fmt.Sprintln("Error writing data to packet buffer for l3Intf:", l3IfIdx))
 		return
 	}
 	return
@@ -127,37 +124,41 @@ func (server *ARPServer) sendArpReq(targetIp string, port int) {
  *@fn sendArpProbe
  *  Send the ARP Probe for ip localIP
  */
-func (server *ARPServer) sendArpProbe(port int) {
-	localIp := server.portPropMap[port].IpAddr
-	server.logger.Debug(fmt.Sprintln("sendArpReq(): sending arp requeust for localIp ", localIp, "to port:", port))
+func (server *ARPServer) sendArpProbe(l3IfIdx int) {
+	l3Ent, exist := server.l3IntfPropMap[l3IfIdx]
+	if !exist {
+		server.logger.Err("SendArpProbe(): L3 interface does not exist", l3IfIdx)
+		return
+	}
+	macAddr := server.GetMacAddr(l3IfIdx)
+	localIp := l3Ent.IpAddr
+	server.logger.Debug("sendArpReq(): sending arp requeust for localIp ", localIp, "to port:", l3Ent.IfName)
 
-	portEnt, _ := server.portPropMap[port]
-	if portEnt.OperState == false {
+	if l3Ent.OperState == false {
 		return
 	}
 
-	pcapHdl, err := pcap.OpenLive(portEnt.IfName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
+	pcapHdl, err := pcap.OpenLive(l3Ent.IfName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
 	if pcapHdl == nil {
-		server.logger.Err(fmt.Sprintln("Unable to open pcap handle on:", portEnt.IfName, "error:", err))
+		server.logger.Err("Unable to open pcap handle on:", l3Ent.IfName, "error:", err)
 		return
 	}
 	defer pcapHdl.Close()
 
 	srcIpAddr := getIP("0.0.0.0")
 	if srcIpAddr == nil {
-		server.logger.Err(fmt.Sprintf("Corrupted source ip :  ", "0.0.0.0"))
 		return
 	}
 
 	destIpAddr := getIP(localIp)
 	if destIpAddr == nil {
-		server.logger.Err(fmt.Sprintf("Corrupted destination ip :  ", localIp))
+		server.logger.Err("Corrupted destination ip :  ", localIp)
 		return
 	}
 
-	myMacAddr := getHWAddr(portEnt.MacAddr)
+	myMacAddr := getHWAddr(macAddr)
 	if myMacAddr == nil {
-		server.logger.Err(fmt.Sprintf("corrupted my mac : ", portEnt.MacAddr))
+		server.logger.Err(fmt.Sprintf("corrupted my mac : ", macAddr))
 		return
 	}
 	arp_layer := layers.ARP{
@@ -184,16 +185,15 @@ func (server *ARPServer) sendArpProbe(port int) {
 	arp_layer.DstProtAddress = destIpAddr
 	gopacket.SerializeLayers(buffer, options, &eth_layer, &arp_layer)
 
-	//logger.Println("Buffer : ", buffer)
 	// send arp request and retry after timeout if arp cache is not updated
 	if err := pcapHdl.WritePacketData(buffer.Bytes()); err != nil {
-		server.logger.Err(fmt.Sprintln("Error writing data to packet buffer for port:", port))
+		server.logger.Err("Error writing data to packet buffer for port:", l3Ent.IfName)
 		return
 	}
 	return
 }
 
-func (server *ARPServer) SendArpProbe(port int) {
+func (server *ARPServer) SendArpProbe(l3IfIdx int) {
 	s1 := rand.NewSource(time.Now().UnixNano())
 	r1 := rand.New(s1)
 	s2 := rand.NewSource(time.Now().UnixNano())
@@ -201,7 +201,7 @@ func (server *ARPServer) SendArpProbe(port int) {
 	wait := r1.Intn(server.probeWait)
 	time.Sleep(time.Duration(wait) * time.Second)
 	for i := 0; i < server.probeNum; i++ {
-		server.sendArpProbe(port)
+		server.sendArpProbe(l3IfIdx)
 		diff := r2.Intn(server.probeMax - server.probeMin)
 		diff = diff + server.probeMin
 		time.Sleep(time.Duration(diff) * time.Second)

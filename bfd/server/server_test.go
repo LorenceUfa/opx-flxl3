@@ -39,7 +39,6 @@ var bfdTestControlPacket *BfdControlPacket
 func BfdTestNewLogger() *logging.Writer {
 	logger := new(logging.Writer)
 	logger.SysLogger, _ = syslog.New(syslog.LOG_DEBUG|syslog.LOG_DAEMON, "BFDTEST")
-	logger.GlobalLogging = true
 	logger.MyLogLevel = sysdCommonDefs.DEBUG
 	return logger
 }
@@ -121,7 +120,7 @@ func TestCreateRIBdSubscriber(t *testing.T) {
 func TestNewNormalBfdSession(t *testing.T) {
 	bfdTestServer.createDefaultSessionParam()
 	fmt.Println("Creating BFD session to 10.1.1.1")
-	bfdTestSession = bfdTestServer.NewNormalBfdSession("", "10.1.1.1", "default", false, 2)
+	bfdTestSession = bfdTestServer.NewNormalBfdSession("", "", "10.1.1.1", "default", false, 2)
 	if bfdTestSession != nil {
 		t.Log("Created BFD session to ", bfdTestSession.state.IpAddr, " session id ", bfdTestSession.state.SessionId)
 		if bfdTestSession.state.SessionState != STATE_DOWN {
