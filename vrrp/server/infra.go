@@ -174,11 +174,11 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 /*
  *  Handling Vrrp Interface Configuration
  */
-func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
+func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
 	intf, exists := svr.Intf[key]
 	if exists {
-		debug.Logger.Err("During Create we should not any entry in the DB")
+		debug.Logger.Err("During Create we should not have any entry in the DB")
 		return
 	}
 	l3Info := &config.BaseIpInfo{}
@@ -215,10 +215,10 @@ func (svr *VrrpServer) HandlerCreateConfig(cfg *config.IntfCfg) {
 	// @TODO: NEED TO ADD PRE - PROCESSOR SUB INTERFACE OBJECT
 }
 
-func (svr *VrrpServer) HandleIntfConfig(cfg *config.IntfCfg) {
+func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
 	switch cfg.Operation {
 	case config.CREATE:
-		svr.HandlerCreateConfig(cfg)
+		svr.HandlerVrrpIntfCreateConfig(cfg)
 	case config.UPDATE:
 
 	case config.DELETE:
@@ -245,6 +245,61 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 		debug.Logger.Info("Vrrp Disabled, deleting Protocol Mac")
 		svr.HandleProtocolMacEntry(false /*Enable*/)
 	}
+}
+
+func (svr *VrrpServer) HandleIpStateUp(msg *config.BaseIpInfo) {
+	var ipIntf IPIntf
+	var exists bool
+
+	switch msg.IpType {
+	case syscall.AF_INET:
+		v4, exists := svr.V4[msg.IfIndex]
+		if exists {
+			ipIntf = v4
+		}
+	case syscall.AF_INET6:
+		v6, exists := svr.V6[msg.IfIndex]
+		if exists {
+			ipIntf = v6
+		}
+	}
+
+	if !exists {
+		debug.Logger.Err("No Entry found for:", *msg, "during state up notification")
+		return
+	}
+	// update sw state for ip interface with new information
+	ipIntf.Update(msg)
+	// get the vrrp interface key
+	key := ipIntf.GetVrrpIntfKey()
+	if key == nil {
+		// if no key then it means that no vrrp interface is created
+		debug.Logger.Warning("No vrrp interface attached to ip interface:", ipIntf)
+		return
+	}
+	/*
+		intf, exists := svr.Intf[key]
+		if !exists {
+			debug.Logger.Warn("No Vrrp Interface configured and hence nothing to do")
+		}
+	*/
+
+}
+
+func (svr *VrrpServer) HandleIpStateDown(ipInfo *config.BaseIpInfo) {
+	//var ipIntf IPIntf
+}
+
+func (svr *VrrpServer) HandleIpStateChange(ipInfo *config.BaseIpInfo) {
+	switch ipInfo.OperState {
+	case config.STATE_UP:
+		// start fsm now
+		svr.HandleIpStateUp(ipInfo)
+	case config.STATE_DOWN:
+		// stop fsm
+		svr.HandleIpStateDown(ipInfo)
+	}
+
 }
 
 // @TODO: you might get create ip notification after create vrrp need to handle that case
@@ -280,12 +335,6 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 		}
 
 	case config.IP_MSG_STATE_CHANGE:
-		switch msg.OperState {
-		case config.STATE_UP:
-			// start fsm now
-
-		case config.STATE_DOWN:
-			// stop fsm
-		}
+		svr.HandleIpStateChange(msg)
 	}
 }

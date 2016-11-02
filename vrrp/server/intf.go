@@ -33,6 +33,7 @@ type IPIntf interface {
 	DeInit(*config.BaseIpInfo)
 	GetObjFromDb(*config.BaseIpInfo)
 	SetVrrpIntfKey(*KeyInfo)
+	GetVrrpIntfKey() *KeyInfo
 }
 
 type VrrpInterface struct {

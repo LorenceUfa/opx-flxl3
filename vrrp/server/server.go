@@ -44,7 +44,7 @@ func (svr *VrrpServer) EventListener() {
 			}
 		case cfg, ok := <-svr.CfgCh:
 			if ok {
-				svr.HandleIntfConfig(cfg)
+				svr.HandleVrrpIntfConfig(cfg)
 			}
 		case l3NotifyInfo, ok := <-svr.L3IntfNotifyCh:
 			if ok {

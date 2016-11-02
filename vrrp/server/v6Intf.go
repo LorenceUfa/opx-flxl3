@@ -49,7 +49,8 @@ func (intf *V6Intf) Init(obj *config.BaseIpInfo) {
 }
 
 func (intf *V6Intf) Update(obj *config.BaseIpInfo) {
-
+	// most likely update of OperState only
+	intf.Cfg.Info.OperState = obj.OperState
 }
 
 func (intf *V6Intf) DeInit(obj *config.BaseIpInfo) {
@@ -62,4 +63,8 @@ func (intf *V6Intf) GetObjFromDb(l3Info *config.BaseIpInfo) {
 
 func (intf *V6Intf) SetVrrpIntfKey(key *KeyInfo) {
 	intf.Vrrpkey = key
+}
+
+func (intf *V6Intf) GetVrrpIntfKey() *KeyInfo {
+	return intf.Vrrpkey
 }
