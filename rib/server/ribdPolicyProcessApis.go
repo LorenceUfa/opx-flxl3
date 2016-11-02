@@ -56,7 +56,7 @@ type Policy struct {
    Function to create policy prefix set in the policyEngineDB
 */
 func (m RIBDServer) ProcessPolicyPrefixSetConfigCreate(cfg *ribd.PolicyPrefixSet, db *policy.PolicyEngineDB) (val bool, err error) {
-	logger.Debug("ProcessPolicyConditionConfigCreate:CreatePolicyConditioncfg: ", cfg.Name)
+	logger.Debug("ProcessPolicyPrefixSetConfigCreate:", cfg.Name)
 	prefixList := make([]policy.PolicyPrefix, 0)
 	for _, prefix := range cfg.PrefixList {
 		prefixList = append(prefixList, policy.PolicyPrefix{IpPrefix: prefix.Prefix, MasklengthRange: prefix.MaskLengthRange})
@@ -140,7 +140,12 @@ func (m RIBDServer) ProcessPolicyPrefixSetConfigUpdate(origCfg *ribd.PolicyPrefi
 */
 func (m RIBDServer) ProcessPolicyConditionConfigCreate(cfg *ribd.PolicyCondition, db *policy.PolicyEngineDB) (val bool, err error) {
 	logger.Debug("ProcessPolicyConditionConfigCreate:CreatePolicyConditioncfg: ", cfg.Name)
-	newPolicy := policy.PolicyConditionConfig{Name: cfg.Name, ConditionType: cfg.ConditionType, MatchProtocolConditionInfo: cfg.Protocol}
+	newPolicy := policy.PolicyConditionConfig{Name: cfg.Name,
+		ConditionType:                       cfg.ConditionType,
+		MatchProtocolConditionInfo:          cfg.Protocol,
+		MatchCommunityConditionInfo:         cfg.MatchCommunity,
+		MatchExtendedCommunityConditionInfo: cfg.MatchExtendedCommunity,
+	}
 	matchPrefix := policy.PolicyPrefix{IpPrefix: cfg.IpPrefix, MasklengthRange: cfg.MaskLengthRange}
 	newPolicy.MatchDstIpPrefixConditionInfo = policy.PolicyDstIpMatchPrefixSetCondition{Prefix: matchPrefix, PrefixSet: cfg.PrefixSet}
 	val, err = db.CreatePolicyCondition(newPolicy)
