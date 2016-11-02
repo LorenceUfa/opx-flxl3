@@ -94,9 +94,8 @@ type IntfCfg struct {
 	AdvertisementInterval int32
 	PreemptMode           bool
 	AcceptMode            bool
-	// Information that will be used by server.. as all configs will be passed onto one channel only
-	Version   uint8
-	Operation uint8
+	Version               uint8 // Information that will be used by server.. as all configs will be passed onto one channel only
+	Operation             uint8 // Information that will be used by server
 }
 
 type State struct {
@@ -108,4 +107,12 @@ type State struct {
 	PreviousFsmState    string // previous fsm state
 	CurrentFsmState     string // current fsm state
 	ReasonForTransition string // why did we transition to current state?
+}
+
+type VirtualIpInfo struct {
+	IntfRef string
+	IpAddr  string
+	MacAddr string
+	Enable  bool
+	Version uint8
 }

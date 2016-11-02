@@ -50,6 +50,10 @@ func (svr *VrrpServer) EventListener() {
 			if ok {
 				svr.HandleIpNotification(l3NotifyInfo)
 			}
+		case vipUpdateInfo, ok := <-svr.VirtualIpCh:
+			if ok {
+				svr.UpdateVirtualIntf(vipUpdateInfo)
+			}
 		}
 	}
 }
@@ -75,6 +79,7 @@ func (svr *VrrpServer) InitGlobalDS() {
 	svr.GblCfgCh = make(chan *config.GlobalConfig)
 	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 	svr.L3IntfNotifyCh = make(chan *config.BaseIpInfo)
+	svr.VirtualIpCh = make(chan *config.VirtualIpInfo)
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {

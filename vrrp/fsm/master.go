@@ -36,9 +36,8 @@ func (f *FSM) TransitionToMaster() {
 	f.SendPkt(pktInfo)
 	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
-	// @TODO : Set Sub-intf state up and send out garp via linux stack
-	// svr.VrrpUpdateSubIntf(gblInfo, true /*configure or set*/ //)
-
+	// Set Sub-intf state up and send out garp via linux stack
+	f.UpdateVirtualIP(true /*enable*/)
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
 	f.StartMasterAdverTimer()

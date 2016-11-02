@@ -54,6 +54,7 @@ type VrrpServer struct {
 	CfgCh              chan *config.IntfCfg      // Starting from hereAll Channels Used during Events
 	GblCfgCh           chan *config.GlobalConfig
 	L3IntfNotifyCh     chan *config.BaseIpInfo
+	VirtualIpCh        chan *config.VirtualIpInfo // used for updating virtual ip state in hardware/linux
 	//L2Port             map[int32]config.PhyPort
 	//VlanInfo           map[int32]config.VlanInfo
 }

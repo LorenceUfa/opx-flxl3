@@ -125,15 +125,17 @@ type FSM struct {
 	fsmStCh                 chan *FsmStateInfo
 	txPktCh                 chan *packet.PacketInfo
 	IntfEventCh             chan *IntfEvent
+	vipCh                   chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
 }
 
-func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) *FSM { //stCh chan *IntfState) *FSM {
+func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) *FSM {
 	f := &FSM{}
 	f.Config = cfg
 	f.StInfo = &config.State{}
 	f.IpAddr = l3Info.IpAddr
 	f.IfIndex = l3Info.IfIndex
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
+	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.fsmStCh = make(chan *FsmStateInfo)
 	f.txPktCh = make(chan *packet.PacketInfo)
@@ -339,6 +341,17 @@ func (f *FSM) HandleInterfaceEvent(event *IntfEvent) {
 	}
 }
 
+func (f *FSM) UpdateVirtualIP(enable bool) {
+	// Set Sub-intf state up and send out garp via linux stack
+	f.vipCh <- &config.VirtualIpInfo{
+		IntfRef: f.Config.IntfRef,
+		IpAddr:  f.Config.VirtualIPAddr,
+		MacAddr: f.VirtualRouterMACAddress,
+		Enable:  enable,
+		Version: f.Config.Version,
+	}
+}
+
 func (f *FSM) StartFsm() {
 	for {
 		select {
@@ -359,50 +372,3 @@ func (f *FSM) StartFsm() {
 		}
 	}
 }
-
-/*
- * This API will create config object with MacAddr and configure....
- * Configure will enable/disable the link...
- */
-/*
-func (svr *VrrpServer) VrrpUpdateSubIntf(gblInfo VrrpGlobalInfo, configure bool) {
-	vip := gblInfo.IntfConfig.VirtualIPv4Addr
-	if !strings.Contains(vip, "/") {
-		vip = vip + "/32"
-	}
-	config := asicdServices.SubIPv4Intf{
-		IpAddr:  vip,
-		IntfRef: strconv.Itoa(int(gblInfo.IntfConfig.IfIndex)),
-		Enable:  configure,
-		MacAddr: gblInfo.VirtualRouterMACAddress,
-	}
-	svr.logger.Info(fmt.Sprintln("updating sub interface config obj is", config))
-	/*
-		struct SubIPv4Intf {
-			0 1 : string IpAddr
-			1 2 : i32 IfIndex
-			2 3 : string Type
-			3 4 : string MacAddr
-			4 5 : bool Enable
-		}
-*/
-/*
-	var attrset []bool
-	// The len of attrset is set to 5 for 5 elements in the object...
-	// if no.of elements changes then index for mac address and enable needs
-	// to change..
-	attrset = make([]bool, 5)
-	elems := len(attrset)
-	attrset[elems-1] = true
-	if configure {
-		attrset[elems-2] = true
-	}
-	_, err := svr.asicdClient.ClientHdl.UpdateSubIPv4Intf(&config, &config,
-		attrset, nil)
-	if err != nil {
-		svr.logger.Err(fmt.Sprintln("updating sub interface config failed",
-			"Error:", err))
-	}
-	return
-}
-*/

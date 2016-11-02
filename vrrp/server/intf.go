@@ -42,11 +42,11 @@ type VrrpInterface struct {
 	Fsm    *fsm.FSM           // Vrrp fsm information
 }
 
-func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.BaseIpInfo) { //, stCh chan *IntfState) {
+func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) {
 	intf.Config = cfg
 	intf.L3 = l3Info
 	// Init fsm
-	intf.Fsm = fsm.InitFsm(intf.Config, l3Info)
+	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh)
 }
 
 func (intf *VrrpInterface) StartFsm() {
@@ -59,4 +59,12 @@ func (intf *VrrpInterface) UpdateStateInfo() {
 
 func (intf *VrrpInterface) StopFsm() {
 
+}
+
+func (intf *VrrpInterface) GetVMac() string {
+	return intf.Fsm.VirtualRouterMACAddress
+}
+
+func (intf *VrrpInterface) GetVirtualIpUpdateInfo() (string, string, string) {
+	return intf.L3.IntfRef, intf.Config.VirtualIPAddr, intf.Fsm.VirtualRouterMACAddress
 }

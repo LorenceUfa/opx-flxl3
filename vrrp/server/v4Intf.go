@@ -33,7 +33,6 @@ type V4Intf struct {
 
 func (intf *V4Intf) Init(obj *config.BaseIpInfo) {
 	ipInfo := intf.Cfg.Info
-	//if !exists {
 	ipInfo.IntfRef = obj.IntfRef
 	ipInfo.IfIndex = obj.IfIndex
 	ipInfo.OperState = obj.OperState

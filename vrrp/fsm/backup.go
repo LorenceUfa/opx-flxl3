@@ -31,8 +31,8 @@ import (
 func (f *FSM) TransitionToBackup(advInt int32) {
 	debug.Logger.Debug(FSM_PREFIX, "advertisement timer to be used in backup state for",
 		"calculating master down timer is ", f.Config.AdvertisementInterval)
-	// @TODO: Bring Down Sub-Interface
-	//	svr.VrrpUpdateSubIntf(gblInfo, false /*configure or set*/)
+	// Bring Down Sub-Interface
+	f.UpdateVirtualIP(false /*enable*/)
 
 	// Re-Calculate Down timer value
 	f.CalculateDownValue(advInt)

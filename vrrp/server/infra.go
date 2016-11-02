@@ -131,6 +131,7 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
 	}
+	// @TODO: validate the ip address for v4 and v6
 	return true, nil
 }
 
@@ -171,6 +172,31 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 	return false, errors.New("Invalid Operation received for Vrrp Interface Config")
 }
 
+/* During Create of Virtual Interface Enable should always be set to false... when
+ * vrrp interface becomes master it will request for the interface to be in up state
+ * Input: (vrrp interface config, virtual mac)
+ */
+func (svr *VrrpServer) CreateVirtualIntf(cfg *config.IntfCfg, vMac string) {
+	switch cfg.Version {
+	case config.VERSION2:
+		svr.SwitchPlugin.CreateVirtualIPv4Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
+	case config.VERSION3:
+		svr.SwitchPlugin.CreateVirtualIPv6Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
+	}
+}
+
+/* Update Virtual Interface by changing the state as requested
+ * Input: (intfRef, virtual ip address, macAddress, enable)
+ */
+func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
+	switch virtualIpInfo.Version {
+	case config.VERSION2:
+		svr.SwitchPlugin.UpdateVirtualIPv4Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
+	case config.VERSION3:
+		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
+	}
+}
+
 /*
  *  Handling Vrrp Interface Configuration
  */
@@ -202,17 +228,14 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		}
 	}
 	// if entry exists then only you should get information from DB otherwise it should be nothing
+	// Information collected from DB is L3 interface ip address and operation state
 	if exists {
 		ipIntf.GetObjFromDb(l3Info)
 	}
-	intf.InitVrrpIntf(cfg, l3Info)
-	if l3Info.OperState == config.STATE_UP {
-		// spawn go routine for fsm only if operstate is UP
-		intf.StartFsm()
-	}
+	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
 	svr.Intf[key] = intf
 	ipIntf.SetVrrpIntfKey(&key)
-	// @TODO: NEED TO ADD PRE - PROCESSOR SUB INTERFACE OBJECT
+	svr.CreateVirtualIntf(cfg, intf.GetVMac())
 }
 
 func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
@@ -293,8 +316,6 @@ func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 	svr.Intf[*key] = intf
 }
 
-// @TODO: you might get create ip notification after create vrrp need to handle that case
-// @TODO: need to start FSM for state up notification if vrrp is configured
 func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 	switch msg.MsgType {
 	case config.IP_MSG_CREATE:
@@ -311,6 +332,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 			}
 		}
 	case config.IP_MSG_DELETE:
+		// @TODO: need to stop fsm
 		switch msg.IpType {
 		case syscall.AF_INET:
 			v4, exists := svr.V4[msg.IfIndex]
