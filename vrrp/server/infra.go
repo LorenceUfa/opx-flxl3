@@ -247,7 +247,7 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	}
 }
 
-func (svr *VrrpServer) HandleIpStateUp(msg *config.BaseIpInfo) {
+func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 	var ipIntf IPIntf
 	var exists bool
 
@@ -277,29 +277,20 @@ func (svr *VrrpServer) HandleIpStateUp(msg *config.BaseIpInfo) {
 		debug.Logger.Warning("No vrrp interface attached to ip interface:", ipIntf)
 		return
 	}
-	/*
-		intf, exists := svr.Intf[key]
-		if !exists {
-			debug.Logger.Warn("No Vrrp Interface configured and hence nothing to do")
-		}
-	*/
-
-}
-
-func (svr *VrrpServer) HandleIpStateDown(ipInfo *config.BaseIpInfo) {
-	//var ipIntf IPIntf
-}
-
-func (svr *VrrpServer) HandleIpStateChange(ipInfo *config.BaseIpInfo) {
-	switch ipInfo.OperState {
+	intf, exists := svr.Intf[*key]
+	if !exists {
+		debug.Logger.Warning("No Vrrp Interface configured and hence nothing to do")
+		return
+	}
+	switch msg.OperState {
 	case config.STATE_UP:
 		// start fsm now
-		svr.HandleIpStateUp(ipInfo)
+		intf.StartFsm()
 	case config.STATE_DOWN:
 		// stop fsm
-		svr.HandleIpStateDown(ipInfo)
+		intf.StopFsm()
 	}
-
+	svr.Intf[*key] = intf
 }
 
 // @TODO: you might get create ip notification after create vrrp need to handle that case

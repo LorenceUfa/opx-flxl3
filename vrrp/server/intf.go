@@ -56,3 +56,7 @@ func (intf *VrrpInterface) StartFsm() {
 func (intf *VrrpInterface) UpdateStateInfo() {
 
 }
+
+func (intf *VrrpInterface) StopFsm() {
+
+}
