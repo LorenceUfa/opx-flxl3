@@ -28,13 +28,24 @@ import (
 	"ospfv2d"
 )
 
-func (rpcHdl *rpcServiceHandler) GetOspfv2LsdbState(Type int8, LsId, AreaId, AdvRouterId string) (*ospfv2d.Ospfv2LsdbState, error) {
+func (rpcHdl *rpcServiceHandler) GetOspfv2LsdbState(LSType string, LsId, AreaId, AdvRouterId string) (*ospfv2d.Ospfv2LsdbState, error) {
 	var convObj *ospfv2d.Ospfv2LsdbState
-	//TODO
-	lsType := uint8(0)
-	lsId := uint32(0)
-	areaId := uint32(0)
-	advRouterId := uint32(0)
+	lsType, err := convertFromRPCFmtLSType(LSType)
+	if err != nil {
+		return nil, err
+	}
+	lsId, err := convertDotNotationToUint32(LsId)
+	if err != nil {
+		return nil, err
+	}
+	areaId, err := convertDotNotationToUint32(AreaId)
+	if err != nil {
+		return nil, err
+	}
+	advRouterId, err := convertDotNotationToUint32(AdvRouterId)
+	if err != nil {
+		return nil, err
+	}
 	obj, err := api.GetOspfv2LsdbState(lsType, lsId, areaId, advRouterId)
 	if err == nil {
 		convObj = convertToRPCFmtOspfv2LsdbState(obj)

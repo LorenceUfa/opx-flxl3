@@ -29,29 +29,43 @@ import (
 )
 
 func (rpcHdl *rpcServiceHandler) CreateOspfv2Area(config *ospfv2d.Ospfv2Area) (bool, error) {
-	cfg := convertFromRPCFmtOspfv2Area(config)
+	cfg, err := convertFromRPCFmtOspfv2Area(config)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.CreateOspfv2Area(cfg)
 	return rv, err
 
 }
 
 func (rpcHdl *rpcServiceHandler) UpdateOspfv2Area(oldConfig, newConfig *ospfv2d.Ospfv2Area, attrset []bool, op []*ospfv2d.PatchOpInfo) (bool, error) {
-	convOldCfg := convertFromRPCFmtOspfv2Area(oldConfig)
-	convNewCfg := convertFromRPCFmtOspfv2Area(newConfig)
+	convOldCfg, err := convertFromRPCFmtOspfv2Area(oldConfig)
+	if err != nil {
+		return false, err
+	}
+	convNewCfg, err := convertFromRPCFmtOspfv2Area(newConfig)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.UpdateOspfv2Area(convOldCfg, convNewCfg, attrset)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) DeleteOspfv2Area(config *ospfv2d.Ospfv2Area) (bool, error) {
-	cfg := convertFromRPCFmtOspfv2Area(config)
+	cfg, err := convertFromRPCFmtOspfv2Area(config)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.DeleteOspfv2Area(cfg)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) GetOspfv2AreaState(AreaId string) (*ospfv2d.Ospfv2AreaState, error) {
 	var convObj *ospfv2d.Ospfv2AreaState
-	//TODO
-	areaId := uint32(0)
+	areaId, err := convertDotNotationToUint32(AreaId)
+	if err != nil {
+		return nil, err
+	}
 	obj, err := api.GetOspfv2AreaState(areaId)
 	if err == nil {
 		convObj = convertToRPCFmtOspfv2AreaState(obj)

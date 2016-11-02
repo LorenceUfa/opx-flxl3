@@ -24,31 +24,48 @@
 package rpc
 
 import (
+	"errors"
 	"l3/ospfv2/api"
 	"ospfv2d"
 )
 
 func (rpcHdl *rpcServiceHandler) CreateOspfv2Global(config *ospfv2d.Ospfv2Global) (bool, error) {
-	cfg := convertFromRPCFmtOspfv2Global(config)
+	cfg, err := convertFromRPCFmtOspfv2Global(config)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.CreateOspfv2Global(cfg)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) UpdateOspfv2Global(oldConfig, newConfig *ospfv2d.Ospfv2Global, attrset []bool, op []*ospfv2d.PatchOpInfo) (bool, error) {
-	convOldCfg := convertFromRPCFmtOspfv2Global(oldConfig)
-	convNewCfg := convertFromRPCFmtOspfv2Global(newConfig)
+	convOldCfg, err := convertFromRPCFmtOspfv2Global(oldConfig)
+	if err != nil {
+		return false, err
+	}
+	convNewCfg, err := convertFromRPCFmtOspfv2Global(newConfig)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.UpdateOspfv2Global(convOldCfg, convNewCfg, attrset)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) DeleteOspfv2Global(config *ospfv2d.Ospfv2Global) (bool, error) {
-	cfg := convertFromRPCFmtOspfv2Global(config)
+	cfg, err := convertFromRPCFmtOspfv2Global(config)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.DeleteOspfv2Global(cfg)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) GetOspfv2GlobalState(Vrf string) (*ospfv2d.Ospfv2GlobalState, error) {
 	var convObj *ospfv2d.Ospfv2GlobalState
+	// Need to be updated when we support Vrf
+	if Vrf != "Default" {
+		return nil, errors.New("Unsupported Vrf")
+	}
 	obj, err := api.GetOspfv2GlobalState(Vrf)
 	if err == nil {
 		convObj = convertToRPCFmtOspfv2GlobalState(obj)

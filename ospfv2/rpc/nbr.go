@@ -24,15 +24,18 @@
 package rpc
 
 import (
+	"errors"
 	"l3/ospfv2/api"
 	"ospfv2d"
 )
 
 func (rpcHdl *rpcServiceHandler) GetOspfv2NbrState(IpAddr string, AddressLessIfIdx int32) (*ospfv2d.Ospfv2NbrState, error) {
 	var convObj *ospfv2d.Ospfv2NbrState
-	//TODO
-	ipAddr := uint32(0)
-	addrLessIfIdx := uint32(0)
+	ipAddr, err := convertDotNotationToUint32(IpAddr)
+	if err != nil {
+		return nil, errors.New("Invalid IP Address")
+	}
+	addrLessIfIdx := uint32(AddressLessIfIdx)
 	obj, err := api.GetOspfv2NbrState(ipAddr, addrLessIfIdx)
 	if err == nil {
 		convObj = convertToRPCFmtOspfv2NbrState(obj)

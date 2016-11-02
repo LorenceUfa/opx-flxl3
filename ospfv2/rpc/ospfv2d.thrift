@@ -27,7 +27,7 @@ typedef i32 int
 typedef i16 uint16
 struct Ospfv2Area {
 	1 : string AreaId
-	2 : byte AuthType
+	2 : string AuthType
 }
 struct Ospfv2RouteState {
 	1 : string DestId
@@ -68,7 +68,6 @@ struct Ospfv2NbrState {
 	3 : string RtrId
 	4 : i32 Options
 	5 : string State
-	6 : i32 Events
 }
 struct Ospfv2NbrStateGetInfo {
 	1: int StartIdx
@@ -98,7 +97,7 @@ struct Ospfv2AreaStateGetInfo {
 	5: list<Ospfv2AreaState> Ospfv2AreaStateList
 }
 struct Ospfv2LsdbState {
-	1 : byte Type
+	1 : string LSType
 	2 : string LSId
 	3 : string AreaId
 	4 : string AdvRouterId
@@ -120,8 +119,9 @@ struct Ospfv2LsaKey {
 	3 : string AdvRouter
 }
 struct Ospfv2GlobalState {
-	1 : string RouterId
-	2 : bool AreaBdrRtrStatus
+	1 : string Vrf
+	2 : string RouterId
+	3 : bool AreaBdrRtrStatus
 }
 struct Ospfv2GlobalStateGetInfo {
 	1: int StartIdx
@@ -138,9 +138,7 @@ struct Ospfv2IntfState {
 	5 : string DesignatedRouterId
 	6 : string BackupDesignatedRouter
 	7 : string BackupDesignatedRouterId
-	8 : i32 Events
-	9 : i32 LsaCount
-	10 : i32 NumNbrs
+	8 : i32 NumNbrs
 }
 struct Ospfv2IntfStateGetInfo {
 	1: int StartIdx
@@ -185,9 +183,9 @@ service OSPFV2DServices {
 	Ospfv2AreaStateGetInfo GetBulkOspfv2AreaState(1: int fromIndex, 2: int count);
 	Ospfv2AreaState GetOspfv2AreaState(1: string AreaId);
 	Ospfv2LsdbStateGetInfo GetBulkOspfv2LsdbState(1: int fromIndex, 2: int count);
-	Ospfv2LsdbState GetOspfv2LsdbState(1: byte Type, 2: string LSId, 3: string AreaId, 4: string AdvRouterId);
+	Ospfv2LsdbState GetOspfv2LsdbState(1: string LSType, 2: string LSId, 3: string AreaId, 4: string AdvRouterId);
 	Ospfv2GlobalStateGetInfo GetBulkOspfv2GlobalState(1: int fromIndex, 2: int count);
-	Ospfv2GlobalState GetOspfv2GlobalState(1: string RouterId);
+	Ospfv2GlobalState GetOspfv2GlobalState(1: string Vrf);
 	Ospfv2IntfStateGetInfo GetBulkOspfv2IntfState(1: int fromIndex, 2: int count);
 	Ospfv2IntfState GetOspfv2IntfState(1: string IpAddress, 2: i32 AddressLessIfIdx);
 	bool CreateOspfv2Global(1: Ospfv2Global config);

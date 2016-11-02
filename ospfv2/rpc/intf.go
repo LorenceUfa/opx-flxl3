@@ -24,34 +24,50 @@
 package rpc
 
 import (
+	"errors"
+	"fmt"
 	"l3/ospfv2/api"
 	"ospfv2d"
 )
 
 func (rpcHdl *rpcServiceHandler) CreateOspfv2Intf(config *ospfv2d.Ospfv2Intf) (bool, error) {
-	cfg := convertFromRPCFmtOspfv2Intf(config)
+	cfg, err := convertFromRPCFmtOspfv2Intf(config)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.CreateOspfv2Intf(cfg)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) UpdateOspfv2Intf(oldConfig, newConfig *ospfv2d.Ospfv2Intf, attrset []bool, op []*ospfv2d.PatchOpInfo) (bool, error) {
-	convOldCfg := convertFromRPCFmtOspfv2Intf(oldConfig)
-	convNewCfg := convertFromRPCFmtOspfv2Intf(newConfig)
+	convOldCfg, err := convertFromRPCFmtOspfv2Intf(oldConfig)
+	if err != nil {
+		return false, err
+	}
+	convNewCfg, err := convertFromRPCFmtOspfv2Intf(newConfig)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.UpdateOspfv2Intf(convOldCfg, convNewCfg, attrset)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) DeleteOspfv2Intf(config *ospfv2d.Ospfv2Intf) (bool, error) {
-	cfg := convertFromRPCFmtOspfv2Intf(config)
+	cfg, err := convertFromRPCFmtOspfv2Intf(config)
+	if err != nil {
+		return false, err
+	}
 	rv, err := api.DeleteOspfv2Intf(cfg)
 	return rv, err
 }
 
 func (rpcHdl *rpcServiceHandler) GetOspfv2IntfState(IpAddress string, AddressLessIfIdx int32) (*ospfv2d.Ospfv2IntfState, error) {
 	var convObj *ospfv2d.Ospfv2IntfState
-	//TODO
-	ipAddr := uint32(0)
-	addrLessIfIdx := uint32(0)
+	ipAddr, err := convertDotNotationToUint32(IpAddress)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintln("Invalid IpAddress", err))
+	}
+	addrLessIfIdx := uint32(AddressLessIfIdx)
 	obj, err := api.GetOspfv2IntfState(ipAddr, addrLessIfIdx)
 	if err == nil {
 		convObj = convertToRPCFmtOspfv2IntfState(obj)
