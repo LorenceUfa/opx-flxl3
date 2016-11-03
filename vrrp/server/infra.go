@@ -135,7 +135,7 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
 	}
-	// @TODO: validate the ip address for v4 and v6
+	debug.Logger.Info("Validation of create config:", *cfg, "is success")
 	return true, nil
 }
 

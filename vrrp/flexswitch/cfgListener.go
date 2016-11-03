@@ -61,13 +61,14 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
 		Priority:              cfg.Priority,
-		VirtualIPAddr:         cfg.VirtualIPv4Addr,
+		VirtualIPAddr:         cfg.Address,
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
 		Version:               config.VERSION2,
 		Operation:             config.CREATE,
 	}
+	debug.Logger.Info("Push create cfg:", v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
 	debug.Logger.Info("Thrift request returning for creating vrrp v4 interface config returning:", r, err)
 	return r, err
@@ -78,13 +79,14 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
 		Priority:              newconfig.Priority,
-		VirtualIPAddr:         newconfig.VirtualIPv4Addr,
+		VirtualIPAddr:         newconfig.Address,
 		AdvertisementInterval: newconfig.AdvertisementInterval,
 		PreemptMode:           newconfig.PreemptMode,
 		AcceptMode:            newconfig.AcceptMode,
 		Version:               config.VERSION2,
 		Operation:             config.UPDATE,
 	}
+	debug.Logger.Info("Push update cfg:", v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
 	debug.Logger.Info("Thrift request returning for updating vrrp v4 interface config for:", *origconfig, "to new:", *newconfig, "returning:", r, err)
 	return true, nil
@@ -96,7 +98,7 @@ func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
 		Priority:              cfg.Priority,
-		VirtualIPAddr:         cfg.VirtualIPv4Addr,
+		VirtualIPAddr:         cfg.Address,
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
@@ -114,7 +116,7 @@ func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
 		Priority:              cfg.Priority,
-		VirtualIPAddr:         cfg.VirtualIPv6Addr,
+		VirtualIPAddr:         cfg.Address,
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
@@ -132,7 +134,7 @@ func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
 		Priority:              newconfig.Priority,
-		VirtualIPAddr:         newconfig.VirtualIPv6Addr,
+		VirtualIPAddr:         newconfig.Address,
 		AdvertisementInterval: newconfig.AdvertisementInterval,
 		PreemptMode:           newconfig.PreemptMode,
 		AcceptMode:            newconfig.AcceptMode,
@@ -150,7 +152,7 @@ func (h *ConfigHandler) DeleteVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
 		Priority:              cfg.Priority,
-		VirtualIPAddr:         cfg.VirtualIPv6Addr,
+		VirtualIPAddr:         cfg.Address,
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
