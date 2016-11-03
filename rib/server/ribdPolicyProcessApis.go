@@ -143,8 +143,8 @@ func (m RIBDServer) ProcessPolicyConditionConfigCreate(cfg *ribd.PolicyCondition
 	newPolicy := policy.PolicyConditionConfig{Name: cfg.Name,
 		ConditionType:                       cfg.ConditionType,
 		MatchProtocolConditionInfo:          cfg.Protocol,
-		MatchCommunityConditionInfo:         cfg.MatchCommunity,
-		MatchExtendedCommunityConditionInfo: cfg.MatchExtendedCommunity,
+		MatchCommunityConditionInfo:         cfg.Community,
+		MatchExtendedCommunityConditionInfo: cfg.ExtendedCommunity,
 	}
 	matchPrefix := policy.PolicyPrefix{IpPrefix: cfg.IpPrefix, MasklengthRange: cfg.MaskLengthRange}
 	newPolicy.MatchDstIpPrefixConditionInfo = policy.PolicyDstIpMatchPrefixSetCondition{Prefix: matchPrefix, PrefixSet: cfg.PrefixSet}
