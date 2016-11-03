@@ -385,7 +385,7 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 		Vni:  uint32(vni),
 	}
 	if v, ok := vxlan.GetVtepDB()[key]; ok {
-		if v.Enable {
+		if v.Enable && v.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == vxlan.VxlanVtepStateStart {
 			vis.OperState = "UP"
 		} else {
 			vis.OperState = "DOWN"
@@ -404,8 +404,6 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 		}
 		vis.DstIp = v.DstIp.String()
 		vis.SrcIp = v.SrcIp.String()
-		vis.DstMac = v.DstMac.String()
-		vis.SrcMac = v.SrcMac.String()
 		vis.VlanId = int16(v.VlanId)
 		vis.Mtu = int32(v.MTU)
 		vis.RxSwPkts = int64(v.GetStats().Rxpkts)
@@ -454,7 +452,7 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 		} else {
 
 			nextVxlanVtepState = &vxlanVtepStateList[validCount]
-			if v.Enable {
+			if v.Enable && v.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == vxlan.VxlanVtepStateStart {
 				nextVxlanVtepState.OperState = "UP"
 			} else {
 				nextVxlanVtepState.OperState = "DOWN"
@@ -473,8 +471,6 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 			}
 			nextVxlanVtepState.DstIp = v.DstIp.String()
 			nextVxlanVtepState.SrcIp = v.SrcIp.String()
-			nextVxlanVtepState.DstMac = v.DstMac.String()
-			nextVxlanVtepState.SrcMac = v.SrcMac.String()
 			nextVxlanVtepState.VlanId = int16(v.VlanId)
 			nextVxlanVtepState.Mtu = int32(v.MTU)
 			nextVxlanVtepState.RxSwPkts = int64(v.GetStats().Rxpkts)
@@ -619,7 +615,7 @@ func (v *VXLANDServiceHandler) ReadConfigFromDB(prevState int) error {
 			return err
 		}
 		vxlan.VxlanGlobalStateSet(vxlan.VXLAN_GLOBAL_DISABLE)
-	} else if prevState == vxlan.VXLAN_GLOBAL_DISABLE &&
+	} else if prevState != vxlan.VXLAN_GLOBAL_ENABLE &&
 		currState == vxlan.VXLAN_GLOBAL_ENABLE {
 
 		if err := v.HandleDbReadVxlanInstance(dbHdl, false); err != nil {
