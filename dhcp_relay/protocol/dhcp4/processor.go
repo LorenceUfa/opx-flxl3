@@ -681,7 +681,7 @@ func (pProc *Processor) DhcpRelayAgentSendPacket(inIfIdx int, inIfName string,
 		if !ok {
 			return
 		}
-		clientMacAddr := DhcpRelayAgentPacket(inReq).GetCHAddr().String()
+		clientMacAddr := inReq.GetCHAddr().String()
 		intfState := pProc.initIntfState(inIfName)
 		clientState := pProc.initClientState(clientMacAddr)
 		pProc.PeerAddrIntfMap[clientMacAddr] = inIfName
@@ -697,6 +697,10 @@ func (pProc *Processor) DhcpRelayAgentSendPacket(inIfIdx int, inIfName string,
 				inReq.GetCHAddr().String() + " not present")
 			return
 		}
+		clientMacAddr := inReq.GetCHAddr().String()
+		intfState := pProc.initIntfState(inIfName)
+		clientState := pProc.initClientState(clientMacAddr)
+		pProc.setDownstreamInState(mType, inReq, clientState, intfState)
 		pProc.DhcpRelayAgentSendPacketToDhcpClient(inReq,
 			outIfName, reqOptions, mType, srcAddr)
 	default:

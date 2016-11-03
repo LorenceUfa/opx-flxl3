@@ -65,6 +65,7 @@ func GetVxlanPortDbEntry(ifname string) *VxlanPort {
 func ProcessLinkUpCb(ifindex int32) {
 
 	ifname := GetIfNameFromIfIndex(ifindex)
+	logger.Info("Processing Link up for ifindex/name", ifindex, ifname)
 	if port, ok := portDB[ifname]; ok {
 		port.enablePortSenderListener()
 		port.createVxlanUdpFilter()
@@ -74,6 +75,7 @@ func ProcessLinkUpCb(ifindex int32) {
 func ProcessLinkDownCb(ifindex int32) {
 
 	ifname := GetIfNameFromIfIndex(ifindex)
+	logger.Info("Processing Link down for ifindex/name", ifindex, ifname)
 	if port, ok := portDB[ifname]; ok {
 		port.disablePortSenderListener()
 	}
@@ -178,6 +180,7 @@ func (p *VxlanPort) IsMyVtepPkt(packet gopacket.Packet) (*VtepDbEntry, bool) {
 
 func (p *VxlanPort) disablePortSenderListener() error {
 	if p.handle != nil {
+		logger.Info("Disabling VXLAN LISTENER handle for intf", p.IfName)
 		p.handle.Close()
 		p.handle = nil
 	}
