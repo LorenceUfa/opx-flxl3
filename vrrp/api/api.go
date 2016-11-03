@@ -61,7 +61,7 @@ func Init(svr *server.VrrpServer) {
 
 func VrrpIntfConfig(cfg *config.IntfCfg) (bool, error) {
 	rv, err := vrrpApi.server.ValidConfiguration(cfg)
-	if rv != false {
+	if rv == false {
 		return rv, err
 	}
 	vrrpApi.server.CfgCh <- cfg

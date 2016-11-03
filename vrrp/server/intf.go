@@ -33,7 +33,7 @@ type IPIntf interface {
 	Update(*config.BaseIpInfo)
 	DeInit(*config.BaseIpInfo)
 	GetObjFromDb(*config.BaseIpInfo)
-	SetVrrpIntfKey(*KeyInfo)
+	SetVrrpIntfKey(KeyInfo)
 	GetVrrpIntfKey() *KeyInfo
 }
 

@@ -164,7 +164,6 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 		return false, errors.New(fmt.Sprintln(VRRP_INVALID_VRID, cfg.VRID))
 	}
 	switch cfg.Operation {
-	// @TODO: jgheewala need to handle verification during the specific operations
 	case config.CREATE:
 		return svr.ValidateCreateConfig(cfg)
 	case config.UPDATE:
@@ -249,7 +248,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		intf.StartFsm()
 	}
 	svr.Intf[key] = intf
-	ipIntf.SetVrrpIntfKey(&key)
+	ipIntf.SetVrrpIntfKey(key)
 	debug.Logger.Info("Fsm is initialized for the interface, now calling create virtual interface")
 	svr.CreateVirtualIntf(cfg, intf.GetVMac())
 }
@@ -267,6 +266,7 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *config.IntfCfg) {
 }
 
 func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
+	debug.Logger.Info("svr handling vrrp interface configuration:", *cfg)
 	switch cfg.Operation {
 	case config.CREATE:
 		svr.HandlerVrrpIntfCreateConfig(cfg)
@@ -373,6 +373,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 				v4 = &V4Intf{}
 				v4.Init(msg)
 				svr.V4[msg.IfIndex] = v4
+				svr.V4IntfRefToIfIndex[msg.IntfRef] = msg.IfIndex
 			}
 		case syscall.AF_INET6:
 			v6, exists := svr.V6[msg.IfIndex]
@@ -380,6 +381,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 				v6 = &V6Intf{}
 				v6.Init(msg)
 				svr.V6[msg.IfIndex] = v6
+				svr.V6IntfRefToIfIndex[msg.IntfRef] = msg.IfIndex
 			}
 		}
 	case config.IP_MSG_DELETE:

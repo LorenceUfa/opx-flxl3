@@ -53,8 +53,8 @@ func (intf *V4Intf) GetObjFromDb(l3Info *config.BaseIpInfo) {
 	l3Info.OperState = intf.Cfg.Info.OperState
 }
 
-func (intf *V4Intf) SetVrrpIntfKey(key *KeyInfo) {
-	intf.Vrrpkey = key
+func (intf *V4Intf) SetVrrpIntfKey(key KeyInfo) {
+	intf.Vrrpkey = &key
 }
 
 func (intf *V4Intf) GetVrrpIntfKey() *KeyInfo {

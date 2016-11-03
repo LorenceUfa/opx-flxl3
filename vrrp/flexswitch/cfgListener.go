@@ -68,7 +68,7 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		Version:               config.VERSION2,
 		Operation:             config.CREATE,
 	}
-	debug.Logger.Info("Push create cfg:", v4Cfg, "to api layer")
+	debug.Logger.Info("Push create cfg:", *v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
 	debug.Logger.Info("Thrift request returning for creating vrrp v4 interface config returning:", r, err)
 	return r, err
@@ -86,7 +86,7 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 		Version:               config.VERSION2,
 		Operation:             config.UPDATE,
 	}
-	debug.Logger.Info("Push update cfg:", v4Cfg, "to api layer")
+	debug.Logger.Info("Push update cfg:", *v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
 	debug.Logger.Info("Thrift request returning for updating vrrp v4 interface config for:", *origconfig, "to new:", *newconfig, "returning:", r, err)
 	return true, nil
@@ -105,6 +105,7 @@ func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		Version:               config.VERSION2,
 		Operation:             config.DELETE,
 	}
+	debug.Logger.Info("Push delete cfg:", *v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
 	debug.Logger.Info("Thrift request returning for deleting vrrp v4 interface config returning:", r, err)
 	return r, err
