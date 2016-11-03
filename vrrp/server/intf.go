@@ -44,6 +44,7 @@ type VrrpInterface struct {
 }
 
 func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) {
+	debug.Logger.Info("Initializing interface with config:", *cfg, "base ip interface:", *l3Info)
 	intf.Config = cfg
 	intf.L3 = l3Info
 	// Init fsm

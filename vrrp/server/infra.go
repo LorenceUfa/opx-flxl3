@@ -205,12 +205,14 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
  *  Handling Vrrp Interface Configuration
  */
 func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
+	debug.Logger.Info("Received vrrp interface config:", *cfg)
 	key := KeyInfo{cfg.IntfRef, cfg.VRID, cfg.Version}
 	intf, exists := svr.Intf[key]
 	if exists {
 		debug.Logger.Err("During Create we should not have any entry in the DB")
 		return
 	}
+	debug.Logger.Debug("Constructed Key for vrrp interface is:", key)
 	l3Info := &config.BaseIpInfo{}
 	l3Info.IntfRef = cfg.IntfRef
 	var ipIntf IPIntf
@@ -244,6 +246,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	}
 	svr.Intf[key] = intf
 	ipIntf.SetVrrpIntfKey(&key)
+	debug.Logger.Info("Fsm is initialized for the interface, now calling create virtual interface")
 	svr.CreateVirtualIntf(cfg, intf.GetVMac())
 }
 

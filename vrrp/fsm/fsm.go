@@ -33,30 +33,6 @@ import (
 	"time"
 )
 
-// vrrp states
-const (
-	VRRP_UNINITIALIZE_STATE = iota
-	VRRP_INITIALIZE_STATE
-	VRRP_BACKUP_STATE
-	VRRP_MASTER_STATE
-)
-
-const (
-	VRRP_MASTER_PRIORITY         = 255
-	VRRP_IGNORE_PRIORITY         = 65535
-	VRRP_MASTER_DOWN_PRIORITY    = 0
-	VRRP_INITIALIZE_STATE_STRING = "Initialize"
-	VRRP_BACKUP_STATE_STRING     = "Backup"
-	VRRP_MASTER_STATE_STRING     = "Master"
-	VRRP_SNAPSHOT_LEN            = 1024
-	VRRP_PROMISCOUS_MODE         = false
-	VRRP_TIMEOUT                 = 1 // in seconds
-	VRRP_BPF_FILTER              = "ip host " + packet.VRRP_GROUP_IP
-	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
-
-	FSM_PREFIX = "FSM ------> "
-)
-
 /*
 	0                   1                   2                   3
 	0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -129,6 +105,7 @@ type FSM struct {
 }
 
 func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) *FSM {
+	debug.Logger.Info("Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
 	f := &FSM{}
 	f.Config = cfg
 	f.StInfo = &config.State{}
@@ -199,6 +176,7 @@ func (f *FSM) InitPacketListener() error {
 	var err error
 	pHandle := f.pHandle
 	ifName := f.Config.IntfRef
+	debug.Logger.Debug("InitPacketListener for interface:", ifName)
 	if pHandle == nil {
 		pHandle, err = pcap.OpenLive(ifName, VRRP_SNAPSHOT_LEN, VRRP_PROMISCOUS_MODE, VRRP_TIMEOUT)
 		if err != nil {
@@ -211,7 +189,7 @@ func (f *FSM) InitPacketListener() error {
 			debug.Logger.Err("Setting filter:", VRRP_BPF_FILTER, "for l3 interface:", ifName, "failed with error:", err)
 			return err
 		}
-
+		debug.Logger.Debug("Pcap created go start Receiving Vrrp Packets")
 		// if everything is success then only start receiving packets
 		go f.ReceiveVrrpPackets()
 	}
@@ -372,3 +350,27 @@ func (f *FSM) StartFsm() {
 		}
 	}
 }
+
+// vrrp states
+const (
+	VRRP_UNINITIALIZE_STATE = iota
+	VRRP_INITIALIZE_STATE
+	VRRP_BACKUP_STATE
+	VRRP_MASTER_STATE
+)
+
+const (
+	VRRP_MASTER_PRIORITY         = 255
+	VRRP_IGNORE_PRIORITY         = 65535
+	VRRP_MASTER_DOWN_PRIORITY    = 0
+	VRRP_INITIALIZE_STATE_STRING = "Initialize"
+	VRRP_BACKUP_STATE_STRING     = "Backup"
+	VRRP_MASTER_STATE_STRING     = "Master"
+	VRRP_SNAPSHOT_LEN            = 1024
+	VRRP_PROMISCOUS_MODE         = false
+	VRRP_TIMEOUT                 = 1 // in seconds
+	VRRP_BPF_FILTER              = "ip host " + packet.VRRP_GROUP_IP
+	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
+
+	FSM_PREFIX = "FSM ------> "
+)
