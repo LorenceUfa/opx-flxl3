@@ -24,9 +24,9 @@
 package main
 
 import (
-	//	"l3/ospfv2/api"
+	"l3/ospfv2/api"
 	"l3/ospfv2/rpc"
-	// "l3/ospfv2/server"
+	"l3/ospfv2/server"
 	"strconv"
 	"utils/dmnBase"
 )
@@ -37,7 +37,7 @@ const (
 
 type ospfv2Daemon struct {
 	*dmnBase.FSBaseDmn
-	//server    *server.OSPFV2Server
+	server    *server.OSPFV2Server
 	rpcServer *rpc.RPCServer
 }
 
@@ -51,23 +51,29 @@ func main() {
 		panic("OSPF v2 Daemon: Base Daemon Initialization failed")
 	}
 
-	/*
-		// Get server handle and start server
-		dmn.server, err = server.NewOspfv2Server(dmn.FSBaseDmn.Logger)
-		if err != nil {
-			panic("Unable to initilize ospfv2 Daemon")
-		}
-		go dmn.server.StartOspfv2Server()
+	initParams := server.InitParams{
+		Logger:    dmn.FSBaseDmn.Logger,
+		DbHdl:     dmn.DbHdl,
+		ParamsDir: dmn.ParamsDir,
+		DmnName:   DMN_NAME,
+	}
 
-		//Initialize API layer
-		api.InitApiLayer(dmn.server)
+	// Get server handle and start server
+	var err error
+	dmn.server, err = server.NewOspfv2Server(initParams)
+	if err != nil {
+		panic("Unable to initilize ospfv2 Daemon")
+	}
+	go dmn.server.StartOspfv2Server()
 
-		// Start Keep Alive for watchdog
-		dmn.StartKeepAlive()
+	//Initialize API layer
+	api.InitApiLayer(dmn.server)
 
-		_ = <-dmn.server.InitCompleteCh
+	// Start Keep Alive for watchdog
+	dmn.StartKeepAlive()
 
-	*/
+	_ = <-dmn.server.InitCompleteCh
+
 	//Get RPC server handle
 	var rpcServerAddr string
 	for _, value := range dmn.FSBaseDmn.ClientsList {

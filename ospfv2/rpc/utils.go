@@ -230,6 +230,7 @@ func convertFromRPCFmtLSType(LSType string) (uint8, error) {
 	return lsType, nil
 }
 
+/*
 func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv2LsdbState {
 	var lsType string
 	switch obj.LSType {
@@ -258,6 +259,7 @@ func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv
 		Advertisement: obj.Advertisement,
 	}
 }
+*/
 
 func convertToRPCFmtOspfv2NbrState(obj *objects.Ospfv2NbrState) *ospfv2d.Ospfv2NbrState {
 	ipAddr := convertUint32ToDotNotation(obj.IpAddr)
@@ -292,6 +294,8 @@ func convertToRPCFmtOspfv2NbrState(obj *objects.Ospfv2NbrState) *ospfv2d.Ospfv2N
 	}
 }
 
+/*
 func convertToRPCFmtOspfv2RouteState(obj *objects.Ospfv2RouteState) *ospfv2d.Ospfv2RouteState {
 	return &ospfv2d.Ospfv2RouteState{}
 }
+*/

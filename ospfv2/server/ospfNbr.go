@@ -21,43 +21,18 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package rpc
+package server
 
 import (
-	"errors"
-	//"l3/ospfv2/api"
-	"ospfv2d"
+	"l3/ospfv2/objects"
 )
 
-func (rpcHdl *rpcServiceHandler) GetOspfv2RouteState(DestId string, AddrMask string, DestType string) (*ospfv2d.Ospfv2RouteState, error) {
-	/*
-		var convObj *ospfv2d.Ospfv2RouteState
-		//TODO
-		destId := uint32(0)
-		addrMask := uint32(0)
-		destType := uint32(0)
-		obj, err := api.GetOspfv2RouteState(destId, addrMask, destType)
-		if err == nil {
-			convObj = convertToRPCFmtOspfv2RouteState(obj)
-		}
-		return convObj, err
-	*/
-	return nil, errors.New("This call should not come to Ospfv2 Daemon")
+func (server *OSPFV2Server) getNbrState(ipAddr, addressLessIfIdx uint32) (*objects.Ospfv2NbrState, error) {
+	var retObj objects.Ospfv2NbrState
+	return &retObj, nil
 }
 
-func (rpcHdl *rpcServiceHandler) GetBulkOspfv2RouteState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2RouteStateGetInfo, error) {
-	/*
-		var getBulkInfo ospfv2d.Ospfv2RouteStateGetInfo
-		info, err := api.GetBulkOspfv2RouteState(int(fromIdx), int(count))
-		getBulkInfo.StartIdx = fromIdx
-		getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
-		getBulkInfo.More = info.More
-		getBulkInfo.Count = ospfv2d.Int(len(info.List))
-		for idx := 0; idx < len(info.List); idx++ {
-			getBulkInfo.Ospfv2RouteStateList = append(getBulkInfo.Ospfv2RouteStateList,
-				convertToRPCFmtOspfv2RouteState(info.List[idx]))
-		}
-		return &getBulkInfo, err
-	*/
-	return nil, errors.New("This call should not come to Ospfv2 Daemon")
+func (server *OSPFV2Server) getBulkNbrState(fromIdx, cnt int) (*objects.Ospfv2NbrStateGetInfo, error) {
+	var retObj objects.Ospfv2NbrStateGetInfo
+	return &retObj, nil
 }
