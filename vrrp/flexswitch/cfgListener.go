@@ -73,7 +73,7 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 	return r, err
 }
 func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig *vrrpd.VrrpV4Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
-	debug.Logger.Info("Thrift request received for updating vrrp v4 interface config for:", origconfig, "to new:", newconfig)
+	debug.Logger.Info("Thrift request received for updating vrrp v4 interface config for:", *origconfig, "to new:", *newconfig)
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -86,8 +86,7 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 		Operation:             config.UPDATE,
 	}
 	r, err = api.VrrpIntfConfig(v4Cfg)
-	debug.Logger.Info("Thrift request returning for updating vrrp v4 interface config for:", origconfig, "to new:",
-		newconfig, "returning:", r, err)
+	debug.Logger.Info("Thrift request returning for updating vrrp v4 interface config for:", *origconfig, "to new:", *newconfig, "returning:", r, err)
 	return true, nil
 }
 
@@ -128,7 +127,7 @@ func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 }
 
 func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig *vrrpd.VrrpV6Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
-	debug.Logger.Info("Thrift request received for updating vrrp v6 interface config for:", origconfig, "to new:", newconfig)
+	debug.Logger.Info("Thrift request received for updating vrrp v6 interface config for:", *origconfig, "to new:", *newconfig)
 	v6Cfg := &config.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -141,8 +140,7 @@ func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig
 		Operation:             config.UPDATE,
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
-	debug.Logger.Info("Thrift request returning for updating vrrp v6 interface config for:", origconfig, "to new:",
-		newconfig, "returning:", r, err)
+	debug.Logger.Info("Thrift request returning for updating vrrp v6 interface config for:", *origconfig, "to new:", *newconfig, "returning:", r, err)
 	return true, nil
 }
 

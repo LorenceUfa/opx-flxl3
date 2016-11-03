@@ -79,7 +79,11 @@ type FsmStateInfo struct {
 	PktInfo *packet.PacketInfo
 }
 
+/* Handle update in vrrp interface configuration + operstate change config
+ */
 type IntfEvent struct {
+	Event     uint8
+	Config    *config.IntfCfg
 	OperState string
 }
 
@@ -102,10 +106,11 @@ type FSM struct {
 	txPktCh                 chan *packet.PacketInfo
 	IntfEventCh             chan *IntfEvent
 	vipCh                   chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
+	running                 bool
 }
 
 func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) *FSM {
-	debug.Logger.Info("Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
+	debug.Logger.Info(FSM_PREFIX, "Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
 	f := &FSM{}
 	f.Config = cfg
 	f.StInfo = &config.State{}
@@ -118,7 +123,6 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 	f.txPktCh = make(chan *packet.PacketInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
 	f.PktInfo = packet.Init()
-	f.InitPacketListener()
 	f.State = VRRP_INITIALIZE_STATE
 	return f
 }
@@ -144,6 +148,10 @@ func getStateName(state uint8) (rv string) {
 	}
 
 	return rv
+}
+
+func (f *FSM) IsRunning() bool {
+	return f.running
 }
 
 func (f *FSM) UpdateRxStateInformation(pktInfo *packet.PacketInfo) {
@@ -176,8 +184,8 @@ func (f *FSM) InitPacketListener() error {
 	var err error
 	pHandle := f.pHandle
 	ifName := f.Config.IntfRef
-	debug.Logger.Debug("InitPacketListener for interface:", ifName)
 	if pHandle == nil {
+		debug.Logger.Debug(FSM_PREFIX, "InitPacketListener for interface:", ifName)
 		pHandle, err = pcap.OpenLive(ifName, VRRP_SNAPSHOT_LEN, VRRP_PROMISCOUS_MODE, VRRP_TIMEOUT)
 		if err != nil {
 			debug.Logger.Err("Creating Pcap Handle for l3 interface:", ifName, "failed with error:", err)
@@ -194,6 +202,14 @@ func (f *FSM) InitPacketListener() error {
 		go f.ReceiveVrrpPackets()
 	}
 	return nil
+}
+
+func (f *FSM) DeInitPacketListener() {
+	if f.pHandle != nil {
+		debug.Logger.Info(FSM_PREFIX, "DeInitPacketListener for interface:", f.Config.IntfRef, "vrid:", f.Config.VRID)
+		f.pHandle.Close()
+		f.pHandle = nil
+	}
 }
 
 func (f *FSM) ProcessRcvdPkt(pktCh *PktChannelInfo) {
@@ -261,6 +277,7 @@ func (f *FSM) CalculateDownValue(advInt int32) {
 }
 
 func (f *FSM) Initialize() {
+	f.InitPacketListener()
 	debug.Logger.Debug(FSM_PREFIX, "In Init state deciding next state")
 	switch f.Config.Priority {
 	case VRRP_MASTER_PRIORITY:
@@ -294,7 +311,8 @@ func (f *FSM) ProcessStateInfo(fsmStInfo *FsmStateInfo) {
  *  (670) + Transition to the {Initialize} state
  *  (675) -endif // shutdown recv
  */
-func (f *FSM) StateDownEvent(event *IntfEvent) {
+func (f *FSM) StateDownEvent() { //event *IntfEvent) {
+	debug.Logger.Debug(FSM_PREFIX, "handling state down event for:", *f.Config)
 	f.StopMasterDownTimer()
 	f.StopMasterAdverTimer()
 
@@ -304,18 +322,37 @@ func (f *FSM) StateDownEvent(event *IntfEvent) {
 		f.SendPkt(pkt)
 	}
 	f.State = VRRP_INITIALIZE_STATE
+	f.DeInitPacketListener()
 }
 
-func (f *FSM) StateUpEvent(event *IntfEvent) {
+func (f *FSM) StateUpEvent() {
 	// during state up event move to initialization
 	f.Initialize()
 }
 
-func (f *FSM) HandleInterfaceEvent(event *IntfEvent) {
-	switch event.OperState {
-	case config.STATE_DOWN:
-		f.StateDownEvent(event)
-	case config.STATE_UP:
+func (f *FSM) Exit() {
+	f.StateDownEvent()
+	f.DeInitPacketListener()
+}
+
+func (f *FSM) HandleInterfaceEvent(intfEvent *IntfEvent) {
+	switch intfEvent.Event {
+	case STATE_CHANGE:
+		debug.Logger.Info(FSM_PREFIX, "fsm received state change event", intfEvent.OperState)
+		switch intfEvent.OperState {
+		case config.STATE_DOWN:
+			f.StateDownEvent()
+		case config.STATE_UP:
+			f.StateUpEvent()
+		}
+	case CONFIG_CHANGE:
+		debug.Logger.Info(FSM_PREFIX, "Changing configuration in fsm:", *intfEvent.Config)
+		f.Config = intfEvent.Config
+
+	case TEAR_DOWN:
+		// special case...
+		debug.Logger.Info(FSM_PREFIX, "Tear down fsm for:", f.Config.IntfRef, "vrid:", f.Config.VRID)
+		f.Exit()
 	}
 }
 
@@ -331,6 +368,7 @@ func (f *FSM) UpdateVirtualIP(enable bool) {
 }
 
 func (f *FSM) StartFsm() {
+	f.running = true
 	for {
 		select {
 		case pktCh, ok := <-f.pktCh:
@@ -342,10 +380,15 @@ func (f *FSM) StartFsm() {
 			if ok {
 				f.ProcessStateInfo(fsmStInfo)
 			}
-
 		case intfStateEv, ok := <-f.IntfEventCh:
 			if ok {
 				f.HandleInterfaceEvent(intfStateEv)
+				// special Handling by exiting the go routine
+				if intfStateEv.Event == TEAR_DOWN {
+					debug.Logger.Info(FSM_PREFIX, "exiting fsm go routine for interface:", f.Config.IntfRef)
+					f.running = false
+					return
+				}
 			}
 		}
 	}
@@ -373,4 +416,11 @@ const (
 	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
 
 	FSM_PREFIX = "FSM ------> "
+)
+
+const (
+	_ = iota
+	STATE_CHANGE
+	CONFIG_CHANGE
+	TEAR_DOWN
 )

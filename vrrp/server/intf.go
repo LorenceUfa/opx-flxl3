@@ -51,8 +51,12 @@ func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.Base
 	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh)
 }
 
+func (intf *VrrpInterface) UpdateOperState(state string) {
+	intf.L3.OperState = state
+}
+
 func (intf *VrrpInterface) StartFsm() {
-	debug.Logger.Info("Starting Fsm for interface:", *intf.Config)
+	debug.Logger.Info("Starting Fsm for interface:", intf.L3.IntfRef, "vrid:", intf.Config.VRID)
 	go intf.Fsm.StartFsm()
 }
 
@@ -60,8 +64,11 @@ func (intf *VrrpInterface) UpdateStateInfo() {
 
 }
 
+// should only be called if vrrp is disabled globally
 func (intf *VrrpInterface) StopFsm() {
-
+	intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
+		Event: fsm.TEAR_DOWN,
+	}
 }
 
 func (intf *VrrpInterface) GetVMac() string {
@@ -70,4 +77,26 @@ func (intf *VrrpInterface) GetVMac() string {
 
 func (intf *VrrpInterface) GetVirtualIpUpdateInfo() (string, string, string) {
 	return intf.L3.IntfRef, intf.Config.VirtualIPAddr, intf.Fsm.VirtualRouterMACAddress
+}
+
+func (intf *VrrpInterface) UpdateIpState() {
+	if intf.Fsm.IsRunning() {
+		// send out state up event
+		debug.Logger.Info("fsm for interface:", intf.L3.IntfRef, "vrid:", intf.Config.VRID, "is running and hence sending state change")
+		intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
+			Event:     fsm.STATE_CHANGE,
+			OperState: intf.L3.OperState,
+		}
+	} else {
+		intf.StartFsm()
+	}
+}
+
+func (intf *VrrpInterface) UpdateConfig(cfg *config.IntfCfg) {
+	debug.Logger.Info("Updating interface configuration from old Config:", *intf.Config, "to new Config:", *cfg)
+	intf.Config = cfg
+	intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
+		Event:  fsm.CONFIG_CHANGE,
+		Config: cfg,
+	}
 }
