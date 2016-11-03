@@ -121,7 +121,7 @@ func (b mockintf) DeleteAccessPortVlan(vlan uint16, intfList []int) {
 
 	}
 }
-func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
+func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) bool {
 	logger.Info("MOCK: Calling GetNextHopInfo")
 	nexthopip := net.ParseIP("100.1.1.2")
 	if !b.failGetNextHop {
@@ -139,9 +139,11 @@ func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
 			Src:  "TEST",
 			Data: nexthop,
 		}
+		return true
 	} else {
 		logger.Info("MOCK: force fail")
 	}
+	return false
 }
 func (b mockintf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
 	logger.Info("MOCK: Calling ResolveNextHopMac")
@@ -281,7 +283,7 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
@@ -362,7 +364,7 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
@@ -584,7 +586,7 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -703,7 +705,7 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
@@ -799,7 +801,7 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -918,7 +920,7 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -1017,7 +1019,7 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -1138,7 +1140,7 @@ func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
