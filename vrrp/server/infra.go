@@ -310,19 +310,13 @@ func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 
 	switch msg.IpType {
 	case syscall.AF_INET:
-		v4, exists := svr.V4[msg.IfIndex]
-		if exists {
-			ipIntf = v4
-		}
+		ipIntf, exists = svr.V4[msg.IfIndex]
 	case syscall.AF_INET6:
-		v6, exists := svr.V6[msg.IfIndex]
-		if exists {
-			ipIntf = v6
-		}
+		ipIntf, exists = svr.V6[msg.IfIndex]
 	}
 
 	if !exists {
-		debug.Logger.Err("No Entry found for:", *msg, "during state up notification")
+		debug.Logger.Err("No Entry found for:", *msg, "during state:", msg.OperState, "notification")
 		return
 	}
 	// update sw state for ip interface with new information
@@ -357,18 +351,23 @@ func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 }
 
 func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
+	debug.Logger.Info("handling ip notification:", *msg)
 	switch msg.MsgType {
 	case config.IP_MSG_CREATE:
 		switch msg.IpType {
 		case syscall.AF_INET:
 			v4, exists := svr.V4[msg.IfIndex]
 			if !exists {
+				v4 = &V4Intf{}
 				v4.Init(msg)
+				svr.V4[msg.IfIndex] = v4
 			}
 		case syscall.AF_INET6:
 			v6, exists := svr.V6[msg.IfIndex]
 			if !exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+				v6 = &V6Intf{}
 				v6.Init(msg)
+				svr.V6[msg.IfIndex] = v6
 			}
 		}
 	case config.IP_MSG_DELETE:
