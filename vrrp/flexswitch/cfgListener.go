@@ -32,31 +32,31 @@ import (
 )
 
 func (h *ConfigHandler) CreateVrrpGlobal(cfg *vrrpd.VrrpGlobal) (r bool, err error) {
-	debug.Logger.Debug("Thrift request for creating vrrp global object:", *cfg)
+	debug.Logger.Info("Thrift request for creating vrrp global object:", *cfg)
 	gblCfg := &config.GlobalConfig{cfg.Vrf, cfg.Enable, config.CREATE}
 	api.CreateVrrpGbl(gblCfg)
-	debug.Logger.Debug("Thrift returning for creating vrrp global object true, nil")
+	debug.Logger.Info("Thrift returning for creating vrrp global object true, nil")
 	return true, nil
 }
 
 func (h *ConfigHandler) UpdateVrrpGlobal(ocfg *vrrpd.VrrpGlobal, cfg *vrrpd.VrrpGlobal, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
-	debug.Logger.Debug("Thrift request for updating vrrp global object:", *cfg)
+	debug.Logger.Info("Thrift request for updating vrrp global object:", *cfg)
 	gblCfg := &config.GlobalConfig{cfg.Vrf, cfg.Enable, config.UPDATE}
 	api.UpdateVrrpGbl(gblCfg)
-	debug.Logger.Debug("Thrift returning for updating vrrp global object true, nil")
+	debug.Logger.Info("Thrift returning for updating vrrp global object true, nil")
 	return true, nil
 }
 
 func (h *ConfigHandler) DeleteVrrpGlobal(cfg *vrrpd.VrrpGlobal) (r bool, err error) {
-	debug.Logger.Debug("Thrift request for deleting vrrp global object:", *cfg)
+	debug.Logger.Info("Thrift request for deleting vrrp global object:", *cfg)
 	err = errors.New("Deleting Vrrp Global Object is not Supported")
 	r = false
-	debug.Logger.Debug("Thrift returning for deleting vrrp global object:", r, err)
+	debug.Logger.Info("Thrift returning for deleting vrrp global object:", r, err)
 	return r, err
 }
 
 func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err error) {
-	debug.Logger.Debug("Thrift request received for creating vrrp v4 interface config for:", *cfg)
+	debug.Logger.Info("Thrift request received for creating vrrp v4 interface config for:", *cfg)
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
@@ -69,11 +69,11 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		Operation:             config.CREATE,
 	}
 	r, err = api.VrrpIntfConfig(v4Cfg)
-	debug.Logger.Debug("Thrift request returning for creating vrrp v4 interface config returning:", r, err)
+	debug.Logger.Info("Thrift request returning for creating vrrp v4 interface config returning:", r, err)
 	return r, err
 }
 func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig *vrrpd.VrrpV4Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
-	debug.Logger.Debug("Thrift request received for updating vrrp v4 interface config for:", origconfig, "to new:", newconfig)
+	debug.Logger.Info("Thrift request received for updating vrrp v4 interface config for:", origconfig, "to new:", newconfig)
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -86,13 +86,13 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 		Operation:             config.UPDATE,
 	}
 	r, err = api.VrrpIntfConfig(v4Cfg)
-	debug.Logger.Debug("Thrift request returning for updating vrrp v4 interface config for:", origconfig, "to new:",
+	debug.Logger.Info("Thrift request returning for updating vrrp v4 interface config for:", origconfig, "to new:",
 		newconfig, "returning:", r, err)
 	return true, nil
 }
 
 func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err error) {
-	debug.Logger.Debug("Thrift request received for deleting vrrp v4 interface cfg for:", *cfg)
+	debug.Logger.Info("Thrift request received for deleting vrrp v4 interface cfg for:", *cfg)
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
@@ -105,12 +105,12 @@ func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		Operation:             config.DELETE,
 	}
 	r, err = api.VrrpIntfConfig(v4Cfg)
-	debug.Logger.Debug("Thrift request returning for deleting vrrp v4 interface config returning:", r, err)
+	debug.Logger.Info("Thrift request returning for deleting vrrp v4 interface config returning:", r, err)
 	return r, err
 }
 
 func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err error) {
-	debug.Logger.Debug("Thrift request received for creating vrrp v6 interface cfg for:", *cfg)
+	debug.Logger.Info("Thrift request received for creating vrrp v6 interface cfg for:", *cfg)
 	v6Cfg := &config.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
@@ -123,12 +123,12 @@ func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		Operation:             config.CREATE,
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
-	debug.Logger.Debug("Thrift request returning for creating vrrp v6 interface cfg returning:", r, err)
+	debug.Logger.Info("Thrift request returning for creating vrrp v6 interface cfg returning:", r, err)
 	return r, err
 }
 
 func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig *vrrpd.VrrpV6Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
-	debug.Logger.Debug("Thrift request received for updating vrrp v6 interface config for:", origconfig, "to new:", newconfig)
+	debug.Logger.Info("Thrift request received for updating vrrp v6 interface config for:", origconfig, "to new:", newconfig)
 	v6Cfg := &config.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -141,13 +141,13 @@ func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig
 		Operation:             config.UPDATE,
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
-	debug.Logger.Debug("Thrift request returning for updating vrrp v6 interface config for:", origconfig, "to new:",
+	debug.Logger.Info("Thrift request returning for updating vrrp v6 interface config for:", origconfig, "to new:",
 		newconfig, "returning:", r, err)
 	return true, nil
 }
 
 func (h *ConfigHandler) DeleteVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err error) {
-	debug.Logger.Debug("Thrift request received for deleting vrrp v6 interface cfg for:", *cfg)
+	debug.Logger.Info("Thrift request received for deleting vrrp v6 interface cfg for:", *cfg)
 	v6Cfg := &config.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
@@ -160,6 +160,6 @@ func (h *ConfigHandler) DeleteVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		Operation:             config.DELETE,
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
-	debug.Logger.Debug("Thrift request returning for deleting vrrp v6 interface cfg returning:", r, err)
+	debug.Logger.Info("Thrift request returning for deleting vrrp v6 interface cfg returning:", r, err)
 	return r, err
 }

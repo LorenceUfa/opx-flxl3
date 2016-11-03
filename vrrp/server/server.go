@@ -69,6 +69,7 @@ func (svr *VrrpServer) GetSystemInfo() {
 
 func (svr *VrrpServer) InitGlobalDS() {
 	//svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
+	svr.GlobalConfig = new(config.GlobalConfig)
 	svr.V6 = make(map[int32]*V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4 = make(map[int32]*V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	//svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)

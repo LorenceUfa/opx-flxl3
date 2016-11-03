@@ -177,6 +177,10 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
  * Input: (vrrp interface config, virtual mac)
  */
 func (svr *VrrpServer) CreateVirtualIntf(cfg *config.IntfCfg, vMac string) {
+	if svr.GlobalConfig.Enable == false {
+		return
+	}
+	debug.Logger.Info("Vrrp Creating Virtual Interface for:", cfg.IntfRef, cfg.VirtualIPAddr, vMac)
 	switch cfg.Version {
 	case config.VERSION2:
 		svr.SwitchPlugin.CreateVirtualIPv4Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
@@ -233,6 +237,11 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		ipIntf.GetObjFromDb(l3Info)
 	}
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
+	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
+	// up... if that's the case then lets start fsm right away
+	if l3Info.OperState == config.STATE_UP && svr.GlobalConfig.Enable {
+		intf.StartFsm()
+	}
 	svr.Intf[key] = intf
 	ipIntf.SetVrrpIntfKey(&key)
 	svr.CreateVirtualIntf(cfg, intf.GetVMac())
@@ -258,15 +267,40 @@ func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
 	}
 }
 
+/*
+ * We can get vrrp interface configurations before even vrrp is enabled....let's handle that scenario here
+ * by starting fsm if vrrp enabled
+ * by stopping fsm if vrrp disabled
+ */
+func (svr *VrrpServer) HandleVrrpEnableDisable(enable bool) {
+	debug.Logger.Info("vrrp globally:", enable, "handling it")
+	for key, intf := range svr.Intf {
+		if enable {
+			intf.StartFsm()
+		} else {
+			intf.StopFsm()
+		}
+		svr.Intf[key] = intf
+	}
+}
+
 func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	debug.Logger.Info("Handling Global Config for:", *gCfg)
+	svr.GlobalConfig.Enable = gCfg.Enable
 	switch gCfg.Operation {
 	case config.CREATE:
-		debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac")
-		svr.HandleProtocolMacEntry(true /*Enable*/)
+		debug.Logger.Info("Vrrp Global Object Created")
+		svr.GlobalConfig.Vrf = gCfg.Vrf
 	case config.UPDATE:
-		debug.Logger.Info("Vrrp Disabled, deleting Protocol Mac")
-		svr.HandleProtocolMacEntry(false /*Enable*/)
+		debug.Logger.Info("Vrrp Global Updated:", *svr.GlobalConfig)
+		if gCfg.Enable {
+			debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac")
+			svr.HandleProtocolMacEntry(true /*Enable*/)
+		} else {
+			debug.Logger.Info("Vrrp Disabled, deleting Protocol Mac")
+			svr.HandleProtocolMacEntry(false /*Enable*/)
+		}
+		svr.HandleVrrpEnableDisable(gCfg.Enable)
 	}
 }
 
@@ -293,6 +327,12 @@ func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 	}
 	// update sw state for ip interface with new information
 	ipIntf.Update(msg)
+
+	// check if vrrp is enabled or not
+	if svr.GlobalConfig.Enable == false {
+		debug.Logger.Info("Vrrp is not enabled and hence just updating ip information")
+		return
+	}
 	// get the vrrp interface key
 	key := ipIntf.GetVrrpIntfKey()
 	if key == nil {

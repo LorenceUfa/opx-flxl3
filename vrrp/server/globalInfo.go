@@ -45,7 +45,7 @@ type VrrpServer struct {
 	// All System Related Information
 	dmnBase            *dmnBase.FSBaseDmn
 	SwitchPlugin       asicdClient.AsicdClientIntf
-	GlobalConfig       config.GlobalConfig
+	GlobalConfig       *config.GlobalConfig
 	V4                 map[int32]*V4Intf
 	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo

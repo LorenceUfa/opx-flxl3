@@ -24,6 +24,7 @@ package server
 
 import (
 	"l3/vrrp/config"
+	"l3/vrrp/debug"
 	"l3/vrrp/fsm"
 )
 
@@ -50,6 +51,7 @@ func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.Base
 }
 
 func (intf *VrrpInterface) StartFsm() {
+	debug.Logger.Info("Starting Fsm for interface:", *intf.Config)
 	go intf.Fsm.StartFsm()
 }
 
