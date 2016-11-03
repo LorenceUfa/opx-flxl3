@@ -126,19 +126,18 @@ func (intf VXLANSnapClient) processRibdNotification(rxBuf []byte) error {
 // GetNextHopInfo:
 // rib holds the next hop info so lets quiery the for the next hop
 // then notify the vtep channel of that ip
-func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxlan.MachineEvent) {
+func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxlan.MachineEvent) bool {
 	if ribdclnt.ClientHdl != nil {
+		intf.thriftmutex.Lock()
 		nexthopinfo, err := ribdclnt.ClientHdl.GetRouteReachabilityInfo(ip.String(), -1)
+		intf.thriftmutex.Unlock()
 		if err == nil {
-			fmt.Println("GetNextHopInfo", ip, nexthopinfo)
 
 			nexthopip := net.ParseIP(nexthopinfo.NextHopIp)
 			if nexthopinfo.IsReachable &&
 				nexthopinfo.NextHopIp == "0.0.0.0" {
 				nexthopip = ip
 			}
-			// lets let RIB notify us if there is a change in next hop
-			ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAND", "add")
 			// TODO at this point assuming the next hop is a physical interface
 			nexthopdata := vxlan.VtepNextHopInfo{
 				Ip:      nexthopip,
@@ -152,6 +151,24 @@ func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxl
 				Data: nexthopdata,
 			}
 			vtepnexthopchan <- event
+			return true
 		}
+	}
+	return false
+}
+
+func (intf VXLANSnapClient) UnRegisterReachability(ip net.IP) {
+	if ribdclnt.ClientHdl != nil {
+		intf.thriftmutex.Lock()
+		ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAND", "del")
+		intf.thriftmutex.Unlock()
+	}
+}
+
+func (intf VXLANSnapClient) RegisterReachability(ip net.IP) {
+	if ribdclnt.ClientHdl != nil {
+		intf.thriftmutex.Lock()
+		ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAND", "add")
+		intf.thriftmutex.Unlock()
 	}
 }

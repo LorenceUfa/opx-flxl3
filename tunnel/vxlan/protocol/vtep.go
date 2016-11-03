@@ -237,22 +237,36 @@ func CreateVtep(c *VtepConfig) *VtepDbEntry {
 func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 	logger.Info("Calling DeprovisionVtep")
 	// delete vtep resources in hw
-	if vtep.VxlanVtepMachineFsm != nil &&
-		(vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateStart ||
-			vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateHwConfig) {
-		for _, client := range ClientIntf {
-			client.DeleteVtep(vtep)
+	if vtep.VxlanVtepMachineFsm != nil {
+
+		if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() >= VxlanVtepStateNextHopInfo {
+			for _, client := range ClientIntf {
+				client.UnRegisterReachability(vtep.DstIp)
+			}
 		}
-		if vtep.handle != nil {
-			vtep.handle.Close()
-			vtep.handle = nil
+
+		if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() >= VxlanVtepStateResolveNextHopMac {
+			for _, client := range ClientIntf {
+				client.UnresolveNextHopMac(vtep.NextHop.Ip, vtep.NextHop.IfName)
+			}
 		}
-		for vlan, handle := range vtep.taghandles {
-			handle.Close()
-			delete(vtep.taghandles, vlan)
+
+		if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateStart ||
+			vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateHwConfig {
+			for _, client := range ClientIntf {
+				client.DeleteVtep(vtep)
+			}
+			if vtep.handle != nil {
+				vtep.handle.Close()
+				vtep.handle = nil
+			}
+			for vlan, handle := range vtep.taghandles {
+				handle.Close()
+				delete(vtep.taghandles, vlan)
+			}
+			// need to check the ref count on the port
+			VxlanDelPortRxTx(vtep.NextHop.IfName, vtep.UDP)
 		}
-		// need to check the ref count on the port
-		VxlanDelPortRxTx(vtep.NextHop.IfName, vtep.UDP)
 	}
 
 	// clear out the information which was discovered for this VTEP
@@ -266,10 +280,13 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 
 	if !del {
 		if vtep.Enable {
-			vtep.VxlanVtepMachineFsm.BEGIN()
-			// restart the timer on deprovisioning as we will retry each of the
-			// state transitions again
-			vtep.retrytimer.Reset(retrytime)
+			vxlan := GetVxlanDBEntry(vtep.Vni)
+			if vxlan.Enable && vtep.VxlanVtepMachineFsm != nil {
+				vtep.VxlanVtepMachineFsm.BEGIN()
+				// restart the timer on deprovisioning as we will retry each of the
+				// state transitions again
+				vtep.retrytimer.Reset(retrytime)
+			}
 		} else {
 			vtep.retrytimer.Stop()
 		}
@@ -300,10 +317,11 @@ func DeleteVtep(c *VtepConfig) {
 			VxlanGlobalStateGet() == VXLAN_GLOBAL_DISABLE_PENDING) &&
 			c.Enable {
 
-			DeProvisionVtep(vtep, true)
 			if vtep.VxlanVtepMachineFsm != nil {
 				vtep.VxlanVtepMachineFsm.Stop()
 				vtep.VxlanVtepMachineFsm = nil
+				//DeProvisionVtep(vtep, true)
+
 			}
 			if vtep.retrytimer != nil {
 				vtep.retrytimer.Stop()
@@ -315,7 +333,6 @@ func DeleteVtep(c *VtepConfig) {
 			for idx, vtep := range vtepDbList {
 				if vtep.VtepName == c.VtepName {
 					vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
-					break
 				}
 			}
 
@@ -352,6 +369,15 @@ func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 		} else {
 			vtep.FilterUnknownCustVlan = false
 		}
+		vtepDB[*key] = vtep
+		for idx, v := range vtepDbList {
+			if vtep.VtepName == v.VtepName &&
+				vtep.Vni == v.Vni {
+				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+			}
+		}
+
+		vtepDbList = append(vtepDbList, vtep)
 	}
 	return vtep
 }
@@ -572,6 +598,7 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 
 func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 	//logger.Info("RX packet from Vtep", packet)
+	//logger.Info("encapAndDispatchPkt:", vtep.SrcMac, vtep.DstMac)
 	// outer ethernet header
 	eth := layers.VxlanEthernet{
 		layers.Ethernet{SrcMAC: vtep.SrcMac,
@@ -612,38 +639,45 @@ func (vtep *VtepDbEntry) encapAndDispatchPkt(packet gopacket.Packet) {
 		ComputeChecksums: true,
 	}
 	// Send one packet for every address.
-	gopacket.SerializeLayers(buf, opts, &eth, &ip, &udp, &vxlan, gopacket.Payload(packet.Data()))
+	err := gopacket.SerializeLayers(buf, opts, &eth, &ip, &udp, &vxlan, gopacket.Payload(packet.Data()))
 	pktlen := len(packet.Data())
 
-	vtep.counters.Txpkts++
-	vtep.counters.Txbytes += uint64(pktlen)
+	if err == nil {
+		vtep.counters.Txpkts++
+		vtep.counters.Txbytes += uint64(pktlen)
 
-	// every vtep is tied to a port
-	if p, ok := portDB[vtep.NextHop.IfName]; ok {
-		phandle := p.handle
-		if phandle != nil {
+		// every vtep is tied to a port
+		if p, ok := portDB[vtep.NextHop.IfName]; ok {
+			phandle := p.handle
+			if phandle != nil {
 
-			//logger.Info(fmt.Sprintf("Rx Packet now encapsulating and sending packet to if", vtep.SrcIfName, buf.Bytes()))
-			if err := phandle.WritePacketData(buf.Bytes()); err != nil {
-				rc := fmt.Sprintln("Error writing packet to interface", vtep.NextHop.IfName, err)
-				logger.Err(rc)
+				//logger.Info(fmt.Sprintf("Rx Packet now encapsulating and sending packet to if", vtep.SrcIfName, buf.Bytes()))
+				if err := phandle.WritePacketData(buf.Bytes()); err != nil {
+					rc := fmt.Sprintln("Error writing packet to interface", vtep.NextHop.IfName, err)
+					logger.Err(rc)
+					vtep.counters.Txdroppkts++
+					vtep.counters.Txdropbytes += uint64(pktlen)
+					vtep.counters.Lasttxdropreason = rc
+					return
+				}
+				vtep.snoop(packet.Data())
+
+				vtep.counters.Txfwdpkts++
+				vtep.counters.Txfwdbytes += uint64(pktlen)
+			} else {
+				rc := fmt.Sprintln("Unable to find vxlan pcap handle for next hop port", vtep.NextHop.IfName)
 				vtep.counters.Txdroppkts++
 				vtep.counters.Txdropbytes += uint64(pktlen)
 				vtep.counters.Lasttxdropreason = rc
-				return
 			}
-			vtep.snoop(packet.Data())
-
-			vtep.counters.Txfwdpkts++
-			vtep.counters.Txfwdbytes += uint64(pktlen)
 		} else {
-			rc := fmt.Sprintln("Unable to find vxlan pcap handle for next hop port", vtep.NextHop.IfName)
+			rc := fmt.Sprintln("Unable to find vxlan port db handle for port", vtep.NextHop.IfName)
 			vtep.counters.Txdroppkts++
 			vtep.counters.Txdropbytes += uint64(pktlen)
 			vtep.counters.Lasttxdropreason = rc
 		}
 	} else {
-		rc := fmt.Sprintln("Unable to find vxlan port db handle for port", vtep.NextHop.IfName)
+		rc := fmt.Sprintln("Unable to encap packet", vtep.NextHop.IfName, err)
 		vtep.counters.Txdroppkts++
 		vtep.counters.Txdropbytes += uint64(pktlen)
 		vtep.counters.Lasttxdropreason = rc
