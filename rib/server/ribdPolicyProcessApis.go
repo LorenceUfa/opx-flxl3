@@ -278,6 +278,15 @@ func (m RIBDServer) ProcessPolicyStmtConfigCreate(cfg *ribd.PolicyStmt, db *poli
 	}
 	newPolicyStmt.Actions = make([]string, 0)
 	newPolicyStmt.Actions = append(newPolicyStmt.Actions, cfg.Action)
+	newPolicyStmt.SetActions = make([]policy.PolicyActionCfg, 0)
+	for _, setAction := range cfg.SetActions {
+		newPolicyStmt.SetActions = append(newPolicyStmt.SetActions, policy.PolicyActionCfg{
+			Attr:              setAction.Attr,
+			Community:         setAction.Community,
+			ExtendedCommunity: setAction.ExtendedCommunity,
+			LocalPref:         uint32(setAction.LocalPref),
+		})
+	}
 	err = db.CreatePolicyStatement(newPolicyStmt)
 	return err
 }
@@ -631,6 +640,16 @@ func (m RIBDServer) GetBulkPolicyStmtState(fromIndex ribd.Int, rcount ribd.Int, 
 			nextNode.Name = prefixNode.Name
 			nextNode.Conditions = prefixNode.Conditions
 			nextNode.Action = prefixNode.Actions[0]
+			if prefixNode.SetActionsCfg != nil {
+				nextNode.SetActions = make([]*ribd.PolicyAction, 0)
+			}
+			for _, setAction := range prefixNode.SetActionsCfg {
+				nextNode.SetActions = append(nextNode.SetActions, &ribd.PolicyAction{
+					Attr:              setAction.Attr,
+					Community:         setAction.Community,
+					ExtendedCommunity: setAction.ExtendedCommunity,
+					LocalPref:         int32(setAction.LocalPref)})
+			}
 			if prefixNode.PolicyList != nil {
 				nextNode.PolicyList = make([]string, 0)
 			}
