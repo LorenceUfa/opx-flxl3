@@ -28,7 +28,13 @@ import (
 	"l3/vrrp/api"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
+	"strings"
 	"vrrpd"
+)
+
+const (
+	NETMASK_DELIMITER = "/"
+	SLASH_32          = "32"
 )
 
 func (h *ConfigHandler) CreateVrrpGlobal(cfg *vrrpd.VrrpGlobal) (r bool, err error) {
@@ -57,6 +63,9 @@ func (h *ConfigHandler) DeleteVrrpGlobal(cfg *vrrpd.VrrpGlobal) (r bool, err err
 
 func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err error) {
 	debug.Logger.Info("Thrift request received for creating vrrp v4 interface config for:", *cfg)
+	if !strings.Contains(cfg.Address, NETMASK_DELIMITER) {
+		cfg.Address += NETMASK_DELIMITER + SLASH_32
+	}
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
@@ -75,6 +84,9 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 }
 func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig *vrrpd.VrrpV4Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
 	debug.Logger.Info("Thrift request received for updating vrrp v4 interface config for:", *origconfig, "to new:", *newconfig)
+	if !strings.Contains(newconfig.Address, NETMASK_DELIMITER) {
+		newconfig.Address += NETMASK_DELIMITER + SLASH_32
+	}
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -94,6 +106,9 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 
 func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err error) {
 	debug.Logger.Info("Thrift request received for deleting vrrp v4 interface cfg for:", *cfg)
+	if !strings.Contains(cfg.Address, NETMASK_DELIMITER) {
+		cfg.Address += NETMASK_DELIMITER + SLASH_32
+	}
 	v4Cfg := &config.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
