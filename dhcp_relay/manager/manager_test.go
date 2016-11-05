@@ -46,7 +46,7 @@ type Processor4Fake struct {
 	ClientStateSlice     []*dhcprelayd.DHCPRelayClientState
 	ClientStateMap       map[string]*dhcprelayd.DHCPRelayClientState
 	IntfStateSlice       []*dhcprelayd.DHCPRelayIntfState
-	IntfStateMap         map[int]*dhcprelayd.DHCPRelayIntfState
+	IntfStateMap         map[string]*dhcprelayd.DHCPRelayIntfState
 	IntfServerStateSlice []*dhcprelayd.DHCPRelayIntfServerState
 	IntfServerStateMap   map[string]*dhcprelayd.DHCPRelayIntfServerState
 }
@@ -57,7 +57,7 @@ type Processor6Fake struct {
 	ClientStateSlice     []*dhcprelayd.DHCPv6RelayClientState
 	ClientStateMap       map[string]*dhcprelayd.DHCPv6RelayClientState
 	IntfStateSlice       []*dhcprelayd.DHCPv6RelayIntfState
-	IntfStateMap         map[int]*dhcprelayd.DHCPv6RelayIntfState
+	IntfStateMap         map[string]*dhcprelayd.DHCPv6RelayIntfState
 	IntfServerStateSlice []*dhcprelayd.DHCPv6RelayIntfServerState
 	IntfServerStateMap   map[string]*dhcprelayd.DHCPv6RelayIntfServerState
 }
@@ -133,9 +133,9 @@ func (pProc *Processor4Fake) GetIntfStateSlice(
 }
 
 func (pProc *Processor4Fake) GetIntfState(
-	ifIdx int) (*dhcprelayd.DHCPRelayIntfState, bool) {
+	ifName string) (*dhcprelayd.DHCPRelayIntfState, bool) {
 
-	if intfState, ok := pProc.IntfStateMap[ifIdx]; ok {
+	if intfState, ok := pProc.IntfStateMap[ifName]; ok {
 		return intfState, true
 	} else {
 		return nil, false
@@ -173,6 +173,14 @@ func (pProc *Processor4Fake) GetIntfServerState(
 	} else {
 		return nil, false
 	}
+}
+
+func (pProc *Processor4Fake) ProcessCreateDRAIntf(ifName string) {
+	return
+}
+
+func (pProc *Processor4Fake) ProcessDeleteDRAIntf(ifName string) {
+	return
 }
 
 func (pProc *Processor4Fake) ProcessActiveDRAIntf(ifIdx int) {
@@ -254,9 +262,9 @@ func (pProc *Processor6Fake) GetIntfStateSlice(
 }
 
 func (pProc *Processor6Fake) GetIntfState(
-	ifIdx int) (*dhcprelayd.DHCPv6RelayIntfState, bool) {
+	ifName string) (*dhcprelayd.DHCPv6RelayIntfState, bool) {
 
-	if intfState, ok := pProc.IntfStateMap[ifIdx]; ok {
+	if intfState, ok := pProc.IntfStateMap[ifName]; ok {
 		return intfState, true
 	} else {
 		return nil, false
@@ -294,6 +302,14 @@ func (pProc *Processor6Fake) GetIntfServerState(
 	} else {
 		return nil, false
 	}
+}
+
+func (pProc *Processor6Fake) ProcessCreateDRAIntf(ifName string) {
+	return
+}
+
+func (pProc *Processor6Fake) ProcessDeleteDRAIntf(ifName string) {
+	return
 }
 
 func (pProc *Processor6Fake) ProcessActiveDRAIntf(ifIdx int) {
@@ -1113,7 +1129,7 @@ func GetV4DummyStates() (
 	[]*dhcprelayd.DHCPRelayClientState,
 	map[string]*dhcprelayd.DHCPRelayClientState,
 	[]*dhcprelayd.DHCPRelayIntfState,
-	map[int]*dhcprelayd.DHCPRelayIntfState,
+	map[string]*dhcprelayd.DHCPRelayIntfState,
 	[]*dhcprelayd.DHCPRelayIntfServerState,
 	map[string]*dhcprelayd.DHCPRelayIntfServerState) {
 
@@ -1225,13 +1241,13 @@ func GetV4DummyStates() (
 	intfRefMap["eth2"] = 3
 
 	clientStateMap := make(map[string]*dhcprelayd.DHCPRelayClientState)
-	intfStateMap := make(map[int]*dhcprelayd.DHCPRelayIntfState)
+	intfStateMap := make(map[string]*dhcprelayd.DHCPRelayIntfState)
 	intfServerStateMap := make(map[string]*dhcprelayd.DHCPRelayIntfServerState)
 	for _, clientState := range clientStates {
 		clientStateMap[clientState.MacAddr] = clientState
 	}
 	for _, intfState := range intfStates {
-		intfStateMap[intfRefMap[intfState.IntfRef]] = intfState
+		intfStateMap[intfState.IntfRef] = intfState
 	}
 	for _, intfServerState := range intfServerStates {
 		intfServerStateKey := intfServerState.IntfRef + "_" + intfServerState.ServerIp
@@ -1245,7 +1261,7 @@ func GetV4DummyStateProcessor(
 	clientStates []*dhcprelayd.DHCPRelayClientState,
 	clientStateMap map[string]*dhcprelayd.DHCPRelayClientState,
 	intfStates []*dhcprelayd.DHCPRelayIntfState,
-	intfStateMap map[int]*dhcprelayd.DHCPRelayIntfState,
+	intfStateMap map[string]*dhcprelayd.DHCPRelayIntfState,
 	intfServerStates []*dhcprelayd.DHCPRelayIntfServerState,
 	intfServerStateMap map[string]*dhcprelayd.DHCPRelayIntfServerState) *Processor4Fake {
 
@@ -2312,7 +2328,7 @@ func GetV6DummyStates() (
 	[]*dhcprelayd.DHCPv6RelayClientState,
 	map[string]*dhcprelayd.DHCPv6RelayClientState,
 	[]*dhcprelayd.DHCPv6RelayIntfState,
-	map[int]*dhcprelayd.DHCPv6RelayIntfState,
+	map[string]*dhcprelayd.DHCPv6RelayIntfState,
 	[]*dhcprelayd.DHCPv6RelayIntfServerState,
 	map[string]*dhcprelayd.DHCPv6RelayIntfServerState) {
 
@@ -2433,13 +2449,13 @@ func GetV6DummyStates() (
 	intfRefMap["eth2"] = 3
 
 	clientStateMap := make(map[string]*dhcprelayd.DHCPv6RelayClientState)
-	intfStateMap := make(map[int]*dhcprelayd.DHCPv6RelayIntfState)
+	intfStateMap := make(map[string]*dhcprelayd.DHCPv6RelayIntfState)
 	intfServerStateMap := make(map[string]*dhcprelayd.DHCPv6RelayIntfServerState)
 	for _, clientState := range clientStates {
 		clientStateMap[clientState.MacAddr] = clientState
 	}
 	for _, intfState := range intfStates {
-		intfStateMap[intfRefMap[intfState.IntfRef]] = intfState
+		intfStateMap[intfState.IntfRef] = intfState
 	}
 	for _, intfServerState := range intfServerStates {
 		intfServerStateKey := intfServerState.IntfRef + "_" + intfServerState.ServerIp
@@ -2453,7 +2469,7 @@ func GetV6DummyStateProcessor(
 	clientStates []*dhcprelayd.DHCPv6RelayClientState,
 	clientStateMap map[string]*dhcprelayd.DHCPv6RelayClientState,
 	intfStates []*dhcprelayd.DHCPv6RelayIntfState,
-	intfStateMap map[int]*dhcprelayd.DHCPv6RelayIntfState,
+	intfStateMap map[string]*dhcprelayd.DHCPv6RelayIntfState,
 	intfServerStates []*dhcprelayd.DHCPv6RelayIntfServerState,
 	intfServerStateMap map[string]*dhcprelayd.DHCPv6RelayIntfServerState) *Processor6Fake {
 

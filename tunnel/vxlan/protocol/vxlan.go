@@ -69,10 +69,17 @@ func GetVxlanDB() map[uint32]*VxlanDbEntry {
 // saveVxLanConfigData:
 // function saves off the configuration data and saves off the vlan to vni mapping
 func saveVxLanConfigData(c *VxlanConfig) {
-	if _, ok := vxlanDB[c.VNI]; !ok {
-		vxlan := NewVxlanDbEntry(c)
-		vxlanDB[c.VNI] = vxlan
+	vxlanentry := NewVxlanDbEntry(c)
+	vxlanDB[c.VNI] = vxlanentry
+	for idx, v := range vxlanDbList {
+		if vxlanentry.VNI == v.VNI {
+			vxlanDbList = append(vxlanDbList[:idx], vxlanDbList[idx+1:]...)
+			break
+		}
 	}
+
+	vxlanDbList = append(vxlanDbList, vxlanentry)
+
 }
 
 // DeleteVxLAN:
@@ -97,10 +104,7 @@ func CreateVxLAN(c *VxlanConfig) {
 			if vtep.Vni == c.VNI {
 				if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateDetached {
 					// restart the state machine
-					vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-						E:   VxlanVtepEventBegin,
-						Src: VxlanVtepMachineModuleStr,
-					}
+					vtep.VxlanVtepMachineFsm.BEGIN()
 				}
 			}
 		}
@@ -111,19 +115,32 @@ func CreateVxLAN(c *VxlanConfig) {
 
 // DeleteVxLAN:
 // Configuration interface for deleting the vlxlan instance
-func DeleteVxLAN(c *VxlanConfig) {
+func DeleteVxLAN(c *VxlanConfig, disable bool) {
 
 	if (VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE ||
 		VxlanGlobalStateGet() == VXLAN_GLOBAL_DISABLE_PENDING) &&
 		c.Enable {
+
+		// save off the enable status as the vtep FSM
+		// relies on this
+		// TODO need to update the vxlan list
+		vxlandbentry := GetVxlanDBEntry(c.VNI)
+		vxlandbentry.Enable = !disable
+		vxlanDB[c.VNI] = vxlandbentry
+
 		for _, vtep := range GetVtepDB() {
+			responsechan := make(chan string)
 			if vtep.Vni == c.VNI {
 				if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() != VxlanVtepStateDetached {
 					// restart the state machine
 					vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-						E:   VxlanVtepEventDetached,
-						Src: VxlanVtepMachineModuleStr,
+						E:            VxlanVtepEventDetached,
+						Src:          VxlanVtepMachineModuleStr,
+						Data:         c.VNI,
+						ResponseChan: responsechan,
 					}
+					// wait for response
+					<-responsechan
 				}
 			}
 		}
@@ -139,12 +156,14 @@ func DeleteVxLAN(c *VxlanConfig) {
 		logger.Info(fmt.Sprintln("DeleteVxLAN", c.VNI))
 	}
 	if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE {
-		for idx, vni := range vxlanDbList {
-			if vni.VNI == c.VNI {
-				vxlanDbList = append(vxlanDbList[:idx], vxlanDbList[idx+1:]...)
-				break
+		if !disable {
+			for idx, vni := range vxlanDbList {
+				if vni.VNI == c.VNI {
+					vxlanDbList = append(vxlanDbList[:idx], vxlanDbList[idx+1:]...)
+					break
+				}
 			}
+			delete(vxlanDB, c.VNI)
 		}
-		delete(vxlanDB, c.VNI)
 	}
 }

@@ -235,8 +235,16 @@ func VtepConfigCheck(c *VtepConfig, create bool) error {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
 	}
 
+	if c.MTU < 64 || c.MTU > 65535 {
+		return errors.New("Error VtepInstance MTU must be between 64-65535")
+	}
+
 	if c.TTL > 255 {
 		return errors.New("Error VtepInstance TTL must be between 0-255")
+	}
+
+	if c.TOS > 255 {
+		return errors.New("Error VtepInstance TOS field must be between 0-255")
 	}
 
 	return nil
@@ -326,6 +334,7 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 		Vni:       uint32(c.Vni),
 		VtepName:  vtepName,
 		SrcIfName: name,
+		MTU:       uint32(c.Mtu),
 		UDP:       uint16(c.DstUDP),
 		TTL:       uint16(c.TTL),
 		TOS:       uint16(c.TOS),
@@ -337,20 +346,35 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 	}, nil
 }
 
-func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
+func UpdateThriftVxLAN(c *VxlanUpdate) {
 	// important to note that the attrset starts at index 0 which is the BaseObj
 	// which is not the first element on the thrift obj, thus we need to skip
 	// this attribute
 	updateCfg := false
+	disableCfg := false
+	enableCfg := false
 	for _, objName := range c.Attr {
 		if objName == "VlanId" ||
 			objName == "UntaggedVlanId" {
 			logger.Info(fmt.Sprintf("Updating vlan list tag: %#v,", c.Newconfig.VlanId))
 			updateCfg = true
+		} else if objName == "AdminState" {
+			logger.Info(fmt.Sprintf("Updating admin state %t", c.Newconfig.Enable))
+			if c.Newconfig.Enable {
+				enableCfg = true
+			} else {
+				disableCfg = true
+			}
 		}
 	}
 
-	if updateCfg {
+	if disableCfg {
+		DeleteVxLAN(&c.Oldconfig, true)
+		saveVxLanConfigData(&c.Newconfig)
+	} else if enableCfg {
+		saveVxLanConfigData(&c.Newconfig)
+		CreateVxLAN(&c.Newconfig)
+	} else if updateCfg {
 		newvlanlist := make([]uint16, 0)
 		delvlanlist := make([]uint16, 0)
 		newuntagvlanlist := make([]uint16, 0)
@@ -433,13 +457,18 @@ func (s *VXLANServer) updateThriftVxLAN(c *VxlanUpdate) {
 	}
 }
 
-func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
+func UpdateThriftVtep(c *VtepUpdate) {
 
+	updateobj := false
 	enableobj := false
 	disableobj := false
 	recreateobj := false
 	for _, objName := range c.Attr {
-		if objName == "AdminState" {
+		if objName == "TOS" ||
+			objName == "Mtu" ||
+			objName == "TTL" {
+			updateobj = true
+		} else if objName == "AdminState" {
 			if c.Newconfig.Enable {
 				enableobj = true
 			} else {
@@ -457,7 +486,10 @@ func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
 		}
 		vtep := GetVtepDBEntry(key)
 		if vtep != nil {
-			DeProvisionVtep(vtep, false)
+			vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
+				E:   VxlanVtepEventDisable,
+				Src: VxlanVtepMachineModuleStr,
+			}
 			saveVtepConfigData(&(c.Newconfig))
 		}
 	} else if enableobj {
@@ -473,6 +505,83 @@ func (s *VXLANServer) updateThriftVtep(c *VtepUpdate) {
 	} else if recreateobj {
 		DeleteVtep(&(c.Oldconfig))
 		CreateVtep(&(c.Newconfig))
+	} else if updateobj {
+		for _, attr := range c.Attr {
+			if attr == "TOS" {
+				UpdateVtepTOS(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), uint8(c.Newconfig.TOS))
+			} else if attr == "Mtu" {
+				UpdateVtepMTU(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), uint16(c.Newconfig.MTU))
+			} else if attr == "TTL" {
+				UpdateVtepTTL(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), uint8(c.Newconfig.TTL))
+			}
+		}
+	}
+}
+
+func UpdateVtepTOS(vtepName string, vni uint32, tos uint8) {
+	key := &VtepDbKey{
+		Name: vtepName,
+		Vni:  vni,
+	}
+	vtep := GetVtepDBEntry(key)
+	if vtep != nil {
+		// only need to set the tos attribute as vxland constructs the tos
+		vtep.TOS = tos
+		vtepDB[*key] = vtep
+		for idx, v := range vtepDbList {
+			if vtep.VtepName == v.VtepName &&
+				vtep.Vni == v.Vni {
+				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+			}
+		}
+
+		for _, client := range ClientIntf {
+			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, tos, vtep.TOS, vtep.MTU)
+		}
+	}
+}
+
+func UpdateVtepTTL(vtepName string, vni uint32, ttl uint8) {
+	key := &VtepDbKey{
+		Name: vtepName,
+		Vni:  vni,
+	}
+	vtep := GetVtepDBEntry(key)
+	if vtep != nil {
+		// only need to set the tos attribute as vxland constructs the tos
+		vtep.TTL = ttl
+		vtepDB[*key] = vtep
+		for idx, v := range vtepDbList {
+			if vtep.VtepName == v.VtepName &&
+				vtep.Vni == v.Vni {
+				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+			}
+		}
+		for _, client := range ClientIntf {
+			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, vtep.TOS, ttl, vtep.MTU)
+		}
+	}
+}
+
+func UpdateVtepMTU(vtepName string, vni uint32, mtu uint16) {
+	key := &VtepDbKey{
+		Name: vtepName,
+		Vni:  vni,
+	}
+	vtep := GetVtepDBEntry(key)
+	if vtep != nil {
+		// only need to set the tos attribute as vxland constructs the tos
+		vtep.MTU = mtu
+		vtepDB[*key] = vtep
+		for idx, v := range vtepDbList {
+			if vtep.VtepName == v.VtepName &&
+				vtep.Vni == v.Vni {
+				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+			}
+		}
+		for _, client := range ClientIntf {
+			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, vtep.TOS, vtep.TTL, mtu)
+		}
 	}
 }
 
@@ -494,10 +603,10 @@ func (s *VXLANServer) ConfigListener() {
 				CreateVxLAN(&vxlan)
 
 			case vxlan := <-cc.Vxlandelete:
-				DeleteVxLAN(&vxlan)
+				DeleteVxLAN(&vxlan, false)
 
 			case vxlan := <-cc.Vxlanupdate:
-				s.updateThriftVxLAN(&vxlan)
+				UpdateThriftVxLAN(&vxlan)
 
 			case vtep := <-cc.Vtepcreate:
 				CreateVtep(&vtep)
@@ -505,8 +614,8 @@ func (s *VXLANServer) ConfigListener() {
 			case vtep := <-cc.Vtepdelete:
 				DeleteVtep(&vtep)
 
-			case <-cc.Vtepupdate:
-				//s.UpdateThriftVtep(&vtep)
+			case vtep := <-cc.Vtepupdate:
+				UpdateThriftVtep(&vtep)
 
 			case <-cc.VxlanAccessPortVlanUpdate:
 				// updates from client which are post create of vxlan

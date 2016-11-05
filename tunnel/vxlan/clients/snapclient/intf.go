@@ -18,7 +18,7 @@ type PortEvtCb func(ifindex int32)
 // Base Snaproute Interface
 type VXLANSnapClient struct {
 	vxlan.BaseClientIntf
-	asicdmutex          *sync.Mutex
+	thriftmutex         *sync.Mutex
 	ribdSubSocket       *nanomsg.SubSocket
 	ribdSubSocketCh     chan []byte
 	ribdSubSocketErrCh  chan error
@@ -33,7 +33,7 @@ func NewVXLANSnapClient(l *logging.Writer) *VXLANSnapClient {
 	logger = l
 
 	client := &VXLANSnapClient{
-		asicdmutex:          &sync.Mutex{},
+		thriftmutex:         &sync.Mutex{},
 		ribdSubSocketCh:     make(chan []byte, 0),
 		ribdSubSocketErrCh:  make(chan error, 0),
 		asicdSubSocketCh:    make(chan []byte, 0),

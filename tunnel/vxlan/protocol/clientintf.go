@@ -23,15 +23,20 @@ type VXLANClientIntf interface {
 	// create/delete
 	CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent)
 	DeleteVtep(vtep *VtepDbEntry)
+	UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16)
 	CreateVxlan(vxlan *VxlanDbEntry)
 	DeleteVxlan(vxlan *VxlanDbEntry)
 	UpdateVxlan(vni uint32, addvlanlist, delvlanlist, addUntaggedVlan, delUntaggedVlan []uint16)
+
 	// access ports
 	//AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string)
 	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
 	// vtep fsm
 	GetIntfInfo(name string, intfchan chan<- MachineEvent)
-	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent)
+	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) bool
+	UnRegisterReachability(ip net.IP)
+	RegisterReachability(ip net.IP)
+	UnresolveNextHopMac(nextHopIp net.IP, nexthopif string)
 	ResolveNextHopMac(nextHopIp net.IP, nexthopif string, nexthopmacchan chan<- MachineEvent)
 
 	GetLinkState(ifname string) string
@@ -67,6 +72,9 @@ func (b BaseClientIntf) GetIntfInfo(name string, intfchan chan<- MachineEvent) {
 func (b BaseClientIntf) CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent) {
 
 }
+func (b BaseClientIntf) UpdateVtepAttr(vtepName string, vni uint32, tos, ttl uint8, mtu uint16) {
+
+}
 func (b BaseClientIntf) DeleteVtep(vtep *VtepDbEntry) {
 
 }
@@ -86,10 +94,19 @@ func (b BaseClientIntf) CreateVxlanAccess() {
 func (b BaseClientIntf) DeleteVxlanAccess() {
 
 }
-func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
+func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) bool {
+	return true
+}
+func (b BaseClientIntf) UnRegisterReachability(ip net.IP) {
+
+}
+func (b BaseClientIntf) RegisterReachability(ip net.IP) {
 
 }
 func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
+
+}
+func (b BaseClientIntf) UnresolveNextHopMac(nextHopIp net.IP, nexthopif string) {
 
 }
 func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
@@ -98,7 +115,6 @@ func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist 
 func (b BaseClientIntf) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
 
 }
-
 func (b BaseClientIntf) GetAllVlans() []uint16 {
 	return []uint16{}
 }
