@@ -87,7 +87,7 @@ struct Ospfv2AreaState {
 	8 : i32 NumSummary4Lsa
 	9 : i32 NumASExternalLsa
 	10 : i32 NumIntfs
-	11 : i32 NumNbr
+	11 : i32 NumNbrs
 }
 struct Ospfv2AreaStateGetInfo {
 	1: int StartIdx
@@ -120,8 +120,7 @@ struct Ospfv2LsaKey {
 }
 struct Ospfv2GlobalState {
 	1 : string Vrf
-	2 : string RouterId
-	3 : bool AreaBdrRtrStatus
+	2 : bool AreaBdrRtrStatus
 }
 struct Ospfv2GlobalStateGetInfo {
 	1: int StartIdx

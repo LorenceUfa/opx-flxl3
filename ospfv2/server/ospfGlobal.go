@@ -24,6 +24,7 @@
 package server
 
 import (
+	"errors"
 	"l3/ospfv2/objects"
 )
 
@@ -37,28 +38,131 @@ type GlobalStruct struct {
 	//isABR             bool
 }
 
+func genOspfv2GlobalUpdateMask(attrset []bool) uint32 {
+	var mask uint32 = 0
+
+	if attrset == nil {
+		mask = objects.OSPFV2_GLOBAL_UPDATE_ROUTER_ID |
+			objects.OSPFV2_GLOBAL_UPDATE_ADMIN_STATE |
+			objects.OSPFV2_GLOBAL_UPDATE_AS_BDR_RTR_STATUS |
+			objects.OSPFV2_GLOBAL_UPDATE_REFERENCE_BANDWIDTH
+	} else {
+		for idx, val := range attrset {
+			if true == val {
+				switch idx {
+				case 0:
+					// Vrf
+				case 1:
+					mask |= objects.OSPFV2_GLOBAL_UPDATE_ROUTER_ID
+				case 2:
+					mask |= objects.OSPFV2_GLOBAL_UPDATE_ADMIN_STATE
+				case 3:
+					mask |= objects.OSPFV2_GLOBAL_UPDATE_AS_BDR_RTR_STATUS
+				case 4:
+					mask |= objects.OSPFV2_GLOBAL_UPDATE_REFERENCE_BANDWIDTH
+				}
+			}
+		}
+	}
+	return mask
+}
+
 func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, attrset []bool) (bool, error) {
 	server.logger.Info("Global configuration update")
+	if server.globalData.AdminState == true {
+		// TODO
+		//Stop OSPF Interface FSM
+		//Flush LSDB
+		//Delete all the routes
+		//Flush all the routes
+		//Stop Neighbor FSM
+		//Stop Ribd updates
+	}
+
+	mask := genOspfv2GlobalUpdateMask(attrset)
+	if mask&objects.OSPFV2_GLOBAL_UPDATE_ADMIN_STATE == objects.OSPFV2_GLOBAL_UPDATE_ADMIN_STATE {
+		server.globalData.AdminState = newCfg.AdminState
+	}
+	if mask&objects.OSPFV2_GLOBAL_UPDATE_ROUTER_ID == objects.OSPFV2_GLOBAL_UPDATE_ROUTER_ID {
+		server.globalData.RouterId = newCfg.RouterId
+	}
+	if mask&objects.OSPFV2_GLOBAL_UPDATE_AS_BDR_RTR_STATUS == objects.OSPFV2_GLOBAL_UPDATE_AS_BDR_RTR_STATUS {
+		server.globalData.ASBdrRtrStatus = newCfg.ASBdrRtrStatus
+	}
+	if mask&objects.OSPFV2_GLOBAL_UPDATE_REFERENCE_BANDWIDTH == objects.OSPFV2_GLOBAL_UPDATE_REFERENCE_BANDWIDTH {
+		server.globalData.ReferenceBandwidth = newCfg.ReferenceBandwidth
+	}
+
+	if server.globalData.AdminState == true {
+		for intfConfKey, intfConfEnt := range server.IntfConfMap {
+			if intfConfEnt.AdminState == true {
+				server.logger.Info("Server Interface Key", intfConfKey)
+				// TODO
+				//Start OSPF Interface FSM
+				//Start SPF
+				//Start Neighbor FSM
+				//Start Ribd Updates if ASBdrRtrStatus = true
+			}
+		}
+	}
+
 	return true, nil
 }
 
 func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error) {
 	server.logger.Info("Global configuration create")
+	if cfg.Vrf != "Default" {
+		server.logger.Err("Vrp other than Default is not supported")
+		return false, errors.New("Vrp other than Default is not supported")
+	}
+	server.globalData.Vrf = cfg.Vrf
+	server.globalData.AdminState = cfg.AdminState
+	server.globalData.RouterId = cfg.RouterId
+	server.globalData.ASBdrRtrStatus = cfg.ASBdrRtrStatus
+	server.globalData.ReferenceBandwidth = cfg.ReferenceBandwidth
+	if cfg.AdminState == true {
+		//Restart Neighbor FSM
+		//Flush all the routes
+		//Flush LSDB
+		//Start OSPF Interface FSM
+	} else {
+		//Stop OSPF Interface FSM
+		//Flush LSDB
+		//Flush all the routes
+		//Restart Neighbor FSM
+	}
 	return true, nil
 }
 
 func (server *OSPFV2Server) deleteGlobal(cfg *objects.Ospfv2Global) (bool, error) {
 	server.logger.Info("Global configuration delete")
-	return true, nil
+	server.logger.Err("Global Configuration delete not supported")
+	return false, errors.New("Global Configuration delete not supported")
 }
 
 func (server *OSPFV2Server) getGlobalState(vrf string) (*objects.Ospfv2GlobalState, error) {
 	var retObj objects.Ospfv2GlobalState
+	retObj.Vrf = vrf
+	retObj.AreaBdrRtrStatus = server.globalData.AreaBdrRtrStatus
 	return &retObj, nil
 }
 
 func (server *OSPFV2Server) getBulkGlobalState(fromIdx, cnt int) (*objects.Ospfv2GlobalStateGetInfo, error) {
 	var retObj objects.Ospfv2GlobalStateGetInfo
+	if fromIdx > 0 {
+		return nil, errors.New("Invalid range.")
+	}
+	retObj.EndIdx = 1
+	retObj.More = false
+	retObj.Count = 1
+	for idx := fromIdx; idx < retObj.EndIdx; idx++ {
+		obj, err := server.getGlobalState("Default")
+		if err != nil {
+			server.logger.Err("Error getting the Ospfv2GlobalState for vrf=default")
+			return nil, err
+		}
+		retObj.List = append(retObj.List, obj)
+	}
 	return &retObj, nil
 }
 

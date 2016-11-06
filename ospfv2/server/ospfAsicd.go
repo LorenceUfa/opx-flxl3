@@ -25,14 +25,22 @@ package server
 
 import (
 	"asicd/asicdCommonDefs"
-	//"asicdInt"
+	"asicdInt"
 	"asicdServices"
-	//"encoding/json"
+	"encoding/json"
 	//"git.apache.org/thrift.git/lib/go/thrift"
 	nanomsg "github.com/op/go-nanomsg"
 	"strconv"
 	"time"
 	"utils/ipcutils"
+)
+
+const (
+	ALLSPFROUTER    string = "224.0.0.5"
+	ALLDROUTER      string = "224.0.0.6"
+	ALLSPFROUTERMAC string = "01:00:5e:00:00:05"
+	ALLDROUTERMAC   string = "01:00:5e:00:00:06"
+	MASKMAC         string = "ff:ff:ff:ff:ff:ff"
 )
 
 type AsicdClient struct {
@@ -124,6 +132,96 @@ func (server *OSPFV2Server) listenForAsicdUpdates(address string) error {
 	return nil
 }
 
-func (server *OSPFV2Server) processAsicdNotification(asicdrxBuf []byte) {
+func (server *OSPFV2Server) processAsicdNotification(asicdRxBuf []byte) {
+	var asicdMsg asicdCommonDefs.AsicdNotification
+	err := json.Unmarshal(asicdRxBuf, &asicdMsg)
+	if err != nil {
+		server.logger.Err("Unable to unmarshal asicdrxBuf:", asicdRxBuf)
+		return
+	}
+	if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_PORT_CONFIG_MTU_CHANGE {
+		var msg asicdCommonDefs.PortConfigMtuChgNotigyMsg
+		err = json.Unmarshal(asicdMsg.Msg, &msg)
+		if err != nil {
+			server.logger.Err("Mtu change :Unable to unmarshal msg :", asicdMsg.Msg)
+			return
+		}
+		server.UpdateMtu(msg)
+	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_CREATE ||
+		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_DELETE {
+		var msg asicdCommonDefs.LogicalIntfNotifyMsg
+		err = json.Unmarshal(asicdMsg.Msg, &msg)
+		if err != nil {
+			server.logger.Err("Unable to unmarshal msg : ", asicdMsg.Msg)
+			return
+		}
+		server.UpdateLogicalIntfInfra(msg, asicdMsg.MsgType)
+	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE ||
+		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_DELETE {
+		var msg asicdCommonDefs.IPv4IntfNotifyMsg
+		err = json.Unmarshal(asicdMsg.Msg, &msg)
+		if err != nil {
+			server.logger.Err("Unable to unmarshal msg:", asicdMsg.Msg)
+			return
+		}
+		server.UpdateIPv4Infra(msg, asicdMsg.MsgType)
+	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4_L3INTF_STATE_CHANGE {
+		var msg asicdCommonDefs.IPv4L3IntfStateNotifyMsg
+		err = json.Unmarshal(asicdMsg.Msg, &msg)
+		if err != nil {
+			server.logger.Err("Unable to unmarshal msg :", asicdMsg.Msg)
+			return
+		}
+		server.ProcessIPv4StateChange(msg)
+	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_CREATE ||
+		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_DELETE ||
+		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_VLAN_UPDATE {
+		var msg asicdCommonDefs.VlanNotifyMsg
+		err = json.Unmarshal(asicdMsg.Msg, &msg)
+		if err != nil {
+			server.logger.Err("Unable to unmarshal msg :", asicdMsg.Msg)
+			return
+		}
+		server.ProcessVlanNotify(msg, asicdMsg.MsgType)
+	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LAG_CREATE ||
+		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LAG_DELETE ||
+		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LAG_UPDATE {
+		var msg asicdCommonDefs.LagNotifyMsg
+		err = json.Unmarshal(asicdMsg.Msg, &msg)
+		if err != nil {
+			server.logger.Err("Unable to unmarshal msg :", asicdMsg.Msg)
+			return
+		}
+		server.ProcessLagNotify(msg, asicdMsg.MsgType)
+	}
+}
 
+func (server *OSPFV2Server) initAsicdForRxMulticastPkt() (err error) {
+	// All SPF Router
+	allSPFRtrMacConf := asicdInt.RsvdProtocolMacConfig{
+		MacAddr:     ALLSPFROUTERMAC,
+		MacAddrMask: MASKMAC,
+	}
+	if server.asicdComm.asicdClient.ClientHdl == nil {
+		server.logger.Err("Null asicd client handle")
+		return nil
+	}
+	ret, err := server.asicdComm.asicdClient.ClientHdl.EnablePacketReception(&allSPFRtrMacConf)
+	if !ret {
+		server.logger.Info("Adding reserved mac failed", ALLSPFROUTERMAC)
+		return err
+	}
+
+	// All D Router
+	allDRtrMacConf := asicdInt.RsvdProtocolMacConfig{
+		MacAddr:     ALLDROUTERMAC,
+		MacAddrMask: MASKMAC,
+	}
+
+	ret, err = server.asicdComm.asicdClient.ClientHdl.EnablePacketReception(&allDRtrMacConf)
+	if !ret {
+		server.logger.Info("Adding reserved mac failed", ALLDROUTERMAC)
+		return err
+	}
+	return nil
 }

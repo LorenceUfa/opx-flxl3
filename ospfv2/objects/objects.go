@@ -35,6 +35,10 @@ const (
 	AUTH_TYPE_MD5             uint8 = 2
 )
 
+const (
+	OSPFV2_AREA_UPDATE_AUTH_TYPE = 0x1
+)
+
 type Ospfv2Area struct {
 	AreaId   uint32
 	AuthType uint8
@@ -51,7 +55,7 @@ type Ospfv2AreaState struct {
 	NumSummary4Lsa   uint32
 	NumASExternalLsa uint32
 	NumIntfs         uint32
-	NumNbr           uint32
+	NumNbrs          uint32
 }
 
 type Ospfv2AreaStateGetInfo struct {
@@ -71,6 +75,13 @@ const (
 	GLOBAL_ADMIN_STATE_DOWN_STR string = "down"
 )
 
+const (
+	OSPFV2_GLOBAL_UPDATE_ROUTER_ID           = 0x1
+	OSPFV2_GLOBAL_UPDATE_ADMIN_STATE         = 0x2
+	OSPFV2_GLOBAL_UPDATE_AS_BDR_RTR_STATUS   = 0x4
+	OSPFV2_GLOBAL_UPDATE_REFERENCE_BANDWIDTH = 0x8
+)
+
 type Ospfv2Global struct {
 	Vrf                string
 	RouterId           uint32
@@ -81,7 +92,6 @@ type Ospfv2Global struct {
 
 type Ospfv2GlobalState struct {
 	Vrf              string
-	RouterId         uint32
 	AreaBdrRtrStatus bool
 }
 
@@ -113,16 +123,18 @@ const (
 )
 
 const (
-	INTF_FSM_STATE_OTHER_DR uint8 = 0
-	INTF_FSM_STATE_DR       uint8 = 1
-	INTF_FSM_STATE_BDR      uint8 = 2
-	INTF_FSM_STATE_LOOPBACK uint8 = 3
-	INTF_FSM_STATE_DOWN     uint8 = 4
-	INTF_FSM_STATE_WAITING  uint8 = 5
-	INTF_FSM_STATE_P2P      uint8 = 6
+	INTF_FSM_STATE_UNKNOWN  uint8 = 0
+	INTF_FSM_STATE_OTHER_DR uint8 = 1
+	INTF_FSM_STATE_DR       uint8 = 2
+	INTF_FSM_STATE_BDR      uint8 = 3
+	INTF_FSM_STATE_LOOPBACK uint8 = 4
+	INTF_FSM_STATE_DOWN     uint8 = 5
+	INTF_FSM_STATE_WAITING  uint8 = 6
+	INTF_FSM_STATE_P2P      uint8 = 7
 )
 
 const (
+	INTF_FSM_STATE_UNKNOWN_STR  string = "unknown"
 	INTF_FSM_STATE_OTHER_DR_STR string = "other-dr"
 	INTF_FSM_STATE_DR_STR       string = "dr"
 	INTF_FSM_STATE_BDR_STR      string = "bdr"
@@ -130,6 +142,18 @@ const (
 	INTF_FSM_STATE_DOWN_STR     string = "down"
 	INTF_FSM_STATE_WAITING_STR  string = "waiting"
 	INTF_FSM_STATE_P2P_STR      string = "point-to-point"
+)
+
+const (
+	OSPFV2_INTF_UPDATE_ADMIN_STATE       = 0x2
+	OSPFV2_INTF_UPDATE_AREA_ID           = 0x4
+	OSPFV2_INTF_UPDATE_TYPE              = 0x8
+	OSPFV2_INTF_UPDATE_RTR_PRIORITY      = 0x10
+	OSPFV2_INTF_UPDATE_TRANSIT_DELAY     = 0x20
+	OSPFV2_INTF_UPDATE_RETRANS_INTERVAL  = 0x40
+	OSPFV2_INTF_UPDATE_HELLO_INTERVAL    = 0x80
+	OSPFV2_INTF_UPDATE_RTR_DEAD_INTERVAL = 0x100
+	OSPFV2_INTF_UPDATE_METRIC_VALUE      = 0x200
 )
 
 type Ospfv2Intf struct {

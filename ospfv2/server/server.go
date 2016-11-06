@@ -62,7 +62,11 @@ type OSPFV2Server struct {
 	ribdComm  RibdCommStruct
 	asicdComm AsicdCommStruct
 
-	globalData GlobalStruct
+	infraData InfraStruct
+
+	globalData  GlobalStruct
+	IntfConfMap map[IntfConfKey]IntfConf
+	AreaConfMap map[uint32]AreaConf //Key AreaId
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -75,6 +79,8 @@ func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
 	server.ReqChan = make(chan *ServerRequest)
 	server.ReplyChan = make(chan interface{})
 	server.InitCompleteCh = make(chan bool)
+	server.IntfConfMap = make(map[IntfConfKey]IntfConf)
+	server.AreaConfMap = make(map[uint32]AreaConf)
 	return &server, nil
 }
 
@@ -114,6 +120,14 @@ func (server *OSPFV2Server) initServer() error {
 	server.initRibdComm()
 	server.ConnectToServers()
 	server.StartSubscribers()
+	err := server.initAsicdForRxMulticastPkt()
+	if err != nil {
+		server.logger.Err("Unable to initialize asicd for receiving multicast packets", err)
+		return err
+	}
+	server.initInfra()
+	server.buildInfra()
+
 	return nil
 }
 

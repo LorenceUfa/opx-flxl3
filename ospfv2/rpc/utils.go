@@ -36,7 +36,7 @@ import (
 func convertDotNotationToUint32(str string) (uint32, error) {
 	var val uint32
 	ip := net.ParseIP(str)
-	if ip != nil {
+	if ip == nil {
 		return 0, errors.New("Invalid string format")
 	}
 	ipBytes := ip.To4()
@@ -93,7 +93,7 @@ func convertToRPCFmtOspfv2AreaState(obj *objects.Ospfv2AreaState) *ospfv2d.Ospfv
 		NumSummary4Lsa:   int32(obj.NumSummary4Lsa),
 		NumASExternalLsa: int32(obj.NumASExternalLsa),
 		NumIntfs:         int32(obj.NumIntfs),
-		NumNbr:           int32(obj.NumNbr),
+		NumNbrs:          int32(obj.NumNbrs),
 	}
 }
 
@@ -125,10 +125,8 @@ func convertFromRPCFmtOspfv2Global(config *ospfv2d.Ospfv2Global) (*objects.Ospfv
 }
 
 func convertToRPCFmtOspfv2GlobalState(obj *objects.Ospfv2GlobalState) *ospfv2d.Ospfv2GlobalState {
-	routerId := convertUint32ToDotNotation(obj.RouterId)
 	return &ospfv2d.Ospfv2GlobalState{
 		Vrf:              "Default",
-		RouterId:         routerId,
 		AreaBdrRtrStatus: obj.AreaBdrRtrStatus,
 	}
 }
