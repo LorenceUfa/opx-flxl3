@@ -47,8 +47,6 @@ type VrrpServer struct {
 	GblCfgCh           chan *config.GlobalConfig
 	L3IntfNotifyCh     chan *config.BaseIpInfo
 	VirtualIpCh        chan *config.VirtualIpInfo // used for updating virtual ip state in hardware/linux
-	//L2Port             map[int32]config.PhyPort
-	//VlanInfo           map[int32]config.VlanInfo
 }
 
 type VrrpTxChannelInfo struct {
@@ -99,15 +97,12 @@ func (svr *VrrpServer) GetSystemInfo() {
 }
 
 func (svr *VrrpServer) InitGlobalDS() {
-	//svr.L2Port = make(map[int32]config.PhyPort, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.GlobalConfig = new(config.GlobalConfig)
 	svr.V6 = make(map[int32]*V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4 = make(map[int32]*V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	//svr.VlanInfo = make(map[int32]config.VlanInfo, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	//svr.StateCh = make(chan *IntfState, VRRP_RX_BUF_CHANNEL_SIZE)
 	svr.GblCfgCh = make(chan *config.GlobalConfig)
 	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 	svr.L3IntfNotifyCh = make(chan *config.BaseIpInfo)
@@ -123,9 +118,8 @@ func (svr *VrrpServer) signalHandler(sigChannel <-chan os.Signal) {
 	switch signal {
 	case syscall.SIGHUP:
 		debug.Logger.Alert("Received SIGHUP Signal")
-		//svr.VrrpCloseAllPcapHandlers()
 		svr.DeAllocateMemory()
-		debug.Logger.Alert("Closed all pcap's and freed memory")
+		debug.Logger.Alert("Exiting!!!!!!")
 		os.Exit(0)
 	default:
 		debug.Logger.Info("Unhandled Signal:", signal)

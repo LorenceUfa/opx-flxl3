@@ -24,8 +24,8 @@ package server
 
 import (
 	"l3/vrrp/config"
+	"l3/vrrp/debug"
 	"net"
-	_ "utils/commonDefs"
 )
 
 type V6Intf struct {
@@ -34,18 +34,17 @@ type V6Intf struct {
 }
 
 func (intf *V6Intf) Init(obj *config.BaseIpInfo) {
-	ipInfo := intf.Cfg.Info
-	//if !exists {
-	ipInfo.IntfRef = obj.IntfRef
-	ipInfo.IfIndex = obj.IfIndex
-	ipInfo.OperState = obj.OperState
+	intf.Cfg.Info.IntfRef = obj.IntfRef
+	intf.Cfg.Info.IfIndex = obj.IfIndex
+	intf.Cfg.Info.OperState = obj.OperState
 	ip, _, _ := net.ParseCIDR(obj.IpAddr)
 	if ip.IsLinkLocalUnicast() {
 		intf.Cfg.LinkScopeAddr = ip.String()
 	} else {
-		ipInfo.IpAddr = ip.String()
+		intf.Cfg.Info.IpAddr = ip.String()
 	}
 	intf.Vrrpkey = nil
+	debug.Logger.Debug("v6 ip interface initialized:", intf.Cfg)
 }
 
 func (intf *V6Intf) Update(obj *config.BaseIpInfo) {
@@ -67,4 +66,8 @@ func (intf *V6Intf) SetVrrpIntfKey(key KeyInfo) {
 
 func (intf *V6Intf) GetVrrpIntfKey() *KeyInfo {
 	return intf.Vrrpkey
+}
+
+func (intf *V6Intf) GetIntfRef() string {
+	return intf.Cfg.Info.IntfRef
 }

@@ -218,10 +218,12 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	l3Info := &config.BaseIpInfo{}
 	l3Info.IntfRef = cfg.IntfRef
 	var ipIntf IPIntf
+	var ifIndex int32
 	// Get DB based on config version
 	switch cfg.Version {
 	case config.VERSION2:
-		ifIndex, exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
+		ifIndex, exists = svr.V4IntfRefToIfIndex[cfg.IntfRef]
+		debug.Logger.Debug("v4 ifIndex found in reverse map for:", cfg.IntfRef, "is:", ifIndex, "exists:", exists)
 		if exists {
 			l3Info.IfIndex = ifIndex
 			ipIntf, exists = svr.V4[ifIndex]
@@ -229,7 +231,8 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	// if cross reference exists then only set l3Info else just pass go defaults and it will updated
 	// later once we have configured ipv4 or ipv6 interface
 	case config.VERSION3:
-		ifIndex, exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
+		ifIndex, exists = svr.V6IntfRefToIfIndex[cfg.IntfRef]
+		debug.Logger.Debug("v6 ifIndex found in reverse map for:", cfg.IntfRef, "is:", ifIndex, "exists:", exists)
 		if exists {
 			l3Info.IfIndex = ifIndex
 			ipIntf, exists = svr.V6[ifIndex]
@@ -238,8 +241,13 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	// if entry exists then only you should get information from DB otherwise it should be nothing
 	// Information collected from DB is L3 interface ip address and operation state
 	if exists {
+		debug.Logger.Debug("ip interface exists and hence get information from DB")
 		ipIntf.GetObjFromDb(l3Info)
+	} else {
+		//@TODO: need to reject the vrrp interface config during validation??
+		debug.Logger.Debug("No ip interface configured:", cfg.IntfRef, "we are proceeding with vrrp configuration only")
 	}
+
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
 	// up... if that's the case then lets start fsm right away
@@ -349,7 +357,7 @@ func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 	key := ipIntf.GetVrrpIntfKey()
 	if key == nil {
 		// if no key then it means that no vrrp interface is created
-		debug.Logger.Warning("No vrrp interface attached to ip interface:", ipIntf)
+		debug.Logger.Warning("No vrrp interface attached to ip interface:", ipIntf.GetIntfRef())
 		return
 	}
 	intf, exists := svr.Intf[*key]
@@ -374,6 +382,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 				v4.Init(msg)
 				svr.V4[msg.IfIndex] = v4
 				svr.V4IntfRefToIfIndex[msg.IntfRef] = msg.IfIndex
+				debug.Logger.Info("Reverse v4 ip intf to ifIndex cached for:", msg.IntfRef, "-------->", msg.IfIndex)
 			}
 		case syscall.AF_INET6:
 			v6, exists := svr.V6[msg.IfIndex]
@@ -382,6 +391,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 				v6.Init(msg)
 				svr.V6[msg.IfIndex] = v6
 				svr.V6IntfRefToIfIndex[msg.IntfRef] = msg.IfIndex
+				debug.Logger.Info("Reverse v6 ip intf to ifIndex cached for:", msg.IntfRef, "-------->", msg.IfIndex)
 			}
 		}
 	case config.IP_MSG_DELETE:

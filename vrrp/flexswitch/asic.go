@@ -97,10 +97,11 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 		ipv6Msg := msg.(commonDefs.IPv6IntfNotifyMsg)
 		if !fsPlugin.IsLoopbackType(ipv6Msg.IfIndex) {
 			ipInfo := &config.BaseIpInfo{
-				IfIndex: ipv6Msg.IfIndex,
-				IntfRef: ipv6Msg.IntfRef,
-				IpAddr:  ipv6Msg.IpAddr,
-				IpType:  syscall.AF_INET6,
+				IfIndex:   ipv6Msg.IfIndex,
+				IntfRef:   ipv6Msg.IntfRef,
+				IpAddr:    ipv6Msg.IpAddr,
+				IpType:    syscall.AF_INET6,
+				OperState: config.STATE_DOWN, // during create lets hardcode the oper state to be down
 			}
 			if ipv6Msg.MsgType == commonDefs.NOTIFY_IPV6INTF_CREATE {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication CREATE:", ipv6Msg)
@@ -138,10 +139,11 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 		ipv4Msg := msg.(commonDefs.IPv4IntfNotifyMsg)
 		if !fsPlugin.IsLoopbackType(ipv4Msg.IfIndex) {
 			ipInfo := &config.BaseIpInfo{
-				IfIndex: ipv4Msg.IfIndex,
-				IntfRef: ipv4Msg.IntfRef,
-				IpAddr:  ipv4Msg.IpAddr,
-				IpType:  syscall.AF_INET,
+				IfIndex:   ipv4Msg.IfIndex,
+				IntfRef:   ipv4Msg.IntfRef,
+				IpAddr:    ipv4Msg.IpAddr,
+				IpType:    syscall.AF_INET,
+				OperState: config.STATE_DOWN, // during create lets hardcode the oper state to be down
 			}
 			if ipv4Msg.MsgType == commonDefs.NOTIFY_IPV4INTF_CREATE {
 				debug.Logger.Debug("Received Asicd IPV4 INTF Notfication CREATE:", ipv4Msg)

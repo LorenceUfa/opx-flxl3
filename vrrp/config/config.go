@@ -33,8 +33,8 @@ const (
 	USE_CONFIG_ADVERTISEMENT = -100
 	STATE_UP                 = "UP"
 	STATE_DOWN               = "DOWN"
-	IP_MSG_CREATE            = "create"
-	IP_MSG_DELETE            = "delete"
+	IP_MSG_CREATE            = "ip_create"
+	IP_MSG_DELETE            = "ip_delete"
 	IP_MSG_STATE_CHANGE      = "state_change"
 )
 

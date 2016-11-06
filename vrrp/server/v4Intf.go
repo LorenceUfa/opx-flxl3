@@ -24,6 +24,7 @@ package server
 
 import (
 	"l3/vrrp/config"
+	"l3/vrrp/debug"
 )
 
 type V4Intf struct {
@@ -32,12 +33,13 @@ type V4Intf struct {
 }
 
 func (intf *V4Intf) Init(obj *config.BaseIpInfo) {
-	ipInfo := intf.Cfg.Info
-	ipInfo.IntfRef = obj.IntfRef
-	ipInfo.IfIndex = obj.IfIndex
-	ipInfo.OperState = obj.OperState
-	ipInfo.IpAddr = obj.IpAddr
+	//ipInfo := intf.Cfg.Info
+	intf.Cfg.Info.IntfRef = obj.IntfRef
+	intf.Cfg.Info.IfIndex = obj.IfIndex
+	intf.Cfg.Info.OperState = obj.OperState
+	intf.Cfg.Info.IpAddr = obj.IpAddr
 	intf.Vrrpkey = nil
+	debug.Logger.Debug("v4 ip interface initialized:", intf.Cfg)
 }
 
 func (intf *V4Intf) Update(obj *config.BaseIpInfo) {
@@ -59,4 +61,8 @@ func (intf *V4Intf) SetVrrpIntfKey(key KeyInfo) {
 
 func (intf *V4Intf) GetVrrpIntfKey() *KeyInfo {
 	return intf.Vrrpkey
+}
+
+func (intf *V4Intf) GetIntfRef() string {
+	return intf.Cfg.Info.IntfRef
 }
