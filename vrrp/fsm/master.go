@@ -88,9 +88,9 @@ func (f *FSM) HandleMasterDownTimer() {
 	}
 }
 
-func (f *FSM) MasterState(stInfo *FsmStateInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *stInfo)
-	pktInfo := stInfo.PktInfo
+func (f *FSM) MasterState(decodeInfo *DecodedInfo) {
+	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *decodeInfo)
+	pktInfo := decodeInfo.PktInfo
 	hdr := pktInfo.Hdr
 	/* // @TODO:
 	   (645) - MUST forward packets with a destination link-layer MAC

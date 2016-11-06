@@ -43,8 +43,8 @@ func (f *FSM) TransitionToBackup(advInt int32) {
 	//svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
 }
 
-func (f *FSM) BackupState(stInfo *FsmStateInfo) {
-	pktInfo := stInfo.PktInfo
+func (f *FSM) BackupState(decodeInfo *DecodedInfo) {
+	pktInfo := decodeInfo.PktInfo
 	hdr := pktInfo.Hdr
 	/* @TODO:
 	   (305) - If the protected IPvX address is an IPv4 address, then:

@@ -75,7 +75,7 @@ type PktChannelInfo struct {
 	pkt gopacket.Packet
 }
 
-type FsmStateInfo struct {
+type DecodedInfo struct {
 	PktInfo *packet.PacketInfo
 }
 
@@ -102,7 +102,7 @@ type FSM struct {
 	MasterDownTimer         *time.Timer        // Master down timer...used for keep-alives from master
 	StInfo                  *config.State      // this is state information for this fsm which will be used for get bulk
 	pktCh                   chan *PktChannelInfo
-	fsmStCh                 chan *FsmStateInfo
+	decodeCh                chan *DecodedInfo
 	txPktCh                 chan *packet.PacketInfo
 	IntfEventCh             chan *IntfEvent
 	vipCh                   chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
@@ -119,7 +119,7 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
-	f.fsmStCh = make(chan *FsmStateInfo)
+	f.decodeCh = make(chan *DecodedInfo)
 	f.txPktCh = make(chan *packet.PacketInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
 	f.PktInfo = packet.Init()
@@ -230,7 +230,7 @@ func (f *FSM) ProcessRcvdPkt(pktCh *PktChannelInfo) {
 			return
 		}
 	}
-	f.fsmStCh <- &FsmStateInfo{
+	f.decodeCh <- &DecodedInfo{
 		PktInfo: pktInfo,
 	}
 }
@@ -287,15 +287,15 @@ func (f *FSM) Initialize() {
 	}
 }
 
-func (f *FSM) ProcessStateInfo(fsmStInfo *FsmStateInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "Processing State Information")
+func (f *FSM) HandleDecodedPkt(decodeInfo *DecodedInfo) {
+	debug.Logger.Debug(FSM_PREFIX, "Processing Decoded Packet")
 	switch f.State {
 	case VRRP_INITIALIZE_STATE:
 		f.Initialize()
 	case VRRP_BACKUP_STATE:
-		f.BackupState(fsmStInfo)
+		f.BackupState(decodeInfo)
 	case VRRP_MASTER_STATE:
-		f.MasterState(fsmStInfo)
+		f.MasterState(decodeInfo)
 	}
 }
 
@@ -369,6 +369,7 @@ func (f *FSM) UpdateVirtualIP(enable bool) {
 
 func (f *FSM) StartFsm() {
 	f.running = true
+	f.InitPacketListener()
 	for {
 		select {
 		case pktCh, ok := <-f.pktCh:
@@ -376,9 +377,9 @@ func (f *FSM) StartFsm() {
 				// handle received packet
 				f.ProcessRcvdPkt(pktCh)
 			}
-		case fsmStInfo, ok := <-f.fsmStCh:
+		case decodeInfo, ok := <-f.decodeCh:
 			if ok {
-				f.ProcessStateInfo(fsmStInfo)
+				f.HandleDecodedPkt(decodeInfo)
 			}
 		case intfStateEv, ok := <-f.IntfEventCh:
 			if ok {
