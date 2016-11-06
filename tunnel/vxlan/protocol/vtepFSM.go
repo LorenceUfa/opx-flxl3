@@ -55,15 +55,15 @@ var VxlanVtepStateStrMap map[fsm.State]string
 // VxlanVtepState map converts state to string
 func VxlanVtepMachineStrStateMapInit() {
 	VxlanVtepStateStrMap = make(map[fsm.State]string)
-	VxlanVtepStateStrMap[VxlanVtepStateNone] = "None"
-	VxlanVtepStateStrMap[VxlanVtepStateDisabled] = "Disabled"
-	VxlanVtepStateStrMap[VxlanVtepStateInit] = "Init"
-	VxlanVtepStateStrMap[VxlanVtepStateDetached] = "Detached"
-	VxlanVtepStateStrMap[VxlanVtepStateInterface] = "Interface"
-	VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo] = "Next Hop Info"
-	VxlanVtepStateStrMap[VxlanVtepStateResolveNextHopMac] = "Resolve Next Hop Mac"
-	VxlanVtepStateStrMap[VxlanVtepStateHwConfig] = "Hw Config"
-	VxlanVtepStateStrMap[VxlanVtepStateStart] = "Listener"
+	VxlanVtepStateStrMap[VxlanVtepStateNone] = "UNINITIALIZED"
+	VxlanVtepStateStrMap[VxlanVtepStateDisabled] = "DISABLED"
+	VxlanVtepStateStrMap[VxlanVtepStateInit] = "INIT"
+	VxlanVtepStateStrMap[VxlanVtepStateDetached] = "DETACHED"
+	VxlanVtepStateStrMap[VxlanVtepStateInterface] = "INTERFACE"
+	VxlanVtepStateStrMap[VxlanVtepStateNextHopInfo] = "NEXT HOP INFO"
+	VxlanVtepStateStrMap[VxlanVtepStateResolveNextHopMac] = "RESOLVE NEXT HOP INFO"
+	VxlanVtepStateStrMap[VxlanVtepStateHwConfig] = "HW CONFIG"
+	VxlanVtepStateStrMap[VxlanVtepStateStart] = "LISTENER"
 }
 
 // VxlanVtepEvent is used to transition VTEP FSM to various
@@ -150,6 +150,10 @@ type VxlanVtepMachine struct {
 	VxlanVtepEvents chan MachineEvent
 }
 
+func SendResponse(msg string, responseChan chan string) {
+	responseChan <- msg
+}
+
 func (m *VxlanVtepMachine) GetCurrStateStr() string {
 	return VxlanVtepStateStrMap[m.Machine.Curr.CurrentState()]
 }
@@ -207,9 +211,19 @@ func (vm *VxlanVtepMachine) BEGIN() {
 func (vm *VxlanVtepMachine) Stop() {
 
 	vtep := vm.vtep
+	responsechan := make(chan string)
+	vm.VxlanVtepEvents <- MachineEvent{
+		E:            VxlanVtepEventDetached,
+		Src:          VxlanVtepMachineModuleStr,
+		ResponseChan: responsechan,
+	}
+
+	<-responsechan
 
 	logger.Info("Close VTEP MACHINE")
 	close(vm.VxlanVtepEvents)
+
+	vtep.wg.Wait()
 
 	if vtep.retrytimer != nil {
 		vtep.retrytimer.Stop()
@@ -225,26 +239,35 @@ func (vm *VxlanVtepMachine) VxlanVtepInit(m fsm.Machine, data interface{}) fsm.S
 
 	vtep := vm.vtep
 
-	logger.Info(fmt.Sprintln("vxlandb", GetVxlanDB()))
-	if _, ok := GetVxlanDB()[vtep.Vni]; ok {
-
-		if vtep.Enable {
-			// src interface was supplied
-			// lets lookup the appropriate info
-			if vtep.SrcIfName != "" {
-				for _, client := range ClientIntf {
-					client.GetIntfInfo(vtep.SrcIfName, vm.VxlanVtepEvents)
+	//logger.Info(fmt.Sprintln("vxlandb", GetVxlanDB()))
+	//logger.Debug("Vtep enabled %t", vtep.Enable)
+	if vxlan, ok := GetVxlanDB()[vtep.Vni]; ok {
+		//logger.Debug("Vxlan enabled %t", vxlan.Enable)
+		if vxlan.Enable {
+			if vtep.Enable {
+				// src interface was supplied
+				// lets lookup the appropriate info
+				if vtep.SrcIfName != "" {
+					for _, client := range ClientIntf {
+						client.GetIntfInfo(vtep.SrcIfName, vm.VxlanVtepEvents)
+					}
+				} else if vtep.SrcIp.String() != "0.0.0.0" &&
+					vtep.SrcIp != nil {
+					// TODO need to handle case where src ip and mac is supplied
+					// in typical cases the src mac is the switch mac, src ip should
+					// be applied to the vtep itself
 				}
-			} else if vtep.SrcIp.String() != "0.0.0.0" &&
-				vtep.SrcIp != nil {
-				// TODO need to handle case where src ip and mac is supplied
-				// in typical cases the src mac is the switch mac, src ip should
-				// be applied to the vtep itself
+			} else {
+				// lets move from Init to Detached state since vni not attached
+				vm.VxlanVtepEvents <- MachineEvent{
+					E:   VxlanVtepEventDisable,
+					Src: VxlanVtepMachineModuleStr,
+				}
 			}
 		} else {
 			// lets move from Init to Detached state since vni not attached
 			vm.VxlanVtepEvents <- MachineEvent{
-				E:   VxlanVtepEventDisable,
+				E:   VxlanVtepEventDetached,
 				Src: VxlanVtepMachineModuleStr,
 			}
 		}
@@ -262,6 +285,13 @@ func (vm *VxlanVtepMachine) VxlanVtepInit(m fsm.Machine, data interface{}) fsm.S
 // VxlanVtepInterface is the state which the VTEP has not been attached to a proper
 // VXLAN Vni domain
 func (vm *VxlanVtepMachine) VxlanVtepDetached(m fsm.Machine, data interface{}) fsm.State {
+
+	vtep := vm.vtep
+
+	if vm.Machine.Curr.PreviousState() != VxlanVtepStateInit {
+		DeProvisionVtep(vtep, true)
+	}
+
 	return VxlanVtepStateDetached
 }
 
@@ -285,7 +315,10 @@ func (vm *VxlanVtepMachine) VxlanVtepInterface(m fsm.Machine, data interface{}) 
 	}
 	// lets resolve the next hop ip and intf
 	for _, client := range ClientIntf {
-		client.GetNextHopInfo(vtep.DstIp, vm.VxlanVtepEvents)
+		if client.GetNextHopInfo(vtep.DstIp, vm.VxlanVtepEvents) {
+			// found now register for events
+			client.RegisterReachability(vtep.DstIp)
+		}
 	}
 
 	return VxlanVtepStateInterface
@@ -313,7 +346,7 @@ func (vm *VxlanVtepMachine) VxlanVtepNextHopInfo(m fsm.Machine, data interface{}
 	}
 	// lets resolve the next hop mac
 	for _, client := range ClientIntf {
-		client.ResolveNextHopMac(vtep.NextHop.Ip, vm.VxlanVtepEvents)
+		client.ResolveNextHopMac(vtep.NextHop.Ip, vtep.NextHop.IfName, vm.VxlanVtepEvents)
 	}
 
 	return VxlanVtepStateNextHopInfo
@@ -371,8 +404,10 @@ func (vm *VxlanVtepMachine) VxlanVtepStartListener(m fsm.Machine, data interface
 func (vm *VxlanVtepMachine) VxlanVtepDisabled(m fsm.Machine, data interface{}) fsm.State {
 
 	vtep := vm.vtep
-
-	DeProvisionVtep(vtep, false)
+	// we only want to deprovision if we are coming from a state other than init
+	if vm.Machine.Curr.PreviousState() != VxlanVtepStateInit {
+		DeProvisionVtep(vtep, false)
+	}
 	return VxlanVtepStateDisabled
 }
 
@@ -404,7 +439,13 @@ func VxlanVtepMachineFSMBuild(vtep *VtepDbEntry) *VxlanVtepMachine {
 	rules.AddRule(VxlanVtepStateDetached, VxlanVtepEventBegin, vm.VxlanVtepInit)
 	rules.AddRule(VxlanVtepStateInit, VxlanVtepEventBegin, vm.VxlanVtepInit)
 
-	// DETACHED -> DETACHED
+	// DETACHED -> Init -> DETACHED
+	rules.AddRule(VxlanVtepStateInit, VxlanVtepEventDetached, vm.VxlanVtepDetached)
+	rules.AddRule(VxlanVtepStateInterface, VxlanVtepEventDetached, vm.VxlanVtepDetached)
+	rules.AddRule(VxlanVtepStateNextHopInfo, VxlanVtepEventDetached, vm.VxlanVtepDetached)
+	rules.AddRule(VxlanVtepStateResolveNextHopMac, VxlanVtepEventDetached, vm.VxlanVtepDetached)
+	rules.AddRule(VxlanVtepStateHwConfig, VxlanVtepEventDetached, vm.VxlanVtepDetached)
+	rules.AddRule(VxlanVtepStateStart, VxlanVtepEventDetached, vm.VxlanVtepDetached)
 	rules.AddRule(VxlanVtepStateInit, VxlanVtepEventDetached, vm.VxlanVtepDetached)
 
 	// SRC INTERFACE RESOLVED -> INTERFACE
@@ -478,7 +519,7 @@ func (vtep *VtepDbEntry) VxlanVtepMachineMain() {
 			select {
 			case _, ok := <-vtep.retrytimer.C:
 
-				logger.Info("Timer Expired")
+				//logger.Info("Timer Expired")
 				if ok {
 
 					// in the case that the interface call needs to be polled then add state
@@ -498,8 +539,7 @@ func (vtep *VtepDbEntry) VxlanVtepMachineMain() {
 						vm.ProcessPostStateProcessing(event.Data)
 					}
 					if event.ResponseChan != nil {
-						// TODO
-						//SendResponse(PimMachineModuleStr, event.responseChan)
+						SendResponse(VxlanVtepMachineModuleStr, event.ResponseChan)
 					}
 				} else {
 					//logger.Info(fmt.Sprintln("Vtep MACHINE Stop", vtep.VtepName))

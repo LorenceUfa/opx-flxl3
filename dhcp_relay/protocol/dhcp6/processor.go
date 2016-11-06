@@ -50,7 +50,7 @@ type Processor struct {
 	ClientStateSlice     []*dhcprelayd.DHCPv6RelayClientState
 	ClientStateMap       map[string]*dhcprelayd.DHCPv6RelayClientState
 	IntfStateSlice       []*dhcprelayd.DHCPv6RelayIntfState
-	IntfStateMap         map[int]*dhcprelayd.DHCPv6RelayIntfState
+	IntfStateMap         map[string]*dhcprelayd.DHCPv6RelayIntfState
 	IntfServerStateSlice []*dhcprelayd.DHCPv6RelayIntfServerState
 	IntfServerStateMap   map[string]*dhcprelayd.DHCPv6RelayIntfServerState
 	StateMutex           sync.Mutex
@@ -75,7 +75,7 @@ func NewProcessor(initParams *ProcessorInitParams) *Processor {
 	pProc.ClientStateSlice = []*dhcprelayd.DHCPv6RelayClientState{}
 	pProc.ClientStateMap = make(map[string]*dhcprelayd.DHCPv6RelayClientState)
 	pProc.IntfStateSlice = []*dhcprelayd.DHCPv6RelayIntfState{}
-	pProc.IntfStateMap = make(map[int]*dhcprelayd.DHCPv6RelayIntfState)
+	pProc.IntfStateMap = make(map[string]*dhcprelayd.DHCPv6RelayIntfState)
 	pProc.IntfServerStateSlice = []*dhcprelayd.DHCPv6RelayIntfServerState{}
 	pProc.IntfServerStateMap = make(map[string]*dhcprelayd.DHCPv6RelayIntfServerState)
 
@@ -109,6 +109,9 @@ func (pProc *Processor) GetClientStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.ClientStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPv6RelayClientState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -147,6 +150,9 @@ func (pProc *Processor) GetIntfStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.IntfStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPv6RelayIntfState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -163,12 +169,12 @@ func (pProc *Processor) GetIntfStateSlice(
 }
 
 func (pProc *Processor) GetIntfState(
-	ifIdx int) (*dhcprelayd.DHCPv6RelayIntfState, bool) {
+	ifName string) (*dhcprelayd.DHCPv6RelayIntfState, bool) {
 
 	defer pProc.StateMutex.Unlock()
 	pProc.StateMutex.Lock()
 
-	if intfState, ok := pProc.IntfStateMap[ifIdx]; ok {
+	if intfState, ok := pProc.IntfStateMap[ifName]; ok {
 		return intfState, true
 	} else {
 		return nil, false
@@ -185,6 +191,9 @@ func (pProc *Processor) GetIntfServerStateSlice(
 	var more bool
 	var actualCount int
 	length := len(pProc.IntfServerStateSlice)
+	if fromIdx < 0 || fromIdx >= length || count <= 0 {
+		return 0, 0, false, []*dhcprelayd.DHCPv6RelayIntfServerState{}
+	}
 	if fromIdx+count >= length {
 		actualCount = length - fromIdx
 		nextIdx = 0
@@ -264,19 +273,43 @@ func (pProc *Processor) initClientState(
 }
 
 func (pProc *Processor) initIntfState(
-	ifIdx int, ifName string) *dhcprelayd.DHCPv6RelayIntfState {
+	ifName string) *dhcprelayd.DHCPv6RelayIntfState {
 
 	defer pProc.StateMutex.Unlock()
 	pProc.StateMutex.Lock()
 
-	intfState, ok := pProc.IntfStateMap[ifIdx]
+	intfState, ok := pProc.IntfStateMap[ifName]
 	if !ok {
 		intfState = &dhcprelayd.DHCPv6RelayIntfState{}
 		intfState.IntfRef = ifName
 		pProc.IntfStateSlice = append(pProc.IntfStateSlice, intfState)
-		pProc.IntfStateMap[ifIdx] = intfState
+		pProc.IntfStateMap[ifName] = intfState
 	}
 	return intfState
+}
+
+func (pProc *Processor) deleteIntfState(
+	ifName string) {
+
+	defer pProc.StateMutex.Unlock()
+	pProc.StateMutex.Lock()
+
+	_, ok := pProc.IntfStateMap[ifName]
+	if !ok {
+		return
+	}
+	sliceEntIdx := -1
+	for i, intfState := range pProc.IntfStateSlice {
+		if intfState.IntfRef == ifName {
+			sliceEntIdx = i
+			break
+		}
+	}
+	if sliceEntIdx != -1 {
+		pProc.IntfStateSlice = append(pProc.IntfStateSlice[:sliceEntIdx],
+			pProc.IntfStateSlice[sliceEntIdx+1:]...)
+	}
+	delete(pProc.IntfStateMap, ifName)
 }
 
 func (pProc *Processor) initIntfServerState(
@@ -374,7 +407,7 @@ func (pProc *Processor) SendPktDownstream(
 		return
 	}
 
-	intfState := pProc.initIntfState(outIfIdx, outIfName)
+	intfState := pProc.initIntfState(outIfName)
 	intfServerState := pProc.initIntfServerState(outIfName, srcAddr.String())
 	if mType != RELAY_REPL {
 		pProc.setDownstreamInState(mType, dhcpOptions, clientState, intfState)
@@ -558,7 +591,7 @@ func (pProc *Processor) MakeSendTxPkt(
 		if !ok {
 			return false
 		}
-		intfState := pProc.initIntfState(inIfIdx, inIfName)
+		intfState := pProc.initIntfState(inIfName)
 		clientMacAddr := DhcpPacket(inPktBuf).GetClientHwAddr()
 		if clientMacAddr == nil {
 			Logger.Err("Cannot get client mac address ")
@@ -583,7 +616,7 @@ func (pProc *Processor) MakeSendTxPkt(
 		if !ok {
 			return false
 		}
-		intfState := pProc.initIntfState(inIfIdx, inIfName)
+		intfState := pProc.initIntfState(inIfName)
 		pProc.setUpstreamInState(mType, nil, intfState, nil)
 		pProc.PeerAddrIntfMap[srcAddr.String()] = inIfName
 
@@ -717,6 +750,14 @@ func (pProc *Processor) DeregisterMcast(ifRef string) {
 		)
 		return
 	}
+}
+
+func (pProc *Processor) ProcessCreateDRAIntf(ifName string) {
+	pProc.initIntfState(ifName)
+}
+
+func (pProc *Processor) ProcessDeleteDRAIntf(ifName string) {
+	pProc.deleteIntfState(ifName)
 }
 
 func (pProc *Processor) ProcessActiveDRAIntf(ifIdx int) {

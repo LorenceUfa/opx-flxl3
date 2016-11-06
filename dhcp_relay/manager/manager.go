@@ -88,6 +88,7 @@ func (draMgr *DRAMgr) initDRAv4() bool {
 	}
 	for _, draIntf := range draIntfs {
 		draMgr.IMgr.UpdateDRAv4Intf(draIntf)
+		draMgr.PProc4.ProcessCreateDRAIntf(draIntf.IntfRef)
 	}
 	if draMgr.IMgr.GetActiveDRAv4IntfCount() <= 0 {
 		draMgr.PProc4.StopRxTx()
@@ -116,6 +117,7 @@ func (draMgr *DRAMgr) initDRAv6() bool {
 	}
 	for _, draIntf := range draIntfs {
 		draMgr.IMgr.UpdateDRAv6Intf(draIntf)
+		draMgr.PProc6.ProcessCreateDRAIntf(draIntf.IntfRef)
 	}
 	if draMgr.IMgr.GetActiveDRAv6IntfCount() <= 0 {
 		draMgr.PProc6.StopRxTx()
@@ -206,6 +208,7 @@ func (draMgr *DRAMgr) CreateDRAv4Interface(
 		return false, errors.New(errMsg)
 	}
 	draMgr.IMgr.UpdateDRAv4Intf(cfg)
+	draMgr.PProc4.ProcessCreateDRAIntf(cfg.IntfRef)
 	if _, ok := draMgr.IMgr.GetActiveDRAv4Intf(ifIdx); ok {
 		draMgr.PProc4.StartRxTx()
 		draMgr.PProc4.ProcessActiveDRAIntf(ifIdx)
@@ -263,6 +266,7 @@ func (draMgr *DRAMgr) DeleteDRAv4Interface(intfRef string) (bool, error) {
 	}
 	_, draPreState := draMgr.IMgr.GetActiveDRAv4Intf(ifIdx)
 	draMgr.IMgr.DeleteDRAv4Intf(intfRef)
+	draMgr.PProc4.ProcessDeleteDRAIntf(intfRef)
 	if draMgr.IMgr.GetActiveDRAv4IntfCount() <= 0 {
 		draMgr.PProc4.StopRxTx()
 		return true, nil
@@ -329,6 +333,16 @@ func (draMgr *DRAMgr) DeleteDRAv6Global(Vrf string) (bool, error) {
 	return true, nil
 }
 
+func checkStringSliceUnique(stringList []string) bool {
+	uniqueMap := make(map[string]bool)
+	for _, s := range stringList {
+		if _, ok := uniqueMap[s]; ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (draMgr *DRAMgr) CreateDRAv6Interface(
 	cfg *dhcprelayd.DHCPv6RelayIntf) (bool, error) {
 
@@ -340,6 +354,12 @@ func (draMgr *DRAMgr) CreateDRAv6Interface(
 			draMgr.Logger.Err(errMsg)
 			return false, errors.New(errMsg)
 		}
+	}
+	if !checkStringSliceUnique(cfg.UpstreamIntfs) {
+		errMsg := fmt.Sprintln(
+			"DRA: Non unique upstream interfaces")
+		draMgr.Logger.Err(errMsg)
+		return false, errors.New(errMsg)
 	}
 	for _, val := range cfg.ServerIp {
 		ip := net.ParseIP(val)
@@ -359,6 +379,7 @@ func (draMgr *DRAMgr) CreateDRAv6Interface(
 		return false, errors.New(errMsg)
 	}
 	draMgr.IMgr.UpdateDRAv6Intf(cfg)
+	draMgr.PProc6.ProcessCreateDRAIntf(cfg.IntfRef)
 	if _, ok := draMgr.IMgr.GetActiveDRAv6Intf(ifIdx); ok {
 		draMgr.PProc6.StartRxTx()
 		draMgr.PProc6.ProcessActiveDRAIntf(ifIdx)
@@ -428,6 +449,7 @@ func (draMgr *DRAMgr) DeleteDRAv6Interface(intfRef string) (bool, error) {
 	}
 	_, draPreState := draMgr.IMgr.GetActiveDRAv6Intf(ifIdx)
 	draMgr.IMgr.DeleteDRAv6Intf(intfRef)
+	draMgr.PProc6.ProcessDeleteDRAIntf(intfRef)
 	if draMgr.IMgr.GetActiveDRAv6IntfCount() <= 0 {
 		draMgr.PProc6.StopRxTx()
 		return true, nil
@@ -599,7 +621,7 @@ func (draMgr *DRAMgr) GetBulkDRAv6ClientState(
 func (draMgr *DRAMgr) GetDRAv4IntfState(intfRef string) (
 	*dhcprelayd.DHCPRelayIntfState, error) {
 
-	ifIdx, ok := draMgr.IMgr.GetIPv4IntfIndex(intfRef)
+	_, ok := draMgr.IMgr.GetIPv4IntfIndex(intfRef)
 	if !ok {
 		errMsg := fmt.Sprintln(
 			"Could not find ipv4 interface", intfRef)
@@ -607,7 +629,7 @@ func (draMgr *DRAMgr) GetDRAv4IntfState(intfRef string) (
 		return nil, errors.New(errMsg)
 	}
 
-	if val, ok := draMgr.PProc4.GetIntfState(ifIdx); ok {
+	if val, ok := draMgr.PProc4.GetIntfState(intfRef); ok {
 		return val, nil
 	}
 	return nil, errors.New("Could not find entry")
@@ -631,7 +653,7 @@ func (draMgr *DRAMgr) GetBulkDRAv4IntfState(
 func (draMgr *DRAMgr) GetDRAv6IntfState(intfRef string) (
 	*dhcprelayd.DHCPv6RelayIntfState, error) {
 
-	ifIdx, ok := draMgr.IMgr.GetIPv6IntfIndex(intfRef)
+	_, ok := draMgr.IMgr.GetIPv6IntfIndex(intfRef)
 	if !ok {
 		errMsg := fmt.Sprintln(
 			"Could not find non link-local interface", intfRef)
@@ -639,7 +661,7 @@ func (draMgr *DRAMgr) GetDRAv6IntfState(intfRef string) (
 		return nil, errors.New(errMsg)
 	}
 
-	if val, ok := draMgr.PProc6.GetIntfState(ifIdx); ok {
+	if val, ok := draMgr.PProc6.GetIntfState(intfRef); ok {
 		return val, nil
 	}
 	return nil, errors.New("Could not find entry")

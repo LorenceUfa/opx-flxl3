@@ -29,6 +29,7 @@ import (
 )
 
 type GlobalConf struct {
+	Vrf                      string
 	RouterId                 []byte
 	AdminStat                config.Status
 	ASBdrRtrStatus           bool
@@ -67,6 +68,7 @@ func (server *OSPFServer) updateGlobalConf(gConf config.GlobalConf) {
 		server.logger.Err("Invalid Router Id")
 		return
 	}
+	server.ospfGlobalConf.Vrf = gConf.Vrf
 	server.ospfGlobalConf.RouterId = routerId
 	server.ospfGlobalConf.AdminStat = gConf.AdminStat
 	server.ospfGlobalConf.ASBdrRtrStatus = gConf.ASBdrRtrStatus
@@ -136,9 +138,14 @@ func (server *OSPFServer) processGlobalConfig(gConf config.GlobalConf) error {
 
 	if server.ospfGlobalConf.AdminStat == config.Enabled {
 		server.nbrFSMCtrlCh <- false
-		server.neighborConfStopCh <- true
+		//	server.neighborConfStopCh <- true
 		//server.NeighborListMap = nil
 		server.StopLSDatabase()
+		server.ospfRxNbrPktStopCh <- true
+		server.ospfTxNbrPktStopCh <- true
+		server.neighborFSMCtrlCh <- false
+		server.neighborConfStopCh <- true
+
 	}
 	server.logger.Info(fmt.Sprintln("Received call for performing Global Configuration", gConf))
 	server.updateGlobalConf(gConf)

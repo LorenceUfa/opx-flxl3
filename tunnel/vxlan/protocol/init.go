@@ -27,8 +27,9 @@ package vxlan
 func init() {
 	// initialize the various db maps
 	vtepDB = make(map[VtepDbKey]*VtepDbEntry, 0)
-	vxlanDB = make(map[uint32]*vxlanDbEntry, 0)
-	vxlanVlanToVniDb = make(map[uint16]uint32, 0)
+	vtepDbList = make([]*VtepDbEntry, 0)
+	vxlanDB = make(map[uint32]*VxlanDbEntry, 0)
+	vxlanDbList = make([]*VxlanDbEntry, 0)
 
 	PortConfigMap = make(map[int32]*PortConfig, 0)
 	portDB = make(map[string]*VxlanPort, 0)
