@@ -270,8 +270,9 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 	<-vtepcreatedone
 
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -334,8 +335,9 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 	CreateVtep(vtepConfig)
 
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -491,8 +493,9 @@ func TestFSMCreateVtepNoVxlan(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -553,8 +556,9 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -644,8 +648,9 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -762,8 +767,9 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -858,8 +864,9 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -975,8 +982,9 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -1073,8 +1081,9 @@ func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 

@@ -8,6 +8,7 @@ package vxlan
 import (
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io/ioutil"
 	"net"
 	"strings"
@@ -35,8 +36,9 @@ const (
 // VtepDbKey
 // Holds the key for the VtepDB
 type VtepDbKey struct {
-	Name string
-	Vni  uint32
+	Name  string
+	Vni   uint32
+	DstIp string
 }
 
 // vtepStatus
@@ -63,6 +65,8 @@ type VtepCounters struct {
 type VtepDbEntry struct {
 	// reference to the vxlan db, and value used in encap/decap
 	Vni uint32
+	// Key used for external reference
+	VtepConfigName string
 	// name of this vtep interface
 	VtepName string
 	// interface name which vtep will get src ip/mac info from
@@ -98,7 +102,7 @@ type VtepDbEntry struct {
 	// Enable/Disable state
 	Enable bool
 
-	// handle name used to rx/tx packets to linux if
+	// handle name used to rx/tx packets to linux if, also known as the Int version of the vEth dev
 	VtepHandleName string
 	// handle used to rx/tx packets to linux if
 	handle     *pcap.Handle
@@ -196,8 +200,9 @@ func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 	vtep := &VtepDbEntry{
 		Vni: c.Vni,
 		// TODO if we are running in hw linux vs proxy then this should not be + Int
-		VtepName:       c.VtepName,
-		VtepHandleName: c.VtepName + "Int",
+		VtepConfigName: c.VtepName,
+		VtepName:       c.VtepName + fmt.Sprintf("%d", crc32.ChecksumIEEE([]byte(c.TunnelDstIp.String()))),
+		VtepHandleName: c.VtepName + fmt.Sprintf("%d", crc32.ChecksumIEEE([]byte(c.TunnelDstIp.String()))) + "Int",
 		SrcIfName:      c.SrcIfName,
 		UDP:            c.UDP,
 		TTL:            uint8(c.TTL),
@@ -307,8 +312,9 @@ func ReProvisionVtep(vtep *VtepDbEntry) {
 func DeleteVtep(c *VtepConfig) {
 
 	key := &VtepDbKey{
-		Name: c.VtepName,
-		Vni:  c.Vni,
+		Name:  c.VtepName,
+		Vni:   c.Vni,
+		DstIp: c.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -327,7 +333,6 @@ func DeleteVtep(c *VtepConfig) {
 				vtep.retrytimer.Stop()
 				vtep.retrytimer = nil
 			}
-
 		}
 		if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE {
 			for idx, vtep := range vtepDbList {
@@ -343,8 +348,9 @@ func DeleteVtep(c *VtepConfig) {
 
 func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 	key := &VtepDbKey{
-		Name: c.VtepName,
-		Vni:  c.Vni,
+		Name:  c.VtepName,
+		Vni:   c.Vni,
+		DstIp: c.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep == nil {

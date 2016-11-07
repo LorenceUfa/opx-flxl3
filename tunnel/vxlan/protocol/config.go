@@ -228,8 +228,9 @@ func VxlanConfigUpdateCheck(oc *VxlanConfig, nc *VxlanConfig) error {
 // Validate the VTEP provisioning
 func VtepConfigCheck(c *VtepConfig, create bool) error {
 	key := VtepDbKey{
-		Name: c.VtepName,
-		Vni:  c.Vni,
+		Name:  c.VtepName,
+		Vni:   c.Vni,
+		DstIp: c.TunnelDstIp.String(),
 	}
 	if GetVtepDBEntry(&key) != nil && create {
 		return errors.New(fmt.Sprintln("Error VtepInstance Exists name is not unique", c))
@@ -294,7 +295,7 @@ func getVtepName(intf string) string {
 
 // ConvertVxlanVtepInstanceToVtepConfig:
 // Convert thrift struct to vxlan config
-func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepConfig, error) {
+func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) ([]*VtepConfig, error) {
 
 	var mac net.HardwareAddr
 	var ip net.IP
@@ -303,6 +304,21 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 	vtepName := getVtepName(c.Intf)
 	name = c.IntfRef
 	ip = net.ParseIP(c.SrcIp)
+
+	if c.SrcIp != "" && ip == nil {
+		return nil, errors.New(fmt.Sprintln("Error VxlanVtepInstance unsupported SrcIp Format"))
+	}
+
+	for _, dstip := range c.DstIp {
+		dip := net.ParseIP(dstip)
+		if dip == nil {
+			return nil, errors.New(fmt.Sprintln("Error VxlanVtepInstance destination Ip invalid", dip))
+		}
+	}
+
+	if c.SrcIp == "" && c.IntfRef == "" {
+		return nil, errors.New(fmt.Sprintln("Error VxlanVtepInstance SrcIp or IntfRef required"))
+	}
 
 	/* TODO need to create a generic way to get an interface name, mac, ip
 	if c.SrcIp == "0.0.0.0" && c.IntfRef != "" {
@@ -329,21 +345,29 @@ func ConvertVxlanVtepInstanceToVtepConfig(c *vxland.VxlanVtepInstance) (*VtepCon
 		enable = true
 	}
 
-	return &VtepConfig{
-		Enable:    enable,
-		Vni:       uint32(c.Vni),
-		VtepName:  vtepName,
-		SrcIfName: name,
-		MTU:       uint32(c.Mtu),
-		UDP:       uint16(c.DstUDP),
-		TTL:       uint16(c.TTL),
-		TOS:       uint16(c.TOS),
-		InnerVlanHandlingMode: c.InnerVlanHandlingMode,
-		TunnelSrcIp:           ip,
-		TunnelDstIp:           net.ParseIP(c.DstIp),
-		VlanId:                uint16(c.VlanId),
-		TunnelSrcMac:          mac,
-	}, nil
+	vteps := make([]*VtepConfig, 0)
+
+	for _, dstip := range c.DstIp {
+		dip := net.ParseIP(dstip)
+		vtep := &VtepConfig{
+			Enable:    enable,
+			Vni:       uint32(c.Vni),
+			VtepName:  vtepName,
+			SrcIfName: name,
+			MTU:       uint32(c.Mtu),
+			UDP:       uint16(c.DstUDP),
+			TTL:       uint16(c.TTL),
+			TOS:       uint16(c.TOS),
+			InnerVlanHandlingMode: c.InnerVlanHandlingMode,
+			TunnelSrcIp:           ip,
+			TunnelDstIp:           dip,
+			VlanId:                uint16(c.VlanId),
+			TunnelSrcMac:          mac,
+		}
+		vteps = append(vteps, vtep)
+	}
+
+	return vteps, nil
 }
 
 func UpdateThriftVxLAN(c *VxlanUpdate) {
@@ -481,8 +505,9 @@ func UpdateThriftVtep(c *VtepUpdate) {
 
 	if disableobj {
 		key := &VtepDbKey{
-			Name: c.Newconfig.VtepName,
-			Vni:  c.Newconfig.Vni,
+			Name:  c.Newconfig.VtepName,
+			Vni:   c.Newconfig.Vni,
+			DstIp: c.Newconfig.TunnelDstIp.String(),
 		}
 		vtep := GetVtepDBEntry(key)
 		if vtep != nil {
@@ -494,8 +519,9 @@ func UpdateThriftVtep(c *VtepUpdate) {
 		}
 	} else if enableobj {
 		key := &VtepDbKey{
-			Name: c.Newconfig.VtepName,
-			Vni:  c.Newconfig.Vni,
+			Name:  c.Newconfig.VtepName,
+			Vni:   c.Newconfig.Vni,
+			DstIp: c.Newconfig.TunnelDstIp.String(),
 		}
 		vtep := GetVtepDBEntry(key)
 		if vtep != nil {
@@ -508,20 +534,21 @@ func UpdateThriftVtep(c *VtepUpdate) {
 	} else if updateobj {
 		for _, attr := range c.Attr {
 			if attr == "TOS" {
-				UpdateVtepTOS(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), uint8(c.Newconfig.TOS))
+				UpdateVtepTOS(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), c.Newconfig.TunnelDstIp.String(), uint8(c.Newconfig.TOS))
 			} else if attr == "Mtu" {
-				UpdateVtepMTU(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), uint16(c.Newconfig.MTU))
+				UpdateVtepMTU(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), c.Newconfig.TunnelDstIp.String(), uint16(c.Newconfig.MTU))
 			} else if attr == "TTL" {
-				UpdateVtepTTL(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), uint8(c.Newconfig.TTL))
+				UpdateVtepTTL(c.Newconfig.VtepName, uint32(c.Newconfig.Vni), c.Newconfig.TunnelDstIp.String(), uint8(c.Newconfig.TTL))
 			}
 		}
 	}
 }
 
-func UpdateVtepTOS(vtepName string, vni uint32, tos uint8) {
+func UpdateVtepTOS(vtepName string, vni uint32, dstip string, tos uint8) {
 	key := &VtepDbKey{
-		Name: vtepName,
-		Vni:  vni,
+		Name:  vtepName,
+		Vni:   vni,
+		DstIp: dstip,
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep != nil {
@@ -541,10 +568,11 @@ func UpdateVtepTOS(vtepName string, vni uint32, tos uint8) {
 	}
 }
 
-func UpdateVtepTTL(vtepName string, vni uint32, ttl uint8) {
+func UpdateVtepTTL(vtepName string, vni uint32, dstip string, ttl uint8) {
 	key := &VtepDbKey{
-		Name: vtepName,
-		Vni:  vni,
+		Name:  vtepName,
+		Vni:   vni,
+		DstIp: dstip,
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep != nil {
@@ -563,10 +591,11 @@ func UpdateVtepTTL(vtepName string, vni uint32, ttl uint8) {
 	}
 }
 
-func UpdateVtepMTU(vtepName string, vni uint32, mtu uint16) {
+func UpdateVtepMTU(vtepName string, vni uint32, dstip string, mtu uint16) {
 	key := &VtepDbKey{
-		Name: vtepName,
-		Vni:  vni,
+		Name:  vtepName,
+		Vni:   vni,
+		DstIp: dstip,
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep != nil {
