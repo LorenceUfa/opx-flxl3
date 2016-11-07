@@ -231,12 +231,12 @@ func FreeGenInternalVtepName(vtepName string) {
 }
 
 func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
+	vtepName := GenInternalVtepName()
 	vtep := &VtepDbEntry{
-		Vni: c.Vni,
-		// TODO if we are running in hw linux vs proxy then this should not be + Int
+		Vni:            c.Vni,
 		VtepConfigName: c.VtepName,
-		VtepName:       GenInternalVtepName(),
-		VtepHandleName: GenInternalVtepName() + "Int",
+		VtepName:       vtepName,
+		VtepHandleName: GvtepName + "Int",
 		SrcIfName:      c.SrcIfName,
 		UDP:            c.UDP,
 		TTL:            uint8(c.TTL),
