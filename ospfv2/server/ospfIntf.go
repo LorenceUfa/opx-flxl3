@@ -25,10 +25,9 @@ package server
 
 import (
 	"errors"
-	"fmt"
+	//"fmt"
 	"l3/ospfv2/objects"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -48,34 +47,35 @@ type IntfConf struct {
 	RtrDeadInterval uint32
 	Cost            uint32
 	Mtu             uint32
+	AuthType        uint16
+	AuthKey         uint64
 
 	DRIpAddr  uint32
 	DRtrId    uint32
 	BDRIpAddr uint32
 	BDRtrId   uint32
 
-	State               uint8
+	OperState           bool
+	FSMState            uint8
 	FSMCtrlCh           chan bool
 	FSMCtrlReplyCh      chan bool
 	HelloIntervalTicker *time.Ticker
 	WaitTimer           *time.Timer
 
-	BackupSeenCh chan BackupSeenMsg
-
-	NeighborMap      map[NeighborConfKey]NeighborData
+	BackupSeenCh     chan BackupSeenMsg
 	NeighCreateCh    chan NeighCreateMsg
 	NeighChangeCh    chan NeighChangeMsg
 	NbrStateChangeCh chan NbrStateChangeMsg
-	NbrFullStateCh   chan NbrFullStateMsg
 
-	LsaCount   uint32
-	IfName     string
-	IpAddr     uint32
-	IfMacAddr  net.HardwareAddr
-	Netmask    uint32
-	txHdl      IntfTxHandle
-	rxHdl      IntfRxHandle
-	txHdlMutex sync.Mutex
+	NeighborMap map[uint32]NeighborData //Neighbors IP Address in case of Broadcast
+
+	LsaCount  uint32
+	IfName    string
+	IpAddr    uint32
+	IfMacAddr net.HardwareAddr
+	Netmask   uint32
+	txHdl     IntfTxHandle
+	rxHdl     IntfRxHandle
 }
 
 func getOspfv2IntfUpdateMask(attrset []bool) uint32 {
@@ -141,7 +141,6 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		intfConfEnt.AdminState = newCfg.AdminState
 	}
 	if mask&objects.OSPFV2_INTF_UPDATE_AREA_ID == objects.OSPFV2_INTF_UPDATE_AREA_ID {
-		// TODO: Check if Area Exist or Not
 		_, exist := server.AreaConfMap[newCfg.AreaId]
 		if !exist {
 			server.logger.Err("Area doesnot exist")
@@ -170,36 +169,38 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	if mask&objects.OSPFV2_INTF_UPDATE_METRIC_VALUE == objects.OSPFV2_INTF_UPDATE_METRIC_VALUE {
 		intfConfEnt.Cost = uint32(newCfg.MetricValue)
 	}
-	if intfConfEnt.AreaId != oldIntfConfEnt.AreaId {
-		oldAreaEnt, _ := server.AreaConfMap[oldIntfConfEnt.AreaId]
-		delete(oldAreaEnt.IntfMap, intfConfKey)
-		server.AreaConfMap[oldIntfConfEnt.AreaId] = oldAreaEnt
-		// TODO: Regenerate LSAs
+	if oldIntfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
+		//TODO: Declare all neighbors dead
+		//Stop Tx and Rx and Interface FSM
+		server.StopSendAndRecvPkts(intfConfKey)
+		// TODO: Send Message to generate Router LSA oldIntfConfEnt.AreaId
 	}
-	if oldIntfConfEnt.AdminState == true &&
-		server.globalData.AdminState == true {
-		//TODO
-		//Stop Interface FSM
-		//Flush all the routes learned via this interface
-		if oldIntfConfEnt.AreaId != intfConfEnt.AreaId {
-			//Delete Interface from Old AreaId and Add Interface to New AreaId
-		}
-	}
+	areaEnt, _ := server.AreaConfMap[oldIntfConfEnt.AreaId]
+	delete(areaEnt.IntfMap, intfConfKey)
+	server.AreaConfMap[oldIntfConfEnt.AreaId] = areaEnt
+
 	server.IntfConfMap[intfConfKey] = intfConfEnt
+
+	//Add interface to new area
+	areaEnt, _ = server.AreaConfMap[intfConfEnt.AreaId]
+	areaEnt.IntfMap[intfConfKey] = true
+	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
+
 	if intfConfEnt.AdminState == true &&
-		server.globalData.AdminState == true {
-		//TODO
-		//Start Interface FSM
-		//Regenerate Router LSA
-	} else if intfConfEnt.AdminState == false &&
-		server.globalData.AdminState == true {
-		//Regenerate Router LSA
+		server.globalData.AdminState == true &&
+		intfConfEnt.OperState == true {
+		//StartSendAndRecvPkts : Start Tx and Rx and IntfFSM
+		err := server.StartSendAndRecvPkts(intfConfKey)
+		if err != nil {
+			server.logger.Err("Error starting send and recv pkt and Intf FSM", err)
+			return false, err
+		}
+		//TODO:Send Message to generate Router LSA
 	}
 	return true, nil
 }
 
 func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
-	var err error
 	server.logger.Info("Intf configuration create")
 	intfConfKey := IntfConfKey{
 		IpAddr:  cfg.IpAddress,
@@ -223,12 +224,7 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		*/
 	} else {
 		ipEnt, _ := server.infraData.ipPropertyMap[l3IfIdx]
-		if ipEnt.State == false &&
-			cfg.AdminState == true &&
-			server.globalData.AdminState == true {
-			server.logger.Err("Ip interface is down")
-			return false, errors.New("Ip Interface is down")
-		}
+		intfConfEnt.OperState = ipEnt.State
 		intfConfEnt.Mtu = uint32(ipEnt.Mtu)
 		intfConfEnt.IfName = ipEnt.IfName
 		intfConfEnt.IfMacAddr = ipEnt.MacAddr
@@ -254,8 +250,9 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	intfConfEnt.DRtrId = 0
 	intfConfEnt.BDRIpAddr = 0
 	intfConfEnt.BDRtrId = 0
+	intfConfEnt.AuthKey = 0
 
-	intfConfEnt.State = objects.INTF_FSM_STATE_UNKNOWN
+	intfConfEnt.FSMState = objects.INTF_FSM_STATE_UNKNOWN
 
 	intfConfEnt.FSMCtrlCh = make(chan bool)
 	intfConfEnt.FSMCtrlReplyCh = make(chan bool)
@@ -263,44 +260,30 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	intfConfEnt.WaitTimer = nil
 
 	intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
-
-	intfConfEnt.NeighborMap = make(map[NeighborConfKey]NeighborData)
 	intfConfEnt.NeighCreateCh = make(chan NeighCreateMsg)
 	intfConfEnt.NeighChangeCh = make(chan NeighChangeMsg)
 	intfConfEnt.NbrStateChangeCh = make(chan NbrStateChangeMsg)
-	intfConfEnt.NbrFullStateCh = make(chan NbrFullStateMsg)
 
-	intfConfEnt.rxHdl.RecvPcapHdl, err = server.initRxPkts(intfConfEnt.IfName, intfConfEnt.IpAddr)
-	if err != nil {
-		server.logger.Err("Error initializing Rx Pkt")
-		return false, errors.New(fmt.Sprintln("Error initializing Rx Pkt", err))
-	}
-	intfConfEnt.rxHdl.PktRecvCtrlCh = make(chan bool)
-	intfConfEnt.rxHdl.PktRecvCtrlReplyCh = make(chan bool)
-
-	/*
-		intfConfEnt.txHdl.SendPcapHdl, err = initTxPkts(initConfEnt.IfName)
-		if err != nil {
-			server.logger.Err("Error initializing Tx Pkt")
-			return false, errors.New("Error initializing Tx Pkt", err)
-		}
-
-	*/
+	intfConfEnt.NeighborMap = make(map[uint32]NeighborData)
 	intfConfEnt.LsaCount = 0
-
 	server.IntfConfMap[intfConfKey] = intfConfEnt
+
 	areaEnt.IntfMap[intfConfKey] = true
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	if server.globalData.AdminState == true &&
-		cfg.AdminState == true {
+		cfg.AdminState == true &&
+		intfConfEnt.OperState == true {
 		//StartSendAndRecvPkts : Start Tx and Rx and IntfFSM
-		server.StartSendAndRecvPkts(intfConfKey)
-		//TODO
-		if len(areaEnt.IntfMap) == 1 {
-			//Generate Router LSA
-		} else {
-			//Update Route LSA
+		err := server.StartSendAndRecvPkts(intfConfKey)
+		if err != nil {
+			return false, err
 		}
+		// TODO: Send Message to generate Router LSA
+	} else {
+		intfConfEnt, _ := server.IntfConfMap[intfConfKey]
+		intfConfEnt.FSMState = objects.INTF_FSM_STATE_DOWN
+		server.IntfConfMap[intfConfKey] = intfConfEnt
+
 	}
 
 	return true, nil
@@ -320,11 +303,16 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 
 	server.logger.Info("Intf Conf Ent", intfConfEnt)
 
-	// TODO
-	// Stop Interface FSM
-	// Update Router LSA
-	// Mark Network LSA to Max Age if DR
-	// Declare all neighbors dead
+	if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
+		// TODO: Declare all neighbors dead
+		// Stop Tx and Rx and IntfFSM
+		server.StopSendAndRecvPkts(intfConfKey)
+		// TODO: Send Message to generate Router LSA
+	}
+
+	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
+	delete(areaEnt.IntfMap, intfConfKey)
+	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
 	delete(server.IntfConfMap, intfConfKey)
 	return true, nil
 }

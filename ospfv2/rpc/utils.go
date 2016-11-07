@@ -75,8 +75,9 @@ func convertFromRPCFmtOspfv2Area(config *ospfv2d.Ospfv2Area) (*objects.Ospfv2Are
 		return nil, errors.New("Invalid Auth Type")
 	}
 	return &objects.Ospfv2Area{
-		AreaId:   areaId,
-		AuthType: authType,
+		AreaId:         areaId,
+		AuthType:       authType,
+		ImportASExtern: config.ImportASExtern,
 	}, nil
 }
 

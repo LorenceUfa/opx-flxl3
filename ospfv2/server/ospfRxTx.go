@@ -22,11 +22,18 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"l3/ospfv2/objects"
 	"time"
 )
 
-func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) {
+func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) error {
+	err := server.initRxTxPkts(intfConfKey)
+	if err != nil {
+		return err
+	}
+
 	ent, _ := server.IntfConfMap[intfConfKey]
 	helloInterval := time.Duration(ent.HelloInterval) * time.Second
 	ent.HelloIntervalTicker = time.NewTicker(helloInterval)
@@ -35,18 +42,122 @@ func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) {
 		ent.WaitTimer = time.NewTimer(waitTime)
 	}
 	if ent.Type == objects.INTF_TYPE_BROADCAST {
-		ent.State = objects.INTF_FSM_STATE_WAITING
+		ent.FSMState = objects.INTF_FSM_STATE_WAITING
 	} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
-		ent.State = objects.INTF_FSM_STATE_P2P
+		ent.FSMState = objects.INTF_FSM_STATE_P2P
 	}
 	server.IntfConfMap[intfConfKey] = ent
-	server.logger.Info("Start Ospf Tx Pkt")
-	//server.initTxPkt(intfConfKey)
-	//server.StartOspfTxPkt(intfConfKey)
 	server.logger.Info("Start Ospf Intf FSM")
-	//go server.StartOspfIntfFSM(intfConfKey)
+	go server.StartOspfIntfFSM(intfConfKey)
 	server.logger.Info("Start Ospf Rx Pkt")
 	go server.StartOspfRecvPkts(intfConfKey)
+	return nil
+}
+
+func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) {
+	server.StopOspfRecvPkts(intfConfKey)
+	server.StopOspfIntfFSM(intfConfKey)
+	ent, _ := server.IntfConfMap[intfConfKey]
+	ent.FSMState = objects.INTF_FSM_STATE_DOWN
+	if ent.Type == objects.INTF_TYPE_BROADCAST {
+		ent.WaitTimer.Stop()
+		ent.WaitTimer = nil
+	}
+	ent.HelloIntervalTicker.Stop()
+	ent.HelloIntervalTicker = nil
+	server.IntfConfMap[intfConfKey] = ent
+	server.deinitRxTxPkts(intfConfKey)
+}
+
+func (server *OSPFV2Server) initRxTxPkts(intfConfKey IntfConfKey) error {
+	var err error
+	intfConfEnt, _ := server.IntfConfMap[intfConfKey]
+	intfConfEnt.rxHdl.RecvPcapHdl, err = server.initRxPkts(intfConfEnt.IfName, intfConfEnt.IpAddr)
+	if err != nil {
+		server.logger.Err("Error initializing Rx Pkt")
+		return errors.New(fmt.Sprintln("Error initializing Rx Pkt", err))
+	}
+	intfConfEnt.rxHdl.PktRecvCtrlCh = make(chan bool)
+	intfConfEnt.rxHdl.PktRecvCtrlReplyCh = make(chan bool)
+
+	intfConfEnt.txHdl.SendPcapHdl, err = server.initTxPkts(intfConfEnt.IfName)
+	if err != nil {
+		server.logger.Err("Error initializing Tx Pkt")
+		return errors.New(fmt.Sprintln("Error initializing Tx Pkt", err))
+	}
+	server.IntfConfMap[intfConfKey] = intfConfEnt
+	return nil
+}
+
+func (server *OSPFV2Server) deinitRxTxPkts(intfConfKey IntfConfKey) {
+	intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+	if !exist {
+		return
+	}
+	if intfConfEnt.rxHdl.RecvPcapHdl != nil {
+		intfConfEnt.rxHdl.RecvPcapHdl.Close()
+		intfConfEnt.rxHdl.PktRecvCtrlCh = nil
+		intfConfEnt.rxHdl.PktRecvCtrlReplyCh = nil
+	}
+	intfConfEnt.txHdl.SendMutex.Lock()
+	if intfConfEnt.txHdl.SendPcapHdl != nil {
+		intfConfEnt.txHdl.SendPcapHdl.Close()
+	}
+	server.IntfConfMap[intfConfKey] = intfConfEnt
+}
+
+func (server *OSPFV2Server) StopAllIntfFSM() {
+	for intfConfKey, intfConfEnt := range server.IntfConfMap {
+		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
+			server.StopSendAndRecvPkts(intfConfKey)
+		}
+	}
+}
+
+func (server *OSPFV2Server) StartAllIntfFSM() {
+	for intfConfKey, intfConfEnt := range server.IntfConfMap {
+		if intfConfEnt.AdminState == true &&
+			intfConfEnt.OperState == true {
+			err := server.StartSendAndRecvPkts(intfConfKey)
+			if err != nil {
+				server.logger.Err("Error:", err)
+			}
+		}
+	}
+}
+
+func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) {
+	areaEnt, _ := server.AreaConfMap[areaId]
+
+	for intfConfKey, _ := range areaEnt.IntfMap {
+		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+		if !exist {
+			server.logger.Err("IntfConfMap and AreaConfMap out of sync")
+			continue
+		}
+		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
+			server.StopSendAndRecvPkts(intfConfKey)
+		}
+	}
+}
+
+func (server *OSPFV2Server) StartAreaIntfFSM(areaId uint32) {
+	areaEnt, _ := server.AreaConfMap[areaId]
+
+	for intfConfKey, _ := range areaEnt.IntfMap {
+		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+		if !exist {
+			server.logger.Err("IntfConfMap and AreaConfMap out of sync")
+			continue
+		}
+		if intfConfEnt.AdminState == true &&
+			intfConfEnt.OperState == true {
+			err := server.StartSendAndRecvPkts(intfConfKey)
+			if err != nil {
+				server.logger.Err("Error:", err)
+			}
+		}
+	}
 }
 
 /*

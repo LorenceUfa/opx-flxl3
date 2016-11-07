@@ -24,14 +24,13 @@
 package server
 
 import (
-	//"encoding/binary"
-	//"errors"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	//"l3/ospfv2/objects"
-	//"net"
+	"l3/ospfv2/objects"
 	"time"
 )
 
@@ -42,8 +41,201 @@ type ProcessOspfPktRecvStruct struct {
 	intfConfKey                IntfConfKey
 }
 
-func (server *OSPFV2Server) processOspfPkt(packet gopacket.Packet, intfConfKey IntfConfKey) {
+func (server *OSPFV2Server) processOspfData(data []byte, ethHdrMd *EthHdrMetadata, ipHdrMd *IpHdrMetadata, ospfHdrMd *OspfHdrMetadata, key IntfConfKey) error {
+	var err error = nil
+	switch ospfHdrMd.PktType {
+	case HelloType:
+		err = server.processRxHelloPkt(data, ospfHdrMd, ipHdrMd, ethHdrMd, key)
+	case DBDescriptionType:
+		//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, key, ethHdrMd.srcMAC)
+	case LSRequestType:
+		//err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, key)
+	case LSUpdateType:
+		//err = server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, key)
+	case LSAckType:
+		//err = server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, key)
+	default:
+		err = errors.New("Invalid Ospf packet type")
+	}
+	return err
+}
 
+func (server *OSPFV2Server) processIPv4Layer(ipLayer gopacket.Layer, IpAddr uint32, ipHdrMd *IpHdrMetadata) error {
+	ipLayerContents := ipLayer.LayerContents()
+	ipChkSum := binary.BigEndian.Uint16(ipLayerContents[10:12])
+	binary.BigEndian.PutUint16(ipLayerContents[10:], 0)
+
+	csum := computeCheckSum(ipLayerContents)
+	if csum != ipChkSum {
+		err := errors.New("Incorrect IPv4 checksum, hence dicarding the packet")
+		return err
+	}
+
+	ipPkt := ipLayer.(*layers.IPv4)
+	ipHdrMd.SrcIP, _ = convertDotNotationToUint32(ipPkt.SrcIP.To4().String())
+	ipHdrMd.DstIP, _ = convertDotNotationToUint32(ipPkt.DstIP.To4().String())
+	if IpAddr == ipHdrMd.SrcIP {
+		err := errors.New(fmt.Sprintln("locally generated pkt", ipPkt.SrcIP, "hence dicarding the packet"))
+		return err
+	}
+
+	if IpAddr != ipHdrMd.DstIP &&
+		ALLDROUTER != ipHdrMd.DstIP &&
+		ALLSPFROUTER != ipHdrMd.DstIP {
+		err := errors.New(fmt.Sprintln("Incorrect DstIP", ipPkt.DstIP, "hence dicarding the packet"))
+		return err
+	}
+
+	if ipPkt.Protocol != layers.IPProtocol(OSPF_PROTO_ID) {
+		err := errors.New(fmt.Sprintln("Incorrect ProtocolID", ipPkt.Protocol, "hence dicarding the packet"))
+		return err
+	}
+	if ALLSPFROUTER == ipHdrMd.DstIP {
+		ipHdrMd.DstIPType = AllSPFRouterType
+	} else if ALLDROUTER == ipHdrMd.DstIP {
+		ipHdrMd.DstIPType = AllDRouterType
+	} else {
+		ipHdrMd.DstIPType = NormalType
+	}
+	return nil
+}
+
+func (server *OSPFV2Server) processOspfHeader(ospfPkt []byte, key IntfConfKey, md *OspfHdrMetadata, ipHdrMd *IpHdrMetadata) error {
+	if len(ospfPkt) < OSPF_HEADER_SIZE {
+		err := errors.New("Invalid length of Ospf Header")
+		return err
+	}
+
+	ent, exist := server.IntfConfMap[key]
+	if !exist {
+		err := errors.New("Dropped because of interface no more valid")
+		return err
+	}
+
+	ospfHdr := NewOSPFHeader()
+
+	decodeOspfHdr(ospfPkt, ospfHdr)
+
+	if OSPF_VERSION_2 != ospfHdr.Ver {
+		err := errors.New("Dropped because of Ospf Version not matching")
+		return err
+	}
+
+	if ent.AreaId == ospfHdr.AreaId {
+		if ent.Type != objects.INTF_TYPE_POINT2POINT {
+			if (ent.IpAddr & ent.Netmask) != (ipHdrMd.SrcIP & ent.Netmask) {
+				err := errors.New("Dropped because of Src IP is not in subnet and Area ID is matching")
+				return err
+
+			}
+		}
+	} else {
+		// We don't support Virtual Link
+		err := errors.New("Dropped because Area ID is not matching and we dont support Virtual links, so this should not happend")
+		return err
+
+	}
+
+	if ipHdrMd.DstIPType == AllDRouterType {
+		if ent.DRtrId != server.globalData.RouterId &&
+			ent.BDRtrId != server.globalData.RouterId {
+			err := errors.New("Dropped because we should not recv any pkt with ALLDROUTER as we are not DR or BDR")
+			return err
+		}
+	}
+
+	//OSPF Auth Type
+	if ent.AuthType != ospfHdr.AuthType {
+		err := errors.New("Dropped because of Router Id not matching")
+		return err
+	}
+
+	//TODO: We don't support Authentication
+
+	if ospfHdr.PktType != HelloType {
+		if ent.Type == objects.INTF_TYPE_BROADCAST {
+			_, exist := ent.NeighborMap[ipHdrMd.SrcIP]
+			if !exist {
+				err := errors.New("Adjacency not established with this neighbor")
+				return err
+			}
+		} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
+			_, exist := ent.NeighborMap[ospfHdr.RouterId]
+			if !exist {
+				err := errors.New("Adjacency not established with this neighbor")
+				return err
+			}
+		}
+	}
+
+	//OSPF Header CheckSum
+	binary.BigEndian.PutUint16(ospfPkt[12:14], 0)
+	copy(ospfPkt[16:OSPF_HEADER_SIZE], []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	csum := computeCheckSum(ospfPkt)
+	if csum != ospfHdr.Chksum {
+		err := errors.New("Dropped because of invalid checksum")
+		return err
+	}
+
+	md.PktType = ospfHdr.PktType
+	md.Pktlen = ospfHdr.Pktlen
+	md.RouterId = ospfHdr.RouterId
+	md.AreaId = ospfHdr.AreaId
+	if ospfHdr.AreaId == 0 {
+		md.Backbone = true
+	} else {
+		md.Backbone = false
+	}
+
+	return nil
+}
+
+func (server *OSPFV2Server) processOspfPkt(pkt gopacket.Packet, key IntfConfKey) {
+	server.logger.Info("Recevied Ospf Packet")
+	ent, exist := server.IntfConfMap[key]
+	if !exist {
+		server.logger.Err("Dropped because of interface no more valid")
+		return
+	}
+
+	ethLayer := pkt.Layer(layers.LayerTypeEthernet)
+	if ethLayer == nil {
+		server.logger.Err("Not an Ethernet frame")
+		return
+	}
+	eth := ethLayer.(*layers.Ethernet)
+
+	ethHdrMd := NewEthHdrMetadata()
+	ethHdrMd.SrcMAC = eth.SrcMAC
+
+	ipLayer := pkt.Layer(layers.LayerTypeIPv4)
+	if ipLayer == nil {
+		server.logger.Err("Not an IP packet")
+		return
+	}
+
+	ipHdrMd := NewIpHdrMetadata()
+	err := server.processIPv4Layer(ipLayer, ent.IpAddr, ipHdrMd)
+	if err != nil {
+		server.logger.Err("Dropped because of IPv4 layer processing", err)
+		return
+	}
+
+	ospfHdrMd := NewOspfHdrMetadata()
+	ospfPkt := ipLayer.LayerPayload()
+	err = server.processOspfHeader(ospfPkt, key, ospfHdrMd, ipHdrMd)
+	if err != nil {
+		server.logger.Err("Dropped because of Ospf Header processing", err)
+		return
+	}
+
+	ospfData := ospfPkt[OSPF_HEADER_SIZE:]
+	err = server.processOspfData(ospfData, ethHdrMd, ipHdrMd, ospfHdrMd, key)
+	if err != nil {
+		server.logger.Err("Dropped because of Ospf Header processing", err)
+		return
+	}
+	return
 }
 
 func (server *OSPFV2Server) ProcessOspfRecvPkt(processRecvPkt ProcessOspfPktRecvStruct) {

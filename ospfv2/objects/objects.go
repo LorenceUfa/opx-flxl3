@@ -36,12 +36,14 @@ const (
 )
 
 const (
-	OSPFV2_AREA_UPDATE_AUTH_TYPE = 0x1
+	OSPFV2_AREA_UPDATE_AUTH_TYPE        = 0x1
+	OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN = 0x2
 )
 
 type Ospfv2Area struct {
-	AreaId   uint32
-	AuthType uint8
+	AreaId         uint32
+	AuthType       uint8
+	ImportASExtern bool
 }
 
 type Ospfv2AreaState struct {
@@ -124,24 +126,24 @@ const (
 
 const (
 	INTF_FSM_STATE_UNKNOWN  uint8 = 0
-	INTF_FSM_STATE_OTHER_DR uint8 = 1
-	INTF_FSM_STATE_DR       uint8 = 2
-	INTF_FSM_STATE_BDR      uint8 = 3
-	INTF_FSM_STATE_LOOPBACK uint8 = 4
-	INTF_FSM_STATE_DOWN     uint8 = 5
-	INTF_FSM_STATE_WAITING  uint8 = 6
-	INTF_FSM_STATE_P2P      uint8 = 7
+	INTF_FSM_STATE_DOWN     uint8 = 1
+	INTF_FSM_STATE_LOOPBACK uint8 = 2
+	INTF_FSM_STATE_WAITING  uint8 = 3
+	INTF_FSM_STATE_P2P      uint8 = 4
+	INTF_FSM_STATE_OTHER_DR uint8 = 5
+	INTF_FSM_STATE_DR       uint8 = 6
+	INTF_FSM_STATE_BDR      uint8 = 7
 )
 
 const (
 	INTF_FSM_STATE_UNKNOWN_STR  string = "unknown"
+	INTF_FSM_STATE_DOWN_STR     string = "down"
+	INTF_FSM_STATE_LOOPBACK_STR string = "loopback"
+	INTF_FSM_STATE_WAITING_STR  string = "waiting"
+	INTF_FSM_STATE_P2P_STR      string = "point-to-point"
 	INTF_FSM_STATE_OTHER_DR_STR string = "other-dr"
 	INTF_FSM_STATE_DR_STR       string = "dr"
 	INTF_FSM_STATE_BDR_STR      string = "bdr"
-	INTF_FSM_STATE_LOOPBACK_STR string = "loopback"
-	INTF_FSM_STATE_DOWN_STR     string = "down"
-	INTF_FSM_STATE_WAITING_STR  string = "waiting"
-	INTF_FSM_STATE_P2P_STR      string = "point-to-point"
 )
 
 const (

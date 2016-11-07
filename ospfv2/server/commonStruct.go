@@ -25,22 +25,24 @@ package server
 
 import (
 	"github.com/google/gopacket/pcap"
+	"net"
 	"sync"
+	"time"
 )
 
 type NeighborData struct {
 	TwoWayStatus bool
 	RtrPrio      uint8
-	DRtr         uint32
-	BDRtr        uint32
-	NbrIP        uint32
-	FullState    bool
+	DRtrIpAddr   uint32
+	BDRtrIpAddr  uint32
+	NbrIpAddr    uint32 //In case of Broadcast sorurce is NbrIpAddr
+	RtrId        uint32 //In case of P2P source RtrId
 }
 
 type BackupSeenMsg struct {
-	RouterId uint32
-	BDRId    uint32
-	DRId     uint32
+	RouterId    uint32
+	BDRtrIpAddr uint32
+	DRtrIpAddr  uint32
 }
 
 type NeighCreateMsg struct {
@@ -48,8 +50,9 @@ type NeighCreateMsg struct {
 	NbrIP        uint32
 	TwoWayStatus bool
 	RtrPrio      uint8
-	DRtr         uint32
-	BDRtr        uint32
+	DRtrIpAddr   uint32
+	BDRtrIpAddr  uint32
+	NbrIdentity  uint32
 }
 
 type NeighChangeMsg struct {
@@ -57,8 +60,9 @@ type NeighChangeMsg struct {
 	NbrIP        uint32
 	TwoWayStatus bool
 	RtrPrio      uint8
-	DRtr         uint32
-	BDRtr        uint32
+	DRtrIpAddr   uint32
+	BDRtrIpAddr  uint32
+	NbrIdentity  uint32
 }
 
 type NbrFullStateMsg struct {
@@ -73,16 +77,59 @@ type NeighborConfKey struct {
 }
 
 type NbrStateChangeMsg struct {
-	nbrKey NeighborConfKey
+	NbrIdentity uint32
 }
 
 type IntfTxHandle struct {
 	SendPcapHdl *pcap.Handle
-	SendMutex   *sync.Mutex
+	SendMutex   sync.Mutex
 }
 
 type IntfRxHandle struct {
 	RecvPcapHdl        *pcap.Handle
 	PktRecvCtrlCh      chan bool
 	PktRecvCtrlReplyCh chan bool
+}
+
+const (
+	LsdbAdd      uint8 = 0
+	LsdbDel      uint8 = 1
+	LsdbUpdate   uint8 = 2
+	LsdbNoAction uint8 = 3
+)
+
+type LsdbUpdateMsg struct {
+	MsgType uint8
+	AreaId  uint32
+	Data    []byte
+}
+
+type LSAChangeMsg struct {
+	areaId uint32
+}
+
+type NetworkLSAChangeMsg struct {
+	areaId    uint32
+	intfKey   IntfConfKey
+	intfState bool
+}
+
+type DrChangeMsg struct {
+	areaId   uint32
+	intfKey  IntfConfKey
+	oldstate uint8
+	newstate uint8
+}
+
+type IntfToNeighMsg struct {
+	IntfConfKey  IntfConfKey
+	RouterId     uint32
+	RtrPrio      uint8
+	NeighborIP   uint32
+	NbrDeadTime  time.Duration
+	TwoWayStatus bool
+	NbrDRIpAddr  uint32
+	NbrBDRIpAddr uint32
+	NbrMAC       net.HardwareAddr
+	NbrIdentity  uint32
 }

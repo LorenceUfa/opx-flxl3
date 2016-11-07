@@ -30,6 +30,7 @@ import (
 
 type AreaConf struct {
 	AuthType         uint8
+	ImportASExtern   bool
 	NumSpfRuns       uint32
 	NumBdrRtr        uint32
 	NumAsBdrRtr      uint32
@@ -43,8 +44,51 @@ type AreaConf struct {
 	IntfMap          map[IntfConfKey]bool
 }
 
+func genOspfv2AreaUpdateMask(attrset []bool) uint32 {
+	var mask uint32 = 0
+
+	if attrset == nil {
+		mask = objects.OSPFV2_AREA_UPDATE_AUTH_TYPE |
+			objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN
+	} else {
+		for idx, val := range attrset {
+			if val == true {
+				switch idx {
+				case 0:
+					//AreaId
+				case 1:
+					mask |= objects.OSPFV2_AREA_UPDATE_AUTH_TYPE
+				case 2:
+					mask |= objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN
+				}
+			}
+		}
+	}
+	return mask
+}
+
 func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrset []bool) (bool, error) {
 	server.logger.Info("Area configuration update")
+	// Stop All the INTF FSM in this area
+	server.StopAreaIntfFSM(newCfg.AreaId)
+	//TODO: Delete All the neighbors in this area
+	//TODO: Send Message to flush router LSA
+	areaEnt, exist := server.AreaConfMap[newCfg.AreaId]
+	if !exist {
+		server.logger.Err("Cannot update, area doesnot exist")
+		return false, errors.New("Cannot update, area doesnot exist")
+	}
+	mask := genOspfv2AreaUpdateMask(attrset)
+	if mask&objects.OSPFV2_AREA_UPDATE_AUTH_TYPE == objects.OSPFV2_AREA_UPDATE_AUTH_TYPE {
+		areaEnt.AuthType = newCfg.AuthType
+	}
+	if mask&objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN == objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN {
+		areaEnt.ImportASExtern = newCfg.ImportASExtern
+	}
+
+	//Start All the Intf FSM in this area
+	server.StartAreaIntfFSM(newCfg.AreaId)
+	// Send Message to generate router LSA
 	return true, nil
 }
 
@@ -61,6 +105,7 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 		return false, errors.New("AuthType not supported")
 	}
 	areaEnt.AuthType = cfg.AuthType
+	areaEnt.ImportASExtern = cfg.ImportASExtern
 	areaEnt.IntfMap = make(map[IntfConfKey]bool)
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	if len(server.AreaConfMap) > 1 {
@@ -101,20 +146,14 @@ func (server *OSPFV2Server) getBulkAreaState(fromIdx, cnt int) (*objects.Ospfv2A
 	return &retObj, nil
 }
 
-/*
-func (server *OSPFServer) isStubArea(areaid config.AreaId) bool {
+func (server *OSPFV2Server) isStubArea(areaId uint32) (bool, error) {
+	conf, exist := server.AreaConfMap[areaId]
+	if !exist {
+		return false, errors.New("Area doesnot exist")
+	}
 
-        areaConfKey := AreaConfKey{
-                AreaId: areaid,
-        }
-
-        conf, exist := server.AreaConfMap[areaConfKey]
-        if !exist {
-                return false
-        }
-        if conf.ImportAsExtern == config.ImportNoExternal {
-                return true
-        }
-        return false
+	if conf.ImportASExtern == false {
+		return true, nil
+	}
+	return false, nil
 }
-*/

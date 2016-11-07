@@ -492,8 +492,11 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 	if msg.IfState == asicdCommonDefs.INTF_STATE_UP {
 		ipEnt.State = true
 		//Start State Machines if it exist and not running
+		//Init Tx and Rx Packets
+		//Start Tx and Rx Packets
 	} else {
 		//Stop State Machine if it exist and running
+		//Stop Tx and Rx Packet
 		ipEnt.State = false
 	}
 	server.infraData.ipPropertyMap[ifIdx] = ipEnt

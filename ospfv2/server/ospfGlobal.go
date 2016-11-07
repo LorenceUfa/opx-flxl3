@@ -70,8 +70,9 @@ func genOspfv2GlobalUpdateMask(attrset []bool) uint32 {
 func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, attrset []bool) (bool, error) {
 	server.logger.Info("Global configuration update")
 	if server.globalData.AdminState == true {
+		server.StopAllIntfFSM()
 		// TODO
-		//Stop OSPF Interface FSM
+		//Stop SPF
 		//Flush LSDB
 		//Delete all the routes
 		//Flush all the routes
@@ -94,16 +95,11 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	}
 
 	if server.globalData.AdminState == true {
-		for intfConfKey, intfConfEnt := range server.IntfConfMap {
-			if intfConfEnt.AdminState == true {
-				server.logger.Info("Server Interface Key", intfConfKey)
-				// TODO
-				//Start OSPF Interface FSM
-				//Start SPF
-				//Start Neighbor FSM
-				//Start Ribd Updates if ASBdrRtrStatus = true
-			}
-		}
+		server.StartAllIntfFSM()
+		// TODO
+		//Start SPF
+		//Start Neighbor FSM
+		//Start Ribd Updates if ASBdrRtrStatus = true
 	}
 
 	return true, nil
@@ -125,11 +121,7 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 		//Flush all the routes
 		//Flush LSDB
 		//Start OSPF Interface FSM
-	} else {
-		//Stop OSPF Interface FSM
-		//Flush LSDB
-		//Flush all the routes
-		//Restart Neighbor FSM
+		//Start Neighbor State Machine
 	}
 	return true, nil
 }

@@ -35,14 +35,6 @@ import (
 	"utils/ipcutils"
 )
 
-const (
-	ALLSPFROUTER    string = "224.0.0.5"
-	ALLDROUTER      string = "224.0.0.6"
-	ALLSPFROUTERMAC string = "01:00:5e:00:00:05"
-	ALLDROUTERMAC   string = "01:00:5e:00:00:06"
-	MASKMAC         string = "ff:ff:ff:ff:ff:ff"
-)
-
 type AsicdClient struct {
 	OspfClientBase
 	ClientHdl *asicdServices.ASICDServicesClient

@@ -28,6 +28,7 @@ typedef i16 uint16
 struct Ospfv2Area {
 	1 : string AreaId
 	2 : string AuthType
+	3 : bool ImportASExtern
 }
 struct Ospfv2RouteState {
 	1 : string DestId

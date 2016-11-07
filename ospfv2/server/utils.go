@@ -24,6 +24,7 @@
 package server
 
 import (
+	"encoding/binary"
 	"errors"
 	"net"
 	"strconv"
@@ -70,5 +71,75 @@ func convertUint32ToDotNotation(val uint32) string {
 	str := strconv.Itoa(p3) + "." + strconv.Itoa(p2) + "." +
 		strconv.Itoa(p1) + "." + strconv.Itoa(p0)
 
+	return str
+}
+
+func computeCheckSum(pkt []byte) uint16 {
+	var csum uint32
+
+	for i := 0; i < len(pkt); i += 2 {
+		csum += uint32(pkt[i]) << 8
+		csum += uint32(pkt[i+1])
+	}
+	chkSum := ^uint16((csum >> 16) + csum)
+	return chkSum
+}
+
+const (
+	MODX                       int    = 4102
+	FLETCHER_CHECKSUM_VALIDATE uint16 = 0xffff
+)
+
+func min(x int, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func computeFletcherChecksum(data []byte, offset uint16) uint16 {
+	checksum := 0
+	if offset != FLETCHER_CHECKSUM_VALIDATE {
+		binary.BigEndian.PutUint16(data[offset:], 0)
+	}
+	left := len(data)
+	c0 := 0
+	c1 := 0
+	j := 0
+	for left != 0 {
+		pLen := min(left, MODX)
+		for i := 0; i < pLen; i++ {
+			c0 = c0 + int(data[j])
+			j = j + 1
+			c1 = c1 + c0
+		}
+		c0 = c0 % 255
+		c1 = c1 % 255
+		left = left - pLen
+	}
+	x := int((len(data)-int(offset)-1)*c0-c1) % 255
+	if x <= 0 {
+		x = x + 255
+	}
+	y := 510 - c0 - x
+	if y > 255 {
+		y = y - 255
+	}
+
+	if offset == FLETCHER_CHECKSUM_VALIDATE {
+		checksum = (c1 << 8) + c0
+	} else {
+		checksum = (x << 8) | (y & 0xff)
+	}
+
+	return uint16(checksum)
+}
+
+func convertByteToOctetString(data []byte) string {
+	var str string
+	for i := 0; i < len(data)-1; i++ {
+		str = str + strconv.Itoa(int(data[i])) + ":"
+	}
+	str = str + strconv.Itoa(int(data[len(data)-1]))
 	return str
 }
