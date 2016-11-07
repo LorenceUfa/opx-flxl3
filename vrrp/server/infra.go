@@ -135,6 +135,17 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
 	}
+
+	// check if ipv4 address is configured on the intfRef
+	_, v4exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
+
+	// check if ipv6 address is configured on the intRef
+	_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
+
+	if !v4exists && !v6exists {
+		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:",
+			cfg.IntfRef))
+	}
 	debug.Logger.Info("Validation of create config:", *cfg, "is success")
 	return true, nil
 }
@@ -143,7 +154,8 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *config.IntfCfg) (bool, error) {
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	intf, exists := svr.Intf[key]
 	if !exists {
-		return false, errors.New(fmt.Sprintln("Vrrp Interface doesn't exists for config:", cfg, "please do create before updating entry"))
+		return false, errors.New(fmt.Sprintln("Vrrp Interface doesn't exists for config:", cfg,
+			"please do create before updating entry"))
 	}
 	if intf.Config.VRID != cfg.VRID {
 		return false, errors.New("Updating VRID is not allowed")
