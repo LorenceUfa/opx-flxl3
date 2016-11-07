@@ -25,15 +25,19 @@ package packet
 import (
 	"bytes"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
 	"log/syslog"
-	_ "net"
+	"net"
+	"reflect"
 	"testing"
 	"utils/logging"
 )
 
 var testPktInfo *PacketInfo
+
 var testEncodePkt = []byte{
 	0x01, 0x00, 0x5e, 0x00, 0x00, 0x12, 0x00, 0x00, 0x5e, 0x00, 0x01, 0x01, 0x08, 0x00, 0x45, 0x00,
 	0x00, 0x28, 0x00, 0x00, 0x00, 0x00, 0xff, 0x70, 0x1a, 0xaa, 0xc0, 0xa8, 0x00, 0x1, 0xe0, 0x00,
@@ -64,7 +68,7 @@ func TestInit(t *testing.T) {
 	}
 }
 
-func TestEncode(t *testing.T) {
+func TestEncodeV2(t *testing.T) {
 	TestInit(t)
 	pktInfo := &PacketInfo{
 		Version:      config.VERSION2,
@@ -79,7 +83,6 @@ func TestEncode(t *testing.T) {
 		t.Error("mis-match in length:", len(encodedPkt), len(testEncodePkt))
 		return
 	}
-	//if !bytes.Equal(encodedPkt[34:], testEncodePkt[34:]) {
 	if !bytes.Equal(encodedPkt, testEncodePkt) {
 		t.Error("Failed to encode packet for pktInfo:", *pktInfo)
 		t.Error("	testEncodePkt:", testEncodePkt)
@@ -90,6 +93,39 @@ func TestEncode(t *testing.T) {
 				t.Error(fmt.Sprintf("encoded Byte is:0x%x but wanted byte is:0x%x", encodedPkt[idx], testEncodePkt[idx]))
 			}
 		}
+		return
+	}
+}
+
+func TestDecodeV2(t *testing.T) {
+	TestInit(t)
+	p := gopacket.NewPacket(testEncodePkt, layers.LinkTypeEthernet, gopacket.Default)
+	decodePkt := testPktInfo.Decode(p, config.VERSION2)
+	if decodePkt == nil {
+		t.Error("failed to decode packet")
+		return
+	}
+	wantPktInfo := &PacketInfo{
+		DstMac: VRRP_PROTOCOL_MAC,
+		SrcMac: testVMac,
+		IpAddr: testVip,
+		DstIp:  VRRP_GROUP_IP,
+		Hdr: &Header{
+			Version:      config.VERSION2,
+			Type:         VRRP_PKT_TYPE_ADVERTISEMENT,
+			VirtualRtrId: testVrid,
+			Priority:     testPriority,
+			CountIPAddr:  1,
+			Rsvd:         0,
+			MaxAdverInt:  testAdvInt,
+			CheckSum:     uint16(47698),
+		},
+	}
+	wantPktInfo.Hdr.IpAddr = append(wantPktInfo.Hdr.IpAddr, net.ParseIP(testVip).To4())
+	if !reflect.DeepEqual(wantPktInfo, decodePkt) {
+		t.Error("failed to decode packet")
+		t.Error("wantPktInfo header is:", *wantPktInfo.Hdr, "entire packet info:", wantPktInfo)
+		t.Error("decodePktInfo header is:", *decodePkt.Hdr, "entire packet info:", decodePkt)
 		return
 	}
 }

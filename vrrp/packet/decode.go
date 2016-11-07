@@ -75,25 +75,6 @@ func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error {
 	if hdr.CountIPAddr == 0 || hdr.MaxAdverInt == 0 || hdr.Type == 0 {
 		return errors.New(VRRP_INCORRECT_FIELDS)
 	}
-	/*
-		gblInfo := p.vrrpGblInfo[key]
-		if gblInfo.IntfConfig.VirtualIpAddr == "" {
-			for i := 0; i < int(hdr.CountIPAddr); i++ {
-				/* If Virtual Ip is not configured then check whether the ip
-				 * address of router/interface is not same as the received
-				 * Virtual Ip Addr
-	*/
-	/*
-				if gblInfo.IpAddr == hdr.IpAddr[i].String() {
-					return errors.New(VRRP_SAME_OWNER)
-				}
-			}
-		}
-
-		if gblInfo.IntfConfig.VRID == 0 {
-			return errors.New(VRRP_MISSING_VRID_CONFIG)
-		}
-	*/
 	return nil
 }
 
@@ -136,25 +117,23 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 		debug.Logger.Err("Not an ip packet?")
 		return nil
 	}
-	var ipHdr interface{}
 	var dstIp string
 	var srcIp string
 	switch version {
 	case config.VERSION2:
 		// Get Ip Hdr and start doing basic check according to RFC
-		ipHdr = ipLayer.(*layers.IPv4)
-		if ipHdr.(layers.IPv4).TTL != VRRP_TTL {
-			debug.Logger.Err("ttl should be 255 instead of", ipHdr.(layers.IPv4).TTL,
-				"dropping packet from", ipHdr.(layers.IPv4).SrcIP)
+		ipHdr := ipLayer.(*layers.IPv4)
+		if ipHdr.TTL != VRRP_TTL {
+			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL, "dropping packet from", ipHdr.SrcIP.String())
 			return nil
 		}
-		dstIp = ipHdr.(layers.IPv4).DstIP.String()
-		srcIp = ipHdr.(layers.IPv4).SrcIP.String()
+		dstIp = ipHdr.DstIP.String()
+		srcIp = ipHdr.SrcIP.String()
 	case config.VERSION3:
 		// @TODO: need to read rfc for validation
-		ipHdr = ipLayer.(*layers.IPv6)
-		dstIp = ipHdr.(layers.IPv6).DstIP.String()
-		srcIp = ipHdr.(layers.IPv6).SrcIP.String()
+		ipHdr := ipLayer.(*layers.IPv6)
+		dstIp = ipHdr.DstIP.String()
+		srcIp = ipHdr.SrcIP.String()
 	}
 	// Get Payload as checks are succesful
 	ipPayload := ipLayer.LayerPayload()
