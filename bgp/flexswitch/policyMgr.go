@@ -95,9 +95,11 @@ func convertModelsToPolicyConditionConfig(cfg *objects.PolicyCondition) *utilspo
 	}
 
 	return &utilspolicy.PolicyConditionConfig{
-		Name:                          cfg.Name,
-		ConditionType:                 cfg.ConditionType,
-		MatchDstIpPrefixConditionInfo: destIPMatch,
+		Name:                                cfg.Name,
+		ConditionType:                       cfg.ConditionType,
+		MatchDstIpPrefixConditionInfo:       destIPMatch,
+		MatchCommunityConditionInfo:         cfg.Community,
+		MatchExtendedCommunityConditionInfo: cfg.ExtendedCommunity,
 	}
 }
 
@@ -146,11 +148,21 @@ func convertModelsToPolicyStmtConfig(cfg *objects.PolicyStmt) *utilspolicy.Polic
 	actions := make([]string, 1)
 	actions[0] = cfg.Action
 
+	setActions := make([]utilspolicy.PolicyActionCfg, 0)
+	for _, setAction := range cfg.SetActions {
+		setActions = append(setActions, utilspolicy.PolicyActionCfg{
+			Attr:              setAction.Attr,
+			Community:         setAction.Community,
+			ExtendedCommunity: setAction.ExtendedCommunity,
+			LocalPref:         setAction.LocalPref,
+		})
+	}
 	return &utilspolicy.PolicyStmtConfig{
 		Name:            cfg.Name,
 		MatchConditions: cfg.MatchConditions,
 		Conditions:      cfg.Conditions,
 		Actions:         actions,
+		SetActions:      setActions,
 	}
 }
 
