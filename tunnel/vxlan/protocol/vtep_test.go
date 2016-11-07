@@ -226,6 +226,71 @@ func TimerTest(v *VtepDbEntry, exitchan chan<- bool) {
 	}
 }
 
+// TestVtepNameGeneration
+func TestVtepNameGeneration(t *testing.T) {
+
+	//setVxlanTestLogger()
+
+	name := GenInternalVtepName()
+	if name != "Vtep1" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+
+	name = GenInternalVtepName()
+	if name != "Vtep2" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+
+	name = GenInternalVtepName()
+	if name != "Vtep3" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+
+	if len(vtepNameIdList) != 0 {
+		t.Errorf("VtepNameList is not empty")
+	}
+
+	FreeGenInternalVtepName(name)
+	if len(vtepNameIdList) != 1 {
+		t.Errorf("VtepNameList does not contain the entry that was just freed", vtepNameIdList)
+	}
+
+	if vtepNameIdList[0] != 3 {
+		t.Errorf("VtepNameList entry id was not freed properly", vtepNameIdList)
+	}
+
+	name = GenInternalVtepName()
+	if name != "Vtep3" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+	if len(vtepNameIdList) != 0 {
+		t.Errorf("VtepNameList is not empty", vtepNameIdList)
+	}
+
+	if vtepNameIdCnt != 4 {
+		t.Errorf("VtepNameIdCnt is not correct", vtepNameIdCnt)
+	}
+
+	FreeGenInternalVtepName("Vtep1")
+	FreeGenInternalVtepName("Vtep2")
+	FreeGenInternalVtepName("Vtep3")
+
+	// try and delete an entry that does not exist
+	FreeGenInternalVtepName("Vtep4")
+
+	for i := 0; i < 100; i++ {
+		GenInternalVtepName()
+	}
+
+	FreeGenInternalVtepName("Vtep34")
+
+	if vtepNameIdList[0] != 34 {
+		t.Errorf("VtepNameList did not delete previous entry Vtep34")
+	}
+
+	//SetLogger(nil)
+}
+
 // TestFSMValidVxlanVtepCreate:
 // Test creation of vxlan before vtep
 func TestFSMValidVxlanVtepCreate(t *testing.T) {

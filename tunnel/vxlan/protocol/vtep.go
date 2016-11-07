@@ -8,9 +8,9 @@ package vxlan
 import (
 	"encoding/json"
 	"fmt"
-	"hash/crc32"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -196,13 +196,47 @@ type srcMacVtepMap struct {
 }
 */
 
+var vtepNameIdList = make([]int, 0)
+var vtepNameIdCnt = 1
+
+func GenInternalVtepName() string {
+	if len(vtepNameIdList) == 0 {
+		name := fmt.Sprintf("Vtep%d", vtepNameIdCnt)
+		vtepNameIdCnt++
+		return name
+	}
+	x := vtepNameIdList[0]
+	vtepNameIdList = append(vtepNameIdList[:0], vtepNameIdList[1:]...)
+	return fmt.Sprintf("Vtep%d", x)
+}
+
+func FreeGenInternalVtepName(vtepName string) {
+	id, err := strconv.Atoi(strings.TrimLeft(vtepName, "Vtep"))
+	if err == nil {
+		foundEntry := false
+		for _, i := range vtepNameIdList {
+			if i == id {
+				foundEntry = true
+				break
+			}
+		}
+
+		if foundEntry {
+			//logger.Err("Error Deleting Vtep%d ignoring", id)
+			return
+		}
+
+		vtepNameIdList = append(vtepNameIdList, id)
+	}
+}
+
 func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 	vtep := &VtepDbEntry{
 		Vni: c.Vni,
 		// TODO if we are running in hw linux vs proxy then this should not be + Int
 		VtepConfigName: c.VtepName,
-		VtepName:       c.VtepName + fmt.Sprintf("%d", crc32.ChecksumIEEE([]byte(c.TunnelDstIp.String()))),
-		VtepHandleName: c.VtepName + fmt.Sprintf("%d", crc32.ChecksumIEEE([]byte(c.TunnelDstIp.String()))) + "Int",
+		VtepName:       GenInternalVtepName(),
+		VtepHandleName: GenInternalVtepName() + "Int",
 		SrcIfName:      c.SrcIfName,
 		UDP:            c.UDP,
 		TTL:            uint8(c.TTL),
@@ -319,6 +353,7 @@ func DeleteVtep(c *VtepConfig) {
 
 	vtep := GetVtepDBEntry(key)
 	if vtep != nil {
+		FreeGenInternalVtepName(vtep.VtepName)
 		if (VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE ||
 			VxlanGlobalStateGet() == VXLAN_GLOBAL_DISABLE_PENDING) &&
 			c.Enable {
@@ -336,7 +371,7 @@ func DeleteVtep(c *VtepConfig) {
 		}
 		if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE {
 			for idx, vtep := range vtepDbList {
-				if vtep.VtepName == c.VtepName {
+				if vtep.VtepConfigName == c.VtepName {
 					vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
 				}
 			}
