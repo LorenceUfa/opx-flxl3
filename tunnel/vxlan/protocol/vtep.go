@@ -236,7 +236,7 @@ func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
 		Vni:            c.Vni,
 		VtepConfigName: c.VtepName,
 		VtepName:       vtepName,
-		VtepHandleName: GvtepName + "Int",
+		VtepHandleName: vtepName + "Int",
 		SrcIfName:      c.SrcIfName,
 		UDP:            c.UDP,
 		TTL:            uint8(c.TTL),
