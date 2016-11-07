@@ -161,10 +161,14 @@ func (f *FSM) UpdateRxStateInformation(pktInfo *packet.PacketInfo) {
 	f.StInfo.CurrentFsmState = getStateName(f.State)
 }
 
+func (f *FSM) UpdateTxStateInformation() {
+	f.StInfo.AdverTx++
+	f.StInfo.LastAdverTx = time.Now().String()
+	f.StInfo.CurrentFsmState = getStateName(f.State)
+}
+
 func (f *FSM) ReceiveVrrpPackets() {
-	pHandle := f.pHandle
-	pktCh := f.pktCh
-	packetSource := gopacket.NewPacketSource(pHandle, pHandle.LinkType())
+	packetSource := gopacket.NewPacketSource(f.pHandle, f.pHandle.LinkType())
 	in := packetSource.Packets()
 	for {
 		select {
@@ -173,26 +177,24 @@ func (f *FSM) ReceiveVrrpPackets() {
 				debug.Logger.Debug("Pcap closed for interface:", f.Config.IntfRef, "exiting RX go routine")
 				return
 			}
-			pktCh <- &PktChannelInfo{
+			f.pktCh <- &PktChannelInfo{
 				pkt: pkt,
 			}
 		}
 	}
 }
 
-func (f *FSM) InitPacketListener() error {
-	var err error
-	pHandle := f.pHandle
+func (f *FSM) InitPacketListener() (err error) {
 	ifName := f.Config.IntfRef
-	if pHandle == nil {
+	if f.pHandle == nil {
 		debug.Logger.Debug(FSM_PREFIX, "InitPacketListener for interface:", ifName)
-		pHandle, err = pcap.OpenLive(ifName, VRRP_SNAPSHOT_LEN, VRRP_PROMISCOUS_MODE, VRRP_TIMEOUT)
+		f.pHandle, err = pcap.OpenLive(ifName, VRRP_SNAPSHOT_LEN, VRRP_PROMISCOUS_MODE, VRRP_TIMEOUT)
 		if err != nil {
 			debug.Logger.Err("Creating Pcap Handle for l3 interface:", ifName, "failed with error:", err)
 			return err
 		}
 
-		err = pHandle.SetBPFFilter(VRRP_BPF_FILTER)
+		err = f.pHandle.SetBPFFilter(VRRP_BPF_FILTER)
 		if err != nil {
 			debug.Logger.Err("Setting filter:", VRRP_BPF_FILTER, "for l3 interface:", ifName, "failed with error:", err)
 			return err
@@ -241,7 +243,10 @@ func (f *FSM) SendPkt(pktInfo *packet.PacketInfo) {
 		err := f.pHandle.WritePacketData(pkt)
 		if err != nil {
 			debug.Logger.Err(FSM_PREFIX, "Writing packet failed for interface:", f.Config.IntfRef)
+			return
 		}
+		debug.Logger.Debug(FSM_PREFIX, "updating Tx state information")
+		f.UpdateTxStateInformation()
 	}
 }
 
@@ -263,6 +268,7 @@ func (f *FSM) getPacketInfo() *packet.PacketInfo {
 }
 
 func (f *FSM) CalculateDownValue(advInt int32) {
+	debug.Logger.Debug(FSM_PREFIX, "CalculateDownValue with advInt:", advInt)
 	//(155) + Set Master_Adver_Interval to Advertisement_Interval
 	if advInt == config.USE_CONFIG_ADVERTISEMENT {
 		f.MasterAdverInterval = f.Config.AdvertisementInterval
@@ -274,6 +280,8 @@ func (f *FSM) CalculateDownValue(advInt int32) {
 		f.SkewTime = ((256 - f.Config.Priority) * f.MasterAdverInterval) / 256
 	}
 	f.MasterDownValue = (3 * f.MasterAdverInterval) + f.SkewTime
+	debug.Logger.Debug(FSM_PREFIX, "MasterAdverInterval is:", f.MasterAdverInterval, "SkewTime is:", f.SkewTime,
+		"MasterDownValue is:", f.MasterDownValue)
 }
 
 func (f *FSM) Initialize() {
@@ -281,8 +289,10 @@ func (f *FSM) Initialize() {
 	debug.Logger.Debug(FSM_PREFIX, "In Init state deciding next state")
 	switch f.Config.Priority {
 	case VRRP_MASTER_PRIORITY:
+		debug.Logger.Debug(FSM_PREFIX, "Transition To MasterState")
 		f.TransitionToMaster()
 	default:
+		debug.Logger.Debug(FSM_PREFIX, "Tranisition to BackupState")
 		f.TransitionToBackup(config.USE_CONFIG_ADVERTISEMENT)
 	}
 }
@@ -369,7 +379,7 @@ func (f *FSM) UpdateVirtualIP(enable bool) {
 
 func (f *FSM) StartFsm() {
 	f.running = true
-	f.InitPacketListener()
+	f.Initialize()
 	for {
 		select {
 		case pktCh, ok := <-f.pktCh:

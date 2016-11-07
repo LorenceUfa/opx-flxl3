@@ -31,12 +31,15 @@ import (
 )
 
 func (f *FSM) TransitionToMaster() {
+	debug.Logger.Debug(FSM_PREFIX, "Transitioned to master")
 	pktInfo := f.getPacketInfo()
+	debug.Logger.Debug(FSM_PREFIX, "vrrp header information:", *pktInfo)
 	// (110) + Send an ADVERTISEMENT
 	f.SendPkt(pktInfo)
 	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
 	// Set Sub-intf state up and send out garp via linux stack
+	debug.Logger.Debug(FSM_PREFIX, "Enabling VirtualIp as interface:", f.Config.IntfRef, "is master now")
 	f.UpdateVirtualIP(true /*enable*/)
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
@@ -53,7 +56,7 @@ func (f *FSM) StartMasterAdverTimer() {
 			f.SendPkt(f.getPacketInfo())
 			f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
 		}
-		debug.Logger.Debug("Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
+		debug.Logger.Debug(FSM_PREFIX, "Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
 		f.AdverTimer = time.AfterFunc(time.Duration(f.Config.AdvertisementInterval), SendMasterAdveristement_func)
 	}
 }
@@ -82,7 +85,7 @@ func (f *FSM) HandleMasterDownTimer() {
 			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
 			f.TransitionToMaster()
 		}
-		debug.Logger.Info("setting down timer to", f.MasterDownValue)
+		debug.Logger.Info(FSM_PREFIX, "setting down timer to", f.MasterDownValue)
 		// Set Timer expire func...
 		f.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second, MasterDownTimer_func)
 	}
