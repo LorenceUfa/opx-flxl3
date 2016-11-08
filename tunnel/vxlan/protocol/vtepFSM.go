@@ -393,7 +393,9 @@ func (vm *VxlanVtepMachine) VxlanVtepStartListener(m fsm.Machine, data interface
 
 	vtep := vm.vtep
 
-	logger.Info(fmt.Sprintf("%s: Starting listening for packets on vtep intf %s and intf %s ", vtep.VtepName, vtep.VtepHandleName, vtep.NextHop.IfName))
+	hwdata := data.(VtepCreateCfgData)
+	vtep.SetIfIndex(hwdata.IfIndex)
+	logger.Info(fmt.Sprintf("%s: Starting listening for packets on vtep intf %s and intf %s ifindex %d", vtep.VtepName, vtep.VtepHandleName, vtep.NextHop.IfName, vtep.VtepIfIndex))
 	VxlanVtepRxTx(vtep)
 	VxlanCreatePortRxTx(vtep.NextHop.IfName, vtep.UDP)
 	return VxlanVtepStateStart

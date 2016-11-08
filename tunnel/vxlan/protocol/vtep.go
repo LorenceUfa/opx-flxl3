@@ -371,7 +371,9 @@ func DeleteVtep(c *VtepConfig) {
 		}
 		if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE {
 			for idx, vtep := range vtepDbList {
-				if vtep.VtepConfigName == c.VtepName {
+				if vtep.VtepName == c.VtepName &&
+					vtep.Vni == c.Vni &&
+					vtep.DstIp.String() == c.TunnelDstIp.String() {
 					vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
 				}
 			}
@@ -413,7 +415,8 @@ func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
 			if vtep.VtepName == v.VtepName &&
-				vtep.Vni == v.Vni {
+				vtep.Vni == v.Vni &&
+				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
 			}
 		}
@@ -444,6 +447,10 @@ func SaveVtepSrcMacSrcIp(paramspath string) {
 
 func CreateVtepRxTx(vtep *VtepDbEntry) {
 	vtep.createVtepSenderListener()
+}
+
+func (vtep *VtepDbEntry) SetIfIndex(ifindex int32) {
+	vtep.VtepIfIndex = ifindex
 }
 
 func (vtep *VtepDbEntry) createUntaggedVtepSenderListener() error {

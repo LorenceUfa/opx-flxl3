@@ -604,13 +604,18 @@ func (intf VXLANSnapClient) CreateVtep(vtep *vxlan.VtepDbEntry, vteplistener cha
 			}
 		}
 		// create the vtep
-		asicdclnt.ClientHdl.CreateVxlanVtep(ConvertVtepToVxlanAsicdConfig(vtep))
+		id, _ := asicdclnt.ClientHdl.CreateVxlanVtep(ConvertVtepToVxlanAsicdConfig(vtep))
 		intf.thriftmutex.Unlock()
+
+		data := vxlan.VtepCreateCfgData{
+			VtepName: vtep.VtepHandleName,
+			IfIndex:  id,
+		}
 
 		event := vxlan.MachineEvent{
 			E:    vxlan.VxlanVtepEventHwConfigComplete,
 			Src:  vxlan.VXLANSnapClientStr,
-			Data: vtep.VtepHandleName,
+			Data: data,
 		}
 
 		vteplistener <- event
