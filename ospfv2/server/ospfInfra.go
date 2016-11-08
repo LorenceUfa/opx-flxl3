@@ -471,10 +471,12 @@ func (server *OSPFV2Server) UpdateIPv4Infra(msg asicdCommonDefs.IPv4IntfNotifyMs
 		ipEnt.MacAddr = macAddr
 		server.infraData.ipToIfIdxMap[ip] = ifIdx
 		server.infraData.ipPropertyMap[ifIdx] = ipEnt
+		server.logger.Info("Ip to IfIdx Map:", server.infraData.ipToIfIdxMap)
+		server.logger.Info("Ip property Map:", server.infraData.ipPropertyMap)
 	} else {
 		server.logger.Info("Receive IPV4INTF_DELETE", msg)
 		server.getMTU(ifType, ifIdx, false)
-		//TODO: Stop and Delete Interface Conf Map if exist
+		//Delete Interface Conf Map if exist
 		delete(server.infraData.ipToIfIdxMap, ip)
 		delete(server.infraData.ipPropertyMap, ifIdx)
 	}
@@ -483,7 +485,7 @@ func (server *OSPFV2Server) UpdateIPv4Infra(msg asicdCommonDefs.IPv4IntfNotifyMs
 
 func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3IntfStateNotifyMsg) {
 	ifIdx := msg.IfIndex
-
+	server.logger.Info("ProcessIPv4StateChange:", msg)
 	ipEnt, exist := server.infraData.ipPropertyMap[ifIdx]
 	if !exist {
 		server.logger.Err("IPv4 entry doesnot exist in Ip Property Map")
@@ -491,13 +493,44 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 	}
 	if msg.IfState == asicdCommonDefs.INTF_STATE_UP {
 		ipEnt.State = true
-		//Start State Machines if it exist and not running
-		//Init Tx and Rx Packets
-		//Start Tx and Rx Packets
+		intfConfKey := IntfConfKey{
+			IpAddr:  ipEnt.IpAddr,
+			IntfIdx: 0,
+		}
+		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+		if exist {
+			intfConfEnt.OperState = true
+			server.IntfConfMap[intfConfKey] = intfConfEnt
+			if server.globalData.AdminState == true &&
+				intfConfEnt.AdminState == true {
+				server.StartSendAndRecvPkts(intfConfKey)
+				//TODO: Generate Router LSA for intfConfEnt.AreaId
+				server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+			}
+		}
 	} else {
 		//Stop State Machine if it exist and running
 		//Stop Tx and Rx Packet
 		ipEnt.State = false
+		intfConfKey := IntfConfKey{
+			IpAddr:  ipEnt.IpAddr,
+			IntfIdx: 0,
+		}
+		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+		if exist {
+			intfConfEnt.OperState = false
+			server.IntfConfMap[intfConfKey] = intfConfEnt
+			if server.globalData.AdminState == true &&
+				intfConfEnt.AdminState == true {
+				nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
+				if len(nbrKeyList) > 0 {
+					// Send message to Neighbor FSM for killing nbr
+					server.SendDeleteNeighborsMsg(nbrKeyList)
+				}
+				//Generate Router LSA for intfConfEnt.AreaId
+				server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+			}
+		}
 	}
 	server.infraData.ipPropertyMap[ifIdx] = ipEnt
 }

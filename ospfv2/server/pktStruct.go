@@ -114,7 +114,7 @@ func NewOSPFHelloData() *OSPFHelloData {
 }
 
 func encodeOspfHelloData(helloData OSPFHelloData, neighborList []uint32) []byte {
-	pkt := make([]byte, OSPF_HELLO_MIN_SIZE*len(neighborList)*4)
+	pkt := make([]byte, OSPF_HELLO_MIN_SIZE+len(neighborList)*4)
 	binary.BigEndian.PutUint32(pkt[0:4], helloData.Netmask)
 	binary.BigEndian.PutUint16(pkt[4:6], helloData.HelloInterval)
 	pkt[6] = helloData.Options

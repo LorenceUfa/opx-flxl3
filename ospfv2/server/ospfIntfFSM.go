@@ -74,8 +74,8 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				server.logger.Err("DR or BDR is non zero")
 				continue
 			}
-			nbrIdentity := createMsg.NbrIdentity
-			neighborEntry, exist := ent.NeighborMap[nbrIdentity]
+			nbrKey := createMsg.NbrKey
+			neighborEntry, exist := ent.NeighborMap[nbrKey]
 			if !exist {
 				neighborEntry.TwoWayStatus = createMsg.TwoWayStatus
 				neighborEntry.RtrPrio = createMsg.RtrPrio
@@ -83,7 +83,7 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				neighborEntry.BDRtrIpAddr = createMsg.BDRtrIpAddr
 				neighborEntry.NbrIpAddr = createMsg.NbrIP
 				neighborEntry.RtrId = createMsg.RouterId
-				ent.NeighborMap[nbrIdentity] = neighborEntry
+				ent.NeighborMap[nbrKey] = neighborEntry
 				server.IntfConfMap[key] = ent
 			}
 		case changeMsg := <-ent.NeighChangeCh:
@@ -92,8 +92,8 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				server.logger.Err("DR or BDR is non zero")
 				continue
 			}
-			nbrIdentity := changeMsg.NbrIdentity
-			neighborEntry, exist := ent.NeighborMap[nbrIdentity]
+			nbrKey := changeMsg.NbrKey
+			neighborEntry, exist := ent.NeighborMap[nbrKey]
 			if exist {
 				neighborEntry.TwoWayStatus = changeMsg.TwoWayStatus
 				neighborEntry.RtrPrio = changeMsg.RtrPrio
@@ -101,10 +101,10 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				neighborEntry.DRtrIpAddr = changeMsg.DRtrIpAddr
 				neighborEntry.BDRtrIpAddr = changeMsg.BDRtrIpAddr
 				neighborEntry.RtrId = changeMsg.RouterId
-				ent.NeighborMap[nbrIdentity] = neighborEntry
+				ent.NeighborMap[nbrKey] = neighborEntry
 				server.IntfConfMap[key] = ent
 			} else {
-				server.logger.Err("Neighbor entry does not exists", nbrIdentity)
+				server.logger.Err("Neighbor entry does not exists", nbrKey)
 			}
 		case nbrStateChangeMsg := <-ent.NbrStateChangeCh:
 			// Only when Neighbor Went Down from TwoWayStatus
@@ -136,8 +136,8 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 			server.logger.Info("Transit to action state because of backup seen", msg)
 			server.ElectBDRAndDR(key)
 		case createMsg := <-ent.NeighCreateCh:
-			nbrIdentity := createMsg.NbrIdentity
-			neighborEntry, exist := ent.NeighborMap[nbrIdentity]
+			nbrKey := createMsg.NbrKey
+			neighborEntry, exist := ent.NeighborMap[nbrKey]
 			if !exist {
 				neighborEntry.TwoWayStatus = createMsg.TwoWayStatus
 				neighborEntry.RtrPrio = createMsg.RtrPrio
@@ -145,7 +145,7 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 				neighborEntry.BDRtrIpAddr = createMsg.BDRtrIpAddr
 				neighborEntry.NbrIpAddr = createMsg.NbrIP
 				neighborEntry.RtrId = createMsg.RouterId
-				ent.NeighborMap[nbrIdentity] = neighborEntry
+				ent.NeighborMap[nbrKey] = neighborEntry
 				server.IntfConfMap[key] = ent
 				if createMsg.TwoWayStatus == true &&
 					ent.FSMState > objects.INTF_FSM_STATE_WAITING {
@@ -153,8 +153,8 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 				}
 			}
 		case changeMsg := <-ent.NeighChangeCh:
-			nbrIdentity := changeMsg.NbrIdentity
-			neighborEntry, exist := ent.NeighborMap[nbrIdentity]
+			nbrKey := changeMsg.NbrKey
+			neighborEntry, exist := ent.NeighborMap[nbrKey]
 			if exist {
 				//rtrId := changeMsg.RouterId
 				NbrIP := changeMsg.NbrIP
@@ -170,7 +170,7 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 				neighborEntry.DRtrIpAddr = changeMsg.DRtrIpAddr
 				neighborEntry.BDRtrIpAddr = changeMsg.BDRtrIpAddr
 				neighborEntry.RtrId = changeMsg.RouterId
-				ent.NeighborMap[nbrIdentity] = neighborEntry
+				ent.NeighborMap[nbrKey] = neighborEntry
 				server.IntfConfMap[key] = ent
 				if ent.FSMState > objects.INTF_FSM_STATE_WAITING {
 					// RFC2328 Section 9.2 (Neighbor Change Event)
@@ -202,10 +202,10 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 func (server *OSPFV2Server) processNbrDownEvent(msg NbrStateChangeMsg,
 	key IntfConfKey, p2p bool) {
 	ent, _ := server.IntfConfMap[key]
-	_, exist := ent.NeighborMap[msg.NbrIdentity]
+	_, exist := ent.NeighborMap[msg.NbrKey]
 	if exist {
-		delete(ent.NeighborMap, msg.NbrIdentity)
-		server.logger.Info("Deleting", msg.NbrIdentity)
+		delete(ent.NeighborMap, msg.NbrKey)
+		server.logger.Info("Deleting", msg.NbrKey)
 		server.IntfConfMap[key] = ent
 		if p2p == false {
 			if ent.FSMState > objects.INTF_FSM_STATE_WAITING {
@@ -358,6 +358,11 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 	ent, _ := server.IntfConfMap[key]
 	server.logger.Info("Election of BDR andDR", ent.FSMState)
 
+	oldDRtrIpAddr := ent.DRIpAddr
+	//oldBDRtrIpAddr := ent.BDRIpAddr
+	oldDRtrId := ent.DRtrId
+	//oldBDRtrId := ent.BDRtrId
+
 	oldState := ent.FSMState
 	var newState uint8
 
@@ -375,6 +380,7 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 		newState = objects.INTF_FSM_STATE_OTHER_DR
 	}
 
+	ent.FSMState = newState
 	server.IntfConfMap[key] = ent
 
 	if newState != oldState &&
@@ -394,21 +400,20 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 		} else {
 			newState = objects.INTF_FSM_STATE_OTHER_DR
 		}
+		ent.FSMState = newState
 		server.IntfConfMap[key] = ent
 	}
 
-	server.createAndSendEventsIntfFSM(key, oldState, newState)
+	if oldDRtrId != ent.DRtrId || oldDRtrIpAddr != ent.DRIpAddr {
+		server.createAndSendEventsIntfFSM(key, oldState, newState)
+	}
 }
 
 func (server *OSPFV2Server) createAndSendEventsIntfFSM(key IntfConfKey, oldState, newState uint8) {
-	ent, _ := server.IntfConfMap[key]
-	ent.FSMState = newState
-	server.IntfConfMap[key] = ent
-	msg := DrChangeMsg{
-		areaId:   ent.AreaId,
-		intfKey:  key,
-		oldstate: oldState,
-		newstate: newState,
+	msg := NetworkDRChangeMsg{
+		IntfKey:         key,
+		OldIntfFSMState: oldState,
+		NewIntfFSMState: newState,
 	}
 	//TODO:
 	//Send LSBD message to generate Router LSA and

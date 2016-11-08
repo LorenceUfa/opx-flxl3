@@ -52,7 +52,7 @@ type NeighCreateMsg struct {
 	RtrPrio      uint8
 	DRtrIpAddr   uint32
 	BDRtrIpAddr  uint32
-	NbrIdentity  uint32
+	NbrKey       NeighborConfKey
 }
 
 type NeighChangeMsg struct {
@@ -62,22 +62,16 @@ type NeighChangeMsg struct {
 	RtrPrio      uint8
 	DRtrIpAddr   uint32
 	BDRtrIpAddr  uint32
-	NbrIdentity  uint32
-}
-
-type NbrFullStateMsg struct {
-	FullState bool
-	NbrRtrId  uint32
-	nbrKey    NeighborConfKey
+	NbrKey       NeighborConfKey
 }
 
 type NeighborConfKey struct {
-	IpAddr  uint32
-	IntfIdx uint32
+	NbrIdentity         uint32
+	NbrAddressLessIfIdx uint32
 }
 
 type NbrStateChangeMsg struct {
-	NbrIdentity uint32
+	NbrKey NeighborConfKey
 }
 
 type IntfTxHandle struct {
@@ -91,34 +85,10 @@ type IntfRxHandle struct {
 	PktRecvCtrlReplyCh chan bool
 }
 
-const (
-	LsdbAdd      uint8 = 0
-	LsdbDel      uint8 = 1
-	LsdbUpdate   uint8 = 2
-	LsdbNoAction uint8 = 3
-)
-
-type LsdbUpdateMsg struct {
-	MsgType uint8
-	AreaId  uint32
-	Data    []byte
-}
-
-type LSAChangeMsg struct {
-	areaId uint32
-}
-
 type NetworkLSAChangeMsg struct {
-	areaId    uint32
-	intfKey   IntfConfKey
-	intfState bool
-}
-
-type DrChangeMsg struct {
-	areaId   uint32
-	intfKey  IntfConfKey
-	oldstate uint8
-	newstate uint8
+	AreaId    uint32
+	IntfKey   IntfConfKey
+	IntfState bool
 }
 
 type IntfToNeighMsg struct {
@@ -131,5 +101,29 @@ type IntfToNeighMsg struct {
 	NbrDRIpAddr  uint32
 	NbrBDRIpAddr uint32
 	NbrMAC       net.HardwareAddr
-	NbrIdentity  uint32
+	NbrKey       NeighborConfKey
+}
+
+type NetworkDRChangeMsg struct {
+	IntfKey         IntfConfKey
+	OldIntfFSMState uint8
+	NewIntfFSMState uint8
+}
+
+type DeleteNeighborMsg struct {
+	NbrKeyList []NeighborConfKey //List of Neighbor Identity
+}
+
+type IntfToNbrFSMChStruct struct {
+	NeighborHelloEventCh chan IntfToNeighMsg
+	DeleteNeighborCh     chan DeleteNeighborMsg //List of Neighbor Identity
+	NetworkDRChangeCh    chan NetworkDRChangeMsg
+}
+
+type GenerateRouterLSAMsg struct {
+	AreaId uint32
+}
+
+type IntfFSMToLsdbChStruct struct {
+	GenerateRouterLSACh chan GenerateRouterLSAMsg
 }

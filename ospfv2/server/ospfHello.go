@@ -167,6 +167,11 @@ func (server *OSPFV2Server) processRxHelloPkt(data []byte,
 		if (ospfHelloData.Options & EOption) == 0 {
 			return errors.New("External Routing Capability mismatch")
 		}
+	} else {
+		if (ospfHelloData.Options & EOption) != 0 {
+			return errors.New("External Routing Capability mismatch")
+		}
+
 	}
 
 	TwoWayStatus := false
@@ -204,7 +209,11 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 		nbrIdentity = ipHdrMd.SrcIP
 	}
 
-	neighborEntry, exist := ent.NeighborMap[nbrIdentity]
+	nbrKey := NeighborConfKey{
+		NbrIdentity:         nbrIdentity,
+		NbrAddressLessIfIdx: key.IntfIdx,
+	}
+	neighborEntry, exist := ent.NeighborMap[nbrKey]
 	if !exist {
 		var neighCreateMsg NeighCreateMsg
 		neighCreateMsg.RouterId = ospfHdrMd.RouterId
@@ -213,7 +222,7 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 		neighCreateMsg.TwoWayStatus = TwoWayStatus
 		neighCreateMsg.DRtrIpAddr = ospfHelloData.DRtrIpAddr
 		neighCreateMsg.BDRtrIpAddr = ospfHelloData.BDRtrIpAddr
-		neighCreateMsg.NbrIdentity = nbrIdentity
+		neighCreateMsg.NbrKey = nbrKey
 		ent.NeighCreateCh <- neighCreateMsg
 		server.logger.Info("Neighbor Entry Created", neighborEntry)
 	} else {
@@ -228,7 +237,7 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 			neighChangeMsg.RtrPrio = ospfHelloData.RtrPrio
 			neighChangeMsg.DRtrIpAddr = ospfHelloData.DRtrIpAddr
 			neighChangeMsg.BDRtrIpAddr = ospfHelloData.BDRtrIpAddr
-			neighChangeMsg.NbrIdentity = nbrIdentity
+			neighChangeMsg.NbrKey = nbrKey
 			ent.NeighChangeCh <- neighChangeMsg
 		}
 	}
@@ -244,7 +253,7 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 		NbrDRIpAddr:  ospfHelloData.DRtrIpAddr,
 		NbrBDRIpAddr: ospfHelloData.BDRtrIpAddr,
 		NbrMAC:       ethHdrMd.SrcMAC,
-		NbrIdentity:  nbrIdentity,
+		NbrKey:       nbrKey,
 	}
 	server.CreateAndSendHelloRecvdMsg(intfToNeighborMsg)
 
@@ -273,9 +282,4 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 			}
 		}
 	}
-}
-
-func (server *OSPFV2Server) CreateAndSendHelloRecvdMsg(intfToNeighborMsg IntfToNeighMsg) {
-	server.logger.Info("Sending msg to Neighbor State Machine", intfToNeighborMsg)
-	//server.neighborHelloEventCh <- msg
 }

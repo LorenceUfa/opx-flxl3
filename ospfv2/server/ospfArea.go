@@ -70,9 +70,13 @@ func genOspfv2AreaUpdateMask(attrset []bool) uint32 {
 func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrset []bool) (bool, error) {
 	server.logger.Info("Area configuration update")
 	// Stop All the INTF FSM in this area
-	server.StopAreaIntfFSM(newCfg.AreaId)
-	//TODO: Delete All the neighbors in this area
-	//TODO: Send Message to flush router LSA
+	nbrKeyList := server.StopAreaIntfFSM(newCfg.AreaId)
+	if len(nbrKeyList) > 0 {
+		//Delete All the neighbors in this area
+		server.SendDeleteNeighborsMsg(nbrKeyList)
+	}
+	//Send Message to flush router LSA newCfg.AreaId
+	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
 	areaEnt, exist := server.AreaConfMap[newCfg.AreaId]
 	if !exist {
 		server.logger.Err("Cannot update, area doesnot exist")
@@ -88,7 +92,8 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 
 	//Start All the Intf FSM in this area
 	server.StartAreaIntfFSM(newCfg.AreaId)
-	// Send Message to generate router LSA
+	//Send Message to generate router LSA SendMessage to generate router LSA
+	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
 	return true, nil
 }
 

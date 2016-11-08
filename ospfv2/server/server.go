@@ -64,9 +64,11 @@ type OSPFV2Server struct {
 
 	infraData InfraStruct
 
-	globalData  GlobalStruct
-	IntfConfMap map[IntfConfKey]IntfConf
-	AreaConfMap map[uint32]AreaConf //Key AreaId
+	globalData          GlobalStruct
+	IntfConfMap         map[IntfConfKey]IntfConf
+	AreaConfMap         map[uint32]AreaConf //Key AreaId
+	IntfToNbrFSMChData  IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -81,6 +83,10 @@ func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
 	server.InitCompleteCh = make(chan bool)
 	server.IntfConfMap = make(map[IntfConfKey]IntfConf)
 	server.AreaConfMap = make(map[uint32]AreaConf)
+	server.IntfToNbrFSMChData.NeighborHelloEventCh = make(chan IntfToNeighMsg)
+	server.IntfToNbrFSMChData.DeleteNeighborCh = make(chan DeleteNeighborMsg)
+	server.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
+	server.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
 	return &server, nil
 }
 

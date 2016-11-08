@@ -70,7 +70,10 @@ func genOspfv2GlobalUpdateMask(attrset []bool) uint32 {
 func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, attrset []bool) (bool, error) {
 	server.logger.Info("Global configuration update")
 	if server.globalData.AdminState == true {
-		server.StopAllIntfFSM()
+		nbrKeyList := server.StopAllIntfFSM()
+		if len(nbrKeyList) > 0 {
+			server.SendDeleteNeighborsMsg(nbrKeyList)
+		}
 		// TODO
 		//Stop SPF
 		//Flush LSDB
@@ -96,9 +99,11 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 	if server.globalData.AdminState == true {
 		server.StartAllIntfFSM()
+		server.SendMsgToGenerateRouterLSAForAllAreas()
 		// TODO
 		//Start SPF
 		//Start Neighbor FSM
+		//Start LSDB
 		//Start Ribd Updates if ASBdrRtrStatus = true
 	}
 

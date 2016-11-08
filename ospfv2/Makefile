@@ -12,7 +12,7 @@ ipc:
 	$(IPC_GEN_CMD) -r --gen go -out $(GENERATED_IPC) $(IPC_SRCS)
 
 exe: $(SRCS)
-	go build -o $(DESTDIR)/$(COMP_NAME) -ldflags="$(GOLDFLAGS)" $(SRCS)
+	go build -gcflags="-e" -o $(DESTDIR)/$(COMP_NAME) -ldflags="$(GOLDFLAGS)" $(SRCS)
 
 guard:
 ifndef SR_CODE_BASE

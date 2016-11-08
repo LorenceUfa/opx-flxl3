@@ -46,6 +46,7 @@ func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) error {
 	} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
 		ent.FSMState = objects.INTF_FSM_STATE_P2P
 	}
+	ent.NeighborMap = make(map[NeighborConfKey]NeighborData)
 	server.IntfConfMap[intfConfKey] = ent
 	server.logger.Info("Start Ospf Intf FSM")
 	go server.StartOspfIntfFSM(intfConfKey)
@@ -54,10 +55,14 @@ func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) error {
 	return nil
 }
 
-func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) {
+func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) (nbrKeyList []NeighborConfKey) {
 	server.StopOspfRecvPkts(intfConfKey)
 	server.StopOspfIntfFSM(intfConfKey)
 	ent, _ := server.IntfConfMap[intfConfKey]
+	for nbrKey, _ := range ent.NeighborMap {
+		nbrKeyList = append(nbrKeyList, nbrKey)
+	}
+	ent.NeighborMap = nil
 	ent.FSMState = objects.INTF_FSM_STATE_DOWN
 	if ent.Type == objects.INTF_TYPE_BROADCAST {
 		ent.WaitTimer.Stop()
@@ -67,6 +72,7 @@ func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) {
 	ent.HelloIntervalTicker = nil
 	server.IntfConfMap[intfConfKey] = ent
 	server.deinitRxTxPkts(intfConfKey)
+	return nbrKeyList
 }
 
 func (server *OSPFV2Server) initRxTxPkts(intfConfKey IntfConfKey) error {
@@ -106,12 +112,13 @@ func (server *OSPFV2Server) deinitRxTxPkts(intfConfKey IntfConfKey) {
 	server.IntfConfMap[intfConfKey] = intfConfEnt
 }
 
-func (server *OSPFV2Server) StopAllIntfFSM() {
+func (server *OSPFV2Server) StopAllIntfFSM() (nbrKeyList []NeighborConfKey) {
 	for intfConfKey, intfConfEnt := range server.IntfConfMap {
 		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-			server.StopSendAndRecvPkts(intfConfKey)
+			nbrKeyList = append(nbrKeyList, server.StopSendAndRecvPkts(intfConfKey)...)
 		}
 	}
+	return nbrKeyList
 }
 
 func (server *OSPFV2Server) StartAllIntfFSM() {
@@ -126,7 +133,7 @@ func (server *OSPFV2Server) StartAllIntfFSM() {
 	}
 }
 
-func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) {
+func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) (nbrKeyList []NeighborConfKey) {
 	areaEnt, _ := server.AreaConfMap[areaId]
 
 	for intfConfKey, _ := range areaEnt.IntfMap {
@@ -136,9 +143,10 @@ func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) {
 			continue
 		}
 		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-			server.StopSendAndRecvPkts(intfConfKey)
+			nbrKeyList = append(nbrKeyList, server.StopSendAndRecvPkts(intfConfKey)...)
 		}
 	}
+	return nbrKeyList
 }
 
 func (server *OSPFV2Server) StartAreaIntfFSM(areaId uint32) {
@@ -150,7 +158,8 @@ func (server *OSPFV2Server) StartAreaIntfFSM(areaId uint32) {
 			server.logger.Err("IntfConfMap and AreaConfMap out of sync")
 			continue
 		}
-		if intfConfEnt.AdminState == true &&
+		if server.globalData.AdminState == true &&
+			intfConfEnt.AdminState == true &&
 			intfConfEnt.OperState == true {
 			err := server.StartSendAndRecvPkts(intfConfKey)
 			if err != nil {
@@ -159,29 +168,3 @@ func (server *OSPFV2Server) StartAreaIntfFSM(areaId uint32) {
 		}
 	}
 }
-
-/*
-func (server *OSPFServer) StartSendRecvPkts(intfConfKey IntfConfKey) {
-        ent, _ := server.IntfConfMap[intfConfKey]
-        server.updateIntfTxMap(intfConfKey, config.Intf_Up, ent.IfName)
-        helloInterval := time.Duration(ent.IfHelloInterval) * time.Second
-        ent.HelloIntervalTicker = time.NewTicker(helloInterval)
-        if ent.IfType == config.Broadcast {
-                waitTime := time.Duration(ent.IfRtrDeadInterval) * time.Second
-                ent.WaitTimer = time.NewTimer(waitTime)
-        }
-        // rtrDeadInterval := time.Duration(ent.IfRtrDeadInterval * time.Second)
-        ent.NeighborMap = make(map[NeighborConfKey]NeighborData)
-        ent.IfEvents = ent.IfEvents + 1
-        if ent.IfType == config.Broadcast {
-                ent.IfFSMState = config.Waiting
-        } else if ent.IfType == config.NumberedP2P || ent.IfType == config.UnnumberedP2P {
-                ent.IfFSMState = config.P2P
-        }
-        server.IntfConfMap[intfConfKey] = ent
-        server.logger.Info("Start Sending Hello Pkt")
-        go server.StartOspfIntfFSM(intfConfKey)
-        server.logger.Info("Start Receiving Hello Pkt")
-        go server.StartOspfRecvPkts(intfConfKey)
-}
-*/

@@ -150,6 +150,7 @@ func (server *OSPFV2Server) processAsicdNotification(asicdRxBuf []byte) {
 		server.UpdateLogicalIntfInfra(msg, asicdMsg.MsgType)
 	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_CREATE ||
 		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4INTF_DELETE {
+		//server.logger.Info("Recv NOTIFY_IPV4INTF_CREATE/NOTIFY_IPV4INTF_CREATE Msg")
 		var msg asicdCommonDefs.IPv4IntfNotifyMsg
 		err = json.Unmarshal(asicdMsg.Msg, &msg)
 		if err != nil {
@@ -158,6 +159,7 @@ func (server *OSPFV2Server) processAsicdNotification(asicdRxBuf []byte) {
 		}
 		server.UpdateIPv4Infra(msg, asicdMsg.MsgType)
 	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_IPV4_L3INTF_STATE_CHANGE {
+		//server.logger.Info("Recv NOTIFY_IPV4_L3INTF_STATE_CHANGE Msg")
 		var msg asicdCommonDefs.IPv4L3IntfStateNotifyMsg
 		err = json.Unmarshal(asicdMsg.Msg, &msg)
 		if err != nil {
