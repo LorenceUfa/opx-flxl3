@@ -10,6 +10,11 @@ const (
 	VXLANMockClientStr = "SnapMockTestClient"
 )
 
+type VtepCreateCfgData struct {
+	VtepName string
+	IfIndex  int32
+}
+
 type PortEvtCb func(ifindex int32)
 
 // interface class is used to store the communication methods
