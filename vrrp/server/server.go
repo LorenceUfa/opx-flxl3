@@ -35,12 +35,14 @@ import (
 
 type VrrpServer struct {
 	// All System Related Information
-	dmnBase            *dmnBase.FSBaseDmn
 	SwitchPlugin       asicdClient.AsicdClientIntf
+	dmnBase            *dmnBase.FSBaseDmn
 	GlobalConfig       *config.GlobalConfig
 	V4                 map[int32]*V4Intf
 	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
+	v4Intfs            []KeyInfo                 // list of v4 vrrp interfaces that got created
+	v6Intfs            []KeyInfo                 // list of v6 vrrp interfaces that got created
 	V4IntfRefToIfIndex map[string]int32          // key is intfRef and value is ifIndex
 	V6IntfRefToIfIndex map[string]int32          // key is intfRef and valud if ifIndex
 	CfgCh              chan *config.IntfCfg      // Starting from hereAll Channels Used during Events

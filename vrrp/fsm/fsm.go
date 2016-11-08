@@ -100,7 +100,7 @@ type FSM struct {
 	MasterDownValue         int32              // (3 * Master_Adver_Interval) + Skew_time
 	AdverTimer              *time.Timer        // Advertisement Timer
 	MasterDownTimer         *time.Timer        // Master down timer...used for keep-alives from master
-	StInfo                  *config.State      // this is state information for this fsm which will be used for get bulk
+	stateInfo               *config.State      // this is state information for this fsm which will be used for get bulk
 	pktCh                   chan *PktChannelInfo
 	decodeCh                chan *DecodedInfo
 	txPktCh                 chan *packet.PacketInfo
@@ -113,7 +113,7 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 	debug.Logger.Info(FSM_PREFIX, "Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
 	f := &FSM{}
 	f.Config = cfg
-	f.StInfo = &config.State{}
+	f.stateInfo = &config.State{}
 	f.IpAddr = l3Info.IpAddr
 	f.IfIndex = l3Info.IfIndex
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
@@ -155,16 +155,31 @@ func (f *FSM) IsRunning() bool {
 }
 
 func (f *FSM) UpdateRxStateInformation(pktInfo *packet.PacketInfo) {
-	f.StInfo.MasterIp = pktInfo.IpAddr
-	f.StInfo.AdverRx++
-	f.StInfo.LastAdverRx = time.Now().String()
-	f.StInfo.CurrentFsmState = getStateName(f.State)
+	f.stateInfo.MasterIp = pktInfo.IpAddr
+	f.stateInfo.AdverRx++
+	f.stateInfo.LastAdverRx = time.Now().String()
+	f.stateInfo.CurrentFsmState = getStateName(f.State)
 }
 
 func (f *FSM) UpdateTxStateInformation() {
-	f.StInfo.AdverTx++
-	f.StInfo.LastAdverTx = time.Now().String()
-	f.StInfo.CurrentFsmState = getStateName(f.State)
+	f.stateInfo.AdverTx++
+	f.stateInfo.LastAdverTx = time.Now().String()
+	f.stateInfo.CurrentFsmState = getStateName(f.State)
+}
+
+func (f *FSM) GetStateInfo(info *config.State) {
+	info.IntfRef = f.Config.IntfRef
+	info.Vrid = f.Config.VRID
+	info.IpAddr = f.IpAddr
+	info.CurrentFsmState = f.stateInfo.CurrentFsmState
+	info.MasterIp = f.stateInfo.MasterIp
+	info.AdverRx = f.stateInfo.AdverRx
+	info.AdverTx = f.stateInfo.AdverTx
+	info.LastAdverRx = f.stateInfo.LastAdverRx
+	info.LastAdverTx = f.stateInfo.LastAdverTx
+	info.VirtualIp = f.Config.VirtualIPAddr
+	info.VirtualRouterMACAddress = f.VirtualRouterMACAddress
+	info.MasterDownTimer = f.MasterDownValue
 }
 
 func (f *FSM) ReceiveVrrpPackets() {

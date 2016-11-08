@@ -25,19 +25,44 @@ package flexswitch
 
 import (
 	"errors"
+	"fmt"
 	"l3/vrrp/api"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
 	"vrrpd"
 )
 
-func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state config.IntfCfg) *vrrpd.VrrpV4IntfState {
+func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state config.State) *vrrpd.VrrpV4IntfState {
 	entry := vrrpd.NewVrrpV4IntfState()
+	entry.IntfRef = state.IntfRef
+	entry.VRID = state.Vrid
+	entry.CurrentState = state.CurrentFsmState
+	entry.MasterIp = state.MasterIp
+	entry.AdverRx = int32(state.AdverRx)
+	entry.AdverTx = int32(state.AdverTx)
+	entry.LastAdverRx = state.LastAdverRx
+	entry.LastAdverTx = state.LastAdverTx
+	entry.IntfIpAddr = state.IpAddr
+	entry.Address = state.VirtualIp
+	entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
+	entry.MasterDownTimer = state.MasterDownTimer
 	return entry
 }
 
-func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state config.IntfCfg) *vrrpd.VrrpV6IntfState {
+func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state config.State) *vrrpd.VrrpV6IntfState {
 	entry := vrrpd.NewVrrpV6IntfState()
+	entry.IntfRef = state.IntfRef
+	entry.VRID = state.Vrid
+	entry.CurrentState = state.CurrentFsmState
+	entry.MasterIp = state.MasterIp
+	entry.AdverRx = int32(state.AdverRx)
+	entry.AdverTx = int32(state.AdverTx)
+	entry.LastAdverRx = state.LastAdverRx
+	entry.LastAdverTx = state.LastAdverTx
+	entry.IntfIpAddr = state.IpAddr
+	entry.Address = state.VirtualIp
+	entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
+	entry.MasterDownTimer = state.MasterDownTimer
 	return entry
 }
 
@@ -61,13 +86,36 @@ func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIdx vrrpd.Int, count vrrpd.In
 }
 
 func (h *ConfigHandler) GetVrrpV4IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV4IntfState, error) {
-	return nil, nil
+	entry := api.GetVrrpIntfEntry(intfRef, vrId, config.VERSION2)
+	if entry == nil {
+		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
+	}
+	return h.convertVrrpV4IntfEntryToThriftEntry(*entry), nil
 }
 
-func (h *ConfigHandler) GetBulkVrrpV6IntfState(fromIndex vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpV6IntfStateGetInfo, error) {
-	return nil, nil
+func (h *ConfigHandler) GetBulkVrrpV6IntfState(fromIdx vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpV6IntfStateGetInfo, error) {
+	debug.Logger.Debug("Get bulk request for vrrp v6 intf states")
+	nextIdx, currCount, vrrpEntries := api.GetAllV6IntfStates(int(fromIdx), int(count))
+	if len(vrrpEntries) == 0 || vrrpEntries == nil {
+		return nil, errors.New("No Vrrp V6 entries configured")
+	}
+	vrrpResp := make([]*vrrpd.VrrpV6IntfState, len(vrrpEntries))
+	for idx, vrrpEntry := range vrrpEntries {
+		vrrpResp[idx] = h.convertVrrpV6IntfEntryToThriftEntry(vrrpEntry)
+	}
+	vrrpEntryBulk := vrrpd.NewVrrpV6IntfStateGetInfo()
+	vrrpEntryBulk.StartIdx = fromIdx
+	vrrpEntryBulk.EndIdx = vrrpd.Int(nextIdx)
+	vrrpEntryBulk.Count = vrrpd.Int(currCount)
+	vrrpEntryBulk.More = (nextIdx != 0)
+	vrrpEntryBulk.VrrpV6IntfStateList = vrrpResp
+	return vrrpEntryBulk, nil
 }
 
 func (h *ConfigHandler) GetVrrpV6IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV6IntfState, error) {
-	return nil, nil
+	entry := api.GetVrrpIntfEntry(intfRef, vrId, config.VERSION3)
+	if entry == nil {
+		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
+	}
+	return h.convertVrrpV6IntfEntryToThriftEntry(*entry), nil
 }

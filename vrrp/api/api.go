@@ -81,7 +81,16 @@ func SendIpIntfNotification(ipNotify *config.BaseIpInfo) {
 	vrrpApi.server.L3IntfNotifyCh <- ipNotify
 }
 
-func GetAllV4IntfStates(from, count int) (int, int, []config.IntfCfg) {
-	var rv []config.IntfCfg
-	return 0, 0, rv
+func GetAllV4IntfStates(from, count int) (n int, c int, result []config.State) {
+	n, c, result = vrrpApi.server.GetV4Intfs(from, count)
+	return n, c, result
+}
+
+func GetAllV6IntfStates(from, count int) (n int, c int, result []config.State) {
+	n, c, result = vrrpApi.server.GetV6Intfs(from, count)
+	return n, c, result
+}
+
+func GetVrrpIntfEntry(intfRef string, vrid int32, version uint8) *config.State {
+	return vrrpApi.server.GetEntry(intfRef, vrid, version)
 }

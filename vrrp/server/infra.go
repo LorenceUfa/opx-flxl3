@@ -186,6 +186,22 @@ func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
 	return false, errors.New("Invalid Operation received for Vrrp Interface Config")
 }
 
+/* Update Intf List which can be used during state
+ */
+func (svr *VrrpServer) updateIntfList(key KeyInfo, version uint8, insert bool) {
+	switch insert {
+	case true:
+		// new vrrp configured insert the entry into lists
+		if version == config.VERSION2 {
+			svr.v4Intfs = append(svr.v4Intfs, key)
+		} else {
+			svr.v6Intfs = append(svr.v6Intfs, key)
+		}
+	case false:
+		//@TODO: need to support vrrp interface config delete
+	}
+}
+
 /* During Create of Virtual Interface Enable should always be set to false... when
  * vrrp interface becomes master it will request for the interface to be in up state
  * Input: (vrrp interface config, virtual mac)
@@ -237,7 +253,6 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		ifIndex, exists = svr.V4IntfRefToIfIndex[cfg.IntfRef]
 		debug.Logger.Debug("v4 ifIndex found in reverse map for:", cfg.IntfRef, "is:", ifIndex, "exists:", exists)
 		if exists {
-			l3Info.IfIndex = ifIndex
 			ipIntf, exists = svr.V4[ifIndex]
 		}
 	// if cross reference exists then only set l3Info else just pass go defaults and it will updated
@@ -246,7 +261,6 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		ifIndex, exists = svr.V6IntfRefToIfIndex[cfg.IntfRef]
 		debug.Logger.Debug("v6 ifIndex found in reverse map for:", cfg.IntfRef, "is:", ifIndex, "exists:", exists)
 		if exists {
-			l3Info.IfIndex = ifIndex
 			ipIntf, exists = svr.V6[ifIndex]
 		}
 	}
@@ -254,12 +268,9 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	// Information collected from DB is L3 interface ip address and operation state
 	if exists {
 		debug.Logger.Debug("ip interface exists and hence get information from DB")
+		l3Info.IfIndex = ifIndex
 		ipIntf.GetObjFromDb(l3Info)
-	} else {
-		//@TODO: need to reject the vrrp interface config during validation??
-		debug.Logger.Debug("No ip interface configured:", cfg.IntfRef, "we are proceeding with vrrp configuration only")
 	}
-
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
 	// up... if that's the case then lets start fsm right away
@@ -271,6 +282,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	ipIntf.SetVrrpIntfKey(key)
 	debug.Logger.Info("Fsm is initialized for the interface, now calling create virtual interface")
 	svr.CreateVirtualIntf(cfg, intf.GetVMac())
+	svr.updateIntfList(key, cfg.Version, true /*insert*/)
 }
 
 func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *config.IntfCfg) {
@@ -293,6 +305,7 @@ func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
 	case config.UPDATE:
 		svr.HandleVrrpIntfUpdateConfig(cfg)
 	case config.DELETE:
+		// @TODO: need to handle delete vrrp intf config
 	}
 }
 

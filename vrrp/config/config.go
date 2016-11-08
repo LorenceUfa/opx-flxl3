@@ -100,14 +100,18 @@ type IntfCfg struct {
 }
 
 type State struct {
-	AdverRx             uint32 // Total advertisement received
-	AdverTx             uint32 // Total advertisement send out
-	MasterIp            string // Remote Master Ip Address
-	LastAdverRx         string // Last advertisement received
-	LastAdverTx         string // Last advertisment send out
-	PreviousFsmState    string // previous fsm state
-	CurrentFsmState     string // current fsm state
-	ReasonForTransition string // why did we transition to current state?
+	IntfRef                 string // interface where vrrp is configured
+	Vrid                    int32  // virtual router id
+	CurrentFsmState         string // current fsm state
+	MasterIp                string // Remote Master Ip Address
+	AdverRx                 uint32 // Total advertisement received
+	AdverTx                 uint32 // Total advertisement send out
+	LastAdverRx             string // Last advertisement received
+	LastAdverTx             string // Last advertisment send out
+	IpAddr                  string // l3 interface ip address
+	VirtualIp               string // router ip address
+	VirtualRouterMACAddress string // route mac address
+	MasterDownTimer         int32  // time to declare master is down
 }
 
 type VirtualIpInfo struct {
