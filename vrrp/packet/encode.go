@@ -27,7 +27,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"l3/vrrp/config"
-	"l3/vrrp/debug"
+	_ "l3/vrrp/debug"
 	"net"
 )
 
@@ -95,7 +95,7 @@ func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
 		ip = net.ParseIP(pInfo.Vip)
 	}
 	hdr.IpAddr = append(hdr.IpAddr, ip)
-	debug.Logger.Debug("Vrrp Header:", hdr)
+	//debug.Logger.Debug("Vrrp Header:", hdr)
 	return EncodeHeader(&hdr)
 }
 
@@ -109,7 +109,7 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 		DstMAC:       dstMAC,
 		EthernetType: layers.EthernetTypeIPv4,
 	}
-	debug.Logger.Debug("(dmac, smac):(", dstMAC.String(), ",", srcMAC.String(), ")")
+	//debug.Logger.Debug("(dmac, smac):(", dstMAC.String(), ",", srcMAC.String(), ")")
 	buffer := gopacket.NewSerializeBuffer()
 	options := gopacket.SerializeOptions{
 		FixLengths:       true,
@@ -132,7 +132,7 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 			SrcIP:    sip,
 			DstIP:    dip,
 		}
-		debug.Logger.Debug("ipv4 information is:", *ipv4)
+		//debug.Logger.Debug("ipv4 information is:", *ipv4)
 		gopacket.SerializeLayers(buffer, options, eth, ipv4, gopacket.Payload(payload))
 
 	case config.VERSION3:

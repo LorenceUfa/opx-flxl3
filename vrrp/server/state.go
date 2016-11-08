@@ -34,11 +34,14 @@ func (svr *VrrpServer) populateState(key KeyInfo) *config.State {
 		debug.Logger.Err("No vrrp interface configured for:", key)
 		return nil
 	}
+	debug.Logger.Debug("get state information for:", key)
 	intf.Fsm.GetStateInfo(&entry)
+	debug.Logger.Debug("populateState entry:", entry)
 	return &entry
 }
 
 func (svr *VrrpServer) GetV4Intfs(idx, cnt int) (int, int, []config.State) {
+	debug.Logger.Debug("server received bulk requests for all vrrp v4 interfaces")
 	var nextIdx int
 	var count int
 	var i, j int

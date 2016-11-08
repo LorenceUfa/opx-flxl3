@@ -162,12 +162,14 @@ func (f *FSM) UpdateRxStateInformation(pktInfo *packet.PacketInfo) {
 }
 
 func (f *FSM) UpdateTxStateInformation() {
+	f.stateInfo.MasterIp = f.IpAddr
 	f.stateInfo.AdverTx++
 	f.stateInfo.LastAdverTx = time.Now().String()
 	f.stateInfo.CurrentFsmState = getStateName(f.State)
 }
 
 func (f *FSM) GetStateInfo(info *config.State) {
+	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
 	info.IntfRef = f.Config.IntfRef
 	info.Vrid = f.Config.VRID
 	info.IpAddr = f.IpAddr
@@ -180,6 +182,7 @@ func (f *FSM) GetStateInfo(info *config.State) {
 	info.VirtualIp = f.Config.VirtualIPAddr
 	info.VirtualRouterMACAddress = f.VirtualRouterMACAddress
 	info.MasterDownTimer = f.MasterDownValue
+	debug.Logger.Debug(FSM_PREFIX, "returning info:", *info)
 }
 
 func (f *FSM) ReceiveVrrpPackets() {
