@@ -74,6 +74,7 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
+		AdminState:            cfg.AdminState,
 		Version:               config.VERSION2,
 		Operation:             config.CREATE,
 	}
@@ -95,6 +96,7 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 		AdvertisementInterval: newconfig.AdvertisementInterval,
 		PreemptMode:           newconfig.PreemptMode,
 		AcceptMode:            newconfig.AcceptMode,
+		AdminState:            newconfig.AdminState,
 		Version:               config.VERSION2,
 		Operation:             config.UPDATE,
 	}
@@ -117,6 +119,7 @@ func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
+		AdminState:            cfg.AdminState,
 		Version:               config.VERSION2,
 		Operation:             config.DELETE,
 	}
@@ -136,6 +139,7 @@ func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
+		AdminState:            cfg.AdminState,
 		Version:               config.VERSION3,
 		Operation:             config.CREATE,
 	}
@@ -154,6 +158,7 @@ func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig
 		AdvertisementInterval: newconfig.AdvertisementInterval,
 		PreemptMode:           newconfig.PreemptMode,
 		AcceptMode:            newconfig.AcceptMode,
+		AdminState:            newconfig.AdminState,
 		Version:               config.VERSION3,
 		Operation:             config.UPDATE,
 	}
@@ -172,6 +177,7 @@ func (h *ConfigHandler) DeleteVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
+		AdminState:            cfg.AdminState,
 		Version:               config.VERSION3,
 		Operation:             config.DELETE,
 	}

@@ -94,6 +94,7 @@ type IntfCfg struct {
 	AdvertisementInterval int32
 	PreemptMode           bool
 	AcceptMode            bool
+	AdminState            bool
 	Version               uint8 // Information that will be used by server.. as all configs will be passed onto one channel only
 	Operation             uint8 // Information that will be used by server
 }

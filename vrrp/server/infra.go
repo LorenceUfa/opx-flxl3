@@ -263,7 +263,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
 	// up... if that's the case then lets start fsm right away
-	if l3Info.OperState == config.STATE_UP && svr.GlobalConfig.Enable {
+	if l3Info.OperState == config.STATE_UP && svr.GlobalConfig.Enable && cfg.AdminState {
 		// during create always call start fsm
 		intf.StartFsm()
 	}
