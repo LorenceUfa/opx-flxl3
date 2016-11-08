@@ -80,3 +80,8 @@ func UpdateVrrpGbl(cfg *config.GlobalConfig) {
 func SendIpIntfNotification(ipNotify *config.BaseIpInfo) {
 	vrrpApi.server.L3IntfNotifyCh <- ipNotify
 }
+
+func GetAllV4IntfStates(from, count int) (int, int, []config.IntfCfg) {
+	var rv []config.IntfCfg
+	return 0, 0, rv
+}

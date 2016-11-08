@@ -24,10 +24,10 @@
 package flexswitch
 
 import (
-	_ "errors"
-	_ "l3/vrrp/api"
+	"errors"
+	"l3/vrrp/api"
 	"l3/vrrp/config"
-	_ "l3/vrrp/debug"
+	"l3/vrrp/debug"
 	"vrrpd"
 )
 
@@ -41,8 +41,23 @@ func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state config.IntfCfg
 	return entry
 }
 
-func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIndex vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpV4IntfStateGetInfo, error) {
-	return nil, nil
+func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIdx vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpV4IntfStateGetInfo, error) {
+	debug.Logger.Debug("Get bulk request for vrrp v4 intf states")
+	nextIdx, currCount, vrrpEntries := api.GetAllV4IntfStates(int(fromIdx), int(count))
+	if len(vrrpEntries) == 0 || vrrpEntries == nil {
+		return nil, errors.New("No Vrrp V4 entries configured")
+	}
+	vrrpResp := make([]*vrrpd.VrrpV4IntfState, len(vrrpEntries))
+	for idx, vrrpEntry := range vrrpEntries {
+		vrrpResp[idx] = h.convertVrrpV4IntfEntryToThriftEntry(vrrpEntry)
+	}
+	vrrpEntryBulk := vrrpd.NewVrrpV4IntfStateGetInfo()
+	vrrpEntryBulk.StartIdx = fromIdx
+	vrrpEntryBulk.EndIdx = vrrpd.Int(nextIdx)
+	vrrpEntryBulk.Count = vrrpd.Int(currCount)
+	vrrpEntryBulk.More = (nextIdx != 0)
+	vrrpEntryBulk.VrrpV4IntfStateList = vrrpResp
+	return vrrpEntryBulk, nil
 }
 
 func (h *ConfigHandler) GetVrrpV4IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV4IntfState, error) {
@@ -54,13 +69,5 @@ func (h *ConfigHandler) GetBulkVrrpV6IntfState(fromIndex vrrpd.Int, count vrrpd.
 }
 
 func (h *ConfigHandler) GetVrrpV6IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV6IntfState, error) {
-	return nil, nil
-}
-
-func (h *ConfigHandler) GetBulkVrrpStatsState(fromIndex vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpStatsStateGetInfo, error) {
-	return nil, nil
-}
-
-func (h *ConfigHandler) GetVrrpStatsState(intfRef string, vrid int32) (*vrrpd.VrrpStatsState, error) {
 	return nil, nil
 }
