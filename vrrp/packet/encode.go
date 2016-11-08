@@ -89,10 +89,10 @@ func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
 		MaxAdverInt:  pInfo.AdvertiseInt,
 		CheckSum:     VRRP_HDR_CREATE_CHECKSUM,
 	}
-	ip, _, _ := net.ParseCIDR(pInfo.IpAddr)
+	ip, _, _ := net.ParseCIDR(pInfo.Vip)
 	if ip == nil {
 		// means that we got absolute ip address as part of packet information
-		ip = net.ParseIP(pInfo.IpAddr)
+		ip = net.ParseIP(pInfo.Vip)
 	}
 	hdr.IpAddr = append(hdr.IpAddr, ip)
 	debug.Logger.Debug("Vrrp Header:", hdr)

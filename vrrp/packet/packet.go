@@ -103,6 +103,7 @@ type PacketInfo struct {
 	AdvertiseInt uint16
 	VirutalMac   string
 	IpAddr       string // this is IP Header SRC IP
+	Vip          string // this is the ip used in vrrp header
 	DstIp        string
 }
 

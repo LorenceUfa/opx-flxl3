@@ -260,10 +260,11 @@ func (f *FSM) getPacketInfo() *packet.PacketInfo {
 	}
 	if f.Config.VirtualIPAddr == "" {
 		// If no virtual ip then use interface/router ip address as virtual ip
-		pktInfo.IpAddr = f.IpAddr
+		pktInfo.Vip = f.IpAddr
 	} else {
-		pktInfo.IpAddr = f.Config.VirtualIPAddr
+		pktInfo.Vip = f.Config.VirtualIPAddr
 	}
+	pktInfo.IpAddr = f.IpAddr
 	return pktInfo
 }
 

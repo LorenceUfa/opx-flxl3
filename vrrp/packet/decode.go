@@ -99,7 +99,6 @@ func DecodeHeader(data []byte, version uint8) *Header {
 	case config.VERSION3:
 		// @TODO: need to add support for decoding ipv6
 	}
-
 	return &hdr
 }
 
