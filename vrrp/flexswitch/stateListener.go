@@ -43,9 +43,10 @@ func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state config.State) 
 	entry.LastAdverRx = state.LastAdverRx
 	entry.LastAdverTx = state.LastAdverTx
 	entry.IntfIpAddr = state.IpAddr
-	entry.Address = state.VirtualIp
-	entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
-	entry.MasterDownTimer = state.MasterDownTimer
+	entry.VirtualAddress = state.VirtualIp
+	entry.VirtualMACAddress = state.VirtualRouterMACAddress
+	entry.AdvertisementInterval = state.AdvertisementInterval
+	entry.DownTimer = state.MasterDownTimer
 	return entry
 }
 
@@ -60,9 +61,10 @@ func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state config.State) 
 	entry.LastAdverRx = state.LastAdverRx
 	entry.LastAdverTx = state.LastAdverTx
 	entry.IntfIpAddr = state.IpAddr
-	entry.Address = state.VirtualIp
-	entry.VirtualRouterMACAddress = state.VirtualRouterMACAddress
-	entry.MasterDownTimer = state.MasterDownTimer
+	entry.VirtualAddress = state.VirtualIp
+	entry.VirtualMACAddress = state.VirtualRouterMACAddress
+	entry.AdvertisementInterval = state.AdvertisementInterval
+	entry.DownTimer = state.MasterDownTimer
 	return entry
 }
 

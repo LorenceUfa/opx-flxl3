@@ -111,6 +111,7 @@ type State struct {
 	IpAddr                  string // l3 interface ip address
 	VirtualIp               string // router ip address
 	VirtualRouterMACAddress string // route mac address
+	AdvertisementInterval   int32  // time when master will send out advertisements
 	MasterDownTimer         int32  // time to declare master is down
 }
 

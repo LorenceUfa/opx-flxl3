@@ -181,6 +181,7 @@ func (f *FSM) GetStateInfo(info *config.State) {
 	info.LastAdverTx = f.stateInfo.LastAdverTx
 	info.VirtualIp = f.Config.VirtualIPAddr
 	info.VirtualRouterMACAddress = f.VirtualRouterMACAddress
+	info.AdvertisementInterval = f.Config.AdvertisementInterval
 	info.MasterDownTimer = f.MasterDownValue
 	debug.Logger.Debug(FSM_PREFIX, "returning info:", *info)
 }
@@ -263,7 +264,7 @@ func (f *FSM) SendPkt(pktInfo *packet.PacketInfo) {
 			debug.Logger.Err(FSM_PREFIX, "Writing packet failed for interface:", f.Config.IntfRef)
 			return
 		}
-		debug.Logger.Debug(FSM_PREFIX, "updating Tx state information")
+		//debug.Logger.Debug(FSM_PREFIX, "updating Tx state information")
 		f.UpdateTxStateInformation()
 	}
 }
