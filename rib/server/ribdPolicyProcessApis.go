@@ -144,7 +144,7 @@ func (m RIBDServer) ProcessPolicyConditionConfigCreate(cfg *ribd.PolicyCondition
 		ConditionType:                       cfg.ConditionType,
 		MatchProtocolConditionInfo:          cfg.Protocol,
 		MatchCommunityConditionInfo:         cfg.Community,
-		MatchExtendedCommunityConditionInfo: cfg.ExtendedCommunity,
+		MatchExtendedCommunityConditionInfo: policy.PolicyExtendedCommunityInfo{cfg.ExtendedCommunityType, cfg.ExtendedCommunityValue},
 	}
 	matchPrefix := policy.PolicyPrefix{IpPrefix: cfg.IpPrefix, MasklengthRange: cfg.MaskLengthRange}
 	newPolicy.MatchDstIpPrefixConditionInfo = policy.PolicyDstIpMatchPrefixSetCondition{Prefix: matchPrefix, PrefixSet: cfg.PrefixSet}
@@ -283,7 +283,7 @@ func (m RIBDServer) ProcessPolicyStmtConfigCreate(cfg *ribd.PolicyStmt, db *poli
 		newPolicyStmt.SetActions = append(newPolicyStmt.SetActions, policy.PolicyActionCfg{
 			Attr:              setAction.Attr,
 			Community:         setAction.Community,
-			ExtendedCommunity: setAction.ExtendedCommunity,
+			ExtendedCommunity: policy.PolicyExtendedCommunityInfo{setAction.ExtendedCommunityType, setAction.ExtendedCommunityValue},
 			LocalPref:         uint32(setAction.LocalPref),
 		})
 	}
@@ -645,10 +645,11 @@ func (m RIBDServer) GetBulkPolicyStmtState(fromIndex ribd.Int, rcount ribd.Int, 
 			}
 			for _, setAction := range prefixNode.SetActionsCfg {
 				nextNode.SetActions = append(nextNode.SetActions, &ribd.PolicyAction{
-					Attr:              setAction.Attr,
-					Community:         setAction.Community,
-					ExtendedCommunity: setAction.ExtendedCommunity,
-					LocalPref:         int32(setAction.LocalPref)})
+					Attr:                   setAction.Attr,
+					Community:              setAction.Community,
+					ExtendedCommunityType:  setAction.ExtendedCommunity.Type,
+					ExtendedCommunityValue: setAction.ExtendedCommunity.Value,
+					LocalPref:              int32(setAction.LocalPref)})
 			}
 			if prefixNode.PolicyList != nil {
 				nextNode.PolicyList = make([]string, 0)
