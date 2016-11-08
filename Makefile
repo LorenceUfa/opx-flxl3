@@ -4,6 +4,7 @@ COMPS=arp\
       ndp\
       dhcp\
       ospf\
+      ospfv2\
       dhcp_relay\
       bfd \
       vrrp\
@@ -17,6 +18,7 @@ IPCS=arp\
      ndp\
      dhcp\
      ospf\
+     ospfv2\
      dhcp_relay\
      bfd\
      vrrp\
