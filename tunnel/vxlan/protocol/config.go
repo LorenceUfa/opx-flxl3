@@ -556,7 +556,7 @@ func UpdateVtepTOS(vtepName string, vni uint32, dstip string, tos uint8) {
 		vtep.TOS = tos
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
@@ -581,7 +581,7 @@ func UpdateVtepTTL(vtepName string, vni uint32, dstip string, ttl uint8) {
 		vtep.TTL = ttl
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
@@ -605,7 +605,7 @@ func UpdateVtepMTU(vtepName string, vni uint32, dstip string, mtu uint16) {
 		vtep.MTU = mtu
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)

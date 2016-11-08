@@ -77,9 +77,12 @@ func (b mockintf) CreateVtep(vtep *VtepDbEntry, vtepname chan<- MachineEvent) {
 	if !b.failCreateVtep {
 		logger.Info(fmt.Sprintf("Create vtep %#v", vtep))
 		event := MachineEvent{
-			E:    VxlanVtepEventHwConfigComplete,
-			Src:  VXLANSnapClientStr,
-			Data: "Vtep0Int",
+			E:   VxlanVtepEventHwConfigComplete,
+			Src: VXLANSnapClientStr,
+			Data: VtepCreateCfgData{
+				VtepName: "Vtep0Int",
+				IfIndex:  12345,
+			},
 		}
 		vtepname <- event
 
