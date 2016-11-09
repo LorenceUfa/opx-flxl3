@@ -102,8 +102,6 @@ type FSM struct {
 	MasterDownTimer         *time.Timer        // Master down timer...used for keep-alives from master
 	stateInfo               *config.State      // this is state information for this fsm which will be used for get bulk
 	pktCh                   chan *PktChannelInfo
-	decodeCh                chan *DecodedInfo
-	txPktCh                 chan *packet.PacketInfo
 	IntfEventCh             chan *IntfEvent
 	vipCh                   chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
 	running                 bool
@@ -111,7 +109,7 @@ type FSM struct {
 
 func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) *FSM {
 	debug.Logger.Info(FSM_PREFIX, "Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
-	f := &FSM{}
+	f := FSM{}
 	f.Config = cfg
 	f.stateInfo = &config.State{}
 	f.IpAddr = l3Info.IpAddr
@@ -119,12 +117,10 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
-	f.decodeCh = make(chan *DecodedInfo)
-	f.txPktCh = make(chan *packet.PacketInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
-	return f
+	return &f
 }
 
 func createVirtualMac(vrid int32) (vmac string) {
@@ -251,9 +247,7 @@ func (f *FSM) ProcessRcvdPkt(pktCh *PktChannelInfo) {
 			return
 		}
 	}
-	f.decodeCh <- &DecodedInfo{
-		PktInfo: pktInfo,
-	}
+	f.HandleDecodedPkt(&DecodedInfo{PktInfo: pktInfo})
 }
 
 func (f *FSM) SendPkt(pktInfo *packet.PacketInfo) {
@@ -366,6 +360,7 @@ func (f *FSM) Exit() {
 }
 
 func (f *FSM) HandleInterfaceEvent(intfEvent *IntfEvent) {
+	debug.Logger.Info("Handling vrrp interface config update event:", intfEvent.Event)
 	switch intfEvent.Event {
 	case STATE_CHANGE:
 		debug.Logger.Info(FSM_PREFIX, "fsm received state change event", intfEvent.OperState)
@@ -400,19 +395,18 @@ func (f *FSM) UpdateVirtualIP(enable bool) {
 func (f *FSM) StartFsm() {
 	f.running = true
 	f.Initialize()
+	debug.Logger.Debug(FSM_PREFIX, "fsm started for interface:", f.Config.IntfRef)
 	for {
+		debug.Logger.Debug(FSM_PREFIX)
 		select {
 		case pktCh, ok := <-f.pktCh:
 			if ok {
 				// handle received packet
 				f.ProcessRcvdPkt(pktCh)
 			}
-		case decodeInfo, ok := <-f.decodeCh:
-			if ok {
-				f.HandleDecodedPkt(decodeInfo)
-			}
 		case intfStateEv, ok := <-f.IntfEventCh:
 			if ok {
+				debug.Logger.Debug(FSM_PREFIX, "routine received interface event, calling HandleInterfaceEvent for intf:", f.Config.IntfRef)
 				f.HandleInterfaceEvent(intfStateEv)
 				// special Handling by exiting the go routine
 				if intfStateEv.Event == TEAR_DOWN {

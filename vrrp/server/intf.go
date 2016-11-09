@@ -61,10 +61,6 @@ func (intf *VrrpInterface) StartFsm() {
 	go intf.Fsm.StartFsm()
 }
 
-func (intf *VrrpInterface) UpdateStateInfo() {
-
-}
-
 // should only be called if vrrp is disabled globally
 func (intf *VrrpInterface) StopFsm() {
 	intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
