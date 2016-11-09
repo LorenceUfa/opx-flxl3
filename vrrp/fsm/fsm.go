@@ -232,11 +232,12 @@ func (f *FSM) updateTxStInfo() {
 func (f *FSM) receivePkt() {
 	packetSource := gopacket.NewPacketSource(f.pHandle, f.pHandle.LinkType())
 	in := packetSource.Packets()
+	ifName := f.Config.IntfRef
 	for {
 		select {
 		case pkt, ok := <-in:
 			if !ok {
-				debug.Logger.Debug("Pcap closed for interface:", f.Config.IntfRef, "exiting RX go routine")
+				debug.Logger.Debug("Pcap closed for interface:", ifName, "exiting RX go routine")
 				return
 			}
 			f.pktCh <- &PktChannelInfo{
