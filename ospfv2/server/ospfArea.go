@@ -29,6 +29,7 @@ import (
 )
 
 type AreaConf struct {
+	AdminState       bool
 	AuthType         uint8
 	ImportASExtern   bool
 	NumSpfRuns       uint32
@@ -57,8 +58,10 @@ func genOspfv2AreaUpdateMask(attrset []bool) uint32 {
 				case 0:
 					//AreaId
 				case 1:
-					mask |= objects.OSPFV2_AREA_UPDATE_AUTH_TYPE
+					mask |= objects.OSPFV2_AREA_UPDATE_ADMIN_STATE
 				case 2:
+					mask |= objects.OSPFV2_AREA_UPDATE_AUTH_TYPE
+				case 3:
 					mask |= objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN
 				}
 			}
@@ -77,23 +80,30 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 	}
 	//Send Message to flush router LSA newCfg.AreaId
 	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
-	areaEnt, exist := server.AreaConfMap[newCfg.AreaId]
+	oldAreaEnt, exist := server.AreaConfMap[newCfg.AreaId]
 	if !exist {
 		server.logger.Err("Cannot update, area doesnot exist")
 		return false, errors.New("Cannot update, area doesnot exist")
 	}
+	newAreaEnt := oldAreaEnt
 	mask := genOspfv2AreaUpdateMask(attrset)
+	if mask&objects.OSPFV2_AREA_UPDATE_ADMIN_STATE == objects.OSPFV2_AREA_UPDATE_ADMIN_STATE {
+		newAreaEnt.AdminState = newCfg.AdminState
+	}
 	if mask&objects.OSPFV2_AREA_UPDATE_AUTH_TYPE == objects.OSPFV2_AREA_UPDATE_AUTH_TYPE {
-		areaEnt.AuthType = newCfg.AuthType
+		newAreaEnt.AuthType = newCfg.AuthType
 	}
 	if mask&objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN == objects.OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN {
-		areaEnt.ImportASExtern = newCfg.ImportASExtern
+		newAreaEnt.ImportASExtern = newCfg.ImportASExtern
 	}
 
-	//Start All the Intf FSM in this area
-	server.StartAreaIntfFSM(newCfg.AreaId)
-	//Send Message to generate router LSA SendMessage to generate router LSA
-	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
+	if newAreaEnt.AdminState == true {
+		//Start All the Intf FSM in this area
+		server.StartAreaIntfFSM(newCfg.AreaId)
+		//Send Message to generate router LSA SendMessage to generate router LSA
+		server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
+	}
+	server.AreaConfMap[newCfg.AreaId] = newAreaEnt
 	return true, nil
 }
 
