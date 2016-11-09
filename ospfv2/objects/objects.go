@@ -36,12 +36,24 @@ const (
 )
 
 const (
-	OSPFV2_AREA_UPDATE_AUTH_TYPE        = 0x1
-	OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN = 0x2
+	AREA_ADMIN_STATE_UP   bool = true
+	AREA_ADMIN_STATE_DOWN bool = false
+)
+
+const (
+	AREA_ADMIN_STATE_UP_STR   string = "up"
+	AREA_ADMIN_STATE_DOWN_STR string = "down"
+)
+
+const (
+	OSPFV2_AREA_UPDATE_ADMIN_STATE      = 0x1
+	OSPFV2_AREA_UPDATE_AUTH_TYPE        = 0x2
+	OSPFV2_AREA_UPDATE_IMPORT_AS_EXTERN = 0x3
 )
 
 type Ospfv2Area struct {
 	AreaId         uint32
+	AdminState     bool
 	AuthType       uint8
 	ImportASExtern bool
 }

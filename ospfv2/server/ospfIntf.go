@@ -192,6 +192,7 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 
 	if intfConfEnt.AdminState == true &&
 		server.globalData.AdminState == true &&
+		areaEnt.AdminState == true &&
 		intfConfEnt.OperState == true {
 		//StartSendAndRecvPkts : Start Tx and Rx and IntfFSM
 		err := server.StartSendAndRecvPkts(intfConfKey)
@@ -276,6 +277,7 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	if server.globalData.AdminState == true &&
 		cfg.AdminState == true &&
+		areaEnt.AdminState == true &&
 		intfConfEnt.OperState == true {
 		server.logger.Info("StartSendAndRecvPkts : Start Tx and Rx and IntfFSM")
 		err := server.StartSendAndRecvPkts(intfConfKey)
