@@ -238,11 +238,12 @@ func (server *ARPServer) constructLagInfra() {
 			lagIfIdx := int(bulkLagInfo.LagList[i].LagIfIndex)
 			lagEnt := server.lagPropMap[lagIfIdx]
 			lagEnt.IfName = bulkLagInfo.LagList[i].LagName
+			lagEnt.PortMap = make(map[int]bool)
 			lagEnt.VlanIdMap = make(map[int]bool)
 			lagEnt.UntagVlanId = asicdCommonDefs.SYS_RSVD_VLAN
 			ifIndexList := bulkLagInfo.LagList[i].IfIndexList
-			for i := 0; i < len(ifIndexList); i++ {
-				ifIdx := int(ifIndexList[i])
+			for idx := 0; idx < len(ifIndexList); idx++ {
+				ifIdx := int(ifIndexList[idx])
 				lagEnt.PortMap[ifIdx] = true
 			}
 			server.lagPropMap[lagIfIdx] = lagEnt
@@ -273,12 +274,12 @@ func (server *ARPServer) constructVlanInfra() {
 		objCnt := int(bulkVlanInfo.Count)
 		more := bool(bulkVlanInfo.More)
 		curMark = int(bulkVlanInfo.EndIdx)
-		for i := 0; i < objCnt; i++ {
-			vlanIfIdx := int(bulkVlanStateInfo.VlanStateList[i].IfIndex)
+		for idx := 0; idx < objCnt; idx++ {
+			vlanIfIdx := int(bulkVlanStateInfo.VlanStateList[idx].IfIndex)
 			vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 			vlanEnt := server.vlanPropMap[vlanIfIdx]
-			vlanEnt.IfName = bulkVlanStateInfo.VlanStateList[i].VlanName
-			uIfIdxList := bulkVlanInfo.VlanList[i].UntagIfIndexList
+			vlanEnt.IfName = bulkVlanStateInfo.VlanStateList[idx].VlanName
+			uIfIdxList := bulkVlanInfo.VlanList[idx].UntagIfIndexList
 			vlanEnt.UntagIfIdxMap = make(map[int]bool)
 			for i := 0; i < len(uIfIdxList); i++ {
 				ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(uIfIdxList[i])
@@ -287,7 +288,7 @@ func (server *ARPServer) constructVlanInfra() {
 				}
 				vlanEnt.UntagIfIdxMap[int(uIfIdxList[i])] = true
 			}
-			tIfIdxList := bulkVlanInfo.VlanList[i].IfIndexList
+			tIfIdxList := bulkVlanInfo.VlanList[idx].IfIndexList
 			vlanEnt.TagIfIdxMap = make(map[int]bool)
 			for i := 0; i < len(tIfIdxList); i++ {
 				ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(tIfIdxList[i])

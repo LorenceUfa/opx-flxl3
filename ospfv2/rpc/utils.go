@@ -63,6 +63,15 @@ func convertFromRPCFmtOspfv2Area(config *ospfv2d.Ospfv2Area) (*objects.Ospfv2Are
 	if err != nil {
 		return nil, errors.New(fmt.Sprintln("Invalid AreaId", err))
 	}
+	var adminState bool
+	switch strings.ToLower(config.AdminState) {
+	case objects.AREA_ADMIN_STATE_UP_STR:
+		adminState = objects.AREA_ADMIN_STATE_UP
+	case objects.AREA_ADMIN_STATE_DOWN_STR:
+		adminState = objects.AREA_ADMIN_STATE_DOWN
+	default:
+		return nil, errors.New("Invalid AdminState")
+	}
 	var authType uint8
 	switch strings.ToLower(config.AuthType) {
 	case objects.AUTH_TYPE_NONE_STR:
@@ -76,6 +85,7 @@ func convertFromRPCFmtOspfv2Area(config *ospfv2d.Ospfv2Area) (*objects.Ospfv2Are
 	}
 	return &objects.Ospfv2Area{
 		AreaId:         areaId,
+		AdminState:     adminState,
 		AuthType:       authType,
 		ImportASExtern: config.ImportASExtern,
 	}, nil

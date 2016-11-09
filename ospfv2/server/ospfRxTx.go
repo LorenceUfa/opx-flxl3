@@ -123,7 +123,13 @@ func (server *OSPFV2Server) StopAllIntfFSM() (nbrKeyList []NeighborConfKey) {
 
 func (server *OSPFV2Server) StartAllIntfFSM() {
 	for intfConfKey, intfConfEnt := range server.IntfConfMap {
+		areaEnt, exist := server.AreaConfMap[intfConfEnt.AreaId]
+		if !exist {
+			server.logger.Err("Interface belongs to area which doesnot exist")
+			continue
+		}
 		if intfConfEnt.AdminState == true &&
+			areaEnt.AdminState == true &&
 			intfConfEnt.OperState == true {
 			err := server.StartSendAndRecvPkts(intfConfKey)
 			if err != nil {
