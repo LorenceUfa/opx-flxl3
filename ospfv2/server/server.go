@@ -64,11 +64,12 @@ type OSPFV2Server struct {
 
 	infraData InfraStruct
 
-	globalData          GlobalStruct
-	IntfConfMap         map[IntfConfKey]IntfConf
-	AreaConfMap         map[uint32]AreaConf //Key AreaId
-	IntfToNbrFSMChData  IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
+	globalData      GlobalStruct
+	IntfConfMap     map[IntfConfKey]IntfConf
+	AreaConfMap     map[uint32]AreaConf //Key AreaId
+	MessagingChData MessagingChStruct
+
+	LsdbData LsdbStruct
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -83,10 +84,6 @@ func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
 	server.InitCompleteCh = make(chan bool)
 	server.IntfConfMap = make(map[IntfConfKey]IntfConf)
 	server.AreaConfMap = make(map[uint32]AreaConf)
-	server.IntfToNbrFSMChData.NeighborHelloEventCh = make(chan IntfToNeighMsg)
-	server.IntfToNbrFSMChData.DeleteNeighborCh = make(chan DeleteNeighborMsg)
-	server.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
-	server.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
 	return &server, nil
 }
 
@@ -120,8 +117,17 @@ func (server *OSPFV2Server) StartSubscribers() {
 	server.StartRibdSubscriber()
 }
 
+func (server *OSPFV2Server) initMessagingChData() {
+	server.MessagingChData.IntfToNbrFSMChData.NeighborHelloEventCh = make(chan IntfToNeighMsg)
+	server.MessagingChData.IntfToNbrFSMChData.DeleteNeighborCh = make(chan DeleteNeighborMsg)
+	server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
+	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
+}
+
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
+	server.initMessagingChData()
+	server.initLsdbData()
 	server.initAsicdComm()
 	server.initRibdComm()
 	server.ConnectToServers()

@@ -127,3 +127,8 @@ type GenerateRouterLSAMsg struct {
 type IntfFSMToLsdbChStruct struct {
 	GenerateRouterLSACh chan GenerateRouterLSAMsg
 }
+
+type MessagingChStruct struct {
+	IntfToNbrFSMChData  IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
+}

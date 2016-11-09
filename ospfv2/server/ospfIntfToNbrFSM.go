@@ -27,7 +27,7 @@ import ()
 
 func (server *OSPFV2Server) CreateAndSendHelloRecvdMsg(intfToNeighborMsg IntfToNeighMsg) {
 	server.logger.Info("Sending msg to Neighbor State Machine", intfToNeighborMsg)
-	//server.IntfToNbrFSM.neighborHelloEventCh <- msg
+	//server.MessagingChData.IntfToNbrFSM.neighborHelloEventCh <- msg
 }
 
 func (server *OSPFV2Server) SendDeleteNeighborsMsg(nbrKeyList []NeighborConfKey) {
@@ -35,7 +35,7 @@ func (server *OSPFV2Server) SendDeleteNeighborsMsg(nbrKeyList []NeighborConfKey)
 		NbrKeyList: nbrKeyList,
 	}
 	server.logger.Info("Send message to Neighbor state machine to delete neighbors", msg)
-	//server.IntfToNbrFSM.DeleteNeighborCh <- msg
+	//server.MessagingChData.IntfToNbrFSM.DeleteNeighborCh <- msg
 }
 
 func (server *OSPFV2Server) SendNetworkDRChangeMsg(key IntfConfKey, oldState, newState uint8) {
@@ -45,5 +45,5 @@ func (server *OSPFV2Server) SendNetworkDRChangeMsg(key IntfConfKey, oldState, ne
 		NewIntfFSMState: newState,
 	}
 	server.logger.Info("Sending Network DR change message", msg)
-	//server.NetworkDRChangeCh <- msg
+	//server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh <- msg
 }
