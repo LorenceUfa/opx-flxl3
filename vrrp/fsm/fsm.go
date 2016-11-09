@@ -88,23 +88,24 @@ type IntfEvent struct {
 }
 
 type FSM struct {
-	Config                  *config.IntfCfg    // config attributes like virtual rtr ip, vrid, intfRef, etc...
-	pHandle                 *pcap.Handle       // Pcap Handler for receiving packets
-	PktInfo                 *packet.PacketInfo // fsm will use this packet infor for decode/encode
-	IfIndex                 int32              // My own ifIndex
-	IpAddr                  string             // My own ip address
-	VirtualRouterMACAddress string             // VRRP MAC aka VMAC
-	State                   uint8              // current state in which fsm is running
-	MasterAdverInterval     int32              // The initial value is the same as Advertisement_Interval.
-	SkewTime                int32              // (((256 - priority) * Master_Adver_Interval) / 256)
-	MasterDownValue         int32              // (3 * Master_Adver_Interval) + Skew_time
-	AdverTimer              *time.Timer        // Advertisement Timer
-	MasterDownTimer         *time.Timer        // Master down timer...used for keep-alives from master
-	stateInfo               *config.State      // this is state information for this fsm which will be used for get bulk
-	pktCh                   chan *PktChannelInfo
-	IntfEventCh             chan *IntfEvent
-	vipCh                   chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
-	running                 bool
+	Config              *config.IntfCfg            // config attributes like virtual rtr ip, vrid, intfRef, etc...
+	pHandle             *pcap.Handle               // Pcap Handler for receiving packets
+	PktInfo             *packet.PacketInfo         // fsm will use this packet infor for decode/encode
+	ifIndex             int32                      // My own ifIndex
+	ipAddr              string                     // My own ip address
+	VirtualMACAddress   string                     // VRRP MAC aka VMAC
+	State               uint8                      // current state in which fsm is running
+	previousState       uint8                      // previous state in which fsm was running
+	MasterAdverInterval int32                      // The initial value is the same as Advertisement_Interval.
+	SkewTime            int32                      // (((256 - priority) * Master_Adver_Interval) / 256)
+	MasterDownValue     int32                      // (3 * Master_Adver_Interval) + Skew_time
+	AdverTimer          *time.Timer                // Advertisement Timer
+	MasterDownTimer     *time.Timer                // Master down timer...used for keep-alives from master
+	stateInfo           *config.State              // this is state information for this fsm which will be used for get bulk
+	pktCh               chan *PktChannelInfo       // received vrrp packet are pushed on this channel for fsm
+	IntfEventCh         chan *IntfEvent            // channel used by VrrpInterface to communicate and update in config or ip interface state
+	vipCh               chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
+	running             bool
 }
 
 /************************************************************************************************************
@@ -116,14 +117,15 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 	f := FSM{}
 	f.Config = cfg
 	f.stateInfo = &config.State{}
-	f.IpAddr = l3Info.IpAddr
-	f.IfIndex = l3Info.IfIndex
-	f.VirtualRouterMACAddress = createVirtualMac(cfg.VRID)
+	f.ipAddr = l3Info.IpAddr
+	f.ifIndex = l3Info.IfIndex
+	f.VirtualMACAddress = createVirtualMac(cfg.VRID)
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
+	f.previousState = VRRP_UNINITIALIZE_STATE
 	return &f
 }
 
@@ -197,7 +199,7 @@ func (f *FSM) GetStateInfo(info *config.State) {
 	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
 	info.IntfRef = f.Config.IntfRef
 	info.Vrid = f.Config.VRID
-	info.IpAddr = f.IpAddr
+	info.IpAddr = f.ipAddr
 	info.CurrentFsmState = f.stateInfo.CurrentFsmState
 	info.MasterIp = f.stateInfo.MasterIp
 	info.AdverRx = f.stateInfo.AdverRx
@@ -205,7 +207,7 @@ func (f *FSM) GetStateInfo(info *config.State) {
 	info.LastAdverRx = f.stateInfo.LastAdverRx
 	info.LastAdverTx = f.stateInfo.LastAdverTx
 	info.VirtualIp = f.Config.VirtualIPAddr
-	info.VirtualRouterMACAddress = f.VirtualRouterMACAddress
+	info.VirtualRouterMACAddress = f.VirtualMACAddress
 	info.AdvertisementInterval = f.Config.AdvertisementInterval
 	info.MasterDownTimer = f.MasterDownValue
 	debug.Logger.Debug(FSM_PREFIX, "returning info:", *info)
@@ -223,7 +225,7 @@ func (f *FSM) updateRxStInfo(pktInfo *packet.PacketInfo) {
 }
 
 func (f *FSM) updateTxStInfo() {
-	f.stateInfo.MasterIp = f.IpAddr
+	f.stateInfo.MasterIp = f.ipAddr
 	f.stateInfo.AdverTx++
 	f.stateInfo.LastAdverTx = time.Now().String()
 	f.stateInfo.CurrentFsmState = getStateName(f.State)
@@ -289,9 +291,9 @@ func (f *FSM) processRcvdPkt(pktCh *PktChannelInfo) {
 		 * address of router/interface is not same as the received
 		 * Virtual Ip Addr
 		 */
-		if f.IpAddr == hdr.IpAddr[i].String() {
+		if f.ipAddr == hdr.IpAddr[i].String() {
 			debug.Logger.Err("Header payload ip address is same as my own ip address, FSM INFO ----> intf:",
-				f.Config.IntfRef, "ipAddr:", f.IpAddr)
+				f.Config.IntfRef, "ipAddr:", f.ipAddr)
 			return
 		}
 	}
@@ -317,15 +319,15 @@ func (f *FSM) getPacketInfo() *packet.PacketInfo {
 		Vrid:         uint8(f.Config.VRID),
 		Priority:     uint8(f.Config.Priority), //VRRP_IGNORE_PRIORITY,
 		AdvertiseInt: uint16(f.Config.AdvertisementInterval),
-		VirutalMac:   f.VirtualRouterMACAddress,
+		VirutalMac:   f.VirtualMACAddress,
 	}
 	if f.Config.VirtualIPAddr == "" {
 		// If no virtual ip then use interface/router ip address as virtual ip
-		pktInfo.Vip = f.IpAddr
+		pktInfo.Vip = f.ipAddr
 	} else {
 		pktInfo.Vip = f.Config.VirtualIPAddr
 	}
-	pktInfo.IpAddr = f.IpAddr
+	pktInfo.IpAddr = f.ipAddr
 	return pktInfo
 }
 
@@ -393,6 +395,7 @@ func (f *FSM) stateDownEvent() {
 		pkt.Priority = VRRP_MASTER_DOWN_PRIORITY
 		f.send(pkt)
 	}
+	f.previousState = f.State
 	f.State = VRRP_INITIALIZE_STATE
 	f.deInitPktListener()
 }
@@ -433,7 +436,7 @@ func (f *FSM) updateVirtualIP(enable bool) {
 	f.vipCh <- &config.VirtualIpInfo{
 		IntfRef: f.Config.IntfRef,
 		IpAddr:  f.Config.VirtualIPAddr,
-		MacAddr: f.VirtualRouterMACAddress,
+		MacAddr: f.VirtualMACAddress,
 		Enable:  enable,
 		Version: f.Config.Version,
 	}

@@ -36,11 +36,13 @@ func (f *FSM) transitionToMaster() {
 	debug.Logger.Debug(FSM_PREFIX, "vrrp header information:", *pktInfo)
 	// (110) + Send an ADVERTISEMENT
 	f.send(pktInfo)
+	// Set Sub-intf state up and send out garp via linux stack
+	if f.previousState == f.State {
+		debug.Logger.Debug(FSM_PREFIX, "Enabling VirtualIp as interface:", f.Config.IntfRef, "is master now")
+		f.updateVirtualIP(true /*enable*/)
+	}
 	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
-	// Set Sub-intf state up and send out garp via linux stack
-	debug.Logger.Debug(FSM_PREFIX, "Enabling VirtualIp as interface:", f.Config.IntfRef, "is master now")
-	f.updateVirtualIP(true /*enable*/)
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
 	f.startMasterAdverTimer()
@@ -105,7 +107,7 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 		 */
 		if int32(hdr.Priority) > f.Config.Priority ||
 			(int32(hdr.Priority) == f.Config.Priority &&
-				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.IpAddr)) > 0) {
+				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.ipAddr)) > 0) {
 			// (740) -@ Cancel Adver_Timer
 			f.stopMasterAdverTimer()
 			/*
@@ -115,6 +117,7 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 				(760) @ Set Master_Down_Timer to Master_Down_Interval
 				(765) @ Transition to the {Backup} state
 			*/
+			f.previousState = f.State
 			f.transitionToBackup(int32(hdr.MaxAdverInt))
 		} else { // new Master logic
 			// Discard Advertisement

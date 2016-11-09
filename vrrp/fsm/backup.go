@@ -32,9 +32,11 @@ import (
 func (f *FSM) transitionToBackup(advInt int32) {
 	debug.Logger.Debug(FSM_PREFIX, "advertisement timer to be used in backup state for",
 		"calculating master down timer is ", f.Config.AdvertisementInterval)
-	// Bring Down Sub-Interface
-	f.updateVirtualIP(false /*enable*/)
-
+	// Bring Down Sub-Interface only if previous state is same as current state
+	if f.previousState == f.State {
+		debug.Logger.Debug(FSM_PREFIX, "Disabling VirtualIp as interface:", f.Config.IntfRef, "is acting as backup")
+		f.updateVirtualIP(false /*enable*/)
+	}
 	// Re-Calculate Down timer value
 	f.calculateDownValue(advInt)
 	// Set/Reset Master Down Timer
@@ -56,13 +58,13 @@ func (f *FSM) backup(decodeInfo *DecodedInfo) {
 	   (330) -endif // was protected addr IPv4?
 	*/
 	// Check dmac address from the inPacket and if it is same discard the packet
-	if pktInfo.DstMac == f.VirtualRouterMACAddress {
+	if pktInfo.DstMac == f.VirtualMACAddress {
 		debug.Logger.Err("DMAC is equal to VMac and hence discarding the packet")
 		return
 	}
 	// MUST NOT accept packets addressed to the IPvX address(es)
 	// associated with the virtual router. @TODO: check with Hari
-	if pktInfo.DstIp == f.IpAddr {
+	if pktInfo.DstIp == f.ipAddr {
 		debug.Logger.Err("dst ip is equal to interface ip, dropping the packet")
 		return
 	}
@@ -107,6 +109,7 @@ func (f *FSM) handleMasterDownTimer() {
 		// On Timer expiration we will transition to master
 		MasterDownTimer_func = func() {
 			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
+			f.previousState = f.State
 			f.transitionToMaster()
 		}
 		debug.Logger.Info(FSM_PREFIX, "setting down timer to", f.MasterDownValue)

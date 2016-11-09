@@ -76,11 +76,11 @@ func (intf *VrrpInterface) StopFsm() {
 }
 
 func (intf *VrrpInterface) GetVMac() string {
-	return intf.Fsm.VirtualRouterMACAddress
+	return intf.Fsm.VirtualMACAddress
 }
 
 func (intf *VrrpInterface) GetVirtualIpUpdateInfo() (string, string, string) {
-	return intf.L3.IntfRef, intf.Config.VirtualIPAddr, intf.Fsm.VirtualRouterMACAddress
+	return intf.L3.IntfRef, intf.Config.VirtualIPAddr, intf.Fsm.VirtualMACAddress
 }
 
 func (intf *VrrpInterface) UpdateIpState() {
