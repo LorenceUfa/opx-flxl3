@@ -491,14 +491,18 @@ func UpdateThriftVtep(c *VtepUpdate) {
 		if objName == "TOS" ||
 			objName == "Mtu" ||
 			objName == "TTL" {
+			logger.Debug("UpdateVtep ", objName)
 			updateobj = true
 		} else if objName == "AdminState" {
 			if c.Newconfig.Enable {
+				logger.Debug("UpdateVtep ", objName, "Enabled")
 				enableobj = true
 			} else {
+				logger.Debug("UpdateVtep", objName, "Disabled")
 				disableobj = true
 			}
 		} else {
+			logger.Debug("UpdateVtep %s Service Affecting Change", objName)
 			recreateobj = true
 		}
 	}
@@ -556,13 +560,13 @@ func UpdateVtepTOS(vtepName string, vni uint32, dstip string, tos uint8) {
 		vtep.TOS = tos
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
 			}
 		}
-
+		vtepDbList = append(vtepDbList, vtep)
 		for _, client := range ClientIntf {
 			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, tos, vtep.TOS, vtep.MTU)
 		}
@@ -581,12 +585,13 @@ func UpdateVtepTTL(vtepName string, vni uint32, dstip string, ttl uint8) {
 		vtep.TTL = ttl
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
 			}
 		}
+		vtepDbList = append(vtepDbList, vtep)
 		for _, client := range ClientIntf {
 			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, vtep.TOS, ttl, vtep.MTU)
 		}
@@ -605,12 +610,13 @@ func UpdateVtepMTU(vtepName string, vni uint32, dstip string, mtu uint16) {
 		vtep.MTU = mtu
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
 			}
 		}
+		vtepDbList = append(vtepDbList, vtep)
 		for _, client := range ClientIntf {
 			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, vtep.TOS, vtep.TTL, mtu)
 		}

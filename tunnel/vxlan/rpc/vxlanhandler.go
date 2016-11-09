@@ -421,7 +421,7 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 
 	for _, v := range vxlan.GetVtepDB() {
 
-		if v.VtepName == intf &&
+		if v.VtepConfigName == intf &&
 			v.Vni == uint32(vni) {
 			OperState := "UNKNOWN"
 			if v.Enable && v.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == vxlan.VxlanVtepStateStart {
@@ -429,7 +429,7 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 			} else {
 				OperState = "DOWN"
 			}
-			vis.Intf = v.VtepName
+			vis.Intf = v.VtepConfigName
 			vis.IntfRef = v.SrcIfName
 			vis.IfIndex = v.VtepIfIndex
 			vis.Vni = int32(v.Vni)
