@@ -30,30 +30,30 @@ import (
 	"time"
 )
 
-func (f *FSM) TransitionToMaster() {
+func (f *FSM) transitionToMaster() {
 	debug.Logger.Debug(FSM_PREFIX, "Transitioned to master")
 	pktInfo := f.getPacketInfo()
 	debug.Logger.Debug(FSM_PREFIX, "vrrp header information:", *pktInfo)
 	// (110) + Send an ADVERTISEMENT
-	f.SendPkt(pktInfo)
+	f.send(pktInfo)
 	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
 	// Set Sub-intf state up and send out garp via linux stack
 	debug.Logger.Debug(FSM_PREFIX, "Enabling VirtualIp as interface:", f.Config.IntfRef, "is master now")
-	f.UpdateVirtualIP(true /*enable*/)
+	f.updateVirtualIP(true /*enable*/)
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
-	f.StartMasterAdverTimer()
+	f.startMasterAdverTimer()
 }
 
-func (f *FSM) StartMasterAdverTimer() {
+func (f *FSM) startMasterAdverTimer() {
 	if f.AdverTimer != nil {
 		f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
 	} else {
 		var SendMasterAdveristement_func func()
 		SendMasterAdveristement_func = func() {
 			// Send advertisment every time interval expiration
-			f.SendPkt(f.getPacketInfo())
+			f.send(f.getPacketInfo())
 			f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
 		}
 		debug.Logger.Debug(FSM_PREFIX, "Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
@@ -61,37 +61,21 @@ func (f *FSM) StartMasterAdverTimer() {
 	}
 }
 
-func (f *FSM) StopMasterAdverTimer() {
+func (f *FSM) stopMasterAdverTimer() {
 	if f.AdverTimer != nil {
 		f.AdverTimer.Stop()
 		f.AdverTimer = nil
 	}
 }
 
-func (f *FSM) StopMasterDownTimer() {
+func (f *FSM) stopMasterDownTimer() {
 	if f.MasterDownTimer != nil {
 		f.MasterDownTimer.Stop()
 		f.MasterDownTimer = nil
 	}
 }
 
-func (f *FSM) HandleMasterDownTimer() {
-	if f.MasterDownTimer != nil {
-		f.MasterDownTimer.Reset(time.Duration(f.MasterDownValue) * time.Second)
-	} else {
-		var MasterDownTimer_func func()
-		// On Timer expiration we will transition to master
-		MasterDownTimer_func = func() {
-			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
-			f.TransitionToMaster()
-		}
-		debug.Logger.Info(FSM_PREFIX, "setting down timer to", f.MasterDownValue)
-		// Set Timer expire func...
-		f.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second, MasterDownTimer_func)
-	}
-}
-
-func (f *FSM) MasterState(decodeInfo *DecodedInfo) {
+func (f *FSM) master(decodeInfo *DecodedInfo) {
 	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *decodeInfo)
 	pktInfo := decodeInfo.PktInfo
 	hdr := pktInfo.Hdr
@@ -109,9 +93,9 @@ func (f *FSM) MasterState(decodeInfo *DecodedInfo) {
 	if hdr.Priority == VRRP_MASTER_DOWN_PRIORITY {
 		// (710) -* Send an ADVERTISEMENT
 		debug.Logger.Debug(FSM_PREFIX, "Priority in the ADVERTISEMENT is zero, then: Send an ADVERTISEMENT")
-		f.SendPkt(f.getPacketInfo())
+		f.send(f.getPacketInfo())
 		// (715) -* Reset the Adver_Timer to Advertisement_Interval
-		f.StartMasterAdverTimer()
+		f.startMasterAdverTimer()
 	} else { // (720) -+ else // priority was non-zero
 		/*     (725) -* If the Priority in the ADVERTISEMENT is greater than the local Priority,
 		*      (730) -* or
@@ -123,7 +107,7 @@ func (f *FSM) MasterState(decodeInfo *DecodedInfo) {
 			(int32(hdr.Priority) == f.Config.Priority &&
 				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.IpAddr)) > 0) {
 			// (740) -@ Cancel Adver_Timer
-			f.StopMasterAdverTimer()
+			f.stopMasterAdverTimer()
 			/*
 				(745) -@ Set Master_Adver_Interval to Adver Interval contained in the ADVERTISEMENT
 				(750) -@ Recompute the Skew_Time
@@ -131,7 +115,7 @@ func (f *FSM) MasterState(decodeInfo *DecodedInfo) {
 				(760) @ Set Master_Down_Timer to Master_Down_Interval
 				(765) @ Transition to the {Backup} state
 			*/
-			f.TransitionToBackup(int32(hdr.MaxAdverInt))
+			f.transitionToBackup(int32(hdr.MaxAdverInt))
 		} else { // new Master logic
 			// Discard Advertisement
 			return

@@ -26,24 +26,25 @@ package fsm
 import (
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
+	"time"
 )
 
-func (f *FSM) TransitionToBackup(advInt int32) {
+func (f *FSM) transitionToBackup(advInt int32) {
 	debug.Logger.Debug(FSM_PREFIX, "advertisement timer to be used in backup state for",
 		"calculating master down timer is ", f.Config.AdvertisementInterval)
 	// Bring Down Sub-Interface
-	f.UpdateVirtualIP(false /*enable*/)
+	f.updateVirtualIP(false /*enable*/)
 
 	// Re-Calculate Down timer value
-	f.CalculateDownValue(advInt)
+	f.calculateDownValue(advInt)
 	// Set/Reset Master Down Timer
-	f.HandleMasterDownTimer()
+	f.handleMasterDownTimer()
 	//(165) + Transition to the {Backup} state
 	f.State = VRRP_BACKUP_STATE
 	//svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
 }
 
-func (f *FSM) BackupState(decodeInfo *DecodedInfo) {
+func (f *FSM) backup(decodeInfo *DecodedInfo) {
 	pktInfo := decodeInfo.PktInfo
 	hdr := pktInfo.Hdr
 	/* @TODO:
@@ -67,12 +68,12 @@ func (f *FSM) BackupState(decodeInfo *DecodedInfo) {
 	}
 	//(420) - If an ADVERTISEMENT is received, then:
 	if hdr.Type == packet.VRRP_PKT_TYPE_ADVERTISEMENT {
-		f.UpdateRxStateInformation(pktInfo)
+		f.updateRxStInfo(pktInfo)
 		// (425) + If the Priority in the ADVERTISEMENT is zero, then:
 		if hdr.Priority == 0 {
 			//(430) * Set the Master_Down_Timer to Skew_Time
 			f.MasterDownValue = f.SkewTime
-			f.HandleMasterDownTimer()
+			f.handleMasterDownTimer()
 		} else { // (440) priority non-zero
 			/*
 			 *	(445) * If Preempt_Mode is False, or if the Priority in the
@@ -85,15 +86,31 @@ func (f *FSM) BackupState(decodeInfo *DecodedInfo) {
 				 * (460) @ Reset the Master_Down_Timer to Master_Down_Interval
 				 * (455) @ Recompute the Master_Down_Interval
 				 *
-				 * api used will be TransitionToBackup() which will do the exact
+				 * api used will be transitionToBackup() which will do the exact
 				 * things mentioned above, sorry if you think the naming doesn't
 				 * sound correct
 				 */
-				f.TransitionToBackup(int32(hdr.MaxAdverInt))
+				f.transitionToBackup(int32(hdr.MaxAdverInt))
 			} else { //     (465) * else // preempt was true or priority was less
 				//          (470) @ Discard the ADVERTISEMENT
 			} // endif preempt test
 		} // endif was priority zero
 	} // endif was advertisement received
 	// end BACKUP STATE
+}
+
+func (f *FSM) handleMasterDownTimer() {
+	if f.MasterDownTimer != nil {
+		f.MasterDownTimer.Reset(time.Duration(f.MasterDownValue) * time.Second)
+	} else {
+		var MasterDownTimer_func func()
+		// On Timer expiration we will transition to master
+		MasterDownTimer_func = func() {
+			debug.Logger.Info(FSM_PREFIX, "master down timer expired..transition to Master")
+			f.transitionToMaster()
+		}
+		debug.Logger.Info(FSM_PREFIX, "setting down timer to", f.MasterDownValue)
+		// Set Timer expire func...
+		f.MasterDownTimer = time.AfterFunc(time.Duration(f.MasterDownValue)*time.Second, MasterDownTimer_func)
+	}
 }

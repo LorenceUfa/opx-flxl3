@@ -198,7 +198,21 @@ func (svr *VrrpServer) updateIntfList(key KeyInfo, version uint8, insert bool) {
 			svr.v6Intfs = append(svr.v6Intfs, key)
 		}
 	case false:
-		//@TODO: need to support vrrp interface config delete
+		if version == config.VERSION2 {
+			for idx, _ := range svr.v4Intfs {
+				if svr.v4Intfs[idx] == key {
+					svr.v4Intfs = append(svr.v4Intfs[:idx], svr.v4Intfs[idx+1:]...)
+					break
+				}
+			}
+		} else {
+			for idx, _ := range svr.v6Intfs {
+				if svr.v6Intfs[idx] == key {
+					svr.v6Intfs = append(svr.v6Intfs[:idx], svr.v6Intfs[idx+1:]...)
+					break
+				}
+			}
+		}
 	}
 }
 
@@ -297,6 +311,20 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *config.IntfCfg) {
 	svr.Intf[key] = intf
 }
 
+func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *config.IntfCfg) {
+	debug.Logger.Info("Received vrrp interface create config:", *cfg)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	intf, exists := svr.Intf[key]
+	if !exists {
+		// this should never happen as Validate should have taken care of this
+		debug.Logger.Err("no vrrp interface found for:", key)
+		return
+	}
+	intf.DeInitVrrpIntf()
+	delete(svr.Intf, key)
+	svr.updateIntfList(key, cfg.Version, false /*delete*/)
+}
+
 func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
 	debug.Logger.Info("svr handling vrrp interface configuration:", *cfg)
 	switch cfg.Operation {
@@ -306,6 +334,7 @@ func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
 		svr.HandleVrrpIntfUpdateConfig(cfg)
 	case config.DELETE:
 		// @TODO: need to handle delete vrrp intf config
+		svr.HandleVrrpIntfDeleteConfig(cfg)
 	}
 }
 

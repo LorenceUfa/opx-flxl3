@@ -52,6 +52,13 @@ func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.Base
 	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh)
 }
 
+func (intf *VrrpInterface) DeInitVrrpIntf() {
+	intf.Fsm.DeInitFsm()
+	intf.L3 = nil
+	intf.Config = nil
+	intf.Fsm = nil
+}
+
 func (intf *VrrpInterface) UpdateOperState(state string) {
 	intf.L3.OperState = state
 }
@@ -61,7 +68,7 @@ func (intf *VrrpInterface) StartFsm() {
 	go intf.Fsm.StartFsm()
 }
 
-// should only be called if vrrp is disabled globally
+// should only be called if vrrp is disabled globally do not call this during de-init
 func (intf *VrrpInterface) StopFsm() {
 	intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
 		Event: fsm.TEAR_DOWN,
