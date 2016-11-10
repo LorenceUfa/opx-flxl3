@@ -406,11 +406,11 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 	}
 
 	if oldDRtrId != ent.DRtrId || oldDRtrIpAddr != ent.DRIpAddr {
-		server.createAndSendEventsIntfFSM(key, oldState, newState)
+		server.ProcessNetworkDRChange(key, oldState, newState)
 	}
 }
 
-func (server *OSPFV2Server) createAndSendEventsIntfFSM(key IntfConfKey, oldState, newState uint8) {
+func (server *OSPFV2Server) ProcessNetworkDRChange(key IntfConfKey, oldState, newState uint8) {
 	msg := NetworkDRChangeMsg{
 		IntfKey:         key,
 		OldIntfFSMState: oldState,

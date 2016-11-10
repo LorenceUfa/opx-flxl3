@@ -25,7 +25,7 @@ package server
 
 import ()
 
-func (server *OSPFV2Server) CreateAndSendHelloRecvdMsg(msg NbrHelloEventMsg) {
+func (server *OSPFV2Server) SendHelloEventMsg(msg NbrHelloEventMsg) {
 	server.logger.Info("Sending msg to Nbr State Machine", msg)
 	//server.MessagingChData.IntfToNbrFSM.NbrHelloEventCh <- msg
 }

@@ -255,7 +255,7 @@ func (server *OSPFV2Server) processOspfHelloNbr(ethHdrMd *EthHdrMetadata, ipHdrM
 		NbrMAC:       ethHdrMd.SrcMAC,
 		NbrKey:       nbrKey,
 	}
-	server.CreateAndSendHelloRecvdMsg(nbrHelloEventMsg)
+	server.SendHelloEventMsg(nbrHelloEventMsg)
 
 	var backupSeenMsg BackupSeenMsg
 	if TwoWayStatus == true && ent.FSMState == objects.INTF_FSM_STATE_WAITING {
