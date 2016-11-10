@@ -23,20 +23,39 @@
 
 package server
 
-import ()
-
-func (server *OSPFV2Server) SendMsgToGenerateRouterLSA(areaId uint32) {
-	msg := GenerateRouterLSAMsg{
-		AreaId: areaId,
-	}
-	server.logger.Info("Sending msg to Lsdb To Generate Router LSA for area:", msg)
-	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh <- msg
+type LsdbKey struct {
+	AreaId uint32
 }
 
-func (server *OSPFV2Server) SendMsgToGenerateRouterLSAForAllAreas() {
-	for areaId, areaEnt := range server.AreaConfMap {
-		if len(areaEnt.IntfMap) > 0 {
-			server.SendMsgToGenerateRouterLSA(areaId)
-		}
-	}
+const (
+	RouterLSA     uint8 = 1
+	NetworkLSA    uint8 = 2
+	Summary3LSA   uint8 = 3
+	Summary4LSA   uint8 = 4
+	ASExternalLSA uint8 = 5
+)
+
+type LsaKey struct {
+	LSType    uint8  /* LS Type */
+	LSId      uint32 /* Link State Id */
+	AdvRouter uint32 /* Avertising Router */
+}
+
+func NewLsaKey() *LsaKey {
+	return &LsaKey{}
+}
+
+type LSDatabase struct {
+	RouterLsaMap     map[LsaKey]RouterLsa
+	NetworkLsaMap    map[LsaKey]NetworkLsa
+	Summary3LsaMap   map[LsaKey]SummaryLsa
+	Summary4LsaMap   map[LsaKey]SummaryLsa
+	ASExternalLsaMap map[LsaKey]ASExternalLsa
+}
+
+type SelfOrigLsa map[LsaKey]bool
+
+type LsdbStruct struct {
+	AreaLsdb        map[LsdbKey]LSDatabase
+	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
 }

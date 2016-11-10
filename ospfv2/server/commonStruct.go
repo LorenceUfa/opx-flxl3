@@ -30,7 +30,7 @@ import (
 	"time"
 )
 
-type NeighborData struct {
+type NbrData struct {
 	TwoWayStatus bool
 	RtrPrio      uint8
 	DRtrIpAddr   uint32
@@ -45,33 +45,29 @@ type BackupSeenMsg struct {
 	DRtrIpAddr  uint32
 }
 
-type NeighCreateMsg struct {
+type NbrCreateMsg struct {
 	RouterId     uint32
 	NbrIP        uint32
 	TwoWayStatus bool
 	RtrPrio      uint8
 	DRtrIpAddr   uint32
 	BDRtrIpAddr  uint32
-	NbrKey       NeighborConfKey
+	NbrKey       NbrConfKey
 }
 
-type NeighChangeMsg struct {
+type NbrChangeMsg struct {
 	RouterId     uint32
 	NbrIP        uint32
 	TwoWayStatus bool
 	RtrPrio      uint8
 	DRtrIpAddr   uint32
 	BDRtrIpAddr  uint32
-	NbrKey       NeighborConfKey
+	NbrKey       NbrConfKey
 }
 
-type NeighborConfKey struct {
+type NbrConfKey struct {
 	NbrIdentity         uint32
 	NbrAddressLessIfIdx uint32
-}
-
-type NbrStateChangeMsg struct {
-	NbrKey NeighborConfKey
 }
 
 type IntfTxHandle struct {
@@ -91,17 +87,17 @@ type NetworkLSAChangeMsg struct {
 	IntfState bool
 }
 
-type IntfToNeighMsg struct {
+type NbrHelloEventMsg struct {
 	IntfConfKey  IntfConfKey
 	RouterId     uint32
 	RtrPrio      uint8
-	NeighborIP   uint32
+	NbrIP        uint32
 	NbrDeadTime  time.Duration
 	TwoWayStatus bool
 	NbrDRIpAddr  uint32
 	NbrBDRIpAddr uint32
 	NbrMAC       net.HardwareAddr
-	NbrKey       NeighborConfKey
+	NbrKey       NbrConfKey
 }
 
 type NetworkDRChangeMsg struct {
@@ -110,14 +106,14 @@ type NetworkDRChangeMsg struct {
 	NewIntfFSMState uint8
 }
 
-type DeleteNeighborMsg struct {
-	NbrKeyList []NeighborConfKey //List of Neighbor Identity
+type DeleteNbrMsg struct {
+	NbrKeyList []NbrConfKey //List of Nbr Identity
 }
 
 type IntfToNbrFSMChStruct struct {
-	NeighborHelloEventCh chan IntfToNeighMsg
-	DeleteNeighborCh     chan DeleteNeighborMsg //List of Neighbor Identity
-	NetworkDRChangeCh    chan NetworkDRChangeMsg
+	NbrHelloEventCh   chan NbrHelloEventMsg
+	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
+	NetworkDRChangeCh chan NetworkDRChangeMsg
 }
 
 type GenerateRouterLSAMsg struct {
@@ -126,4 +122,24 @@ type GenerateRouterLSAMsg struct {
 
 type IntfFSMToLsdbChStruct struct {
 	GenerateRouterLSACh chan GenerateRouterLSAMsg
+}
+
+type NbrDownMsg struct {
+	NbrKey NbrConfKey
+}
+
+type NbrToIntfFSMChStruct struct {
+	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
+}
+
+type LsdbCtrlChStruct struct {
+	LsdbCtrlCh      chan bool
+	LsdbCtrlReplyCh chan bool
+}
+
+type MessagingChStruct struct {
+	IntfToNbrFSMChData  IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
+	LsdbCtrlChData      LsdbCtrlChStruct
+	NbrToIntfFSMChData  NbrToIntfFSMChStruct
 }
