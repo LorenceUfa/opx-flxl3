@@ -333,7 +333,6 @@ func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
 	case config.UPDATE:
 		svr.HandleVrrpIntfUpdateConfig(cfg)
 	case config.DELETE:
-		// @TODO: need to handle delete vrrp intf config
 		svr.HandleVrrpIntfDeleteConfig(cfg)
 	}
 }

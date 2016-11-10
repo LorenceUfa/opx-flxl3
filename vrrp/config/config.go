@@ -102,6 +102,7 @@ type IntfCfg struct {
 type State struct {
 	IntfRef                 string // interface where vrrp is configured
 	Vrid                    int32  // virtual router id
+	OperState               string // Informs whether vrrp is up or down
 	CurrentFsmState         string // current fsm state
 	MasterIp                string // Remote Master Ip Address
 	AdverRx                 uint32 // Total advertisement received

@@ -84,23 +84,32 @@ func (intf *VrrpInterface) GetVirtualIpUpdateInfo() (string, string, string) {
 }
 
 func (intf *VrrpInterface) UpdateIpState() {
-	if intf.Fsm.IsRunning() {
-		// send out state up event
-		debug.Logger.Info("fsm for interface:", intf.L3.IntfRef, "vrid:", intf.Config.VRID, "is running and hence sending state change")
-		intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
-			Event:     fsm.STATE_CHANGE,
-			OperState: intf.L3.OperState,
+	if intf.Config.AdminState {
+		if intf.Fsm.IsRunning() {
+			// send out state up event
+			debug.Logger.Info("fsm for interface:", intf.L3.IntfRef, "vrid:", intf.Config.VRID, "is running and hence sending state change")
+			intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
+				Event:     fsm.STATE_CHANGE,
+				OperState: intf.L3.OperState,
+			}
+		} else {
+			intf.StartFsm()
 		}
-	} else {
-		intf.StartFsm()
 	}
 }
 
 func (intf *VrrpInterface) UpdateConfig(cfg *config.IntfCfg) {
 	debug.Logger.Info("Updating interface configuration from old Config:", *intf.Config, "to new Config:", *cfg)
-	intf.Config = cfg
-	intf.Fsm.IntfEventCh <- &fsm.IntfEvent{
-		Event:  fsm.CONFIG_CHANGE,
-		Config: cfg,
+	intf.Fsm.UpdateConfig(cfg)
+	// Special case for handling interface admin state
+	if intf.Config.AdminState != cfg.AdminState {
+		if cfg.AdminState == false {
+			// tear down fsm as admin state is down
+			intf.StopFsm()
+		} else {
+			// start fsm
+			intf.StartFsm()
+		}
 	}
+	intf.Config = cfg
 }

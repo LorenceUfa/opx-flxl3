@@ -129,6 +129,12 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 	return &f
 }
 
+// this will be called when fsm is not running and you want to update the configuration of vrrp interface
+func (f *FSM) UpdateConfig(cfg *config.IntfCfg) {
+	debug.Logger.Info(FSM_PREFIX, "Changing configuration in fsm:", cfg)
+	f.Config = cfg
+}
+
 func (f *FSM) DeInitFsm() {
 	f.exitFsm()
 	f.Config = nil
@@ -168,6 +174,37 @@ func (f *FSM) StartFsm() {
 	}
 }
 
+func (f *FSM) IsRunning() bool {
+	return f.running
+}
+
+func (f *FSM) GetStateInfo(info *config.State) {
+	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
+	info.IntfRef = f.Config.IntfRef
+	info.Vrid = f.Config.VRID
+	if f.running {
+		info.OperState = config.STATE_UP
+	} else {
+		info.OperState = config.STATE_DOWN
+	}
+	info.IpAddr = f.ipAddr
+	info.CurrentFsmState = f.stateInfo.CurrentFsmState
+	info.MasterIp = f.stateInfo.MasterIp
+	info.AdverRx = f.stateInfo.AdverRx
+	info.AdverTx = f.stateInfo.AdverTx
+	info.LastAdverRx = f.stateInfo.LastAdverRx
+	info.LastAdverTx = f.stateInfo.LastAdverTx
+	info.VirtualIp = f.Config.VirtualIPAddr
+	info.VirtualRouterMACAddress = f.VirtualMACAddress
+	info.AdvertisementInterval = f.Config.AdvertisementInterval
+	info.MasterDownTimer = f.MasterDownValue
+	debug.Logger.Debug(FSM_PREFIX, "returning info:", *info)
+}
+
+/************************************************************************************************************
+					* FSM PRIVATE API's *
+*************************************************************************************************************/
+
 func createVirtualMac(vrid int32) (vmac string) {
 	if vrid < 10 {
 		vmac = packet.VRRP_IEEE_MAC_ADDR + "0" + strconv.Itoa(int(vrid))
@@ -190,32 +227,6 @@ func getStateName(state uint8) (rv string) {
 
 	return rv
 }
-
-func (f *FSM) IsRunning() bool {
-	return f.running
-}
-
-func (f *FSM) GetStateInfo(info *config.State) {
-	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
-	info.IntfRef = f.Config.IntfRef
-	info.Vrid = f.Config.VRID
-	info.IpAddr = f.ipAddr
-	info.CurrentFsmState = f.stateInfo.CurrentFsmState
-	info.MasterIp = f.stateInfo.MasterIp
-	info.AdverRx = f.stateInfo.AdverRx
-	info.AdverTx = f.stateInfo.AdverTx
-	info.LastAdverRx = f.stateInfo.LastAdverRx
-	info.LastAdverTx = f.stateInfo.LastAdverTx
-	info.VirtualIp = f.Config.VirtualIPAddr
-	info.VirtualRouterMACAddress = f.VirtualMACAddress
-	info.AdvertisementInterval = f.Config.AdvertisementInterval
-	info.MasterDownTimer = f.MasterDownValue
-	debug.Logger.Debug(FSM_PREFIX, "returning info:", *info)
-}
-
-/************************************************************************************************************
-					* FSM PRIVATE API's *
-*************************************************************************************************************/
 
 func (f *FSM) updateRxStInfo(pktInfo *packet.PacketInfo) {
 	f.stateInfo.MasterIp = pktInfo.IpAddr
@@ -264,7 +275,7 @@ func (f *FSM) initPktListener() (err error) {
 			debug.Logger.Err("Setting filter:", VRRP_BPF_FILTER, "for l3 interface:", ifName, "failed with error:", err)
 			return err
 		}
-		debug.Logger.Debug("Pcap created go start Receiving Vrrp Packets")
+		debug.Logger.Debug(FSM_PREFIX, "Pcap created go start Receiving Vrrp Packets")
 		// if everything is success then only start receiving packets
 		go f.receivePkt()
 	}
@@ -308,7 +319,6 @@ func (f *FSM) send(pktInfo *packet.PacketInfo) {
 			debug.Logger.Err(FSM_PREFIX, "Writing packet failed for interface:", f.Config.IntfRef)
 			return
 		}
-		//debug.Logger.Debug(FSM_PREFIX, "updating Tx state information")
 		f.updateTxStInfo()
 	}
 }
@@ -398,6 +408,8 @@ func (f *FSM) stateDownEvent() {
 	f.previousState = f.State
 	f.State = VRRP_INITIALIZE_STATE
 	f.deInitPktListener()
+	// remove the virtual ip if state down event
+	f.updateVirtualIP(false /*disable*/)
 }
 
 func (f *FSM) stateUpEvent() {
@@ -420,10 +432,6 @@ func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
 		case config.STATE_UP:
 			f.stateUpEvent()
 		}
-	case CONFIG_CHANGE:
-		debug.Logger.Info(FSM_PREFIX, "Changing configuration in fsm:", *intfEvent.Config)
-		f.Config = intfEvent.Config
-
 	case TEAR_DOWN:
 		// special case...
 		debug.Logger.Info(FSM_PREFIX, "Tear down fsm for:", f.Config.IntfRef, "vrid:", f.Config.VRID)
@@ -462,13 +470,11 @@ const (
 	VRRP_TIMEOUT                 = 1 // in seconds
 	VRRP_BPF_FILTER              = "ip host " + packet.VRRP_GROUP_IP
 	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
-
-	FSM_PREFIX = "FSM ------> "
+	FSM_PREFIX                   = "FSM ------> "
 )
 
 const (
 	_ = iota
 	STATE_CHANGE
-	CONFIG_CHANGE
 	TEAR_DOWN
 )
