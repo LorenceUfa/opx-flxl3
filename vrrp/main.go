@@ -41,30 +41,43 @@ func main() {
 
 	default:
 		vrrpBase := dmnBase.NewBaseDmn("vrrpd", "VRRP")
+		/*
+		   err := vrrpBase.InitLogger()
+		   		if err != nil {
+		   			fmt.Println("Failed Initializing logger for vrrp")
+		   			return
+		   		}
+		   		debug.SetLogger(vrrpBase.Logger)
+		   		err = vrrpBase.InitDBHdl()
+		   		if err != nil {
+		   			debug.Logger.Warning("failed initializing db handler for vrrp no read from db")
+		   		}
+		*/
 		status := vrrpBase.Init()
 		if status == false {
-			fmt.Println("Failed to do daemon base init for VRRP")
+			fmt.Println("Failed init basedmn for VRRP")
 			return
 		}
-		// create handler and map for receiving notifications from asicd
 		asicdHdl := flexswitch.GetSwitchInst()
-		asicdHdl.Logger = vrrpBase.GetLogger()
-		debug.SetLogger(vrrpBase.GetLogger())
+		asicdHdl.Logger = vrrpBase.Logger
+
 		debug.Logger.Info("Initializing switch plugin")
-		// connect to server and do the initializing
 		switchPlugin := vrrpBase.InitSwitch("Flexswitch", "vrrpd", "VRRP", *asicdHdl)
-		// create north bound config listener for clients
+
 		debug.Logger.Info("Creating Config Plugin")
 		cfgPlugin := flexswitch.NewConfigPlugin(flexswitch.NewConfigHandler(), vrrpBase.ParamsDir, switchPlugin)
-		// create new vrrp server and cache the information for switch/asicd plugin
+
 		vrrpSvr := server.VrrpNewServer(switchPlugin, vrrpBase)
-		// Init API layer after server is created
+
 		api.Init(vrrpSvr)
-		// build basic VRRP Server Information
 		debug.Logger.Info("Starting VRRP Server")
+
 		vrrpSvr.VrrpStartServer()
+
 		vrrpBase.StartKeepAlive()
+
 		debug.Logger.Info("Starting Config Listener for FlexSwitch Plugin")
+
 		cfgPlugin.StartConfigListener()
 	}
 }

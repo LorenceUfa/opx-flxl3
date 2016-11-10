@@ -39,7 +39,7 @@ func (svr *VrrpServer) ReadDB() {
 	if svr.dmnBase == nil {
 		return
 	}
-	dbHdl := svr.dmnBase.GetDbHdl()
+	dbHdl := svr.dmnBase.DbHdl
 	if dbHdl == nil {
 		debug.Logger.Err("DB Handler is nil and hence cannot read anything from DATABASE")
 		return
