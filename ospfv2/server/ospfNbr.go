@@ -27,6 +27,44 @@ import (
 	"l3/ospfv2/objects"
 )
 
+type NbrConf struct {
+	IntfKey         IntfConfKey
+	State           int
+	InactivityTimer int32
+	isMaster        bool
+	DDSequenceNum   uint32
+	NbrId           uint32
+	NbrPriority     int32
+	NbrIP           uint32
+	NbrOptions      uint32
+	NbrDR           uint32 //mentioned by rfc.
+	NbrBdr          uint32 //needed by rfc. not sure why we need it.
+	NbrDeadDuration int
+	NbrDeadTimer    *time.Timer
+	Nbrflags        int32 //flags showing fields to update from nbrstruct
+	//Nbr lists
+	NbrLsaReTxList   []ospfLsaHeader
+	NbrLsaReqList    []ospfLsaHeader
+	NbrDbSummaryList []ospfLsaHeader
+}
+
+var NbrconfMap map[NbrConfKey]NbrConf
+
+func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags int32) {
+}
+
+func calculateMaxLsaHeaders() (max_headers uint8) {
+	rem := INTF_MTU_MIN - (OSPF_DBD_MIN_SIZE + OSPF_HEADER_SIZE)
+	max_headers = uint8(rem / OSPF_LSA_HEADER_SIZE)
+	return max_headers
+}
+
+func calculateMaxLsaReq() (max_req uint8) {
+	rem := INTF_MTU_MIN - OSPF_HEADER_SIZE
+	max_req = uint8(rem / OSPF_LSA_REQ_SIZE)
+	return max_req
+}
+
 func (server *OSPFV2Server) getNbrState(ipAddr, addressLessIfIdx uint32) (*objects.Ospfv2NbrState, error) {
 	var retObj objects.Ospfv2NbrState
 	return &retObj, nil
