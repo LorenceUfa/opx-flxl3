@@ -25,17 +25,17 @@ package server
 
 import ()
 
-func (server *OSPFV2Server) CreateAndSendHelloRecvdMsg(intfToNeighborMsg IntfToNeighMsg) {
-	server.logger.Info("Sending msg to Neighbor State Machine", intfToNeighborMsg)
-	//server.IntfToNbrFSM.neighborHelloEventCh <- msg
+func (server *OSPFV2Server) SendHelloEventMsg(msg NbrHelloEventMsg) {
+	server.logger.Info("Sending msg to Nbr State Machine", msg)
+	//server.MessagingChData.IntfToNbrFSM.NbrHelloEventCh <- msg
 }
 
-func (server *OSPFV2Server) SendDeleteNeighborsMsg(nbrKeyList []NeighborConfKey) {
-	msg := DeleteNeighborMsg{
+func (server *OSPFV2Server) SendDeleteNbrsMsg(nbrKeyList []NbrConfKey) {
+	msg := DeleteNbrMsg{
 		NbrKeyList: nbrKeyList,
 	}
-	server.logger.Info("Send message to Neighbor state machine to delete neighbors", msg)
-	//server.IntfToNbrFSM.DeleteNeighborCh <- msg
+	server.logger.Info("Send message to Nbr state machine to delete nbrs", msg)
+	//server.MessagingChData.IntfToNbrFSM.DeleteNbrCh <- msg
 }
 
 func (server *OSPFV2Server) SendNetworkDRChangeMsg(key IntfConfKey, oldState, newState uint8) {
@@ -45,5 +45,5 @@ func (server *OSPFV2Server) SendNetworkDRChangeMsg(key IntfConfKey, oldState, ne
 		NewIntfFSMState: newState,
 	}
 	server.logger.Info("Sending Network DR change message", msg)
-	//server.NetworkDRChangeCh <- msg
+	//server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh <- msg
 }

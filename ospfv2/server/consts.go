@@ -28,25 +28,17 @@ import (
 )
 
 const (
-	snapshotLen     int32         = 65549 //packet capture length
-	promiscuous     bool          = false //mode
-	pcapTimeout     time.Duration = 5 * time.Second
-	ALLSPFROUTER    uint32        = 0xE0000005
-	ALLDROUTER      uint32        = 0xE0000006
-	ALLSPFROUTERMAC string        = "01:00:5e:00:00:05"
-	ALLDROUTERMAC   string        = "01:00:5e:00:00:06"
-	MASKMAC         string        = "ff:ff:ff:ff:ff:ff"
-)
-
-/*Event types */
-const (
-	ADJACENCY string = "ADJACENCY"
-	INTF      string = "INTF"
-	RIB       string = "RIB"
-	FLOOD     string = "FLOOD"
-	AREA      string = "AREA"
-	SPF       string = "SPF"
-	LSA       string = "LSA"
+	snapshotLen           int32         = 65549 //packet capture length
+	promiscuous           bool          = false //mode
+	pcapTimeout           time.Duration = 5 * time.Second
+	ALLSPFROUTER          uint32        = 0xE0000005
+	ALLDROUTER            uint32        = 0xE0000006
+	ALLSPFROUTERMAC       string        = "01:00:5e:00:00:05"
+	ALLDROUTERMAC         string        = "01:00:5e:00:00:06"
+	MASKMAC               string        = "ff:ff:ff:ff:ff:ff"
+	InitialSequenceNumber uint32        = 0x80000001
+	MaxSequenceNumber     uint32        = 0x7fffffff
+	//LSSequenceNumber      int           = InitialSequenceNumber
 )
 
 const (
@@ -86,36 +78,21 @@ const (
 	DCOption = 0x40
 )
 
-type NbrState int
-
 const (
-	NbrDown          NbrState = 1
-	NbrAttempt       NbrState = 2
-	NbrInit          NbrState = 3
-	NbrTwoWay        NbrState = 4
-	NbrExchangeStart NbrState = 5
-	NbrExchange      NbrState = 6
-	NbrLoading       NbrState = 7
-	NbrFull          NbrState = 8
+	LsdbEntryFound    bool = true
+	LsdbEntryNotFound bool = false
 )
 
-var NbrStateList = []string{
-	"Undef",
-	"NbrDown",
-	"NbrAttempt",
-	"NbrInit",
-	"NbrTwoWay",
-	"NbrExchangeStart",
-	"NbrExchange",
-	"NbrLoading",
-	"NbrFull"}
-
-type NbrEvent int
+const (
+	LsdbAdd      uint8 = 0
+	LsdbDel      uint8 = 1
+	LsdbUpdate   uint8 = 2
+	LsdbNoAction uint8 = 3
+)
 
 const (
-	Nbr1WayReceived    NbrEvent = 1
-	Nbr2WayReceived    NbrEvent = 2
-	NbrNegotiationDone NbrEvent = 3
-	NbrExchangeDone    NbrEvent = 4
-	NbrLoadingDone     NbrEvent = 5
+	P2PLink     uint8 = 1
+	TransitLink uint8 = 2
+	StubLink    uint8 = 3
+	VirtualLink uint8 = 4
 )

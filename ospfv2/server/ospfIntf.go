@@ -62,12 +62,12 @@ type IntfConf struct {
 	HelloIntervalTicker *time.Ticker
 	WaitTimer           *time.Timer
 
-	BackupSeenCh     chan BackupSeenMsg
-	NeighCreateCh    chan NeighCreateMsg
-	NeighChangeCh    chan NeighChangeMsg
-	NbrStateChangeCh chan NbrStateChangeMsg
+	BackupSeenCh chan BackupSeenMsg
+	NbrCreateCh  chan NbrCreateMsg
+	NbrChangeCh  chan NbrChangeMsg
+	//NbrStateChangeCh chan NbrStateChangeMsg
 
-	NeighborMap map[NeighborConfKey]NeighborData //Neighbors IP Address in case of Broadcast
+	NbrMap map[NbrConfKey]NbrData //Nbrs IP Address in case of Broadcast
 
 	LsaCount  uint32
 	IfName    string
@@ -173,8 +173,8 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		//Stop Tx and Rx and Interface FSM
 		nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
 		if len(nbrKeyList) > 0 {
-			//Declare all neighbors dead
-			server.SendDeleteNeighborsMsg(nbrKeyList)
+			//Declare all nbrs dead
+			server.SendDeleteNbrsMsg(nbrKeyList)
 		}
 		//Send Message to generate Router LSA oldIntfConfEnt.AreaId
 		server.SendMsgToGenerateRouterLSA(oldIntfConfEnt.AreaId)
@@ -266,14 +266,15 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	intfConfEnt.WaitTimer = nil
 
 	intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
-	intfConfEnt.NeighCreateCh = make(chan NeighCreateMsg)
-	intfConfEnt.NeighChangeCh = make(chan NeighChangeMsg)
-	intfConfEnt.NbrStateChangeCh = make(chan NbrStateChangeMsg)
+	intfConfEnt.NbrCreateCh = make(chan NbrCreateMsg)
+	intfConfEnt.NbrChangeCh = make(chan NbrChangeMsg)
+	//intfConfEnt.NbrStateChangeCh = make(chan NbrStateChangeMsg)
 
 	intfConfEnt.LsaCount = 0
 	server.IntfConfMap[intfConfKey] = intfConfEnt
 
 	areaEnt.IntfMap[intfConfKey] = true
+	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[intfConfKey] = make(chan NbrDownMsg)
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	if server.globalData.AdminState == true &&
 		cfg.AdminState == true &&
@@ -314,8 +315,8 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		//Stop Tx and Rx and IntfFSM
 		nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
 		if len(nbrKeyList) > 0 {
-			//Declare all neighbors dead
-			server.SendDeleteNeighborsMsg(nbrKeyList)
+			//Declare all nbrs dead
+			server.SendDeleteNbrsMsg(nbrKeyList)
 		}
 		//Send Message to generate Router LSA
 		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
@@ -324,6 +325,7 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
 	delete(areaEnt.IntfMap, intfConfKey)
 	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
+	delete(server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap, intfConfKey)
 	delete(server.IntfConfMap, intfConfKey)
 	return true, nil
 }

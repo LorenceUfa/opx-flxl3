@@ -46,7 +46,7 @@ func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) error {
 	} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
 		ent.FSMState = objects.INTF_FSM_STATE_P2P
 	}
-	ent.NeighborMap = make(map[NeighborConfKey]NeighborData)
+	ent.NbrMap = make(map[NbrConfKey]NbrData)
 	server.IntfConfMap[intfConfKey] = ent
 	server.logger.Info("Start Ospf Intf FSM")
 	go server.StartOspfIntfFSM(intfConfKey)
@@ -55,14 +55,14 @@ func (server OSPFV2Server) StartSendAndRecvPkts(intfConfKey IntfConfKey) error {
 	return nil
 }
 
-func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) (nbrKeyList []NeighborConfKey) {
+func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) (nbrKeyList []NbrConfKey) {
 	server.StopOspfRecvPkts(intfConfKey)
 	server.StopOspfIntfFSM(intfConfKey)
 	ent, _ := server.IntfConfMap[intfConfKey]
-	for nbrKey, _ := range ent.NeighborMap {
+	for nbrKey, _ := range ent.NbrMap {
 		nbrKeyList = append(nbrKeyList, nbrKey)
 	}
-	ent.NeighborMap = nil
+	ent.NbrMap = nil
 	ent.FSMState = objects.INTF_FSM_STATE_DOWN
 	if ent.Type == objects.INTF_TYPE_BROADCAST {
 		ent.WaitTimer.Stop()
@@ -112,7 +112,7 @@ func (server *OSPFV2Server) deinitRxTxPkts(intfConfKey IntfConfKey) {
 	server.IntfConfMap[intfConfKey] = intfConfEnt
 }
 
-func (server *OSPFV2Server) StopAllIntfFSM() (nbrKeyList []NeighborConfKey) {
+func (server *OSPFV2Server) StopAllIntfFSM() (nbrKeyList []NbrConfKey) {
 	for intfConfKey, intfConfEnt := range server.IntfConfMap {
 		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
 			nbrKeyList = append(nbrKeyList, server.StopSendAndRecvPkts(intfConfKey)...)
@@ -139,7 +139,7 @@ func (server *OSPFV2Server) StartAllIntfFSM() {
 	}
 }
 
-func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) (nbrKeyList []NeighborConfKey) {
+func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) (nbrKeyList []NbrConfKey) {
 	areaEnt, _ := server.AreaConfMap[areaId]
 
 	for intfConfKey, _ := range areaEnt.IntfMap {

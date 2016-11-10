@@ -23,20 +23,25 @@
 
 package server
 
-import ()
+import (
+	"l3/ospfv2/objects"
+)
 
-func (server *OSPFV2Server) SendMsgToGenerateRouterLSA(areaId uint32) {
-	msg := GenerateRouterLSAMsg{
-		AreaId: areaId,
+func (server *OSPFV2Server) SendNbrDownMsg(msg NbrDownMsg, intfConfKey IntfConfKey) {
+	server.logger.Info("Sending msg to Interface State Machine", msg)
+	msgCh, exist := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[intfConfKey]
+	if !exist {
+		server.logger.Err("NbrDownMsgCh is out of sync")
+		return
 	}
-	server.logger.Info("Sending msg to Lsdb To Generate Router LSA for area:", msg)
-	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh <- msg
-}
-
-func (server *OSPFV2Server) SendMsgToGenerateRouterLSAForAllAreas() {
-	for areaId, areaEnt := range server.AreaConfMap {
-		if len(areaEnt.IntfMap) > 0 {
-			server.SendMsgToGenerateRouterLSA(areaId)
-		}
+	intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+	if !exist {
+		server.logger.Err("IntfConfMap is out of sync")
+		return
 	}
+	if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
+		msgCh <- msg
+		return
+	}
+	server.logger.Err("Interface FSM is down, so can't send NbrDownMsg", msg, intfConfKey)
 }

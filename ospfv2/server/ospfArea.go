@@ -75,8 +75,8 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 	// Stop All the INTF FSM in this area
 	nbrKeyList := server.StopAreaIntfFSM(newCfg.AreaId)
 	if len(nbrKeyList) > 0 {
-		//Delete All the neighbors in this area
-		server.SendDeleteNeighborsMsg(nbrKeyList)
+		//Delete All the nbrs in this area
+		server.SendDeleteNbrsMsg(nbrKeyList)
 	}
 	//Send Message to flush router LSA newCfg.AreaId
 	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
@@ -128,16 +128,19 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	} else {
 		server.globalData.AreaBdrRtrStatus = false
 	}
+	server.InitAreaLsdb(cfg.AreaId)
 	return true, nil
 }
 
 func (server *OSPFV2Server) deleteArea(cfg *objects.Ospfv2Area) (bool, error) {
+	server.logger.Info("Area configuration delete")
 	server.logger.Info("Area configuration delete")
 	areaEnt, exist := server.AreaConfMap[cfg.AreaId]
 	if !exist {
 		server.logger.Err("Unable to Delete Area doesnot exist")
 		return false, errors.New("Unable to delete area doesnot exist")
 	}
+	server.DinitAreaLsdb(cfg.AreaId)
 	if len(areaEnt.IntfMap) > 0 {
 		server.logger.Err("Unable to delete Area as there are interface configured in this area")
 		return false, errors.New("Unable to delete Area as there are interface configured in this area")

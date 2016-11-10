@@ -536,8 +536,8 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 				intfConfEnt.AdminState == true {
 				nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
 				if len(nbrKeyList) > 0 {
-					// Send message to Neighbor FSM for killing nbr
-					server.SendDeleteNeighborsMsg(nbrKeyList)
+					// Send message to Nbr FSM for killing nbr
+					server.SendDeleteNbrsMsg(nbrKeyList)
 				}
 				//Generate Router LSA for intfConfEnt.AreaId
 				server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)

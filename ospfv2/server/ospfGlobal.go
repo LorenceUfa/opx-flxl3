@@ -72,14 +72,14 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	if server.globalData.AdminState == true {
 		nbrKeyList := server.StopAllIntfFSM()
 		if len(nbrKeyList) > 0 {
-			server.SendDeleteNeighborsMsg(nbrKeyList)
+			server.SendDeleteNbrsMsg(nbrKeyList)
 		}
+		server.StopLsdbRoutine()
 		// TODO
 		//Stop SPF
-		//Flush LSDB
 		//Delete all the routes
 		//Flush all the routes
-		//Stop Neighbor FSM
+		//Stop Nbr FSM
 		//Stop Ribd updates
 	}
 
@@ -98,12 +98,12 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	}
 
 	if server.globalData.AdminState == true {
+		server.StartLsdbRoutine()
 		server.StartAllIntfFSM()
 		server.SendMsgToGenerateRouterLSAForAllAreas()
 		// TODO
 		//Start SPF
-		//Start Neighbor FSM
-		//Start LSDB
+		//Start Nbr FSM
 		//Start Ribd Updates if ASBdrRtrStatus = true
 	}
 
@@ -122,11 +122,11 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 	server.globalData.ASBdrRtrStatus = cfg.ASBdrRtrStatus
 	server.globalData.ReferenceBandwidth = cfg.ReferenceBandwidth
 	if cfg.AdminState == true {
-		//Restart Neighbor FSM
+		//Restart Nbr FSM
 		//Flush all the routes
 		//Flush LSDB
 		//Start OSPF Interface FSM
-		//Start Neighbor State Machine
+		//Start Nbr State Machine
 	}
 	return true, nil
 }
