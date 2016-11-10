@@ -47,7 +47,6 @@ func main() {
 		   			fmt.Println("Failed Initializing logger for vrrp")
 		   			return
 		   		}
-		   		debug.SetLogger(vrrpBase.Logger)
 		   		err = vrrpBase.InitDBHdl()
 		   		if err != nil {
 		   			debug.Logger.Warning("failed initializing db handler for vrrp no read from db")
@@ -58,6 +57,7 @@ func main() {
 			fmt.Println("Failed init basedmn for VRRP")
 			return
 		}
+		debug.SetLogger(vrrpBase.Logger)
 		asicdHdl := flexswitch.GetSwitchInst()
 		asicdHdl.Logger = vrrpBase.Logger
 
