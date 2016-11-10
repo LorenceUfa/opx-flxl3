@@ -23,9 +23,24 @@
 
 package server
 
+import (
+	"time"
+)
+
 func (server *OSPFV2Server) initLsdbData() {
 	server.LsdbData.AreaLsdb = make(map[LsdbKey]LSDatabase)
 	server.LsdbData.AreaSelfOrigLsa = make(map[LsdbKey]SelfOrigLsa)
+}
+
+func (server *OSPFV2Server) dinitLsdb() {
+	for lsdbKey, _ := range server.LsdbData.AreaLsdb {
+		delete(server.LsdbData.AreaLsdb, lsdbKey)
+	}
+	for lsdbKey, _ := range server.LsdbData.AreaSelfOrigLsa {
+		delete(server.LsdbData.AreaSelfOrigLsa, lsdbKey)
+	}
+	server.LsdbData.AreaLsdb = nil
+	server.LsdbData.AreaSelfOrigLsa = nil
 }
 
 func (server *OSPFV2Server) InitAreaLsdb(areaId uint32) {
@@ -65,5 +80,43 @@ func (server *OSPFV2Server) DinitAreaLsdb(areaId uint32) {
 	_, exist = server.LsdbData.AreaSelfOrigLsa[lsdbKey]
 	if exist {
 		delete(server.LsdbData.AreaSelfOrigLsa, lsdbKey)
+	}
+}
+
+func (server *OSPFV2Server) StartLsdbRoutine() {
+	server.initLsdbData()
+	go server.ProcessLsdb()
+}
+
+func (server *OSPFV2Server) StopLsdbRoutine() {
+	server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh <- true
+	cnt := 0
+	for {
+		select {
+		case _ = <-server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh:
+			server.logger.Info("Successfully Stopped ProcessLsdb routine")
+			server.dinitLsdb()
+			return
+		default:
+			time.Sleep(time.Duration(10) * time.Millisecond)
+			cnt = cnt + 1
+			if cnt == 100 {
+				server.logger.Err("Unable to stop the ProcessLsdb routine")
+				return
+			}
+		}
+	}
+}
+
+func (server *OSPFV2Server) ProcessLsdb() {
+	for {
+		select {
+		case _ = <-server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh:
+			server.logger.Info("Stopping ProcessLsdb routine")
+			server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh <- true
+			return
+		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:
+			server.logger.Info("Generate self originated Router LSA", msg)
+		}
 	}
 }

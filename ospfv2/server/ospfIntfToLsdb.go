@@ -30,7 +30,7 @@ func (server *OSPFV2Server) SendMsgToGenerateRouterLSA(areaId uint32) {
 		AreaId: areaId,
 	}
 	server.logger.Info("Sending msg to Lsdb To Generate Router LSA for area:", msg)
-	//server.MessagingChData.IntfToNbrFSM.neighborHelloEventCh <- msg
+	//server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh <- msg
 }
 
 func (server *OSPFV2Server) SendMsgToGenerateRouterLSAForAllAreas() {

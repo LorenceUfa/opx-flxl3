@@ -75,8 +75,8 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 	// Stop All the INTF FSM in this area
 	nbrKeyList := server.StopAreaIntfFSM(newCfg.AreaId)
 	if len(nbrKeyList) > 0 {
-		//Delete All the neighbors in this area
-		server.SendDeleteNeighborsMsg(nbrKeyList)
+		//Delete All the nbrs in this area
+		server.SendDeleteNbrsMsg(nbrKeyList)
 	}
 	//Send Message to flush router LSA newCfg.AreaId
 	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)

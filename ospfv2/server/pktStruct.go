@@ -106,15 +106,15 @@ type OSPFHelloData struct {
 	RtrDeadInterval uint32
 	DRtrIpAddr      uint32
 	BDRtrIpAddr     uint32
-	NeighborList    []uint32
+	NbrList         []uint32
 }
 
 func NewOSPFHelloData() *OSPFHelloData {
 	return &OSPFHelloData{}
 }
 
-func encodeOspfHelloData(helloData OSPFHelloData, neighborList []uint32) []byte {
-	pkt := make([]byte, OSPF_HELLO_MIN_SIZE+len(neighborList)*4)
+func encodeOspfHelloData(helloData OSPFHelloData, nbrList []uint32) []byte {
+	pkt := make([]byte, OSPF_HELLO_MIN_SIZE+len(nbrList)*4)
 	binary.BigEndian.PutUint32(pkt[0:4], helloData.Netmask)
 	binary.BigEndian.PutUint16(pkt[4:6], helloData.HelloInterval)
 	pkt[6] = helloData.Options
@@ -124,7 +124,7 @@ func encodeOspfHelloData(helloData OSPFHelloData, neighborList []uint32) []byte 
 	binary.BigEndian.PutUint32(pkt[16:20], helloData.BDRtrIpAddr)
 	start := OSPF_HELLO_MIN_SIZE
 	end := start + 4
-	for _, nbr := range neighborList {
+	for _, nbr := range nbrList {
 		binary.BigEndian.PutUint32(pkt[start:end], nbr)
 		start = end
 		end = start + 4
@@ -145,7 +145,7 @@ func decodeOspfHelloData(data []byte, ospfHelloData *OSPFHelloData) {
 	end := start + 4
 	for idx := 0; idx < numNbrs; idx++ {
 		nbr := binary.BigEndian.Uint32(data[start:end])
-		ospfHelloData.NeighborList = append(ospfHelloData.NeighborList, nbr)
+		ospfHelloData.NbrList = append(ospfHelloData.NbrList, nbr)
 		start = end
 		end = start + 4
 	}

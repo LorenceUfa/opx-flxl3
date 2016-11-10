@@ -80,18 +80,18 @@ func (server *OSPFV2Server) BuildHelloPkt(key IntfConfKey) []byte {
 		helloData.Netmask = ent.Netmask
 	}
 
-	var neighborList []uint32
-	for _, nbrEnt := range ent.NeighborMap {
+	var nbrList []uint32
+	for _, nbrEnt := range ent.NbrMap {
 		nbr := nbrEnt.RtrId
-		neighborList = append(neighborList, nbr)
+		nbrList = append(nbrList, nbr)
 	}
 
-	ospfPktlen := OSPF_HEADER_SIZE + OSPF_HELLO_MIN_SIZE + len(neighborList)*4
+	ospfPktlen := OSPF_HEADER_SIZE + OSPF_HELLO_MIN_SIZE + len(nbrList)*4
 
 	ospfHdr.Pktlen = uint16(ospfPktlen)
 
 	ospfEncHdr := encodeOspfHdr(ospfHdr)
-	helloDataEnc := encodeOspfHelloData(helloData, neighborList)
+	helloDataEnc := encodeOspfHelloData(helloData, nbrList)
 	ospf := append(ospfEncHdr, helloDataEnc...)
 	csum := computeCheckSum(ospf)
 	binary.BigEndian.PutUint16(ospf[12:14], csum)
@@ -175,7 +175,7 @@ func (server *OSPFV2Server) processRxHelloPkt(data []byte,
 	}
 
 	TwoWayStatus := false
-	for _, nbr := range ospfHelloData.NeighborList {
+	for _, nbr := range ospfHelloData.NbrList {
 		if nbr == server.globalData.RouterId {
 			TwoWayStatus = true
 			break
@@ -184,19 +184,19 @@ func (server *OSPFV2Server) processRxHelloPkt(data []byte,
 
 	/*
 		srcIp := ipHdrMd.srcIP
-		nbrKey := NeighborConfKey{
+		nbrKey := NbrConfKey{
 			IpAddr:  srcIp,
 			IntfIdx: key.IntfIdx,
 		}
-		ospfNeighborIPToMAC[nbrKey] = ethHdrMd.srcMAC
+		ospfNbrIPToMAC[nbrKey] = ethHdrMd.srcMAC
 	*/
 
-	server.processOspfHelloNeighbor(ethHdrMd, ipHdrMd, ospfHdrMd, ospfHelloData, TwoWayStatus, key)
+	server.processOspfHelloNbr(ethHdrMd, ipHdrMd, ospfHdrMd, ospfHelloData, TwoWayStatus, key)
 
 	return nil
 }
 
-func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, ipHdrMd *IpHdrMetadata, ospfHdrMd *OspfHdrMetadata, ospfHelloData *OSPFHelloData, TwoWayStatus bool, key IntfConfKey) {
+func (server *OSPFV2Server) processOspfHelloNbr(ethHdrMd *EthHdrMetadata, ipHdrMd *IpHdrMetadata, ospfHdrMd *OspfHdrMetadata, ospfHelloData *OSPFHelloData, TwoWayStatus bool, key IntfConfKey) {
 
 	routerId := ospfHdrMd.RouterId
 
@@ -209,45 +209,45 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 		nbrIdentity = ipHdrMd.SrcIP
 	}
 
-	nbrKey := NeighborConfKey{
+	nbrKey := NbrConfKey{
 		NbrIdentity:         nbrIdentity,
 		NbrAddressLessIfIdx: key.IntfIdx,
 	}
-	neighborEntry, exist := ent.NeighborMap[nbrKey]
+	nbrEntry, exist := ent.NbrMap[nbrKey]
 	if !exist {
-		var neighCreateMsg NeighCreateMsg
-		neighCreateMsg.RouterId = ospfHdrMd.RouterId
-		neighCreateMsg.NbrIP = ipHdrMd.SrcIP
-		neighCreateMsg.RtrPrio = ospfHelloData.RtrPrio
-		neighCreateMsg.TwoWayStatus = TwoWayStatus
-		neighCreateMsg.DRtrIpAddr = ospfHelloData.DRtrIpAddr
-		neighCreateMsg.BDRtrIpAddr = ospfHelloData.BDRtrIpAddr
-		neighCreateMsg.NbrKey = nbrKey
-		ent.NeighCreateCh <- neighCreateMsg
-		server.logger.Info("Neighbor Entry Created", neighborEntry)
+		var nbrCreateMsg NbrCreateMsg
+		nbrCreateMsg.RouterId = ospfHdrMd.RouterId
+		nbrCreateMsg.NbrIP = ipHdrMd.SrcIP
+		nbrCreateMsg.RtrPrio = ospfHelloData.RtrPrio
+		nbrCreateMsg.TwoWayStatus = TwoWayStatus
+		nbrCreateMsg.DRtrIpAddr = ospfHelloData.DRtrIpAddr
+		nbrCreateMsg.BDRtrIpAddr = ospfHelloData.BDRtrIpAddr
+		nbrCreateMsg.NbrKey = nbrKey
+		ent.NbrCreateCh <- nbrCreateMsg
+		server.logger.Info("Nbr Entry Created", nbrEntry)
 	} else {
-		if neighborEntry.TwoWayStatus != TwoWayStatus ||
-			neighborEntry.DRtrIpAddr != ospfHelloData.DRtrIpAddr ||
-			neighborEntry.BDRtrIpAddr != ospfHelloData.BDRtrIpAddr ||
-			neighborEntry.RtrPrio != ospfHelloData.RtrPrio {
-			var neighChangeMsg NeighChangeMsg
-			neighChangeMsg.RouterId = ospfHdrMd.RouterId
-			neighChangeMsg.NbrIP = ipHdrMd.SrcIP
-			neighChangeMsg.TwoWayStatus = TwoWayStatus
-			neighChangeMsg.RtrPrio = ospfHelloData.RtrPrio
-			neighChangeMsg.DRtrIpAddr = ospfHelloData.DRtrIpAddr
-			neighChangeMsg.BDRtrIpAddr = ospfHelloData.BDRtrIpAddr
-			neighChangeMsg.NbrKey = nbrKey
-			ent.NeighChangeCh <- neighChangeMsg
+		if nbrEntry.TwoWayStatus != TwoWayStatus ||
+			nbrEntry.DRtrIpAddr != ospfHelloData.DRtrIpAddr ||
+			nbrEntry.BDRtrIpAddr != ospfHelloData.BDRtrIpAddr ||
+			nbrEntry.RtrPrio != ospfHelloData.RtrPrio {
+			var nbrChangeMsg NbrChangeMsg
+			nbrChangeMsg.RouterId = ospfHdrMd.RouterId
+			nbrChangeMsg.NbrIP = ipHdrMd.SrcIP
+			nbrChangeMsg.TwoWayStatus = TwoWayStatus
+			nbrChangeMsg.RtrPrio = ospfHelloData.RtrPrio
+			nbrChangeMsg.DRtrIpAddr = ospfHelloData.DRtrIpAddr
+			nbrChangeMsg.BDRtrIpAddr = ospfHelloData.BDRtrIpAddr
+			nbrChangeMsg.NbrKey = nbrKey
+			ent.NbrChangeCh <- nbrChangeMsg
 		}
 	}
 
 	nbrDeadInterval := time.Duration(ent.RtrDeadInterval) * time.Second
-	intfToNeighborMsg := IntfToNeighMsg{
+	nbrHelloEventMsg := NbrHelloEventMsg{
 		IntfConfKey:  key,
 		RouterId:     routerId,
 		RtrPrio:      ospfHelloData.RtrPrio,
-		NeighborIP:   ipHdrMd.SrcIP,
+		NbrIP:        ipHdrMd.SrcIP,
 		NbrDeadTime:  nbrDeadInterval,
 		TwoWayStatus: TwoWayStatus,
 		NbrDRIpAddr:  ospfHelloData.DRtrIpAddr,
@@ -255,7 +255,7 @@ func (server *OSPFV2Server) processOspfHelloNeighbor(ethHdrMd *EthHdrMetadata, i
 		NbrMAC:       ethHdrMd.SrcMAC,
 		NbrKey:       nbrKey,
 	}
-	server.CreateAndSendHelloRecvdMsg(intfToNeighborMsg)
+	server.CreateAndSendHelloRecvdMsg(nbrHelloEventMsg)
 
 	var backupSeenMsg BackupSeenMsg
 	if TwoWayStatus == true && ent.FSMState == objects.INTF_FSM_STATE_WAITING {

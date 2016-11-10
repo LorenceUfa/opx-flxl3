@@ -118,16 +118,18 @@ func (server *OSPFV2Server) StartSubscribers() {
 }
 
 func (server *OSPFV2Server) initMessagingChData() {
-	server.MessagingChData.IntfToNbrFSMChData.NeighborHelloEventCh = make(chan IntfToNeighMsg)
-	server.MessagingChData.IntfToNbrFSMChData.DeleteNeighborCh = make(chan DeleteNeighborMsg)
+	server.MessagingChData.IntfToNbrFSMChData.NbrHelloEventCh = make(chan NbrHelloEventMsg)
+	server.MessagingChData.IntfToNbrFSMChData.DeleteNbrCh = make(chan DeleteNbrMsg)
 	server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
 	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
+	server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
+	server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
+	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap = make(map[IntfConfKey]chan NbrDownMsg)
 }
 
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
 	server.initMessagingChData()
-	server.initLsdbData()
 	server.initAsicdComm()
 	server.initRibdComm()
 	server.ConnectToServers()

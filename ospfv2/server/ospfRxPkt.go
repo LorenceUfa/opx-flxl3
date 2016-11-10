@@ -154,23 +154,23 @@ func (server *OSPFV2Server) processOspfHeader(ospfPkt []byte, key IntfConfKey, m
 
 	if ospfHdr.PktType != HelloType {
 		if ent.Type == objects.INTF_TYPE_BROADCAST {
-			nbrKey := NeighborConfKey{
+			nbrKey := NbrConfKey{
 				NbrIdentity:         ipHdrMd.SrcIP,
 				NbrAddressLessIfIdx: key.IntfIdx,
 			}
-			_, exist := ent.NeighborMap[nbrKey]
+			_, exist := ent.NbrMap[nbrKey]
 			if !exist {
-				err := errors.New("Adjacency not established with this neighbor")
+				err := errors.New("Adjacency not established with this nbr")
 				return err
 			}
 		} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
-			nbrKey := NeighborConfKey{
+			nbrKey := NbrConfKey{
 				NbrIdentity:         ospfHdr.RouterId,
 				NbrAddressLessIfIdx: key.IntfIdx,
 			}
-			_, exist := ent.NeighborMap[nbrKey]
+			_, exist := ent.NbrMap[nbrKey]
 			if !exist {
-				err := errors.New("Adjacency not established with this neighbor")
+				err := errors.New("Adjacency not established with this nbr")
 				return err
 			}
 		}
