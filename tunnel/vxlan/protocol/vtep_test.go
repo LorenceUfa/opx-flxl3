@@ -77,9 +77,12 @@ func (b mockintf) CreateVtep(vtep *VtepDbEntry, vtepname chan<- MachineEvent) {
 	if !b.failCreateVtep {
 		logger.Info(fmt.Sprintf("Create vtep %#v", vtep))
 		event := MachineEvent{
-			E:    VxlanVtepEventHwConfigComplete,
-			Src:  VXLANSnapClientStr,
-			Data: "Vtep0Int",
+			E:   VxlanVtepEventHwConfigComplete,
+			Src: VXLANSnapClientStr,
+			Data: VtepCreateCfgData{
+				VtepName: "Vtep0Int",
+				IfIndex:  12345,
+			},
 		}
 		vtepname <- event
 
@@ -121,7 +124,7 @@ func (b mockintf) DeleteAccessPortVlan(vlan uint16, intfList []int) {
 
 	}
 }
-func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
+func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) bool {
 	logger.Info("MOCK: Calling GetNextHopInfo")
 	nexthopip := net.ParseIP("100.1.1.2")
 	if !b.failGetNextHop {
@@ -139,9 +142,11 @@ func (b mockintf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
 			Src:  "TEST",
 			Data: nexthop,
 		}
+		return true
 	} else {
 		logger.Info("MOCK: force fail")
 	}
+	return false
 }
 func (b mockintf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
 	logger.Info("MOCK: Calling ResolveNextHopMac")
@@ -224,6 +229,71 @@ func TimerTest(v *VtepDbEntry, exitchan chan<- bool) {
 	}
 }
 
+// TestVtepNameGeneration
+func TestVtepNameGeneration(t *testing.T) {
+
+	//setVxlanTestLogger()
+
+	name := GenInternalVtepName()
+	if name != "Vtep1" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+
+	name = GenInternalVtepName()
+	if name != "Vtep2" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+
+	name = GenInternalVtepName()
+	if name != "Vtep3" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+
+	if len(vtepNameIdList) != 0 {
+		t.Errorf("VtepNameList is not empty")
+	}
+
+	FreeGenInternalVtepName(name)
+	if len(vtepNameIdList) != 1 {
+		t.Errorf("VtepNameList does not contain the entry that was just freed", vtepNameIdList)
+	}
+
+	if vtepNameIdList[0] != 3 {
+		t.Errorf("VtepNameList entry id was not freed properly", vtepNameIdList)
+	}
+
+	name = GenInternalVtepName()
+	if name != "Vtep3" {
+		t.Errorf("Generated Name is not correct expected Vtep1 got", name)
+	}
+	if len(vtepNameIdList) != 0 {
+		t.Errorf("VtepNameList is not empty", vtepNameIdList)
+	}
+
+	if vtepNameIdCnt != 4 {
+		t.Errorf("VtepNameIdCnt is not correct", vtepNameIdCnt)
+	}
+
+	FreeGenInternalVtepName("Vtep1")
+	FreeGenInternalVtepName("Vtep2")
+	FreeGenInternalVtepName("Vtep3")
+
+	// try and delete an entry that does not exist
+	FreeGenInternalVtepName("Vtep4")
+
+	for i := 0; i < 100; i++ {
+		GenInternalVtepName()
+	}
+
+	FreeGenInternalVtepName("Vtep34")
+
+	if vtepNameIdList[0] != 34 {
+		t.Errorf("VtepNameList did not delete previous entry Vtep34")
+	}
+
+	//SetLogger(nil)
+}
+
 // TestFSMValidVxlanVtepCreate:
 // Test creation of vxlan before vtep
 func TestFSMValidVxlanVtepCreate(t *testing.T) {
@@ -268,8 +338,9 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 	<-vtepcreatedone
 
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -281,7 +352,7 @@ func TestFSMValidVxlanVtepCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
@@ -332,8 +403,9 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 	CreateVtep(vtepConfig)
 
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -362,7 +434,7 @@ func TestFSMValidVtepVxlanCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
@@ -489,8 +561,9 @@ func TestFSMCreateVtepNoVxlan(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
@@ -551,8 +624,9 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -584,7 +658,7 @@ func TestFSMIntfFailVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -642,8 +716,9 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -703,7 +778,7 @@ func TestFSMIntfFailThenSendIntfSuccessVtepVxlanCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 
@@ -760,8 +835,9 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -799,7 +875,7 @@ func TestFSMNextHopFailVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -856,8 +932,9 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -918,7 +995,7 @@ func TestFSMNextHopFailThenSucceedVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -973,8 +1050,9 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -1017,7 +1095,7 @@ func TestFSMResolveNextHopMacFailVtepVxlanCreate(t *testing.T) {
 
 	DeleteVtep(vtepConfig)
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	if len(GetVxlanDB()) != 0 {
 		t.Errorf("Vxlan db not empty as expected")
@@ -1071,8 +1149,9 @@ func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
 
 	// should only be one entry
 	key := &VtepDbKey{
-		Name: vtepConfig.VtepName,
-		Vni:  vtepConfig.Vni,
+		Name:  vtepConfig.VtepName,
+		Vni:   vtepConfig.Vni,
+		DstIp: vtepConfig.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 
@@ -1138,7 +1217,7 @@ func xTestFSMlinkDownFailCausingRibReachabilityVtepVxlanCreate(t *testing.T) {
 
 	<-vtepdeletedone
 
-	DeleteVxLAN(vxlanConfig)
+	DeleteVxLAN(vxlanConfig, false)
 
 	<-vxlandeletedone
 

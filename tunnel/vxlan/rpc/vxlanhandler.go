@@ -254,12 +254,14 @@ func (v *VXLANDServiceHandler) UpdateVxlanInstance(origconfig *vxland.VxlanInsta
 
 func (v *VXLANDServiceHandler) CreateVxlanVtepInstance(config *vxland.VxlanVtepInstance) (bool, error) {
 	v.logger.Info(fmt.Sprintf("CreateVxlanVtepInstance %#v", config))
-	c, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(config)
+	cs, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(config)
 	if err == nil {
-		err = vxlan.VtepConfigCheck(c, true)
-		if err == nil {
-			v.server.Configchans.Vtepcreate <- *c
-			return true, err
+		for _, c := range cs {
+			err = vxlan.VtepConfigCheck(c, true)
+			if err == nil {
+				v.server.Configchans.Vtepcreate <- *c
+				return true, err
+			}
 		}
 	}
 	return false, err
@@ -267,42 +269,74 @@ func (v *VXLANDServiceHandler) CreateVxlanVtepInstance(config *vxland.VxlanVtepI
 
 func (v *VXLANDServiceHandler) DeleteVxlanVtepInstance(config *vxland.VxlanVtepInstance) (bool, error) {
 	v.logger.Info(fmt.Sprintf("DeleteVxlanVtepInstance %#v", config))
-	c, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(config)
+	cs, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(config)
 	if err == nil {
-		v.server.Configchans.Vtepdelete <- *c
-		return true, nil
+		for _, c := range cs {
+			v.server.Configchans.Vtepdelete <- *c
+			return true, nil
+		}
 	}
 	return false, err
 }
 
 func (v *VXLANDServiceHandler) UpdateVxlanVtepInstance(origconfig *vxland.VxlanVtepInstance, newconfig *vxland.VxlanVtepInstance, attrset []bool, op []*vxland.PatchOpInfo) (bool, error) {
 	v.logger.Info(fmt.Sprintf("UpdateVxlanVtepInstances orig[%#v] new[%#v]", origconfig, newconfig))
-	oc, _ := vxlan.ConvertVxlanVtepInstanceToVtepConfig(origconfig)
-	nc, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(newconfig)
+	ocs, _ := vxlan.ConvertVxlanVtepInstanceToVtepConfig(origconfig)
+	ncs, err := vxlan.ConvertVxlanVtepInstanceToVtepConfig(newconfig)
 	if err == nil {
-		err = vxlan.VtepConfigCheck(nc, false)
-		if err == nil {
-			strattr := make([]string, 0)
-			objTyp := reflect.TypeOf(*origconfig)
+		for _, c := range ncs {
+			err = vxlan.VtepConfigCheck(c, false)
+			if err == nil {
+				strattr := make([]string, 0)
+				objTyp := reflect.TypeOf(*origconfig)
 
-			// important to note that the attrset starts at index 0 which is the BaseObj
-			// which is not the first element on the thrift obj, thus we need to skip
-			// this attribute
-			for i := 0; i < objTyp.NumField(); i++ {
-				objName := objTyp.Field(i).Name
-				if attrset[i] {
-					strattr = append(strattr, objName)
+				// important to note that the attrset starts at index 0 which is the BaseObj
+				// which is not the first element on the thrift obj, thus we need to skip
+				// this attribute
+				for i := 0; i < objTyp.NumField(); i++ {
+					objName := objTyp.Field(i).Name
+					if attrset[i] {
+						if objName == "DstIp" {
+							continue
+						}
+						strattr = append(strattr, objName)
+					}
+				}
+				foundDstIp := false
+				for _, oc := range ocs {
+
+					if oc.TunnelDstIp.String() == c.TunnelDstIp.String() {
+						foundDstIp = true
+						update := vxlan.VtepUpdate{
+							Oldconfig: *oc,
+							Newconfig: *c,
+							Attr:      strattr,
+						}
+						v.server.Configchans.Vtepupdate <- update
+						break
+					}
+				}
+				// we have a new vtep
+				if !foundDstIp {
+					v.server.Configchans.Vtepcreate <- *c
 				}
 			}
-
-			update := vxlan.VtepUpdate{
-				Oldconfig: *oc,
-				Newconfig: *nc,
-				Attr:      strattr,
-			}
-			v.server.Configchans.Vtepupdate <- update
-			return true, nil
 		}
+
+		for _, c := range ocs {
+			foundDstIp := false
+			for _, nc := range ncs {
+				if nc.TunnelDstIp.String() == c.TunnelDstIp.String() {
+					foundDstIp = true
+				}
+			}
+			// delete the vtep
+			if !foundDstIp {
+				v.server.Configchans.Vtepdelete <- *c
+			}
+		}
+
+		return true, nil
 	}
 
 	return false, err
@@ -380,56 +414,65 @@ func (la *VXLANDServiceHandler) GetBulkVxlanInstanceState(fromIndex vxland.Int, 
 
 func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32) (*vxland.VxlanVtepInstanceState, error) {
 	vis := &vxland.VxlanVtepInstanceState{}
-	key := vxlan.VtepDbKey{
-		Name: intf,
-		Vni:  uint32(vni),
-	}
-	if v, ok := vxlan.GetVtepDB()[key]; ok {
-		if v.Enable {
-			vis.OperState = "UP"
-		} else {
-			vis.OperState = "DOWN"
-		}
-		vis.Intf = v.VtepName
-		vis.IntfRef = v.SrcIfName
-		vis.IfIndex = v.VtepIfIndex
-		vis.Vni = int32(v.Vni)
-		vis.DstUDP = int16(v.UDP)
-		vis.TTL = int16(v.TTL)
-		vis.TOS = int16(v.TOS)
-		if v.FilterUnknownCustVlan {
-			vis.InnerVlanHandlingMode = 0
-		} else {
-			vis.InnerVlanHandlingMode = 1
-		}
-		vis.DstIp = v.DstIp.String()
-		vis.SrcIp = v.SrcIp.String()
-		vis.DstMac = v.DstMac.String()
-		vis.SrcMac = v.SrcMac.String()
-		vis.VlanId = int16(v.VlanId)
-		vis.Mtu = int32(v.MTU)
-		vis.RxSwPkts = int64(v.GetStats().Rxpkts)
-		vis.RxSwBytes = int64(v.GetStats().Rxbytes)
-		vis.RxSwDropPkts = int64(v.GetStats().Rxdroppkts)
-		vis.RxSwDropBytes = int64(v.GetStats().Rxdropbytes)
-		vis.RxSwFwdPkts = int64(v.GetStats().Rxfwdpkts)
-		vis.RxSwFwdBytes = int64(v.GetStats().Rxfwdbytes)
-		vis.TxSwPkts = int64(v.GetStats().Txpkts)
-		vis.TxSwBytes = int64(v.GetStats().Txbytes)
-		vis.TxSwDropPkts = int64(v.GetStats().Txdroppkts)
-		vis.TxSwDropBytes = int64(v.GetStats().Txdropbytes)
-		vis.TxSwFwdPkts = int64(v.GetStats().Txfwdpkts)
-		vis.TxSwFwdBytes = int64(v.GetStats().Txfwdbytes)
-		vis.LastSwRxDropReason = v.GetStats().Lastrxdropreason
-		vis.LastSwTxDropReason = v.GetStats().Lasttxdropreason
-		//vis.RxFwdPkts             uint64 `DESCRIPTION: Rx Forwaded Packets`
-		//vis.RxDropPkts            uint64 `DESCRIPTION: Rx Dropped Packets`
-		//vis.RxUnknownVni          uint64 `DESCRIPTION: Rx Unknown Vni in frame`
-		vis.VtepFsmState = vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.CurrentState()]
-		vis.VtepFsmPrevState = vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.PreviousState()]
+	//key := vxlan.VtepDbKey{
+	//	Name: intf,
+	//	Vni:  uint32(vni),
+	//}
 
-	} else {
-		return nil, errors.New(fmt.Sprintf("Error could not find vni instance %s", intf))
+	for _, v := range vxlan.GetVtepDB() {
+
+		if v.VtepConfigName == intf &&
+			v.Vni == uint32(vni) {
+			OperState := "UNKNOWN"
+			if v.Enable && v.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == vxlan.VxlanVtepStateStart {
+				OperState = "UP"
+			} else {
+				OperState = "DOWN"
+			}
+			vis.Intf = v.VtepConfigName
+			vis.IntfRef = v.SrcIfName
+			vis.IfIndex = v.VtepIfIndex
+			vis.Vni = int32(v.Vni)
+			vis.DstUDP = int16(v.UDP)
+			vis.TTL = int16(v.TTL)
+			vis.TOS = int16(v.TOS)
+			if v.FilterUnknownCustVlan {
+				vis.InnerVlanHandlingMode = 0
+			} else {
+				vis.InnerVlanHandlingMode = 1
+			}
+
+			vis.SrcIp = v.SrcIp.String()
+			vis.VlanId = int16(v.VlanId)
+			vis.Mtu = int32(v.MTU)
+			vis.PerDstIpState = append(vis.PerDstIpState, &vxland.VtepStateEntry{
+				SubVtepName:        v.VtepName,
+				DstIp:              v.DstIp.String(),
+				RxSwPkts:           int64(v.GetStats().Rxpkts),
+				RxSwBytes:          int64(v.GetStats().Rxbytes),
+				RxSwDropPkts:       int64(v.GetStats().Rxdroppkts),
+				RxSwDropBytes:      int64(v.GetStats().Rxdropbytes),
+				RxSwFwdPkts:        int64(v.GetStats().Rxfwdpkts),
+				RxSwFwdBytes:       int64(v.GetStats().Rxfwdbytes),
+				TxSwPkts:           int64(v.GetStats().Txpkts),
+				TxSwBytes:          int64(v.GetStats().Txbytes),
+				TxSwDropPkts:       int64(v.GetStats().Txdroppkts),
+				TxSwDropBytes:      int64(v.GetStats().Txdropbytes),
+				TxSwFwdPkts:        int64(v.GetStats().Txfwdpkts),
+				TxSwFwdBytes:       int64(v.GetStats().Txfwdbytes),
+				LastSwRxDropReason: v.GetStats().Lastrxdropreason,
+				LastSwTxDropReason: v.GetStats().Lasttxdropreason,
+				//vis.RxFwdPkts             uint64 `DESCRIPTION: Rx Forwaded Packets`
+				//vis.RxDropPkts            uint64 `DESCRIPTION: Rx Dropped Packets`
+				//vis.RxUnknownVni          uint64 `DESCRIPTION: Rx Unknown Vni in frame`
+				VtepFsmState:     vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.CurrentState()],
+				VtepFsmPrevState: vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.PreviousState()],
+				OperState:        OperState,
+			})
+
+		} else {
+			return nil, errors.New(fmt.Sprintf("Error could not find vni instance %s", intf))
+		}
 	}
 	return vis, nil
 }
@@ -447,18 +490,25 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 
 	var v *vxlan.VtepDbEntry
 	currIndex := vxland.Int(0)
+	indexListAdded := make([]int, 0)
 	for currIndex = vxland.Int(0); validCount != count && vxlan.GetVtepDbListEntry(int32(currIndex), &v); currIndex++ {
 
 		if currIndex < fromIndex {
 			continue
 		} else {
 
-			nextVxlanVtepState = &vxlanVtepStateList[validCount]
-			if v.Enable {
-				nextVxlanVtepState.OperState = "UP"
-			} else {
-				nextVxlanVtepState.OperState = "DOWN"
+			foundIndex := false
+			for _, idx := range indexListAdded {
+				if idx == int(currIndex) {
+					foundIndex = true
+				}
 			}
+
+			if foundIndex {
+				continue
+			}
+
+			nextVxlanVtepState = &vxlanVtepStateList[validCount]
 			nextVxlanVtepState.Intf = v.VtepName
 			nextVxlanVtepState.IntfRef = v.SrcIfName
 			nextVxlanVtepState.IfIndex = v.VtepIfIndex
@@ -471,29 +521,62 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 			} else {
 				nextVxlanVtepState.InnerVlanHandlingMode = 1
 			}
-			nextVxlanVtepState.DstIp = v.DstIp.String()
 			nextVxlanVtepState.SrcIp = v.SrcIp.String()
-			nextVxlanVtepState.DstMac = v.DstMac.String()
-			nextVxlanVtepState.SrcMac = v.SrcMac.String()
 			nextVxlanVtepState.VlanId = int16(v.VlanId)
 			nextVxlanVtepState.Mtu = int32(v.MTU)
-			nextVxlanVtepState.RxSwPkts = int64(v.GetStats().Rxpkts)
-			nextVxlanVtepState.RxSwBytes = int64(v.GetStats().Rxbytes)
-			nextVxlanVtepState.RxSwDropPkts = int64(v.GetStats().Rxdroppkts)
-			nextVxlanVtepState.RxSwDropBytes = int64(v.GetStats().Rxdropbytes)
-			nextVxlanVtepState.RxSwFwdPkts = int64(v.GetStats().Rxfwdpkts)
-			nextVxlanVtepState.RxSwFwdBytes = int64(v.GetStats().Rxfwdbytes)
-			nextVxlanVtepState.TxSwPkts = int64(v.GetStats().Txpkts)
-			nextVxlanVtepState.TxSwBytes = int64(v.GetStats().Txbytes)
-			nextVxlanVtepState.TxSwDropPkts = int64(v.GetStats().Txdroppkts)
-			nextVxlanVtepState.TxSwDropBytes = int64(v.GetStats().Txdropbytes)
-			nextVxlanVtepState.TxSwFwdPkts = int64(v.GetStats().Txfwdpkts)
-			nextVxlanVtepState.TxSwFwdBytes = int64(v.GetStats().Txfwdbytes)
-			nextVxlanVtepState.LastSwRxDropReason = v.GetStats().Lastrxdropreason
-			nextVxlanVtepState.LastSwTxDropReason = v.GetStats().Lasttxdropreason
-			nextVxlanVtepState.VtepFsmState = vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.CurrentState()]
-			nextVxlanVtepState.VtepFsmPrevState = vxlan.VxlanVtepStateStrMap[v.VxlanVtepMachineFsm.Machine.Curr.PreviousState()]
 
+			var v2 *vxlan.VtepDbEntry
+			for currIndex2 := vxland.Int(currIndex); vxlan.GetVtepDbListEntry(int32(currIndex2), &v2); currIndex2++ {
+
+				if v2.VtepConfigName == v.VtepConfigName &&
+					v2.Vni == v.Vni {
+					foundIndex = false
+					for _, idx := range indexListAdded {
+						if idx == int(currIndex2) {
+							foundIndex = true
+						}
+					}
+
+					if !foundIndex {
+						indexListAdded = append(indexListAdded, int(currIndex2))
+
+					} else {
+						continue
+					}
+
+					OperState := "UNKNOWN"
+					if v2.Enable && v2.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == vxlan.VxlanVtepStateStart {
+						OperState = "UP"
+					} else {
+						OperState = "DOWN"
+					}
+
+					nextVxlanVtepState.PerDstIpState = append(nextVxlanVtepState.PerDstIpState, &vxland.VtepStateEntry{
+						SubVtepName:        v2.VtepName,
+						DstIp:              v2.DstIp.String(),
+						RxSwPkts:           int64(v2.GetStats().Rxpkts),
+						RxSwBytes:          int64(v2.GetStats().Rxbytes),
+						RxSwDropPkts:       int64(v2.GetStats().Rxdroppkts),
+						RxSwDropBytes:      int64(v2.GetStats().Rxdropbytes),
+						RxSwFwdPkts:        int64(v2.GetStats().Rxfwdpkts),
+						RxSwFwdBytes:       int64(v2.GetStats().Rxfwdbytes),
+						TxSwPkts:           int64(v2.GetStats().Txpkts),
+						TxSwBytes:          int64(v2.GetStats().Txbytes),
+						TxSwDropPkts:       int64(v2.GetStats().Txdroppkts),
+						TxSwDropBytes:      int64(v2.GetStats().Txdropbytes),
+						TxSwFwdPkts:        int64(v2.GetStats().Txfwdpkts),
+						TxSwFwdBytes:       int64(v2.GetStats().Txfwdbytes),
+						LastSwRxDropReason: v2.GetStats().Lastrxdropreason,
+						LastSwTxDropReason: v2.GetStats().Lasttxdropreason,
+						//vis.RxFwdPkts             uint64 `DESCRIPTION: Rx Forwaded Packets`
+						//vis.RxDropPkts            uint64 `DESCRIPTION: Rx Dropped Packets`
+						//vis.RxUnknownVni          uint64 `DESCRIPTION: Rx Unknown Vni in frame`
+						VtepFsmState:     vxlan.VxlanVtepStateStrMap[v2.VxlanVtepMachineFsm.Machine.Curr.CurrentState()],
+						VtepFsmPrevState: vxlan.VxlanVtepStateStrMap[v2.VxlanVtepMachineFsm.Machine.Curr.PreviousState()],
+						OperState:        OperState,
+					})
+				}
+			}
 			if len(returnVxlanVtepStates) == 0 {
 				returnVxlanVtepStates = make([]*vxland.VxlanVtepInstanceState, 0)
 			}
@@ -619,7 +702,7 @@ func (v *VXLANDServiceHandler) ReadConfigFromDB(prevState int) error {
 			return err
 		}
 		vxlan.VxlanGlobalStateSet(vxlan.VXLAN_GLOBAL_DISABLE)
-	} else if prevState == vxlan.VXLAN_GLOBAL_DISABLE &&
+	} else if prevState != vxlan.VXLAN_GLOBAL_ENABLE &&
 		currState == vxlan.VXLAN_GLOBAL_ENABLE {
 
 		if err := v.HandleDbReadVxlanInstance(dbHdl, false); err != nil {

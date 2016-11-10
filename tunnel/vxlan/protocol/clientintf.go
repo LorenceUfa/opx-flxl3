@@ -10,6 +10,11 @@ const (
 	VXLANMockClientStr = "SnapMockTestClient"
 )
 
+type VtepCreateCfgData struct {
+	VtepName string
+	IfIndex  int32
+}
+
 type PortEvtCb func(ifindex int32)
 
 // interface class is used to store the communication methods
@@ -33,7 +38,10 @@ type VXLANClientIntf interface {
 	//DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string)
 	// vtep fsm
 	GetIntfInfo(name string, intfchan chan<- MachineEvent)
-	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent)
+	GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) bool
+	UnRegisterReachability(ip net.IP)
+	RegisterReachability(ip net.IP)
+	UnresolveNextHopMac(nextHopIp net.IP, nexthopif string)
 	ResolveNextHopMac(nextHopIp net.IP, nexthopif string, nexthopmacchan chan<- MachineEvent)
 
 	GetLinkState(ifname string) string
@@ -91,10 +99,19 @@ func (b BaseClientIntf) CreateVxlanAccess() {
 func (b BaseClientIntf) DeleteVxlanAccess() {
 
 }
-func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) {
+func (b BaseClientIntf) GetNextHopInfo(ip net.IP, nexthopchan chan<- MachineEvent) bool {
+	return true
+}
+func (b BaseClientIntf) UnRegisterReachability(ip net.IP) {
+
+}
+func (b BaseClientIntf) RegisterReachability(ip net.IP) {
 
 }
 func (b BaseClientIntf) ResolveNextHopMac(nextHopIp net.IP, nextHopIfName string, nexthopmacchan chan<- MachineEvent) {
+
+}
+func (b BaseClientIntf) UnresolveNextHopMac(nextHopIp net.IP, nexthopif string) {
 
 }
 func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist []string) {
@@ -103,7 +120,6 @@ func (b BaseClientIntf) AddHostToVxlan(vni int32, intfreflist, untagintfreflist 
 func (b BaseClientIntf) DelHostFromVxlan(vni int32, intfreflist, untagintfreflist []string) {
 
 }
-
 func (b BaseClientIntf) GetAllVlans() []uint16 {
 	return []uint16{}
 }

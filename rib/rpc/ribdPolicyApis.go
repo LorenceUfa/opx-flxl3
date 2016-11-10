@@ -89,6 +89,7 @@ func (m RIBDServicesHandler) GetPolicyStmtState(name string) (*ribd.PolicyStmtSt
 func (m RIBDServicesHandler) GetBulkPolicyStmtState(fromIndex ribd.Int, rcount ribd.Int) (policyStmts *ribd.PolicyStmtStateGetInfo, err error) { //(routes []*ribd.Routes, err error) {
 	logger.Debug(fmt.Sprintln("GetBulkPolicyStmtState"))
 	policyStmts, err = m.server.GetBulkPolicyStmtState(fromIndex, rcount, m.server.GlobalPolicyEngineDB)
+	logger.Debug("all policy stmts fetched in rpc/getbulkpolicystmtstate")
 	return policyStmts, err
 }
 
