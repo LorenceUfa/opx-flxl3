@@ -107,12 +107,14 @@ type ARPServer struct {
 	arpActionProcessCh      chan ArpActionMsg
 	ResolveIPv4Ch           chan ResolveIPv4
 	DeleteResolvedIPv4Ch    chan DeleteResolvedIPv4
+	DeleteArpEntryCh        chan *DeleteArpEntry
 	ArpConfCh               chan ArpConf
 	dumpArpTable            bool
 	InitDone                chan bool
 
 	ArpActionCh                chan ArpActionMsg
 	arpDeleteArpEntryFromRibCh chan string
+	arpDeleteArpEntryIntCh     chan string
 
 	AsicdPlugin asicdClient.AsicdClientIntf
 }
@@ -135,8 +137,10 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.arpCounterUpdateCh = make(chan bool)
 	arpServer.arpActionProcessCh = make(chan ArpActionMsg)
 	arpServer.arpDeleteArpEntryFromRibCh = make(chan string)
+	arpServer.arpDeleteArpEntryIntCh = make(chan string)
 	arpServer.ResolveIPv4Ch = make(chan ResolveIPv4)
 	arpServer.DeleteResolvedIPv4Ch = make(chan DeleteResolvedIPv4)
+	arpServer.DeleteArpEntryCh = make(chan *DeleteArpEntry)
 	arpServer.ArpConfCh = make(chan ArpConf)
 	arpServer.InitDone = make(chan bool)
 	arpServer.ArpActionCh = make(chan ArpActionMsg)
@@ -243,6 +247,10 @@ func (server *ARPServer) StartServer(asicdPlugin asicdClient.AsicdClientIntf) {
 			server.processResolveIPv4(rConf)
 		case rConf := <-server.DeleteResolvedIPv4Ch:
 			server.processDeleteResolvedIPv4(rConf.IpAddr)
+		case arpEntryInfo, ok := <-server.DeleteArpEntryCh:
+			if ok {
+				server.processDeleteArpEntryInt(arpEntryInfo)
+			}
 		case arpActionMsg := <-server.ArpActionCh:
 			server.processArpAction(arpActionMsg)
 		case msg := <-server.AsicdSubSocketCh:

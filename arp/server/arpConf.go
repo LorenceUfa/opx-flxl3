@@ -68,3 +68,8 @@ func (server *ARPServer) processArpAction(msg ArpActionMsg) {
 	server.logger.Info("Processing Arp Action msg", msg)
 	server.arpActionProcessCh <- msg
 }
+
+func (server *ARPServer) processDeleteArpEntryInt(entry *DeleteArpEntry) {
+	server.logger.Info("Delete arp for ipAddr:", entry.IpAddr, "received from protocol running on flexswitch")
+	server.arpDeleteArpEntryIntCh <- entry.IpAddr
+}

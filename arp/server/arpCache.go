@@ -55,6 +55,10 @@ type DeleteResolvedIPv4 struct {
 	IpAddr string
 }
 
+type DeleteArpEntry struct {
+	IpAddr string
+}
+
 type EventData struct {
 	IpAddr  string
 	MacAddr string
@@ -101,8 +105,39 @@ func (server *ARPServer) updateArpCache() {
 			server.processArpEntryDeleteMsgFromRib(msg)
 		case msg := <-server.arpActionProcessCh:
 			server.processArpActionMsg(msg)
+		case msg, ok := <-server.arpDeleteArpEntryIntCh:
+			if ok {
+				server.processArpEntryDeleteInt(msg)
+			}
 		}
 	}
+}
+
+func (server *ARPServer) processArpEntryDeleteInt(ipAddr string) {
+	arpEnt, exists := server.arpCache[ipAddr]
+	if !exists {
+		server.logger.Err("Cannot perform arp delete action as no arp entry found for ipAddr:", ipAddr)
+		return
+	}
+	if arpEnt.Type {
+		server.logger.Debug("Arp Entry for ipAddr:", ipAddr, "was installed by RIB, hence cannot be deleted")
+		return
+	}
+
+	if arpEnt.MacAddr != "incomplete" {
+		server.logger.Debug("4 Calling Asicd Delete Ip:", ipAddr)
+		asicdMsg := AsicdMsg{
+			MsgType: DeleteAsicdEntry,
+			IpAddr:  ipAddr,
+		}
+		err := server.processAsicdMsg(asicdMsg)
+		if err != nil {
+			return
+		}
+	}
+
+	delete(server.arpCache, ipAddr)
+	server.deleteLinuxArp(ipAddr)
 }
 
 func (server *ARPServer) processArpEntryDeleteMsgFromRib(ipAddr string) {
