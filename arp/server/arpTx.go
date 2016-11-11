@@ -208,3 +208,61 @@ func (server *ARPServer) SendArpProbe(l3IfIdx int) {
 	}
 	return
 }
+
+func (server *ARPServer) SendGarp(ifName, macAddr, ipAddr string) {
+	server.logger.Info("Sending garp for:", ifName, macAddr, ipAddr)
+	// src mac
+	myMacAddr := getHWAddr(macAddr)
+	if myMacAddr == nil {
+		server.logger.Err("corrupted my mac : ", macAddr)
+		return
+	}
+	// src ip
+	srcIpAddr := getIP(ipAddr)
+	if srcIpAddr == nil {
+		server.logger.Err("Corrupted source ip :  ", ipAddr)
+		return
+	}
+	// broadcast mac
+	bMac := getHWAddr("ff:ff:ff:ff:ff:ff")
+	if myMacAddr == nil {
+		server.logger.Err("corrupted my mac : ff:ff:ff:ff:ff:ff")
+		return
+	}
+
+	pcapHdl, err := pcap.OpenLive(ifName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
+	if pcapHdl == nil {
+		server.logger.Err("Unable to open pcap handle on:", ifName, "error:", err)
+		return
+	}
+	defer pcapHdl.Close()
+
+	arp_layer := layers.ARP{
+		AddrType:          layers.LinkTypeEthernet,
+		Protocol:          layers.EthernetTypeIPv4,
+		HwAddressSize:     6,
+		ProtAddressSize:   4,
+		Operation:         layers.ARPRequest,
+		SourceHwAddress:   myMacAddr,
+		SourceProtAddress: srcIpAddr,
+		DstProtAddress:    srcIpAddr,
+		DstHwAddress:      bMac,
+	}
+
+	eth_layer := layers.Ethernet{
+		SrcMAC:       myMacAddr,
+		DstMAC:       bMac,
+		EthernetType: layers.EthernetTypeARP,
+	}
+	buffer := gopacket.NewSerializeBuffer()
+	options := gopacket.SerializeOptions{
+		FixLengths:       true,
+		ComputeChecksums: true,
+	}
+	gopacket.SerializeLayers(buffer, options, &eth_layer, &arp_layer)
+
+	// send arp request and retry after timeout if arp cache is not updated
+	if err := pcapHdl.WritePacketData(buffer.Bytes()); err != nil {
+		server.logger.Err("Error writing data to packet buffer for port:", err)
+	}
+}
