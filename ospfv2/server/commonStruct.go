@@ -132,14 +132,69 @@ type NbrToIntfFSMChStruct struct {
 	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
 }
 
-type LsdbCtrlChStruct struct {
-	LsdbCtrlCh      chan bool
-	LsdbCtrlReplyCh chan bool
+type LsaUpdateMsg struct {
+	IntfKey IntfConfKey
+	NbrKey  NbrConfKey
+	LsaType uint8
+	LsaData interface{}
+}
+
+const (
+	GENERATE uint8 = 0
+	FLUSH    uint8 = 1
+)
+
+type UpdateSelfNetworkLSAMsg struct {
+	Op      uint8
+	IntfKey IntfConfKey
+	NbrList []uint32
+}
+
+type NbrFSMToLsdbChStruct struct {
+	LsaUpdateCh            chan LsaUpdateMsg
+	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
+}
+
+type LsaUpdateStatusMsg struct {
+	LsaUpdateMsg LsaUpdateMsg
+	Status       bool
+}
+
+type LsdbToNbrFSMChStruct struct {
+	LsaUpdateStatusCh chan LsaUpdateStatusMsg
+}
+
+const (
+	FLOOD_TO_ALL_NBR              uint8 = 0
+	FLOOD_TO_ALL_NBR_EXCEPT_GIVEN uint8 = 1
+	//FLOOD_TO_GIVEN_NBR            uint8 = 2 //This is only for self orig
+)
+
+type LsdbToFloodingMsg struct {
+	FloodType    uint8
+	LsaUpdateMsg LsaUpdateMsg
+}
+
+type LsdbToFloodingChStruct struct {
+	LsdbToFloodingCh      chan LsdbToFloodingMsg
+	LsdbToFloodForAgedLSA chan bool
+}
+
+type LsdbToSPFChStruct struct {
+	StartSPF chan bool
+}
+
+type SPFToLsdbChStruct struct {
+	DoneSPF chan bool
 }
 
 type MessagingChStruct struct {
-	IntfToNbrFSMChData  IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
-	LsdbCtrlChData      LsdbCtrlChStruct
-	NbrToIntfFSMChData  NbrToIntfFSMChStruct
+	IntfToNbrFSMChData   IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData  IntfFSMToLsdbChStruct
+	NbrToIntfFSMChData   NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData   NbrFSMToLsdbChStruct
+	LsdbToNbrFSMChData   LsdbToNbrFSMChStruct
+	LsdbToFloodingChData LsdbToFloodingChStruct
+	LsdbToSPFChData      LsdbToSPFChStruct
+	SPFToLsdbChData      SPFToLsdbChStruct
 }
