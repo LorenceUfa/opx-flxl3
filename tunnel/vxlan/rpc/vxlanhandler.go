@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	vxlan "l3/tunnel/vxlan/protocol"
+	"l3/tunnel/vxlan/server"
 	"models/objects"
 	"reflect"
 	"utils/dbutils"
@@ -48,8 +49,9 @@ type ClientJson struct {
 }
 
 type VXLANDServiceHandler struct {
-	server *vxlan.VXLANServer
-	logger *logging.Writer
+	server       *server.VXLANServer
+	logger       *logging.Writer
+	Thriftserver *thrift.TSimpleServer
 }
 
 // look up the various other daemons based on c string
@@ -74,7 +76,7 @@ func GetClientPort(paramsFile string, c string) int {
 	return 0
 }
 
-func NewVXLANDServiceHandler(server *vxlan.VXLANServer, logger *logging.Writer) *VXLANDServiceHandler {
+func NewVXLANDServiceHandler(server *server.VXLANServer, logger *logging.Writer) *VXLANDServiceHandler {
 	//lacp.LacpStartTime = time.Now()
 	// link up/down events for now
 	//startEvtHandler()
@@ -83,14 +85,12 @@ func NewVXLANDServiceHandler(server *vxlan.VXLANServer, logger *logging.Writer) 
 		logger: logger,
 	}
 
-	prevState := vxlan.VxlanGlobalStateGet()
-	// lets read the current config and re-play the config
-	go handler.ReadConfigFromDB(prevState)
+	handler.CreateThriftServer()
 
 	return handler
 }
 
-func (v *VXLANDServiceHandler) StartThriftServer() {
+func (v *VXLANDServiceHandler) CreateThriftServer() {
 
 	var transport thrift.TServerTransport
 	var err error
@@ -107,12 +107,26 @@ func (v *VXLANDServiceHandler) StartThriftServer() {
 		processor := vxland.NewVXLANDServicesProcessor(v)
 		transportFactory := thrift.NewTBufferedTransportFactory(8192)
 		protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
-		thriftserver := thrift.NewTSimpleServer4(processor, transport, transportFactory, protocolFactory)
-
-		err = thriftserver.Serve()
-		panic(err)
+		v.Thriftserver = thrift.NewTSimpleServer4(processor, transport, transportFactory, protocolFactory)
 	}
-	panic(errors.New("Unable to find vxland port"))
+}
+
+// StopThriftServer for purposes of stopping vxlan config from coming from confd
+func (v *VXLANDServiceHandler) StopCfgServerLoop() {
+	if v.Thriftserver != nil {
+		err := v.Thriftserver.Stop()
+		v.logger.Info("Stopping Cfg Server loop", err)
+
+	}
+}
+
+// Enable listening of server config
+func (v *VXLANDServiceHandler) StartCfgServerLoop() {
+	if v.Thriftserver != nil {
+		v.logger.Info("Starting Cfg Server loop")
+		err := v.Thriftserver.Serve()
+		v.logger.Info("Cfg Server loop stopped", err)
+	}
 }
 
 func (v *VXLANDServiceHandler) CreateVxlanGlobal(config *vxland.VxlanGlobal) (rv bool, err error) {

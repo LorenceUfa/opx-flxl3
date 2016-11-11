@@ -201,6 +201,11 @@ func (m *VxlanVtepMachine) Apply(r *fsm.Ruleset) *fsm.Machine {
 
 func (vm *VxlanVtepMachine) BEGIN() {
 
+	vtep := vm.vtep
+	// restart the timer on deprovisioning as we will retry each of the
+	// state transitions again
+	vtep.retrytimer.Reset(retrytime)
+
 	vm.VxlanVtepEvents <- MachineEvent{
 		E:   VxlanVtepEventBegin,
 		Src: VxlanVtepMachineModuleStr,
