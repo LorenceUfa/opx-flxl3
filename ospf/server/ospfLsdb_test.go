@@ -51,7 +51,7 @@ func initLsdbTestParams() {
 	go startDummyChannels(ospf)
 }
 
-func TestOspfLsdb(t *testing.T) {
+func _TestOspfLsdb(t *testing.T) {
 	fmt.Println("\n**************** LSDB ************\n")
 	initLsdbTestParams()
 	for index := 1; index < 21; index++ {
