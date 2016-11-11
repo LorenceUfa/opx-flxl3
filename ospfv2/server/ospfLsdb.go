@@ -30,9 +30,15 @@ import (
 func (server *OSPFV2Server) initLsdbData() {
 	server.LsdbData.AreaLsdb = make(map[LsdbKey]LSDatabase)
 	server.LsdbData.AreaSelfOrigLsa = make(map[LsdbKey]SelfOrigLsa)
+	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
+	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
+	server.LsdbData.AgedLsaData.AgedLsaMap = make(map[AgedLsaKey]bool)
 }
 
 func (server *OSPFV2Server) dinitLsdb() {
+	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = nil
+	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = nil
+	server.LsdbData.AgedLsaData.AgedLsaMap = nil
 	for lsdbKey, _ := range server.LsdbData.AreaLsdb {
 		delete(server.LsdbData.AreaLsdb, lsdbKey)
 	}
@@ -89,11 +95,11 @@ func (server *OSPFV2Server) StartLsdbRoutine() {
 }
 
 func (server *OSPFV2Server) StopLsdbRoutine() {
-	server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh <- true
+	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh <- true
 	cnt := 0
 	for {
 		select {
-		case _ = <-server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh:
+		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh:
 			server.logger.Info("Successfully Stopped ProcessLsdb routine")
 			server.dinitLsdb()
 			return
@@ -111,9 +117,9 @@ func (server *OSPFV2Server) StopLsdbRoutine() {
 func (server *OSPFV2Server) ProcessLsdb() {
 	for {
 		select {
-		case _ = <-server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh:
+		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbCtrlCh:
 			server.logger.Info("Stopping ProcessLsdb routine")
-			server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh <- true
+			server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh <- true
 			return
 		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:
 			server.logger.Info("Generate self originated Router LSA", msg)
