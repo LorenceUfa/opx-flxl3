@@ -21,59 +21,27 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package main
+package flexswitch
 
 import (
-	"fmt"
-	"l3/vrrp/api"
-	"l3/vrrp/debug"
-	"l3/vrrp/flexswitch"
-	"l3/vrrp/server"
+	"l3/arp/clientMgr"
+	"l3/arp/clientMgr/flexswitch"
+	"sync"
 	"utils/commonDefs"
-	"utils/dmnBase"
 )
 
-func main() {
-	plugin := ""
+// this is for notification messages
+var arpClientInst *flexswitch.ArpdClientStruct = nil
+var arpOnce sync.Once
 
-	switch plugin {
+func GetArpInst() *flexswitch.ArpdClientStruct {
+	arpOnce.Do(func() {
+		arpClientInst = &flexswitch.ArpdClientStruct{}
+	})
+	return arpClientInst
+}
 
-	case "OvsDB":
-
-	default:
-		vrrpBase := dmnBase.NewBaseDmn("vrrpd", "VRRP")
-		status := vrrpBase.Init()
-		if status == false {
-			fmt.Println("Failed init basedmn for VRRP")
-			return
-		}
-		debug.SetLogger(vrrpBase.Logger)
-
-		asicdHdl := flexswitch.GetSwitchInst()
-		asicdHdl.Logger = vrrpBase.Logger
-
-		arpHdl := flexswitch.GetArpInst()
-
-		debug.Logger.Info("Initializing switch plugin")
-		switchPlugin := vrrpBase.InitSwitch("Flexswitch", "vrrpd", "VRRP", *asicdHdl)
-
-		debug.Logger.Info("Initializing arp client")
-		arpClient := flexswitch.InitArpInst(commonDefs.FLEXSWITCH_PLUGIN, vrrpBase.ParamsDir+"clients.json", vrrpBase.ClientsList, *arpHdl)
-
-		debug.Logger.Info("Creating Config Plugin")
-		cfgPlugin := flexswitch.NewConfigPlugin(flexswitch.NewConfigHandler(), vrrpBase.ParamsDir, switchPlugin)
-
-		vrrpSvr := server.VrrpNewServer(switchPlugin, arpClient, vrrpBase)
-
-		api.Init(vrrpSvr)
-		debug.Logger.Info("Starting VRRP Server")
-
-		vrrpSvr.VrrpStartServer()
-
-		vrrpBase.StartKeepAlive()
-
-		debug.Logger.Info("Starting Config Listener for FlexSwitch Plugin")
-
-		cfgPlugin.StartConfigListener()
-	}
+// this is initializing the NBMgr for arp client
+func InitArpInst(plugin, paramsDir string, clntList []commonDefs.ClientJson, arpHdl flexswitch.ArpdClientStruct) arpClient.ArpdClientIntf {
+	return arpClient.NewArpdClient(plugin, paramsDir, clntList, arpHdl)
 }

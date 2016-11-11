@@ -29,43 +29,17 @@ import (
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
+	"net"
 	"syscall"
 	"utils/netUtils"
 )
 
 func (svr *VrrpServer) GetPorts() {
-	/*
-		debug.Logger.Info("Get Port State List")
-		portsInfo, err := svr.SwitchPlugin.GetAllPortState()
-		if err != nil {
-			debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
-			return
-		}
-		for _, obj := range portsInfo {
-			var empty struct{}
-			port := config.PhyPort{
-				IntfRef:   obj.IntfRef,
-				IfIndex:   obj.IfIndex,
-				OperState: obj.OperState,
-			}
-			pObj, err := svr.SwitchPlugin.GetPort(obj.IntfRef)
-			if err != nil {
-				debug.Logger.Err("Getting mac address for", obj.IntfRef, "failed, error:", err)
-			} else {
-				port.MacAddr = pObj.MacAddr
-			}
-			l2Port := svr.L2Port[port.IfIndex]
-			l2Port.Info = port
-			svr.L2Port[port.IfIndex] = l2Port
-		}
-
-		debug.Logger.Info("Done with Port State list")
-	*/
 	return
 }
 
 func (svr *VrrpServer) GetVlans() {
-
+	return
 }
 
 func (svr *VrrpServer) getIPv4Intfs() {
@@ -239,6 +213,13 @@ func (svr *VrrpServer) CreateVirtualIntf(cfg *config.IntfCfg, vMac string) {
 func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
 	switch virtualIpInfo.Version {
 	case config.VERSION2:
+		if virtualIpInfo.Enable {
+			// Call arp to delete the nextHop Entry
+			ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
+			ip = ip.To4()
+			debug.Logger.Info("Calling Arp to delete nexthop entry:", ip.String())
+			svr.ArpClient.DeleteArpEntry(ip.String())
+		}
 		svr.SwitchPlugin.UpdateVirtualIPv4Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
 	case config.VERSION3:
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)

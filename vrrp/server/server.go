@@ -24,6 +24,7 @@
 package server
 
 import (
+	"l3/arp/clientMgr"
 	"l3/vrrp/config"
 	"l3/vrrp/debug"
 	"os"
@@ -36,6 +37,7 @@ import (
 type VrrpServer struct {
 	// All System Related Information
 	SwitchPlugin       asicdClient.AsicdClientIntf
+	ArpClient          arpClient.ArpdClientIntf
 	dmnBase            *dmnBase.FSBaseDmn
 	GlobalConfig       *config.GlobalConfig
 	V4                 map[int32]*V4Intf
@@ -143,10 +145,11 @@ func (svr *VrrpServer) VrrpStartServer() {
 	go svr.EventListener()
 }
 
-func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
+func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, arpClient arpClient.ArpdClientIntf, dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
 	vrrpServer := &VrrpServer{}
 	vrrpServer.SwitchPlugin = sPlugin
 	vrrpServer.dmnBase = dmnBase
+	vrrpServer.ArpClient = arpClient
 	/*
 			svr := &VrrpServer{}
 			svr.SwitchPlugin = sPlugin
