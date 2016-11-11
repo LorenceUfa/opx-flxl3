@@ -73,3 +73,7 @@ func (server *ARPServer) processDeleteArpEntryInt(entry *DeleteArpEntry) {
 	server.logger.Info("Delete arp for ipAddr:", entry.IpAddr, "received from protocol running on flexswitch")
 	server.arpDeleteArpEntryIntCh <- entry.IpAddr
 }
+
+func (server *ARPServer) processGarp(info *GarpEntry) {
+	server.SendGarp(info.IfName, info.MacAddr, info.IpAddr)
+}

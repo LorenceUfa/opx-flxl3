@@ -213,14 +213,21 @@ func (svr *VrrpServer) CreateVirtualIntf(cfg *config.IntfCfg, vMac string) {
 func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
 	switch virtualIpInfo.Version {
 	case config.VERSION2:
+		ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
+		ip = ip.To4()
 		if virtualIpInfo.Enable {
 			// Call arp to delete the nextHop Entry
-			ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
-			ip = ip.To4()
 			debug.Logger.Info("Calling Arp to delete nexthop entry:", ip.String())
 			svr.ArpClient.DeleteArpEntry(ip.String())
 		}
-		svr.SwitchPlugin.UpdateVirtualIPv4Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
+		err := svr.SwitchPlugin.UpdateVirtualIPv4Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
+		if err != nil {
+			debug.Logger.Err("Failed to update virtual ip in asicd")
+		}
+		if virtualIpInfo.Enable {
+			debug.Logger.Info("Requesting arp to send out garp for:", virtualIpInfo.IntfRef, virtualIpInfo.MacAddr, ip.String())
+			svr.ArpClient.SendGarp(virtualIpInfo.IntfRef, virtualIpInfo.MacAddr, ip.String())
+		}
 	case config.VERSION3:
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
 	}

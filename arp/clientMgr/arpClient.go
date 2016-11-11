@@ -32,6 +32,7 @@ type ArpdClientIntf interface {
 	ResolveArpIPV4(destNetIp string, vlanid int32) (err error)
 	DeleteResolveArpIPv4(NbrIP string) (err error)
 	DeleteArpEntry(ipAddr string) (err error)
+	SendGarp(ifName string, macAddr string, ipAddr string) (err error)
 }
 
 func NewArpdClient(plugin, paramsFile string, clntList []commonDefs.ClientJson, arpHdl flexswitch.ArpdClientStruct) ArpdClientIntf {

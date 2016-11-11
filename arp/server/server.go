@@ -69,6 +69,12 @@ type ArpConf struct {
 	RefTimeout int
 }
 
+type GarpEntry struct {
+	IfName  string
+	MacAddr string
+	IpAddr  string
+}
+
 type ARPServer struct {
 	logger                  *logging.Writer
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
@@ -108,6 +114,7 @@ type ARPServer struct {
 	ResolveIPv4Ch           chan ResolveIPv4
 	DeleteResolvedIPv4Ch    chan DeleteResolvedIPv4
 	DeleteArpEntryCh        chan *DeleteArpEntry
+	GarpEntryCh             chan *GarpEntry
 	ArpConfCh               chan ArpConf
 	dumpArpTable            bool
 	InitDone                chan bool
@@ -141,6 +148,7 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.ResolveIPv4Ch = make(chan ResolveIPv4)
 	arpServer.DeleteResolvedIPv4Ch = make(chan DeleteResolvedIPv4)
 	arpServer.DeleteArpEntryCh = make(chan *DeleteArpEntry)
+	arpServer.GarpEntryCh = make(chan *GarpEntry)
 	arpServer.ArpConfCh = make(chan ArpConf)
 	arpServer.InitDone = make(chan bool)
 	arpServer.ArpActionCh = make(chan ArpActionMsg)
@@ -250,6 +258,10 @@ func (server *ARPServer) StartServer(asicdPlugin asicdClient.AsicdClientIntf) {
 		case arpEntryInfo, ok := <-server.DeleteArpEntryCh:
 			if ok {
 				server.processDeleteArpEntryInt(arpEntryInfo)
+			}
+		case garpInfo, ok := <-server.GarpEntryCh:
+			if ok {
+				server.processGarp(garpInfo)
 			}
 		case arpActionMsg := <-server.ArpActionCh:
 			server.processArpAction(arpActionMsg)

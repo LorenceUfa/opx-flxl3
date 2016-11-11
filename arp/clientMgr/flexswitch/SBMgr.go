@@ -85,3 +85,7 @@ func (p *FSArpdClientMgr) DeleteResolveArpIPv4(NbrIP string) (err error) {
 func (p *FSArpdClientMgr) DeleteArpEntry(ipAddr string) (err error) {
 	return p.ClientHandle.DeleteArpEntry(ipAddr)
 }
+
+func (p *FSArpdClientMgr) SendGarp(ifName, macAddr, ipAddr string) (err error) {
+	return p.ClientHandle.SendGarp(ifName, macAddr, ipAddr)
+}

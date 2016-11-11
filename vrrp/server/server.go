@@ -64,8 +64,6 @@ type KeyInfo struct {
 	Version uint8
 }
 
-var vrrpServer *VrrpServer
-
 func (svr *VrrpServer) EventListener() {
 	// Start receviing in rpc values in the channell
 	for {
@@ -150,12 +148,6 @@ func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, arpClient arpClient.Arpd
 	vrrpServer.SwitchPlugin = sPlugin
 	vrrpServer.dmnBase = dmnBase
 	vrrpServer.ArpClient = arpClient
-	/*
-			svr := &VrrpServer{}
-			svr.SwitchPlugin = sPlugin
-			svr.dmnBase = dmnBase
-		return svr
-	*/
 	return vrrpServer
 }
 
