@@ -122,8 +122,6 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.IntfToNbrFSMChData.DeleteNbrCh = make(chan DeleteNbrMsg)
 	server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
 	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
-	server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
-	server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
 	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap = make(map[IntfConfKey]chan NbrDownMsg)
 }
 

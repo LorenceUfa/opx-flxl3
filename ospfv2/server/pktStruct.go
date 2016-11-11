@@ -98,6 +98,17 @@ func NewOspfHdrMetadata() *OspfHdrMetadata {
 	return &OspfHdrMetadata{}
 }
 
+type OspfPktStruct struct {
+	Data      []byte
+	EthHdrMd  *EthHdrMetadata
+	IpHdrMd   *IpHdrMetadata
+	OspfHdrMd *OspfHdrMetadata
+}
+
+func NewOspfPktStruct() *OspfPktStruct {
+	return &OspfPktStruct{}
+}
+
 type OSPFHelloData struct {
 	Netmask         uint32
 	HelloInterval   uint16
