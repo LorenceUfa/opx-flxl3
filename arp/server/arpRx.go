@@ -37,15 +37,7 @@ const (
 	CLOSE_FILTER = "))"
 )
 
-//var macList = []string{"00:00:5e:00:01:01"}
-
 func (server *ARPServer) StartArpRxTx(ifName string, macAddr string, filter string) (*pcap.Handle, error) {
-	/*
-		for _, value := range macList {
-			fmt.Println(value)
-			filter = fmt.Sprintf("%s%s%s", filter, OR_ETHER_SRC, value)
-		}
-	*/
 	filter = filter + CLOSE_FILTER
 	server.logger.Debug("Port: ", ifName, "Pcap filter:", filter)
 	pcapHdl, err := pcap.OpenLive(ifName, server.snapshotLen, server.promiscuous, server.pcapTimeout)

@@ -264,5 +264,7 @@ func (server *ARPServer) SendGarp(ifName, macAddr, ipAddr string) {
 	// send arp request and retry after timeout if arp cache is not updated
 	if err := pcapHdl.WritePacketData(buffer.Bytes()); err != nil {
 		server.logger.Err("Error writing data to packet buffer for port:", err)
+		return
 	}
+	server.logger.Info("GARP send out successfully for:", ifName, macAddr, ipAddr)
 }

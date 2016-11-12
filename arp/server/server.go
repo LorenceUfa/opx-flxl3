@@ -98,10 +98,11 @@ type ARPServer struct {
 	arpSliceRefreshTimer    *time.Timer
 	arpSliceRefreshDuration time.Duration
 	usrConfDbName           string
-	l3IntfPropMap           map[int]L3IntfProperty //Key: IfIndex
-	portPropMap             map[int]PortProperty   //Key: IfIndex
-	vlanPropMap             map[int]VlanProperty   //Key: IfIndex
-	lagPropMap              map[int]LagProperty    //Key: IfIndex
+	l3IntfPropMap           map[int]L3IntfProperty        //Key: IfIndex
+	portPropMap             map[int]PortProperty          //Key: IfIndex
+	vlanPropMap             map[int]VlanProperty          //Key: IfIndex
+	lagPropMap              map[int]LagProperty           //Key: IfIndex
+	virtualIntfPropMap      map[int32]VirtualIntfProperty //key: IfIndex
 	arpSlice                []string
 	arpEntryUpdateCh        chan UpdateArpEntryMsg
 	arpEntryDeleteCh        chan DeleteArpEntryMsg
@@ -135,6 +136,7 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.lagPropMap = make(map[int]LagProperty)
 	arpServer.vlanPropMap = make(map[int]VlanProperty)
 	arpServer.portPropMap = make(map[int]PortProperty)
+	arpServer.virtualIntfPropMap = make(map[int32]VirtualIntfProperty)
 	arpServer.arpSlice = make([]string, 0)
 	arpServer.arpEntryUpdateCh = make(chan UpdateArpEntryMsg)
 	arpServer.arpEntryDeleteCh = make(chan DeleteArpEntryMsg)
