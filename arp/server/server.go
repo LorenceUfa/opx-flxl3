@@ -101,7 +101,7 @@ type ARPServer struct {
 	l3IntfPropMap           map[int]L3IntfProperty //Key: IfIndex
 	portPropMap             map[int]PortProperty   //Key: IfIndex
 	vlanPropMap             map[int]VlanProperty   //Key: IfIndex
-	lagPropMap              map[int]LagProperty    //Key:IfIndex
+	lagPropMap              map[int]LagProperty    //Key: IfIndex
 	arpSlice                []string
 	arpEntryUpdateCh        chan UpdateArpEntryMsg
 	arpEntryDeleteCh        chan DeleteArpEntryMsg

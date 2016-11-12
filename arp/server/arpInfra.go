@@ -25,6 +25,7 @@ package server
 
 import (
 	"asicd/asicdCommonDefs"
+	"fmt"
 	"github.com/google/gopacket/pcap"
 	"net"
 	"utils/commonDefs"
@@ -75,6 +76,7 @@ type PortProperty struct {
 	CtrlCh        chan bool
 	CtrlReplyCh   chan bool
 	PcapHdl       *pcap.Handle
+	baseFilter    string
 	OperState     bool
 }
 
@@ -108,6 +110,8 @@ func (server *ARPServer) constructPortInfra() {
 	server.getBulkPortState()
 	server.getBulkPortConfig()
 	for portIfIdx, portEnt := range server.portPropMap {
+		portEnt.baseFilter = server.constructBaseFilter(portEnt.MacAddr)
+		server.portPropMap[portIfIdx] = portEnt
 		if portEnt.OperState == true {
 			server.EnableRxOnPort(portIfIdx)
 		}
@@ -590,12 +594,16 @@ func (server *ARPServer) DisableRxOnPort(portIfIdx int) {
 	server.portPropMap[portIfIdx] = portEnt
 }
 
+func (server *ARPServer) constructBaseFilter(macAddr string) string {
+	return fmt.Sprintf("(not ether proto 0x8809 and not (ether src %s", macAddr)
+}
+
 func (server *ARPServer) EnableRxOnPort(portIfIdx int) {
 	var err error
 	portEnt := server.portPropMap[portIfIdx]
 	if portEnt.OperState == true {
 		if portEnt.PcapHdl == nil {
-			portEnt.PcapHdl, err = server.StartArpRxTx(portEnt.IfName, portEnt.MacAddr)
+			portEnt.PcapHdl, err = server.StartArpRxTx(portEnt.IfName, portEnt.MacAddr, portEnt.baseFilter)
 			if err != nil {
 				server.logger.Err("Error opening pcap handle on", portEnt.IfName, err)
 				return
