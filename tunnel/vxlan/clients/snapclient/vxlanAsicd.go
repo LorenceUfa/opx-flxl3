@@ -50,6 +50,7 @@ func ConvertVtepToVxlanAsicdConfig(vtep *vxlan.VtepDbEntry) *asicdInt.Vtep {
 		SrcIfName:      vtep.SrcIfName,
 		UDP:            int16(vtep.UDP),
 		TTL:            int16(vtep.TTL),
+		DSCP:           int16(vtep.TOS),
 		MTU:            int32(vtep.MTU),
 		SrcIp:          vtep.SrcIp.String(),
 		DstIp:          vtep.DstIp.String(),
@@ -82,6 +83,7 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 			}
 
 			objCount := int(bulkInfo.Count)
+			logger.Info("Creating Ports objcnt", objCount)
 			more := bool(bulkInfo.More)
 			currMarker = asicdServices.Int(bulkInfo.EndIdx)
 			for i := 0; i < objCount; i++ {
@@ -98,7 +100,10 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 					HardwareAddr: netMac,
 				}
 				logger.Info("Creating Port", config)
-				serverchannels.VxlanPortCreate <- config
+				go func() {
+					serverchannels.VxlanPortCreate <- config
+				}()
+				logger.Info("Creating Port done")
 			}
 			if more == false {
 				intf.thriftmutex.Unlock()
@@ -107,6 +112,16 @@ func (intf VXLANSnapClient) ConstructPortConfigMap() {
 		}
 		intf.thriftmutex.Unlock()
 	}
+}
+
+func (intf VXLANSnapClient) deleteASICdSubscriber() error {
+	logger.Info(fmt.Sprintf("Disconnecting from ASICd publisher"))
+	if intf.asicdSubSocket != nil {
+		intf.asicdSubSocket.Unsubscribe("")
+		intf.asicdSubSocket.Close()
+	}
+	//intf.asicdSubSocket = nil
+	return nil
 }
 
 // createASICdSubscriber
@@ -129,22 +144,31 @@ func (intf VXLANSnapClient) createASICdSubscriber() error {
 		return err
 	}
 
-	logger.Info(fmt.Sprintln("Connected to ASICd publisher at address:", address, intf))
+	logger.Debug(fmt.Sprintln("Connected to ASICd publisher at address:", address, intf))
 	if err = intf.asicdSubSocket.SetRecvBuffer(1024 * 1024); err != nil {
 		logger.Err(fmt.Sprintln("Failed to set the buffer size for ASICd publisher socket, error:", err))
 		return err
 	}
+
+	go intf.listenAsicdEvents()
+
+	return nil
+}
+
+func (intf VXLANSnapClient) listenAsicdEvents() error {
+	logger.Info("Started Listener for Asicd events")
 	for {
 		//logger.Info(fmt.Sprintln("Read on ASICd subscriber socket...", intf.asicdSubSocket, intf))
 		asicdrxBuf, err := intf.asicdSubSocket.Recv(0)
 		if err != nil {
 			logger.Err(fmt.Sprintln("Recv on ASICd subscriber socket failed with error:", err))
 			intf.asicdSubSocketErrCh <- err
-			continue
+			return nil
 		}
-		logger.Info(fmt.Sprintln("ASIC subscriber recv returned:", asicdrxBuf))
+		//logger.Info(fmt.Sprintln("ASIC subscriber recv returned:", asicdrxBuf))
 		intf.asicdSubSocketCh <- asicdrxBuf
 	}
+
 	return nil
 }
 
@@ -169,7 +193,7 @@ func (intf VXLANSnapClient) RegisterLinkUpDownEvents(ifindex int32, upcb vxlan.P
 	//	intf.portDownEventList[ifindex] = make([]vxlan.PortEvtCb, 0)
 	//	intf.portUpEventList[ifindex] = make([]vxlan.PortEvtCb, 0)
 	//}
-	logger.Info("Registering for link up/down event cb for", ifindex)
+	logger.Debug("Registering for link up/down event cb for", ifindex)
 	intf.portDownEventList[ifindex] = append(intf.portDownEventList[ifindex], downcb)
 	intf.portUpEventList[ifindex] = append(intf.portUpEventList[ifindex], upcb)
 }
@@ -198,7 +222,7 @@ func (intf VXLANSnapClient) GetLinkState(ifname string) string {
 				}
 			}
 		}
-		logger.Info(fmt.Sprintf("GetLinkState: could not get status for port %d, failure in get method\n", ifname))
+		logger.Err(fmt.Sprintf("GetLinkState: could not get status for port %d, failure in get method\n", ifname))
 	}
 	return "DOWN"
 }
@@ -243,7 +267,7 @@ func (intf VXLANSnapClient) processAsicdNotification(asicdrxBuf []byte) {
 			logger.Err("Unable to unmashal ipv4intf msg:", msg.Msg)
 			return
 		}
-		logger.Info(fmt.Sprintf("Msg L2 linkstatus = %d msg port = %d\n", l2Msg.IfState, l2Msg.IfIndex))
+		logger.Debug(fmt.Sprintf("Msg L2 linkstatus = %d msg port = %d\n", l2Msg.IfState, l2Msg.IfIndex))
 		if l2Msg.IfState == asicdCommonDefs.INTF_STATE_DOWN {
 			intf.processLinkDownEvent(asicdCommonDefs.GetIntfIdFromIfIndex(l2Msg.IfIndex)) //asicd always sends out link State events for PHY ports
 		} else {
@@ -417,7 +441,7 @@ func (intf VXLANSnapClient) updateIpIntf(IpAddr string, ifindex int32, msgType u
 		// TODO when api is available should just call GetIntf...
 		for exitnotfound && !foundIntf {
 			bulkIntf, _ := asicdclnt.ClientHdl.GetBulkIntf(asicdInt.Int(nextindex), asicdInt.Int(count))
-			logger.Info(fmt.Sprintln("Return from GetBulkIntf", bulkIntf))
+			//logger.Info(fmt.Sprintln("Return from GetBulkIntf", bulkIntf))
 			if bulkIntf == nil {
 				exitnotfound = false
 			} else {
@@ -425,7 +449,7 @@ func (intf VXLANSnapClient) updateIpIntf(IpAddr string, ifindex int32, msgType u
 					if intf.IfName == IfName {
 						IfIndex = intf.IfIndex
 						foundIntf = true
-						logger.Info(fmt.Sprintln("Found IfName", IfName, bulkIntf))
+						//logger.Info(fmt.Sprintln("Found IfName", IfName, bulkIntf))
 						break
 					}
 				}
