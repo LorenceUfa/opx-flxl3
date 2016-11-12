@@ -30,12 +30,69 @@ import (
 	"l3/tunnel/vxlan/clients/snapclient"
 	vxlan "l3/tunnel/vxlan/protocol"
 	"l3/tunnel/vxlan/rpc"
+	"l3/tunnel/vxlan/server"
+	"os"
+	"os/signal"
+	"syscall"
 	"utils/keepalive"
 	"utils/logging"
 )
 
+func sigHandler(sighandlerkillevt chan bool, handler *rpc.VXLANDServiceHandler, logger *logging.Writer) {
+	//List of signals to handle
+	sigChan := make(chan os.Signal, 2)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGUSR1)
+
+	logger.Info("Starting SigHandler")
+
+	signal := <-sigChan
+	switch signal {
+	case syscall.SIGHUP,
+		syscall.SIGUSR1:
+		//Stop thrift server
+		handler.Thriftserver.Stop()
+		vxlan.DeRegisterClients()
+
+		// TODO cleanup data
+
+		sighandlerkillevt <- true
+	default:
+		logger.Err(fmt.Sprintln("Unhandled signal : ", signal))
+	}
+}
+
+func handleConfigListener(handler *rpc.VXLANDServiceHandler, cfghandlerevt chan bool, logger *logging.Writer) {
+
+	logger.Info("Starting Cfg handler")
+
+	enabled := false
+	for {
+		select {
+		case start, ok := <-cfghandlerevt:
+			logger.Info("Cfg handler evt rx", enabled, start, ok)
+			if ok {
+				if start {
+					if !enabled {
+						go handler.StartCfgServerLoop()
+					}
+					enabled = true
+				} else {
+					if enabled {
+						handler.StopCfgServerLoop()
+					}
+					enabled = false
+				}
+			} else {
+				return
+			}
+		}
+	}
+}
+
 func main() {
 
+	sighandlerkillevt := make(chan bool)
+	cfghandlerrvt := make(chan bool)
 	// lookup port
 	paramsDir := flag.String("params", "./params", "Params directory")
 	flag.Parse()
@@ -66,12 +123,16 @@ func main() {
 	vxlan.RegisterClients(*client)
 
 	// create a new vxlan server
-	server := vxlan.NewVXLANServer(logger, path)
+	server := server.NewVXLANServer(logger, path, cfghandlerrvt)
 	handler := rpc.NewVXLANDServiceHandler(server, logger)
 
 	// Start keepalive routine
 	go keepalive.InitKeepAlive("vxland", path)
 
+	go sigHandler(sighandlerkillevt, handler, logger)
+
 	// blocking call
-	handler.StartThriftServer()
+	go handleConfigListener(handler, cfghandlerrvt, logger)
+
+	<-sighandlerkillevt
 }

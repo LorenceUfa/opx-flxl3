@@ -19,8 +19,18 @@ type RibdClient struct {
 
 var ribdclnt RibdClient
 
+func (intf VXLANSnapClient) deleteRIBdSubscriber() error {
+	logger.Info(fmt.Sprintf("Disconnecting from RIBd publisher"))
+	if intf.ribdSubSocket != nil {
+		intf.ribdSubSocket.Unsubscribe("")
+		intf.ribdSubSocket.Close()
+	}
+	//intf.ribdSubSocket = nil
+	return nil
+}
+
 func (intf VXLANSnapClient) createRIBdSubscriber() error {
-	logger.Info("Listen for RIBd updates")
+	//logger.Info("Listen for RIBd updates")
 	address := ribdCommonDefs.PUB_SOCKET_VXLAND_ADDR
 	var err error
 	if intf.ribdSubSocket, err = nanomsg.NewSubSocket(); err != nil {
@@ -38,47 +48,29 @@ func (intf VXLANSnapClient) createRIBdSubscriber() error {
 		return err
 	}
 
-	logger.Info(fmt.Sprintln("Connected to RIBd publisher at address:", address))
+	logger.Debug(fmt.Sprintln("Connected to RIBd publisher at address:", address))
 	if err = intf.ribdSubSocket.SetRecvBuffer(1024 * 1024); err != nil {
 		logger.Err(fmt.Sprintln("Failed to set the buffer size for RIBd publisher socket, error:", err))
 		return err
 	}
 	//intf.listenForRIBdUpdates(ribdCommonDefs.PUB_SOCKET_VXLAND_ADDR)
+	go intf.listenRibdEvents()
+	return nil
+}
+
+func (intf VXLANSnapClient) listenRibdEvents() error {
+	logger.Info("Started Listener for Ribd events")
+
 	for {
-		logger.Info("Read on RIBd subscriber socket...")
+		//logger.Info("Read on RIBd subscriber socket...")
 		rxBuf, err := intf.ribdSubSocket.Recv(0)
 		if err != nil {
 			logger.Err(fmt.Sprintln("Recv on RIBd subscriber socket failed with error:", err))
 			intf.ribdSubSocketErrCh <- err
-			continue
+			return nil
 		}
-		logger.Info(fmt.Sprintln("RIB subscriber recv returned:", rxBuf))
+		//logger.Info(fmt.Sprintln("RIB subscriber recv returned:", rxBuf))
 		intf.ribdSubSocketCh <- rxBuf
-	}
-	return nil
-}
-
-func (intf VXLANSnapClient) listenForRIBdUpdates(address string) error {
-	var err error
-	if intf.ribdSubSocket, err = nanomsg.NewSubSocket(); err != nil {
-		logger.Err(fmt.Sprintln("Failed to create RIBd subscribe socket, error:", err))
-		return err
-	}
-
-	if _, err = intf.ribdSubSocket.Connect(address); err != nil {
-		logger.Err(fmt.Sprintln("Failed to connect to RIBd publisher socket, address:", address, "error:", err))
-		return err
-	}
-
-	if err = intf.ribdSubSocket.Subscribe(""); err != nil {
-		logger.Err(fmt.Sprintln("Failed to subscribe to \"\" on RIBd subscribe socket, error:", err))
-		return err
-	}
-
-	logger.Info(fmt.Sprintln("Connected to RIBd publisher at address:", address))
-	if err = intf.ribdSubSocket.SetRecvBuffer(1024 * 1024); err != nil {
-		logger.Err(fmt.Sprintln("Failed to set the buffer size for RIBd publisher socket, error:", err))
-		return err
 	}
 	return nil
 }
@@ -152,6 +144,8 @@ func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxl
 			}
 			vtepnexthopchan <- event
 			return true
+		} else {
+			logger.Err("GetNextHopInfo failed", err)
 		}
 	}
 	return false

@@ -21,7 +21,7 @@ func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, nexthopIfName st
 	if arpdclnt.ClientHdl != nil {
 		intf.thriftmutex.Lock()
 		arpentrystate, err := arpdclnt.ClientHdl.GetArpEntryState(nexthopip.String())
-		logger.Info(fmt.Sprintln("calling GetArpEntryState", nexthopip, nexthopip.String(), arpentrystate, err))
+		logger.Debug(fmt.Sprintln("calling GetArpEntryState", nexthopip, nexthopip.String(), arpentrystate, err))
 		if err == nil && !strings.Contains(arpentrystate.MacAddr, "incomplete") && arpentrystate.MacAddr != "" {
 			nexthopmac, _ := net.ParseMAC(arpentrystate.MacAddr)
 			event := vxlan.MachineEvent{
@@ -31,7 +31,7 @@ func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, nexthopIfName st
 			}
 			macchan <- event
 		} else {
-			logger.Info(fmt.Sprintln("calling ResolveArpIPV4", nexthopip, nexthopIfName))
+			logger.Debug(fmt.Sprintln("calling ResolveArpIPV4", nexthopip, nexthopIfName))
 			portstate, _ := asicdclnt.ClientHdl.GetPortState(nexthopIfName)
 			//arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.Pvid))
 			arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.IfIndex))
