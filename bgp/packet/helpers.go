@@ -510,10 +510,10 @@ func ConstructMPReachNLRIForAggRoutes(protoFamily uint32) *BGPPathAttrMPReachNLR
 	return pa
 }
 
-func ConstructPathAttrForConnRoutes(as uint32) []BGPPathAttr {
+func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as uint32) []BGPPathAttr {
 	pathAttrs := make([]BGPPathAttr, 0)
 
-	origin := NewBGPPathAttrOrigin(BGPPathAttrOriginIncomplete)
+	origin := NewBGPPathAttrOrigin(originType)
 	pathAttrs = append(pathAttrs, origin)
 
 	asPath := NewBGPPathAttrASPath()
@@ -524,6 +524,14 @@ func ConstructPathAttrForConnRoutes(as uint32) []BGPPathAttr {
 	pathAttrs = append(pathAttrs, nextHop)
 
 	return pathAttrs
+}
+
+func ConstructPathAttrForConnRoutes(as uint32) []BGPPathAttr {
+	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginIncomplete, as)
+}
+
+func ConstructPathAttrForDefaultRoute(as uint32) []BGPPathAttr {
+	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginEGP, as)
 }
 
 func CopyPathAttrs(pathAttrs []BGPPathAttr) []BGPPathAttr {
