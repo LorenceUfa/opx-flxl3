@@ -23,6 +23,10 @@
 
 package server
 
+import (
+	"sync"
+)
+
 type LsdbKey struct {
 	AreaId uint32
 }
@@ -55,7 +59,24 @@ type LSDatabase struct {
 
 type SelfOrigLsa map[LsaKey]bool
 
+type LsdbCtrlChStruct struct {
+	LsdbCtrlCh      chan bool
+	LsdbCtrlReplyCh chan bool
+}
+
 type LsdbStruct struct {
 	AreaLsdb        map[LsdbKey]LSDatabase
 	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
+	LsdbCtrlChData  LsdbCtrlChStruct
+	AgedLsaData     AgedLsaStruct
+}
+
+type AgedLsaKey struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+}
+
+type AgedLsaStruct struct {
+	AgedLsaMap      map[AgedLsaKey]bool // Value False:Not Yet FLooded, True means Flooded
+	AgedLsaMapMutex sync.Mutex
 }

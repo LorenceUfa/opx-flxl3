@@ -23,7 +23,8 @@ type VXLANClientIntf interface {
 	IsClientIntfType(client VXLANClientIntf, clientStr string) bool
 	// used to notify server of updates
 	SetServerChannels(s *VxLanConfigChannels)
-	ConnectToClients(clientFile string)
+	ConnectToClients(clientFile string, name string) error
+	DisconnectFromClients(name string) error
 	ConstructPortConfigMap()
 	// create/delete
 	CreateVtep(vtep *VtepDbEntry, vteplistener chan<- MachineEvent)
@@ -49,6 +50,23 @@ type VXLANClientIntf interface {
 	RegisterLinkUpDownEvents(ifindex int32, upcb PortEvtCb, downdb PortEvtCb)
 }
 
+// SetIntf:
+// The user may implement mulitple interfaces for uses
+// by the server.  This was created to avoid import cycle
+func RegisterClients(intf VXLANClientIntf) {
+	if ClientIntf == nil {
+		ClientIntf = make([]VXLANClientIntf, 0)
+	}
+	ClientIntf = append(ClientIntf, intf)
+}
+
+func DeRegisterClients() {
+	for _, client := range ClientIntf {
+		client.DisconnectFromClients("")
+	}
+	ClientIntf = nil
+}
+
 type BaseClientIntf struct {
 }
 
@@ -65,8 +83,11 @@ func (b BaseClientIntf) IsClientIntfType(client VXLANClientIntf, clientStr strin
 func (b BaseClientIntf) SetServerChannels(s *VxLanConfigChannels) {
 
 }
-func (b BaseClientIntf) ConnectToClients(clientFile string) {
-
+func (b BaseClientIntf) ConnectToClients(clientFile string, name string) error {
+	return nil
+}
+func (b BaseClientIntf) DisconnectFromClients(name string) error {
+	return nil
 }
 func (b BaseClientIntf) ConstructPortConfigMap() {
 
