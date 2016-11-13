@@ -39,6 +39,14 @@ const (
 	VxlanCommandUpdate
 )
 
+type cfgFileJson struct {
+	SwitchMac        string            `json:"SwitchMac"`
+	PluginList       []string          `json:"PluginList"`
+	IfNameMap        map[string]string `json:"IfNameMap"`
+	IfNamePrefix     map[string]string `json:"IfNamePrefix"`
+	SysRsvdVlanRange string            `json:"SysRsvdVlanRange"`
+}
+
 type VxLanConfigChannels struct {
 	Vxlancreate               chan VxlanConfig
 	Vxlandelete               chan VxlanConfig
@@ -491,14 +499,18 @@ func UpdateThriftVtep(c *VtepUpdate) {
 		if objName == "TOS" ||
 			objName == "Mtu" ||
 			objName == "TTL" {
+			logger.Debug("UpdateVtep ", objName)
 			updateobj = true
 		} else if objName == "AdminState" {
 			if c.Newconfig.Enable {
+				logger.Debug("UpdateVtep ", objName, "Enabled")
 				enableobj = true
 			} else {
+				logger.Debug("UpdateVtep", objName, "Disabled")
 				disableobj = true
 			}
 		} else {
+			logger.Debug("UpdateVtep %s Service Affecting Change", objName)
 			recreateobj = true
 		}
 	}
@@ -556,13 +568,14 @@ func UpdateVtepTOS(vtepName string, vni uint32, dstip string, tos uint8) {
 		vtep.TOS = tos
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+				break
 			}
 		}
-
+		vtepDbList = append(vtepDbList, vtep)
 		for _, client := range ClientIntf {
 			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, tos, vtep.TOS, vtep.MTU)
 		}
@@ -581,12 +594,14 @@ func UpdateVtepTTL(vtepName string, vni uint32, dstip string, ttl uint8) {
 		vtep.TTL = ttl
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+				break
 			}
 		}
+		vtepDbList = append(vtepDbList, vtep)
 		for _, client := range ClientIntf {
 			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, vtep.TOS, ttl, vtep.MTU)
 		}
@@ -605,88 +620,51 @@ func UpdateVtepMTU(vtepName string, vni uint32, dstip string, mtu uint16) {
 		vtep.MTU = mtu
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
 				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+				break
 			}
 		}
+		vtepDbList = append(vtepDbList, vtep)
 		for _, client := range ClientIntf {
 			client.UpdateVtepAttr(vtep.VtepName, vtep.Vni, vtep.TOS, vtep.TTL, mtu)
 		}
 	}
 }
 
-func (s *VXLANServer) ConfigListener() {
+//HandleNextHopChange:
+// Handle notifications from RIB that the next hop reachabilty has changed
+func HandleNextHopChange(dip net.IP, nexthopip net.IP, nexthopIfIndex int32, nexthopIfName string, reachable bool) {
+	// TOOD do some work to find all VTEP's and deprovision the entries
+	for _, vtep := range GetVtepDB() {
+		if reachable &&
+			vtep.DstIp.String() == dip.String() {
+			if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() == VxlanVtepStateInterface {
 
-	go func(cc *VxLanConfigChannels) {
-		for {
-			select {
-
-			case daemonstatus := <-s.DaemonStatusCh:
-				if daemonstatus.Name == "asicd" {
-					// TODO do something
-				} else if daemonstatus.Name == "ribd" {
-					// TODO do something
-				} else if daemonstatus.Name == "arpd" {
-					// TODO do something
+				nexthopinfo := VtepNextHopInfo{
+					Ip:      nexthopip,
+					IfIndex: nexthopIfIndex,
+					IfName:  nexthopIfName,
 				}
-			case vxlan := <-cc.Vxlancreate:
-				CreateVxLAN(&vxlan)
-
-			case vxlan := <-cc.Vxlandelete:
-				DeleteVxLAN(&vxlan, false)
-
-			case vxlan := <-cc.Vxlanupdate:
-				UpdateThriftVxLAN(&vxlan)
-
-			case vtep := <-cc.Vtepcreate:
-				CreateVtep(&vtep)
-
-			case vtep := <-cc.Vtepdelete:
-				DeleteVtep(&vtep)
-
-			case vtep := <-cc.Vtepupdate:
-				UpdateThriftVtep(&vtep)
-
-			case <-cc.VxlanAccessPortVlanUpdate:
-				// updates from client which are post create of vxlan
-
-			case ipinfo := <-cc.VxlanNextHopUpdate:
-				// updates from client which are triggered post create of vtep
-				reachable := false
-				if ipinfo.Command == VxlanCommandCreate {
-					reachable = true
+				event := MachineEvent{
+					E:    VxlanVtepEventNextHopInfoResolved,
+					Src:  VxlanVtepMachineModuleStr,
+					Data: nexthopinfo,
 				}
-				//ip := net.ParseIP(fmt.Sprintf("%s.%s.%s.%s", uint8(ipinfo.Ip>>24&0xff), uint8(ipinfo.Ip>>16&0xff), uint8(ipinfo.Ip>>8&0xff), uint8(ipinfo.Ip>>0&0xff)))
-				HandleNextHopChange(ipinfo.Ip, ipinfo.NextHopIp, ipinfo.Intf, ipinfo.IntfName, reachable)
 
-			case port := <-cc.VxlanPortCreate:
-				// store all the valid physical ports
-				if _, ok := PortConfigMap[port.IfIndex]; !ok {
-					var portcfg = &PortConfig{
-						Name:         port.Name,
-						HardwareAddr: port.HardwareAddr,
-						Speed:        port.Speed,
-						PortNum:      port.PortNum,
-						IfIndex:      port.IfIndex,
-					}
-					//logger.Info("Saving Port Config to db", *portcfg)
-					PortConfigMap[port.IfIndex] = portcfg
-				}
-			case intfinfo := <-cc.Vxlanintfinfo:
-				for _, vtep := range GetVtepDB() {
-					logger.Info(fmt.Sprintln("received intf info", intfinfo, vtep))
-					if vtep.SrcIfName == intfinfo.IntfName {
+				vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- event
 
-						vtep.VxlanVtepMachineFsm.VxlanVtepEvents <- MachineEvent{
-							E:    VxlanVtepEventSrcInterfaceResolved,
-							Src:  VxlanVtepMachineModuleStr,
-							Data: intfinfo,
-						}
-					}
-				}
+			}
+		} else if !reachable &&
+			vtep.DstIp.String() == dip.String() {
+			// set state
+			// tearing down the connection appropriately
+			if vtep.VxlanVtepMachineFsm.Machine.Curr.CurrentState() >= VxlanVtepStateNextHopInfo {
+				// deprovision the vtep
+				DeProvisionVtep(vtep, false)
 			}
 		}
-	}(s.Configchans)
+	}
 }

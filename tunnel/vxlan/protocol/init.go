@@ -24,6 +24,25 @@
 // init.go
 package vxlan
 
+import (
+	"utils/logging"
+)
+
+var ClientIntf []VXLANClientIntf
+var logger *logging.Writer
+
+// vtep vlan membership
+var PortConfigMap map[int32]*PortConfig
+
+// set the global logger instance
+func SetLogger(l *logging.Writer) {
+	logger = l
+}
+
+func GetLogger() *logging.Writer {
+	return logger
+}
+
 func init() {
 	// initialize the various db maps
 	vtepDB = make(map[VtepDbKey]*VtepDbEntry, 0)
