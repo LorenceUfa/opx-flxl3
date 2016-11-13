@@ -111,6 +111,7 @@ func (server *ARPServer) buildArpInfra() {
 	server.constructLagInfra()
 	server.constructVlanInfra()
 	server.constructL3Infra()
+	server.constructVirtualIpInfra()
 	server.dumpInfra()
 }
 
@@ -554,7 +555,8 @@ func (server *ARPServer) sendVipGarp(ifIndex int32) {
 	if exists {
 		ip, _, _ := net.ParseCIDR(virEntry.IpAddr)
 		ip = ip.To4()
-		go server.SendGarp(virEntry.IfName, virEntry.MacAddr, ip.String())
+		server.GarpEntryCh <- &GarpEntry{virEntry.IfName, virEntry.MacAddr, ip.String()}
+		//go server.SendGarp(virEntry.IfName, virEntry.MacAddr, ip.String())
 	}
 }
 
@@ -1066,6 +1068,8 @@ func (server *ARPServer) updatePortFilter(ifIndex int, macAddr string) error {
 		err := port.PcapHdl.SetBPFFilter(filter)
 		if err != nil {
 			server.logger.Err("Failed to Update Pcap Filter:", filter, "for port:", port.IfName)
+		} else {
+			server.logger.Debug("Port:", port.IfName, "filter updated to:", filter, "successfully")
 		}
 	}
 	server.portPropMap[ifIndex] = port
@@ -1084,19 +1088,47 @@ func (server *ARPServer) updateVlanMembersFilters(vlanIfIndex int, macAddr strin
 	return nil
 }
 
+func (server *ARPServer) updateFilter(ifIndex int, macAddr string) error {
+	_, exists := server.vlanPropMap[ifIndex]
+	if exists {
+		return server.updateVlanMembersFilters(ifIndex, macAddr)
+	}
+	_, exists = server.portPropMap[ifIndex]
+	if exists {
+		return server.updatePortFilter(ifIndex, macAddr)
+	}
+	return nil
+}
+
 func (server *ARPServer) UpdateBPFFilter(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) error {
 	virEntry, exists := server.virtualIntfPropMap[msg.IfIndex]
 	if !exists {
 		server.logger.Err("No entry found for virtual interface during state down and hence filter cannot be restored:", msg.IfIndex, msg.IpAddr)
 		return nil
 	}
-	_, exists = server.vlanPropMap[int(virEntry.ParentIfIndex)]
-	if exists {
-		return server.updateVlanMembersFilters(int(virEntry.ParentIfIndex), virEntry.MacAddr)
+
+	return server.updateFilter(int(virEntry.ParentIfIndex), virEntry.MacAddr)
+}
+
+func (server *ARPServer) constructVirtualIpInfra() {
+	ipsInfo, err := server.AsicdPlugin.GetAllSubIPv4IntfState()
+	if err != nil {
+		server.logger.Warning("Failed to get all sub ipv4 interfaces from system, ERROR:", err)
+		return
 	}
-	_, exists = server.portPropMap[int(virEntry.ParentIfIndex)]
-	if exists {
-		return server.updatePortFilter(int(virEntry.ParentIfIndex), virEntry.MacAddr)
+	for _, ipInfo := range ipsInfo {
+		if ipInfo.Type == commonDefs.SUB_INTF_SECONDARY_TYPE {
+			continue
+		}
+		virEntry := server.virtualIntfPropMap[ipInfo.IfIndex]
+		virEntry.IfIndex = ipInfo.IfIndex
+		virEntry.ParentIfIndex = ipInfo.ParentIfIndex
+		virEntry.IpAddr = ipInfo.IpAddr
+		virEntry.MacAddr = ipInfo.MacAddr
+		virEntry.IfName = ipInfo.IfName
+		server.virtualIntfPropMap[ipInfo.IfIndex] = virEntry
+		if ipInfo.OperState == "UP" {
+			server.updateFilter(int(virEntry.ParentIfIndex), virEntry.MacAddr)
+		}
 	}
-	return nil
 }

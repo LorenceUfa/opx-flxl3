@@ -261,10 +261,12 @@ func (server *ARPServer) StartServer(asicdPlugin asicdClient.AsicdClientIntf) {
 			if ok {
 				server.processDeleteArpEntryInt(arpEntryInfo)
 			}
-		case garpInfo, ok := <-server.GarpEntryCh:
-			if ok {
-				server.processGarp(garpInfo)
-			}
+			/*
+				case garpInfo, ok := <-server.GarpEntryCh:
+					if ok {
+						server.processGarp(garpInfo)
+					}
+			*/
 		case arpActionMsg := <-server.ArpActionCh:
 			server.processArpAction(arpActionMsg)
 		case msg := <-server.AsicdSubSocketCh:

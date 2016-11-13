@@ -43,6 +43,7 @@ func (svr *VrrpServer) GetVlans() {
 }
 
 func (svr *VrrpServer) getIPv4Intfs() {
+	debug.Logger.Info("Get all ipv4 interfaces from asicd")
 	ipv4Info, err := svr.SwitchPlugin.GetAllIPv4IntfState()
 	if err != nil {
 		debug.Logger.Err("Failed to get all IPv4 interfaces, err:", err)
@@ -68,6 +69,7 @@ func (svr *VrrpServer) getIPv4Intfs() {
 }
 
 func (svr *VrrpServer) getIPv6Intfs() {
+	debug.Logger.Info("Get all ipv6 interfaces from asicd")
 	ipv6Info, err := svr.SwitchPlugin.GetAllIPv6IntfState()
 	if err != nil {
 		debug.Logger.Err("Failed to get all IPv6 interfaces, err:", err)
@@ -92,10 +94,7 @@ func (svr *VrrpServer) getIPv6Intfs() {
 }
 
 func (svr *VrrpServer) GetIPIntfs() {
-
-	debug.Logger.Info("Get all ipv4 interfaces from asicd")
 	svr.getIPv4Intfs()
-	debug.Logger.Info("Get all ipv6 interfaces from asicd")
 	svr.getIPv6Intfs()
 }
 

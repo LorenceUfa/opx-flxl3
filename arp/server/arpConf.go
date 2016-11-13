@@ -75,5 +75,5 @@ func (server *ARPServer) processDeleteArpEntryInt(entry *DeleteArpEntry) {
 }
 
 func (server *ARPServer) processGarp(info *GarpEntry) {
-	server.SendGarp(info.IfName, info.MacAddr, info.IpAddr)
+	go server.SendGarp(info.IfName, info.MacAddr, info.IpAddr)
 }

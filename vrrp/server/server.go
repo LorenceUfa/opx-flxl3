@@ -137,9 +137,9 @@ func (svr *VrrpServer) OSSignalHandle() {
 
 func (svr *VrrpServer) VrrpStartServer() {
 	svr.OSSignalHandle()
-	svr.ReadDB()
 	svr.InitGlobalDS()
 	svr.GetSystemInfo()
+	svr.ReadDB()
 	go svr.EventListener()
 }
 

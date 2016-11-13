@@ -36,6 +36,8 @@ const (
 	IP_MSG_CREATE            = "ip_create"
 	IP_MSG_DELETE            = "ip_delete"
 	IP_MSG_STATE_CHANGE      = "state_change"
+	NETMASK_DELIMITER        = "/"
+	SLASH_32                 = "32"
 )
 
 const (

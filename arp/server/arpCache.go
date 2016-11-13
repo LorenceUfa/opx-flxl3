@@ -109,6 +109,10 @@ func (server *ARPServer) updateArpCache() {
 			if ok {
 				server.processArpEntryDeleteInt(msg)
 			}
+		case garpInfo, ok := <-server.GarpEntryCh:
+			if ok {
+				server.processGarp(garpInfo)
+			}
 		}
 	}
 }
