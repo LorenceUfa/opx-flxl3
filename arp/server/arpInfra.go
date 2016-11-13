@@ -554,7 +554,7 @@ func (server *ARPServer) sendVipGarp(ifIndex int32) {
 	if exists {
 		ip, _, _ := net.ParseCIDR(virEntry.IpAddr)
 		ip = ip.To4()
-		server.SendGarp(virEntry.IfName, virEntry.MacAddr, ip.String())
+		go server.SendGarp(virEntry.IfName, virEntry.MacAddr, ip.String())
 	}
 }
 
@@ -1067,8 +1067,8 @@ func (server *ARPServer) updatePortFilter(ifIndex int, macAddr string) error {
 		if err != nil {
 			server.logger.Err("Failed to Update Pcap Filter:", filter, "for port:", port.IfName)
 		}
-		server.portPropMap[ifIndex] = port
 	}
+	server.portPropMap[ifIndex] = port
 	return nil
 }
 
