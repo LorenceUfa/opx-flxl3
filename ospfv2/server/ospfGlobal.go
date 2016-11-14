@@ -75,6 +75,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 			server.SendDeleteNbrsMsg(nbrKeyList)
 		}
 		server.StopLsdbRoutine()
+		server.StopSPF()
 		// TODO
 		//Stop SPF
 		//Delete all the routes
@@ -98,6 +99,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	}
 
 	if server.globalData.AdminState == true {
+		server.StartSPF()
 		server.StartLsdbRoutine()
 		server.StartAllIntfFSM()
 		server.SendMsgToGenerateRouterLSAForAllAreas()

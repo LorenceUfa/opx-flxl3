@@ -122,8 +122,18 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	areaEnt.AuthType = cfg.AuthType
 	areaEnt.ImportASExtern = cfg.ImportASExtern
 	areaEnt.IntfMap = make(map[IntfConfKey]bool)
+	areaEnt.AdminState = cfg.AdminState
 	server.AreaConfMap[cfg.AreaId] = areaEnt
-	if len(server.AreaConfMap) > 1 {
+	cnt := 0
+	for _, areaEnt := range server.AreaConfMap {
+		if areaEnt.AdminState == true {
+			cnt++
+			if cnt == 2 {
+				break
+			}
+		}
+	}
+	if cnt == 2 {
 		server.globalData.AreaBdrRtrStatus = true
 	} else {
 		server.globalData.AreaBdrRtrStatus = false
@@ -174,4 +184,30 @@ func (server *OSPFV2Server) isStubArea(areaId uint32) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func (server *OSPFV2Server) GetListOfIntfKeyInGivenArea(areaId uint32) ([]IntfConfKey, error) {
+	var intfConKeyList []IntfConfKey
+
+	areaEnt, exist := server.AreaConfMap[areaId]
+	if !exist {
+		return nil, errors.New("Error: Area doesnot exist")
+	}
+	if len(areaEnt.IntfMap) == 0 {
+		return nil, errors.New("No links in this area")
+	}
+
+	for intfConfKey, _ := range areaEnt.IntfMap {
+		intfConKeyList = append(intfConKeyList, intfConfKey)
+	}
+
+	return intfConKeyList, nil
+}
+
+func (server *OSPFV2Server) GetAreaConfForGivenArea(areaId uint32) (AreaConf, error) {
+	areaEnt, exist := server.AreaConfMap[areaId]
+	if !exist {
+		return areaEnt, errors.New("Error: Area doesnot exist")
+	}
+	return areaEnt, nil
 }

@@ -69,7 +69,10 @@ type OSPFV2Server struct {
 	AreaConfMap     map[uint32]AreaConf //Key AreaId
 	MessagingChData MessagingChStruct
 
-	LsdbData LsdbStruct
+	LsdbData       LsdbStruct
+	SPFData        SPFStruct
+	RoutingTblData RoutingTblStruct
+	SummaryLsDb    map[LsdbKey]SummaryLsaMap
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -84,6 +87,7 @@ func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
 	server.InitCompleteCh = make(chan bool)
 	server.IntfConfMap = make(map[IntfConfKey]IntfConf)
 	server.AreaConfMap = make(map[uint32]AreaConf)
+	server.SummaryLsDb = make(map[LsdbKey]SummaryLsaMap)
 	return &server, nil
 }
 

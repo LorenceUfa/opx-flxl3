@@ -406,20 +406,11 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 	}
 
 	if oldDRtrId != ent.DRtrId || oldDRtrIpAddr != ent.DRIpAddr {
-		server.ProcessNetworkDRChange(key, oldState, newState)
+		server.ProcessNetworkDRChange(key, ent.AreaId, oldState, newState)
 	}
 }
 
-func (server *OSPFV2Server) ProcessNetworkDRChange(key IntfConfKey, oldState, newState uint8) {
-	msg := NetworkDRChangeMsg{
-		IntfKey:         key,
-		OldIntfFSMState: oldState,
-		NewIntfFSMState: newState,
-	}
-	//TODO:
-	//Send LSBD message to generate Router LSA and
-	//Send Nbr Message to send LSDB message to generate Network LSA
-	//server.NetworkDRChangeCh <- msg
-	server.logger.Info("oldState", oldState, " newState", newState, msg)
-
+func (server *OSPFV2Server) ProcessNetworkDRChange(key IntfConfKey, areaId uint32, oldState, newState uint8) {
+	server.SendMsgToGenerateRouterLSA(areaId)
+	server.SendNetworkDRChangeMsg(key, oldState, newState)
 }

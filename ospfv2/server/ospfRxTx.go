@@ -66,10 +66,8 @@ func (server *OSPFV2Server) StopSendAndRecvPkts(intfConfKey IntfConfKey) (nbrKey
 	ent.FSMState = objects.INTF_FSM_STATE_DOWN
 	if ent.Type == objects.INTF_TYPE_BROADCAST {
 		ent.WaitTimer.Stop()
-		ent.WaitTimer = nil
 	}
 	ent.HelloIntervalTicker.Stop()
-	ent.HelloIntervalTicker = nil
 	server.IntfConfMap[intfConfKey] = ent
 	server.deinitRxTxPkts(intfConfKey)
 	return nbrKeyList
@@ -100,6 +98,8 @@ func (server *OSPFV2Server) deinitRxTxPkts(intfConfKey IntfConfKey) {
 	if !exist {
 		return
 	}
+	intfConfEnt.WaitTimer = nil
+	intfConfEnt.HelloIntervalTicker = nil
 	if intfConfEnt.rxHdl.RecvPcapHdl != nil {
 		intfConfEnt.rxHdl.RecvPcapHdl.Close()
 		intfConfEnt.rxHdl.PktRecvCtrlCh = nil

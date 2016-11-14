@@ -25,7 +25,7 @@ package server
 
 import (
 	"errors"
-	//"fmt"
+	"fmt"
 	"l3/ospfv2/objects"
 	"net"
 	"time"
@@ -340,4 +340,12 @@ func (server *OSPFV2Server) getBulkIntfState(fromIdx, cnt int) (*objects.Ospfv2I
 	var retObj objects.Ospfv2IntfStateGetInfo
 	server.logger.Info(server.IntfConfMap)
 	return &retObj, nil
+}
+
+func (server *OSPFV2Server) GetIntfConfForGivenIntfKey(intfConfKey IntfConfKey) (IntfConf, error) {
+	intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+	if !exist {
+		return intfConfEnt, errors.New(fmt.Sprintln("Error: Unable to get interface config for", intfConfKey))
+	}
+	return intfConfEnt, nil
 }

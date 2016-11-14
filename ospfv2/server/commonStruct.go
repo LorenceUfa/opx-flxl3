@@ -132,52 +132,53 @@ type NbrToIntfFSMChStruct struct {
 	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
 }
 
-type LsaUpdateMsg struct {
-	IntfKey IntfConfKey
-	NbrKey  NbrConfKey
-	LsaType uint8
+type RecvdLsaMsgType uint8
+
+const (
+	LSA_ADD RecvdLsaMsgType = 0
+	LSA_DEL RecvdLsaMsgType = 1
+)
+
+type RecvdLsaMsg struct {
+	MsgType RecvdLsaMsgType
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
 	LsaData interface{}
 }
 
+type RecvdSelfLsaMsg struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
+type LsaOp uint8
+
 const (
-	GENERATE uint8 = 0
-	FLUSH    uint8 = 1
+	GENERATE LsaOp = 0
+	FLUSH    LsaOp = 1
 )
 
 type UpdateSelfNetworkLSAMsg struct {
-	Op      uint8
+	Op      LsaOp
 	IntfKey IntfConfKey
 	NbrList []uint32
 }
 
 type NbrFSMToLsdbChStruct struct {
-	LsaUpdateCh            chan LsaUpdateMsg
+	RecvdLsaMsgCh          chan RecvdLsaMsg
+	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
 }
 
-type LsaUpdateStatusMsg struct {
-	LsaUpdateMsg LsaUpdateMsg
-	Status       bool
-}
-
-type LsdbToNbrFSMChStruct struct {
-	LsaUpdateStatusCh chan LsaUpdateStatusMsg
-}
-
-const (
-	FLOOD_TO_ALL_NBR              uint8 = 0
-	FLOOD_TO_ALL_NBR_EXCEPT_GIVEN uint8 = 1
-	//FLOOD_TO_GIVEN_NBR            uint8 = 2 //This is only for self orig
-)
-
-type LsdbToFloodingMsg struct {
-	FloodType    uint8
-	LsaUpdateMsg LsaUpdateMsg
+type LsdbToFloodForSelfOrigLSAMsg struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
 }
 
 type LsdbToFloodingChStruct struct {
-	LsdbToFloodingCh      chan LsdbToFloodingMsg
-	LsdbToFloodForAgedLSA chan bool
+	LsdbToFloodForAgedLSACh     chan bool
+	LsdbToFloodForSelfOrigLSACh chan LsdbToFloodForSelfOrigLSAMsg
 }
 
 type LsdbToSPFChStruct struct {
@@ -193,7 +194,6 @@ type MessagingChStruct struct {
 	IntfFSMToLsdbChData  IntfFSMToLsdbChStruct
 	NbrToIntfFSMChData   NbrToIntfFSMChStruct
 	NbrFSMToLsdbChData   NbrFSMToLsdbChStruct
-	LsdbToNbrFSMChData   LsdbToNbrFSMChStruct
 	LsdbToFloodingChData LsdbToFloodingChStruct
 	LsdbToSPFChData      LsdbToSPFChStruct
 	SPFToLsdbChData      SPFToLsdbChStruct

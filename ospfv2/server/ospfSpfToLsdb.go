@@ -23,62 +23,9 @@
 
 package server
 
-import (
-	"sync"
-	"time"
-)
+import ()
 
-type LsdbKey struct {
-	AreaId uint32
-}
-
-const (
-	RouterLSA     uint8 = 1
-	NetworkLSA    uint8 = 2
-	Summary3LSA   uint8 = 3
-	Summary4LSA   uint8 = 4
-	ASExternalLSA uint8 = 5
-)
-
-type LsaKey struct {
-	LSType    uint8  /* LS Type */
-	LSId      uint32 /* Link State Id */
-	AdvRouter uint32 /* Avertising Router */
-}
-
-func NewLsaKey() *LsaKey {
-	return &LsaKey{}
-}
-
-type LSDatabase struct {
-	RouterLsaMap     map[LsaKey]RouterLsa
-	NetworkLsaMap    map[LsaKey]NetworkLsa
-	Summary3LsaMap   map[LsaKey]SummaryLsa
-	Summary4LsaMap   map[LsaKey]SummaryLsa
-	ASExternalLsaMap map[LsaKey]ASExternalLsa
-}
-
-type SelfOrigLsa map[LsaKey]bool
-
-type LsdbCtrlChStruct struct {
-	LsdbCtrlCh      chan bool
-	LsdbCtrlReplyCh chan bool
-}
-
-type LsdbStruct struct {
-	AreaLsdb        map[LsdbKey]LSDatabase
-	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
-	LsdbCtrlChData  LsdbCtrlChStruct
-	AgedLsaData     AgedLsaStruct
-	LsdbAgingTicker *time.Ticker
-}
-
-type AgedLsaKey struct {
-	LsdbKey LsdbKey
-	LsaKey  LsaKey
-}
-
-type AgedLsaStruct struct {
-	AgedLsaMap      map[AgedLsaKey]bool // Value False:Not Yet FLooded, True means Flooded
-	AgedLsaMapMutex sync.Mutex
+func (server *OSPFV2Server) SendMsgForSpfDone() {
+	server.logger.Info("Sending msg from Lsdb To Spf:")
+	server.MessagingChData.SPFToLsdbChData.DoneSPF <- true
 }

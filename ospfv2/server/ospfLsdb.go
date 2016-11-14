@@ -33,9 +33,11 @@ func (server *OSPFV2Server) initLsdbData() {
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
 	server.LsdbData.AgedLsaData.AgedLsaMap = make(map[AgedLsaKey]bool)
+	server.LsdbData.LsdbAgingTicker = nil
 }
 
 func (server *OSPFV2Server) dinitLsdb() {
+	server.LsdbData.LsdbAgingTicker = nil
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = nil
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = nil
 	server.LsdbData.AgedLsaData.AgedLsaMap = nil
@@ -92,9 +94,12 @@ func (server *OSPFV2Server) DinitAreaLsdb(areaId uint32) {
 func (server *OSPFV2Server) StartLsdbRoutine() {
 	server.initLsdbData()
 	go server.ProcessLsdb()
+	//Start LsdbAgingTicker
+	server.LsdbData.LsdbAgingTicker = time.NewTicker(LsaAgingTimeGranularity)
 }
 
 func (server *OSPFV2Server) StopLsdbRoutine() {
+	server.LsdbData.LsdbAgingTicker.Stop()
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh <- true
 	cnt := 0
 	for {
@@ -114,6 +119,42 @@ func (server *OSPFV2Server) StopLsdbRoutine() {
 	}
 }
 
+func (server *OSPFV2Server) processRecvdLSA(msg RecvdLsaMsg) error {
+	switch msg.LsaKey.LSType {
+	case RouterLSA:
+		server.processRecvdRouterLSA(msg)
+	case NetworkLSA:
+		server.processRecvdNetworkLSA(msg)
+	case Summary3LSA:
+		server.processRecvdSummaryLSA(msg)
+	case Summary4LSA:
+		server.processRecvdSummaryLSA(msg)
+	case ASExternalLSA:
+		server.processRecvdASExternalLSA(msg)
+	default:
+		server.logger.Err("Invalid LsaType:", msg)
+	}
+	return nil
+}
+
+func (server *OSPFV2Server) processRecvdSelfLSA(msg RecvdSelfLsaMsg) error {
+	switch msg.LsaKey.LSType {
+	case RouterLSA:
+		server.processRecvdSelfRouterLSA(msg)
+	case NetworkLSA:
+		server.processRecvdSelfNetworkLSA(msg)
+	case Summary3LSA:
+		server.processRecvdSelfSummaryLSA(msg)
+	case Summary4LSA:
+		server.processRecvdSelfSummaryLSA(msg)
+	case ASExternalLSA:
+		server.processRecvdSelfASExternalLSA(msg)
+	default:
+		server.logger.Err("Invalid LsaType:", msg)
+	}
+	return nil
+}
+
 func (server *OSPFV2Server) ProcessLsdb() {
 	for {
 		select {
@@ -123,6 +164,52 @@ func (server *OSPFV2Server) ProcessLsdb() {
 			return
 		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:
 			server.logger.Info("Generate self originated Router LSA", msg)
+			lsaKey, err := server.GenerateRouterLSA(msg)
+			if err != nil {
+				continue
+			}
+			server.SendMsgToStartSpf()
+			spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
+			server.logger.Debug("SPF Calculation Return Status", spfState)
+			//Flood
+			server.SendMsgToFloodSelfOrigLsa(msg.AreaId, lsaKey)
+			if server.globalData.AreaBdrRtrStatus == true {
+				//TODO:
+				//Summary LSA
+			}
+		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh:
+			server.logger.Info("Update self originated Network LSA", msg)
+			areaId, lsaKey, err := server.processUpdateSelfNetworkLSA(msg)
+			if err != nil {
+				continue
+			}
+			server.SendMsgToStartSpf()
+			spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
+			server.logger.Debug("SPF Calculation Return Status", spfState)
+			//Flood
+			// If op == FLUSH then Add lsa to Max AgedLsaStruct
+			// else flood using LsdbToFloodForSelfOrigLSAMsg
+			if msg.Op != FLUSH {
+				server.SendMsgToFloodSelfOrigLsa(areaId, lsaKey)
+			}
+			if server.globalData.AreaBdrRtrStatus == true {
+				//TODO:
+				//Summary LSA
+			}
+		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh:
+			server.logger.Info("Update LSA", msg)
+			server.processRecvdLSA(msg)
+			server.SendMsgToStartSpf()
+			spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
+			server.logger.Debug("SPF Calculation Return Status", spfState)
+			if server.globalData.AreaBdrRtrStatus == true {
+				//TODO:
+				//Summary LSA
+			}
+		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh:
+			server.logger.Info("Recvd Self LSA", msg)
+		case <-server.LsdbData.LsdbAgingTicker.C:
+			server.processLsdbAgingTicker()
 		}
 	}
 }
