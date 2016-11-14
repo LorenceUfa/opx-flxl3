@@ -27,12 +27,12 @@ import (
 	"errors"
 	"fmt"
 	"l3/vrrp/api"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"vrrpd"
 )
 
-func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state config.State) *vrrpd.VrrpV4IntfState {
+func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state common.State) *vrrpd.VrrpV4IntfState {
 	entry := vrrpd.NewVrrpV4IntfState()
 	entry.IntfRef = state.IntfRef
 	entry.VRID = state.Vrid
@@ -51,7 +51,7 @@ func (h *ConfigHandler) convertVrrpV4IntfEntryToThriftEntry(state config.State) 
 	return entry
 }
 
-func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state config.State) *vrrpd.VrrpV6IntfState {
+func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state common.State) *vrrpd.VrrpV6IntfState {
 	entry := vrrpd.NewVrrpV6IntfState()
 	entry.IntfRef = state.IntfRef
 	entry.VRID = state.Vrid
@@ -89,7 +89,7 @@ func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIdx vrrpd.Int, count vrrpd.In
 }
 
 func (h *ConfigHandler) GetVrrpV4IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV4IntfState, error) {
-	entry := api.GetVrrpIntfEntry(intfRef, vrId, config.VERSION2)
+	entry := api.GetVrrpIntfEntry(intfRef, vrId, common.VERSION2)
 	if entry == nil {
 		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
 	}
@@ -116,7 +116,7 @@ func (h *ConfigHandler) GetBulkVrrpV6IntfState(fromIdx vrrpd.Int, count vrrpd.In
 }
 
 func (h *ConfigHandler) GetVrrpV6IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV6IntfState, error) {
-	entry := api.GetVrrpIntfEntry(intfRef, vrId, config.VERSION3)
+	entry := api.GetVrrpIntfEntry(intfRef, vrId, common.VERSION3)
 	if entry == nil {
 		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
 	}

@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"log/syslog"
 	"net"
@@ -72,7 +72,7 @@ func TestInit(t *testing.T) {
 func TestEncodeV2(t *testing.T) {
 	TestInit(t)
 	pktInfo := &PacketInfo{
-		Version:      config.VERSION2,
+		Version:      common.VERSION2,
 		Vrid:         testVrid,
 		Priority:     testPriority,
 		AdvertiseInt: testAdvInt,
@@ -102,7 +102,7 @@ func TestEncodeV2(t *testing.T) {
 func TestDecodeV2(t *testing.T) {
 	TestInit(t)
 	p := gopacket.NewPacket(testEncodePkt, layers.LinkTypeEthernet, gopacket.Default)
-	decodePkt := testPktInfo.Decode(p, config.VERSION2)
+	decodePkt := testPktInfo.Decode(p, common.VERSION2)
 	if decodePkt == nil {
 		t.Error("failed to decode packet")
 		return
@@ -113,7 +113,7 @@ func TestDecodeV2(t *testing.T) {
 		IpAddr: testVip,
 		DstIp:  VRRP_GROUP_IP,
 		Hdr: &Header{
-			Version:      config.VERSION2,
+			Version:      common.VERSION2,
 			Type:         VRRP_PKT_TYPE_ADVERTISEMENT,
 			VirtualRtrId: testVrid,
 			Priority:     testPriority,

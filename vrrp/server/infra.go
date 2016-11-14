@@ -26,7 +26,7 @@ package server
 import (
 	"errors"
 	"fmt"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
 	"net"
@@ -56,7 +56,7 @@ func (svr *VrrpServer) getIPv4Intfs() {
 			continue
 		}
 		v4Obj := &V4Intf{}
-		ipInfo := &config.BaseIpInfo{
+		ipInfo := &common.BaseIpInfo{
 			IntfRef:   obj.IntfRef,
 			IfIndex:   obj.IfIndex,
 			OperState: obj.OperState,
@@ -81,7 +81,7 @@ func (svr *VrrpServer) getIPv6Intfs() {
 			continue
 		}
 		v6Obj := &V6Intf{}
-		ipInfo := &config.BaseIpInfo{
+		ipInfo := &common.BaseIpInfo{
 			IntfRef:   obj.IntfRef,
 			IfIndex:   obj.IfIndex,
 			OperState: obj.OperState,
@@ -102,7 +102,7 @@ func constructIntfKey(intfRef string, vrid int32, version uint8) KeyInfo {
 	return KeyInfo{intfRef, vrid, version}
 }
 
-func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
+func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	if _, exists := svr.Intf[key]; exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
@@ -123,7 +123,7 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *config.IntfCfg) (bool, error) {
 	return true, nil
 }
 
-func (svr *VrrpServer) ValidateUpdateConfig(cfg *config.IntfCfg) (bool, error) {
+func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	intf, exists := svr.Intf[key]
 	if !exists {
@@ -136,7 +136,7 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *config.IntfCfg) (bool, error) {
 	return true, nil
 }
 
-func (svr *VrrpServer) ValidateDeleteConfig(cfg *config.IntfCfg) (bool, error) {
+func (svr *VrrpServer) ValidateDeleteConfig(cfg *common.IntfCfg) (bool, error) {
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	if _, exists := svr.Intf[key]; !exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface was not created for config:", cfg))
@@ -144,16 +144,16 @@ func (svr *VrrpServer) ValidateDeleteConfig(cfg *config.IntfCfg) (bool, error) {
 	return true, nil
 }
 
-func (svr *VrrpServer) ValidConfiguration(cfg *config.IntfCfg) (bool, error) {
+func (svr *VrrpServer) ValidConfiguration(cfg *common.IntfCfg) (bool, error) {
 	if cfg.VRID == 0 {
 		return false, errors.New(fmt.Sprintln(VRRP_INVALID_VRID, cfg.VRID))
 	}
 	switch cfg.Operation {
-	case config.CREATE:
+	case common.CREATE:
 		return svr.ValidateCreateConfig(cfg)
-	case config.UPDATE:
+	case common.UPDATE:
 		return svr.ValidateUpdateConfig(cfg)
-	case config.DELETE:
+	case common.DELETE:
 		return svr.ValidateDeleteConfig(cfg)
 	}
 	return false, errors.New("Invalid Operation received for Vrrp Interface Config")
@@ -165,13 +165,13 @@ func (svr *VrrpServer) updateIntfList(key KeyInfo, version uint8, insert bool) {
 	switch insert {
 	case true:
 		// new vrrp configured insert the entry into lists
-		if version == config.VERSION2 {
+		if version == common.VERSION2 {
 			svr.v4Intfs = append(svr.v4Intfs, key)
 		} else {
 			svr.v6Intfs = append(svr.v6Intfs, key)
 		}
 	case false:
-		if version == config.VERSION2 {
+		if version == common.VERSION2 {
 			for idx, _ := range svr.v4Intfs {
 				if svr.v4Intfs[idx] == key {
 					svr.v4Intfs = append(svr.v4Intfs[:idx], svr.v4Intfs[idx+1:]...)
@@ -193,15 +193,15 @@ func (svr *VrrpServer) updateIntfList(key KeyInfo, version uint8, insert bool) {
  * vrrp interface becomes master it will request for the interface to be in up state
  * Input: (vrrp interface config, virtual mac)
  */
-func (svr *VrrpServer) CreateVirtualIntf(cfg *config.IntfCfg, vMac string) {
+func (svr *VrrpServer) CreateVirtualIntf(cfg *common.IntfCfg, vMac string) {
 	if svr.GlobalConfig.Enable == false {
 		return
 	}
 	debug.Logger.Info("Vrrp Creating Virtual Interface for:", cfg.IntfRef, cfg.VirtualIPAddr, vMac)
 	switch cfg.Version {
-	case config.VERSION2:
+	case common.VERSION2:
 		svr.SwitchPlugin.CreateVirtualIPv4Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
-	case config.VERSION3:
+	case common.VERSION3:
 		svr.SwitchPlugin.CreateVirtualIPv6Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
 	}
 }
@@ -209,9 +209,9 @@ func (svr *VrrpServer) CreateVirtualIntf(cfg *config.IntfCfg, vMac string) {
 /* Update Virtual Interface by changing the state as requested
  * Input: (intfRef, virtual ip address, macAddress, enable)
  */
-func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
+func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 	switch virtualIpInfo.Version {
-	case config.VERSION2:
+	case common.VERSION2:
 		ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
 		ip = ip.To4()
 		if virtualIpInfo.Enable {
@@ -223,7 +223,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
 		if err != nil {
 			debug.Logger.Err("Failed to update virtual ip in asicd")
 		}
-	case config.VERSION3:
+	case common.VERSION3:
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
 	}
 }
@@ -231,8 +231,8 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *config.VirtualIpInfo) {
 /*
  *  Handling Vrrp Interface Configuration
  */
-func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
-	debug.Logger.Info("Received vrrp interface create config:", *cfg)
+func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
+	debug.Logger.Info("Received vrrp interface create common:", *cfg)
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	intf, exists := svr.Intf[key]
 	if exists {
@@ -240,13 +240,13 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		return
 	}
 	debug.Logger.Debug("Constructed Key for vrrp interface is:", key)
-	l3Info := &config.BaseIpInfo{}
+	l3Info := &common.BaseIpInfo{}
 	l3Info.IntfRef = cfg.IntfRef
 	var ipIntf IPIntf
 	var ifIndex int32
 	// Get DB based on config version
 	switch cfg.Version {
-	case config.VERSION2:
+	case common.VERSION2:
 		ifIndex, exists = svr.V4IntfRefToIfIndex[cfg.IntfRef]
 		debug.Logger.Debug("v4 ifIndex found in reverse map for:", cfg.IntfRef, "is:", ifIndex, "exists:", exists)
 		if exists {
@@ -254,7 +254,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 		}
 	// if cross reference exists then only set l3Info else just pass go defaults and it will updated
 	// later once we have configured ipv4 or ipv6 interface
-	case config.VERSION3:
+	case common.VERSION3:
 		ifIndex, exists = svr.V6IntfRefToIfIndex[cfg.IntfRef]
 		debug.Logger.Debug("v6 ifIndex found in reverse map for:", cfg.IntfRef, "is:", ifIndex, "exists:", exists)
 		if exists {
@@ -271,7 +271,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
 	// up... if that's the case then lets start fsm right away
-	if l3Info.OperState == config.STATE_UP && svr.GlobalConfig.Enable && cfg.AdminState {
+	if l3Info.OperState == common.STATE_UP && svr.GlobalConfig.Enable && cfg.AdminState {
 		// during create always call start fsm
 		intf.StartFsm()
 	}
@@ -282,7 +282,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *config.IntfCfg) {
 	svr.updateIntfList(key, cfg.Version, true /*insert*/)
 }
 
-func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *config.IntfCfg) {
+func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received interface update config:", *cfg)
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	intf, exists := svr.Intf[key]
@@ -294,7 +294,7 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *config.IntfCfg) {
 	svr.Intf[key] = intf
 }
 
-func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *config.IntfCfg) {
+func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received vrrp interface create config:", *cfg)
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	intf, exists := svr.Intf[key]
@@ -308,14 +308,14 @@ func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *config.IntfCfg) {
 	svr.updateIntfList(key, cfg.Version, false /*delete*/)
 }
 
-func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *config.IntfCfg) {
+func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("svr handling vrrp interface configuration:", *cfg)
 	switch cfg.Operation {
-	case config.CREATE:
+	case common.CREATE:
 		svr.HandlerVrrpIntfCreateConfig(cfg)
-	case config.UPDATE:
+	case common.UPDATE:
 		svr.HandleVrrpIntfUpdateConfig(cfg)
-	case config.DELETE:
+	case common.DELETE:
 		svr.HandleVrrpIntfDeleteConfig(cfg)
 	}
 }
@@ -346,14 +346,14 @@ func (svr *VrrpServer) HandleVrrpEnableDisable(enable bool) {
 	}
 }
 
-func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
+func (svr *VrrpServer) HandleGlobalConfig(gCfg *common.GlobalConfig) {
 	debug.Logger.Info("Handling Global Config for:", *gCfg)
 	svr.GlobalConfig.Enable = gCfg.Enable
 	switch gCfg.Operation {
-	case config.CREATE:
+	case common.CREATE:
 		debug.Logger.Info("Vrrp Global Object Created")
 		svr.GlobalConfig.Vrf = gCfg.Vrf
-	case config.UPDATE:
+	case common.UPDATE:
 		debug.Logger.Info("Vrrp Global Updated:", *svr.GlobalConfig)
 		if gCfg.Enable {
 			debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac")
@@ -363,7 +363,7 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 			svr.HandleProtocolMacEntry(false /*Enable*/)
 		}
 		svr.HandleVrrpEnableDisable(gCfg.Enable)
-	case config.DB_UPDATE:
+	case common.DB_UPDATE:
 		debug.Logger.Info("Vrrp Global DB Updated:", *svr.GlobalConfig)
 		svr.GlobalConfig.Vrf = gCfg.Vrf
 		if gCfg.Enable {
@@ -373,7 +373,7 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 	}
 }
 
-func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
+func (svr *VrrpServer) HandleIpStateChange(msg *common.BaseIpInfo) {
 	var ipIntf IPIntf
 	var exists bool
 
@@ -413,10 +413,10 @@ func (svr *VrrpServer) HandleIpStateChange(msg *config.BaseIpInfo) {
 	svr.Intf[*key] = intf
 }
 
-func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
+func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 	debug.Logger.Info("handling ip notification:", *msg)
 	switch msg.MsgType {
-	case config.IP_MSG_CREATE:
+	case common.IP_MSG_CREATE:
 		switch msg.IpType {
 		case syscall.AF_INET:
 			v4, exists := svr.V4[msg.IfIndex]
@@ -437,7 +437,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 				debug.Logger.Info("Reverse v6 ip intf to ifIndex cached for:", msg.IntfRef, "-------->", msg.IfIndex)
 			}
 		}
-	case config.IP_MSG_DELETE:
+	case common.IP_MSG_DELETE:
 		// @TODO: need to stop fsm
 		switch msg.IpType {
 		case syscall.AF_INET:
@@ -453,7 +453,7 @@ func (svr *VrrpServer) HandleIpNotification(msg *config.BaseIpInfo) {
 			}
 		}
 
-	case config.IP_MSG_STATE_CHANGE:
+	case common.IP_MSG_STATE_CHANGE:
 		svr.HandleIpStateChange(msg)
 	}
 }

@@ -23,17 +23,17 @@
 package server
 
 import (
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"net"
 )
 
 type V6Intf struct {
-	Cfg     config.Ipv6Info // this is ipv6 interface created on the system config
+	Cfg     common.Ipv6Info // this is ipv6 interface created on the system config
 	Vrrpkey *KeyInfo
 }
 
-func (intf *V6Intf) Init(obj *config.BaseIpInfo) {
+func (intf *V6Intf) Init(obj *common.BaseIpInfo) {
 	intf.Cfg.Info.IntfRef = obj.IntfRef
 	intf.Cfg.Info.IfIndex = obj.IfIndex
 	intf.Cfg.Info.OperState = obj.OperState
@@ -47,15 +47,15 @@ func (intf *V6Intf) Init(obj *config.BaseIpInfo) {
 	debug.Logger.Debug("v6 ip interface initialized:", intf.Cfg)
 }
 
-func (intf *V6Intf) Update(obj *config.BaseIpInfo) {
+func (intf *V6Intf) Update(obj *common.BaseIpInfo) {
 	// most likely update of OperState only
 	intf.Cfg.Info.OperState = obj.OperState
 }
 
-func (intf *V6Intf) DeInit(obj *config.BaseIpInfo) {
+func (intf *V6Intf) DeInit(obj *common.BaseIpInfo) {
 }
 
-func (intf *V6Intf) GetObjFromDb(l3Info *config.BaseIpInfo) {
+func (intf *V6Intf) GetObjFromDb(l3Info *common.BaseIpInfo) {
 	l3Info.IpAddr = intf.Cfg.Info.IpAddr
 	l3Info.OperState = intf.Cfg.Info.OperState
 }

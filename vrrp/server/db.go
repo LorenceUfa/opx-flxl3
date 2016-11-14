@@ -24,7 +24,7 @@
 package server
 
 import (
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"models/objects"
 	"strings"
@@ -41,10 +41,10 @@ func (svr *VrrpServer) readVrrpGblCfg() {
 	debug.Logger.Info("Global Objects reterived from DB are", objList)
 	for _, obj := range objList {
 		cfg := obj.(objects.VrrpGlobal)
-		gblCfg := &config.GlobalConfig{
+		gblCfg := &common.GlobalConfig{
 			Vrf:       cfg.Vrf,
 			Enable:    cfg.Enable,
-			Operation: config.DB_UPDATE,
+			Operation: common.DB_UPDATE,
 		}
 		svr.HandleGlobalConfig(gblCfg)
 	}
@@ -62,10 +62,10 @@ func (svr *VrrpServer) readVrrpV4IntfCfg() {
 	debug.Logger.Info("Vrrp V4 Intf Objects reterived from DB are", objList)
 	for _, obj := range objList {
 		cfg := obj.(objects.VrrpV4Intf)
-		if !strings.Contains(cfg.Address, config.NETMASK_DELIMITER) {
-			cfg.Address += config.NETMASK_DELIMITER + config.SLASH_32
+		if !strings.Contains(cfg.Address, common.NETMASK_DELIMITER) {
+			cfg.Address += common.NETMASK_DELIMITER + common.SLASH_32
 		}
-		v4Cfg := &config.IntfCfg{
+		v4Cfg := &common.IntfCfg{
 			IntfRef:               cfg.IntfRef,
 			VRID:                  cfg.VRID,
 			Priority:              cfg.Priority,
@@ -74,8 +74,8 @@ func (svr *VrrpServer) readVrrpV4IntfCfg() {
 			PreemptMode:           cfg.PreemptMode,
 			AcceptMode:            cfg.AcceptMode,
 			AdminState:            cfg.AdminState,
-			Version:               config.VERSION2,
-			Operation:             config.CREATE,
+			Version:               common.VERSION2,
+			Operation:             common.CREATE,
 		}
 		svr.HandleVrrpIntfConfig(v4Cfg)
 	}
@@ -93,7 +93,7 @@ func (svr *VrrpServer) readVrrpV6IntfCfg() {
 	debug.Logger.Info("Vrrp V4 Intf Objects reterived from DB are", objList)
 	for _, obj := range objList {
 		cfg := obj.(objects.VrrpV6Intf)
-		v6Cfg := &config.IntfCfg{
+		v6Cfg := &common.IntfCfg{
 			IntfRef:               cfg.IntfRef,
 			VRID:                  cfg.VRID,
 			Priority:              cfg.Priority,
@@ -102,8 +102,8 @@ func (svr *VrrpServer) readVrrpV6IntfCfg() {
 			PreemptMode:           cfg.PreemptMode,
 			AcceptMode:            cfg.AcceptMode,
 			AdminState:            cfg.AdminState,
-			Version:               config.VERSION3,
-			Operation:             config.CREATE,
+			Version:               common.VERSION3,
+			Operation:             common.CREATE,
 		}
 		svr.HandleVrrpIntfConfig(v6Cfg)
 	}

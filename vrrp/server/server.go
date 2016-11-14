@@ -25,7 +25,7 @@ package server
 
 import (
 	"l3/arp/clientMgr"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"os"
 	"os/signal"
@@ -39,7 +39,7 @@ type VrrpServer struct {
 	SwitchPlugin       asicdClient.AsicdClientIntf
 	ArpClient          arpClient.ArpdClientIntf
 	dmnBase            *dmnBase.FSBaseDmn
-	GlobalConfig       *config.GlobalConfig
+	GlobalConfig       *common.GlobalConfig
 	V4                 map[int32]*V4Intf
 	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
@@ -47,10 +47,10 @@ type VrrpServer struct {
 	v6Intfs            []KeyInfo                 // list of v6 vrrp interfaces that got created
 	V4IntfRefToIfIndex map[string]int32          // key is intfRef and value is ifIndex
 	V6IntfRefToIfIndex map[string]int32          // key is intfRef and valud if ifIndex
-	CfgCh              chan *config.IntfCfg      // Starting from hereAll Channels Used during Events
-	GblCfgCh           chan *config.GlobalConfig
-	L3IntfNotifyCh     chan *config.BaseIpInfo
-	VirtualIpCh        chan *config.VirtualIpInfo // used for updating virtual ip state in hardware/linux
+	CfgCh              chan *common.IntfCfg      // Starting from hereAll Channels Used during Events
+	GblCfgCh           chan *common.GlobalConfig
+	L3IntfNotifyCh     chan *common.BaseIpInfo
+	VirtualIpCh        chan *common.VirtualIpInfo // used for updating virtual ip state in hardware/linux
 }
 
 type VrrpTxChannelInfo struct {
@@ -99,16 +99,16 @@ func (svr *VrrpServer) GetSystemInfo() {
 }
 
 func (svr *VrrpServer) InitGlobalDS() {
-	svr.GlobalConfig = new(config.GlobalConfig)
+	svr.GlobalConfig = new(common.GlobalConfig)
 	svr.V6 = make(map[int32]*V6Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4 = make(map[int32]*V4Intf, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.Intf = make(map[KeyInfo]VrrpInterface, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V4IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
 	svr.V6IntfRefToIfIndex = make(map[string]int32, VRRP_GLOBAL_INFO_DEFAULT_SIZE)
-	svr.GblCfgCh = make(chan *config.GlobalConfig)
-	svr.CfgCh = make(chan *config.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
-	svr.L3IntfNotifyCh = make(chan *config.BaseIpInfo)
-	svr.VirtualIpCh = make(chan *config.VirtualIpInfo)
+	svr.GblCfgCh = make(chan *common.GlobalConfig)
+	svr.CfgCh = make(chan *common.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
+	svr.L3IntfNotifyCh = make(chan *common.BaseIpInfo)
+	svr.VirtualIpCh = make(chan *common.VirtualIpInfo)
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {

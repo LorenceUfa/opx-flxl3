@@ -23,7 +23,7 @@
 package api
 
 import (
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/server"
 	"sync"
 )
@@ -59,7 +59,7 @@ func Init(svr *server.VrrpServer) {
 	vrrpApi.server = svr
 }
 
-func VrrpIntfConfig(cfg *config.IntfCfg) (bool, error) {
+func VrrpIntfConfig(cfg *common.IntfCfg) (bool, error) {
 	rv, err := vrrpApi.server.ValidConfiguration(cfg)
 	if rv == false {
 		return rv, err
@@ -68,29 +68,29 @@ func VrrpIntfConfig(cfg *config.IntfCfg) (bool, error) {
 	return true, nil
 }
 
-func CreateVrrpGbl(cfg *config.GlobalConfig) {
+func CreateVrrpGbl(cfg *common.GlobalConfig) {
 	vrrpApi.server.GblCfgCh <- cfg
 }
 
-func UpdateVrrpGbl(cfg *config.GlobalConfig) {
+func UpdateVrrpGbl(cfg *common.GlobalConfig) {
 	vrrpApi.server.GblCfgCh <- cfg
 }
 
 // this includes both v4 & v6 and create & delete
-func SendIpIntfNotification(ipNotify *config.BaseIpInfo) {
+func SendIpIntfNotification(ipNotify *common.BaseIpInfo) {
 	vrrpApi.server.L3IntfNotifyCh <- ipNotify
 }
 
-func GetAllV4IntfStates(from, count int) (n int, c int, result []config.State) {
+func GetAllV4IntfStates(from, count int) (n int, c int, result []common.State) {
 	n, c, result = vrrpApi.server.GetV4Intfs(from, count)
 	return n, c, result
 }
 
-func GetAllV6IntfStates(from, count int) (n int, c int, result []config.State) {
+func GetAllV6IntfStates(from, count int) (n int, c int, result []common.State) {
 	n, c, result = vrrpApi.server.GetV6Intfs(from, count)
 	return n, c, result
 }
 
-func GetVrrpIntfEntry(intfRef string, vrid int32, version uint8) *config.State {
+func GetVrrpIntfEntry(intfRef string, vrid int32, version uint8) *common.State {
 	return vrrpApi.server.GetEntry(intfRef, vrid, version)
 }

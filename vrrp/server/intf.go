@@ -23,28 +23,28 @@
 package server
 
 import (
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"l3/vrrp/fsm"
 )
 
 type IPIntf interface {
-	Init(*config.BaseIpInfo)
-	Update(*config.BaseIpInfo)
-	DeInit(*config.BaseIpInfo)
-	GetObjFromDb(*config.BaseIpInfo)
+	Init(*common.BaseIpInfo)
+	Update(*common.BaseIpInfo)
+	DeInit(*common.BaseIpInfo)
+	GetObjFromDb(*common.BaseIpInfo)
 	SetVrrpIntfKey(KeyInfo)
 	GetVrrpIntfKey() *KeyInfo
 	GetIntfRef() string
 }
 
 type VrrpInterface struct {
-	L3     *config.BaseIpInfo // Vrrp Port Information Collected From System
-	Config *config.IntfCfg    // Vrrp config for interface
+	L3     *common.BaseIpInfo // Vrrp Port Information Collected From System
+	Config *common.IntfCfg    // Vrrp config for interface
 	Fsm    *fsm.FSM           // Vrrp fsm information
 }
 
-func (intf *VrrpInterface) InitVrrpIntf(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) {
+func (intf *VrrpInterface) InitVrrpIntf(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo) {
 	debug.Logger.Info("Initializing interface with config:", *cfg, "base ip interface:", *l3Info)
 	intf.Config = cfg
 	intf.L3 = l3Info
@@ -98,7 +98,7 @@ func (intf *VrrpInterface) UpdateIpState() {
 	}
 }
 
-func (intf *VrrpInterface) UpdateConfig(cfg *config.IntfCfg) {
+func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Updating interface configuration from old Config:", *intf.Config, "to new Config:", *cfg)
 	intf.Fsm.UpdateConfig(cfg)
 	// Special case for handling interface admin state

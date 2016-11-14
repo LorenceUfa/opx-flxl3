@@ -26,7 +26,7 @@ import (
 	"encoding/binary"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	_ "l3/vrrp/debug"
 	"net"
 )
@@ -119,10 +119,10 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 	if sip == nil {
 		sip = net.ParseIP(pInfo.IpAddr)
 	}
-	dip := net.ParseIP(VRRP_GROUP_IP)
 	// IPvX Layer
 	switch pInfo.Version {
-	case config.VERSION2:
+	case common.VERSION2:
+		dip := net.ParseIP(VRRP_V4_GROUP_IP)
 		ipv4 := &layers.IPv4{
 			Version:  uint8(4),
 			IHL:      uint8(VRRP_IPV4_HEADER_MIN_SIZE),
@@ -135,7 +135,7 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 		//debug.Logger.Debug("ipv4 information is:", *ipv4)
 		gopacket.SerializeLayers(buffer, options, eth, ipv4, gopacket.Payload(payload))
 
-	case config.VERSION3:
+	case common.VERSION3:
 		// @TODO: need to create ipv6 information after reading rfc
 	}
 

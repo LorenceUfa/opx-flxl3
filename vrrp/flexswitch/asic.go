@@ -25,7 +25,7 @@ package flexswitch
 
 import (
 	"l3/vrrp/api"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"sync"
 	"syscall"
@@ -96,20 +96,20 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 		// create/delete ipv6 interface notification case
 		ipv6Msg := msg.(commonDefs.IPv6IntfNotifyMsg)
 		if !fsPlugin.IsLoopbackType(ipv6Msg.IfIndex) {
-			ipInfo := &config.BaseIpInfo{
+			ipInfo := &common.BaseIpInfo{
 				IfIndex:   ipv6Msg.IfIndex,
 				IntfRef:   ipv6Msg.IntfRef,
 				IpAddr:    ipv6Msg.IpAddr,
 				IpType:    syscall.AF_INET6,
-				OperState: config.STATE_DOWN, // during create lets hardcode the oper state to be down
+				OperState: common.STATE_DOWN, // during create lets hardcode the oper state to be down
 			}
 			if ipv6Msg.MsgType == commonDefs.NOTIFY_IPV6INTF_CREATE {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication CREATE:", ipv6Msg)
-				ipInfo.MsgType = config.IP_MSG_CREATE
+				ipInfo.MsgType = common.IP_MSG_CREATE
 				api.SendIpIntfNotification(ipInfo)
 			} else {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication DELETE:", ipv6Msg)
-				ipInfo.MsgType = config.IP_MSG_DELETE
+				ipInfo.MsgType = common.IP_MSG_DELETE
 				api.SendIpIntfNotification(ipInfo)
 			}
 		}
@@ -119,39 +119,39 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 		ipv6Msg := msg.(commonDefs.IPv6L3IntfStateNotifyMsg)
 		// only get state notification if ip type is v6 && not loopback
 		if !fsPlugin.IsLoopbackType(ipv6Msg.IfIndex) {
-			ipInfo := &config.BaseIpInfo{
+			ipInfo := &common.BaseIpInfo{
 				IfIndex: ipv6Msg.IfIndex,
 				IpAddr:  ipv6Msg.IpAddr,
 				IpType:  syscall.AF_INET6,
-				MsgType: config.IP_MSG_STATE_CHANGE,
+				MsgType: common.IP_MSG_STATE_CHANGE,
 			}
 			if ipv6Msg.IfState == commonDefs.INTF_STATE_UP {
 				debug.Logger.Debug("Received Asicd L3 State Notfication UP:", ipv6Msg)
-				ipInfo.OperState = config.STATE_UP
+				ipInfo.OperState = common.STATE_UP
 				api.SendIpIntfNotification(ipInfo)
 			} else {
 				debug.Logger.Debug("Received Asicd L3 State Notfication DOWN:", ipv6Msg)
-				ipInfo.OperState = config.STATE_DOWN
+				ipInfo.OperState = common.STATE_DOWN
 				api.SendIpIntfNotification(ipInfo)
 			}
 		}
 	case commonDefs.IPv4IntfNotifyMsg:
 		ipv4Msg := msg.(commonDefs.IPv4IntfNotifyMsg)
 		if !fsPlugin.IsLoopbackType(ipv4Msg.IfIndex) {
-			ipInfo := &config.BaseIpInfo{
+			ipInfo := &common.BaseIpInfo{
 				IfIndex:   ipv4Msg.IfIndex,
 				IntfRef:   ipv4Msg.IntfRef,
 				IpAddr:    ipv4Msg.IpAddr,
 				IpType:    syscall.AF_INET,
-				OperState: config.STATE_DOWN, // during create lets hardcode the oper state to be down
+				OperState: common.STATE_DOWN, // during create lets hardcode the oper state to be down
 			}
 			if ipv4Msg.MsgType == commonDefs.NOTIFY_IPV4INTF_CREATE {
 				debug.Logger.Debug("Received Asicd IPV4 INTF Notfication CREATE:", ipv4Msg)
-				ipInfo.MsgType = config.IP_MSG_CREATE
+				ipInfo.MsgType = common.IP_MSG_CREATE
 				api.SendIpIntfNotification(ipInfo)
 			} else {
 				debug.Logger.Debug("Received Asicd IPV4 INTF Notfication DELETE:", ipv4Msg)
-				ipInfo.MsgType = config.IP_MSG_DELETE
+				ipInfo.MsgType = common.IP_MSG_DELETE
 				api.SendIpIntfNotification(ipInfo)
 			}
 		}
@@ -160,19 +160,19 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 		ipv4Msg := msg.(commonDefs.IPv4L3IntfStateNotifyMsg)
 		// only get state notification if ip type is v6 && not loopback
 		if !fsPlugin.IsLoopbackType(ipv4Msg.IfIndex) {
-			ipInfo := &config.BaseIpInfo{
+			ipInfo := &common.BaseIpInfo{
 				IfIndex: ipv4Msg.IfIndex,
 				IpAddr:  ipv4Msg.IpAddr,
 				IpType:  syscall.AF_INET,
-				MsgType: config.IP_MSG_STATE_CHANGE,
+				MsgType: common.IP_MSG_STATE_CHANGE,
 			}
 			if ipv4Msg.IfState == commonDefs.INTF_STATE_UP {
 				debug.Logger.Debug("Received Asicd L3 State Notfication UP:", ipv4Msg)
-				ipInfo.OperState = config.STATE_UP
+				ipInfo.OperState = common.STATE_UP
 				api.SendIpIntfNotification(ipInfo)
 			} else {
 				debug.Logger.Debug("Received Asicd L3 State Notfication DOWN:", ipv4Msg)
-				ipInfo.OperState = config.STATE_DOWN
+				ipInfo.OperState = common.STATE_DOWN
 				api.SendIpIntfNotification(ipInfo)
 			}
 		}

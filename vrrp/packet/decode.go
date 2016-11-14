@@ -27,7 +27,7 @@ import (
 	"errors"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 )
 
@@ -59,7 +59,7 @@ import (
 func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error {
 	// @TODO: need to check for version 2 type...RFC requests to drop the pkt
 	// but cisco uses version 2...
-	if hdr.Version != config.VERSION2 && hdr.Version != config.VERSION3 {
+	if hdr.Version != common.VERSION2 && hdr.Version != common.VERSION3 {
 		return errors.New(VRRP_INCORRECT_VERSION)
 	}
 	// Set Checksum to 0 for verifying checksum
@@ -91,12 +91,12 @@ func DecodeHeader(data []byte, version uint8) *Header {
 	hdr.CheckSum = binary.BigEndian.Uint16(data[6:8])
 	baseIpByte := 8
 	switch version {
-	case config.VERSION2:
+	case common.VERSION2:
 		for i := 0; i < int(hdr.CountIPAddr); i++ {
 			hdr.IpAddr = append(hdr.IpAddr, data[baseIpByte:(baseIpByte+4)])
 			baseIpByte += 4
 		}
-	case config.VERSION3:
+	case common.VERSION3:
 		// @TODO: need to add support for decoding ipv6
 	}
 	return &hdr
@@ -119,7 +119,7 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 	var dstIp string
 	var srcIp string
 	switch version {
-	case config.VERSION2:
+	case common.VERSION2:
 		// Get Ip Hdr and start doing basic check according to RFC
 		ipHdr := ipLayer.(*layers.IPv4)
 		if ipHdr.TTL != VRRP_TTL {
@@ -128,7 +128,7 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, version uint8) *PacketInfo {
 		}
 		dstIp = ipHdr.DstIP.String()
 		srcIp = ipHdr.SrcIP.String()
-	case config.VERSION3:
+	case common.VERSION3:
 		// @TODO: need to read rfc for validation
 		ipHdr := ipLayer.(*layers.IPv6)
 		dstIp = ipHdr.DstIP.String()

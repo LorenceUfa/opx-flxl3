@@ -23,12 +23,12 @@
 package server
 
 import (
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 )
 
-func (svr *VrrpServer) populateState(key KeyInfo) *config.State {
-	entry := config.State{}
+func (svr *VrrpServer) populateState(key KeyInfo) *common.State {
+	entry := common.State{}
 	intf, exists := svr.Intf[key]
 	if !exists {
 		debug.Logger.Err("No vrrp interface configured for:", key)
@@ -40,7 +40,7 @@ func (svr *VrrpServer) populateState(key KeyInfo) *config.State {
 	return &entry
 }
 
-func (svr *VrrpServer) GetV4Intfs(idx, cnt int) (int, int, []config.State) {
+func (svr *VrrpServer) GetV4Intfs(idx, cnt int) (int, int, []common.State) {
 	debug.Logger.Debug("server received bulk requests for all vrrp v4 interfaces")
 	var nextIdx int
 	var count int
@@ -51,7 +51,7 @@ func (svr *VrrpServer) GetV4Intfs(idx, cnt int) (int, int, []config.State) {
 		debug.Logger.Err("No Vrrp V4 or version 2 vrrp configured")
 		return 0, 0, nil
 	}
-	var result []config.State
+	var result []common.State
 
 	for i, j = 0, idx; i < cnt && j < length; j++ {
 		key := svr.v4Intfs[j]
@@ -66,7 +66,7 @@ func (svr *VrrpServer) GetV4Intfs(idx, cnt int) (int, int, []config.State) {
 	return nextIdx, count, result
 }
 
-func (svr *VrrpServer) GetV6Intfs(idx, cnt int) (int, int, []config.State) {
+func (svr *VrrpServer) GetV6Intfs(idx, cnt int) (int, int, []common.State) {
 	var nextIdx int
 	var count int
 	var i, j int
@@ -76,7 +76,7 @@ func (svr *VrrpServer) GetV6Intfs(idx, cnt int) (int, int, []config.State) {
 		debug.Logger.Err("No Vrrp V6 or version 3 vrrp configured")
 		return 0, 0, nil
 	}
-	var result []config.State
+	var result []common.State
 
 	for i, j = 0, idx; i < cnt && j < length; j++ {
 		key := svr.v6Intfs[j]
@@ -91,7 +91,7 @@ func (svr *VrrpServer) GetV6Intfs(idx, cnt int) (int, int, []config.State) {
 	return nextIdx, count, result
 }
 
-func (svr *VrrpServer) GetEntry(intfRef string, vrid int32, version uint8) *config.State {
+func (svr *VrrpServer) GetEntry(intfRef string, vrid int32, version uint8) *common.State {
 	key := KeyInfo{intfRef, vrid, version}
 	return svr.populateState(key)
 }

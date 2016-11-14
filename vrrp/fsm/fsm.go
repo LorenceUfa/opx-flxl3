@@ -26,7 +26,7 @@ package fsm
 import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	"l3/vrrp/config"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
 	"strconv"
@@ -83,12 +83,12 @@ type DecodedInfo struct {
  */
 type IntfEvent struct {
 	Event     uint8
-	Config    *config.IntfCfg
+	Config    *common.IntfCfg
 	OperState string
 }
 
 type FSM struct {
-	Config              *config.IntfCfg            // config attributes like virtual rtr ip, vrid, intfRef, etc...
+	Config              *common.IntfCfg            // config attributes like virtual rtr ip, vrid, intfRef, etc...
 	pHandle             *pcap.Handle               // Pcap Handler for receiving packets
 	PktInfo             *packet.PacketInfo         // fsm will use this packet infor for decode/encode
 	ifIndex             int32                      // My own ifIndex
@@ -101,10 +101,10 @@ type FSM struct {
 	MasterDownValue     int32                      // (3 * Master_Adver_Interval) + Skew_time
 	AdverTimer          *time.Timer                // Advertisement Timer
 	MasterDownTimer     *time.Timer                // Master down timer...used for keep-alives from master
-	stateInfo           *config.State              // this is state information for this fsm which will be used for get bulk
+	stateInfo           *common.State              // this is state information for this fsm which will be used for get bulk
 	pktCh               chan *PktChannelInfo       // received vrrp packet are pushed on this channel for fsm
 	IntfEventCh         chan *IntfEvent            // channel used by VrrpInterface to communicate and update in config or ip interface state
-	vipCh               chan *config.VirtualIpInfo // this will be used to bring up/down virtual ip interface
+	vipCh               chan *common.VirtualIpInfo // this will be used to bring up/down virtual ip interface
 	running             bool
 }
 
@@ -112,11 +112,11 @@ type FSM struct {
 					* FSM EXPOSED API's *
 *************************************************************************************************************/
 
-func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.VirtualIpInfo) *FSM {
+func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo) *FSM {
 	debug.Logger.Info(FSM_PREFIX, "Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
 	f := FSM{}
 	f.Config = cfg
-	f.stateInfo = &config.State{}
+	f.stateInfo = &common.State{}
 	f.ipAddr = l3Info.IpAddr
 	f.ifIndex = l3Info.IfIndex
 	f.VirtualMACAddress = createVirtualMac(cfg.VRID)
@@ -130,7 +130,7 @@ func InitFsm(cfg *config.IntfCfg, l3Info *config.BaseIpInfo, vipCh chan *config.
 }
 
 // this will be called when fsm is not running and you want to update the configuration of vrrp interface
-func (f *FSM) UpdateConfig(cfg *config.IntfCfg) {
+func (f *FSM) UpdateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info(FSM_PREFIX, "Changing configuration in fsm:", cfg)
 	f.Config = cfg
 }
@@ -178,14 +178,14 @@ func (f *FSM) IsRunning() bool {
 	return f.running
 }
 
-func (f *FSM) GetStateInfo(info *config.State) {
+func (f *FSM) GetStateInfo(info *common.State) {
 	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
 	info.IntfRef = f.Config.IntfRef
 	info.Vrid = f.Config.VRID
 	if f.running {
-		info.OperState = config.STATE_UP
+		info.OperState = common.STATE_UP
 	} else {
-		info.OperState = config.STATE_DOWN
+		info.OperState = common.STATE_DOWN
 	}
 	info.IpAddr = f.ipAddr
 	info.CurrentFsmState = f.stateInfo.CurrentFsmState
@@ -269,10 +269,13 @@ func (f *FSM) initPktListener() (err error) {
 			debug.Logger.Err("Creating Pcap Handle for l3 interface:", ifName, "failed with error:", err)
 			return err
 		}
-
-		err = f.pHandle.SetBPFFilter(VRRP_BPF_FILTER)
+		filter := VRRP2_BPF_FILTER
+		if f.Config.Version == common.VERSION3 {
+			filter = VRRP3_BPF_FILTER
+		}
+		err = f.pHandle.SetBPFFilter(filter)
 		if err != nil {
-			debug.Logger.Err("Setting filter:", VRRP_BPF_FILTER, "for l3 interface:", ifName, "failed with error:", err)
+			debug.Logger.Err("Setting filter:", filter, "for l3 interface:", ifName, "failed with error:", err)
 			return err
 		}
 		debug.Logger.Debug(FSM_PREFIX, "Pcap created go start Receiving Vrrp Packets")
@@ -344,7 +347,7 @@ func (f *FSM) getPacketInfo() *packet.PacketInfo {
 func (f *FSM) calculateDownValue(advInt int32) {
 	debug.Logger.Debug(FSM_PREFIX, "calculateDownValue with advInt:", advInt)
 	//(155) + Set Master_Adver_Interval to Advertisement_Interval
-	if advInt == config.USE_CONFIG_ADVERTISEMENT {
+	if advInt == common.USE_CONFIG_ADVERTISEMENT {
 		f.MasterAdverInterval = f.Config.AdvertisementInterval
 	} else {
 		f.MasterAdverInterval = advInt
@@ -367,7 +370,7 @@ func (f *FSM) initialize() {
 		f.transitionToMaster()
 	default:
 		debug.Logger.Debug(FSM_PREFIX, "Tranisition to backup")
-		f.transitionToBackup(config.USE_CONFIG_ADVERTISEMENT)
+		f.transitionToBackup(common.USE_CONFIG_ADVERTISEMENT)
 	}
 }
 
@@ -427,9 +430,9 @@ func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
 	case STATE_CHANGE:
 		debug.Logger.Info(FSM_PREFIX, "fsm received state change event", intfEvent.OperState)
 		switch intfEvent.OperState {
-		case config.STATE_DOWN:
+		case common.STATE_DOWN:
 			f.stateDownEvent()
-		case config.STATE_UP:
+		case common.STATE_UP:
 			f.stateUpEvent()
 		}
 	case TEAR_DOWN:
@@ -441,7 +444,7 @@ func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
 
 func (f *FSM) updateVirtualIP(enable bool) {
 	// Set Sub-intf state up and send out garp via linux stack
-	f.vipCh <- &config.VirtualIpInfo{
+	f.vipCh <- &common.VirtualIpInfo{
 		IntfRef: f.Config.IntfRef,
 		IpAddr:  f.Config.VirtualIPAddr,
 		MacAddr: f.VirtualMACAddress,
@@ -468,7 +471,8 @@ const (
 	VRRP_SNAPSHOT_LEN            = 1024
 	VRRP_PROMISCOUS_MODE         = false
 	VRRP_TIMEOUT                 = 1 // in seconds
-	VRRP_BPF_FILTER              = "ip host " + packet.VRRP_GROUP_IP
+	VRRP2_BPF_FILTER             = "ip host " + packet.VRRP_V4_GROUP_IP
+	VRRP3_BPF_FILTER             = "ip host " + packet.VRRP_V6_GROUP_IP
 	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
 	FSM_PREFIX                   = "FSM ------> "
 )
