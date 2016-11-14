@@ -45,6 +45,7 @@ const (
 	CREATE
 	UPDATE
 	DELETE
+	DB_UPDATE
 )
 
 type GlobalConfig struct {

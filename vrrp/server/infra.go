@@ -363,6 +363,13 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *config.GlobalConfig) {
 			svr.HandleProtocolMacEntry(false /*Enable*/)
 		}
 		svr.HandleVrrpEnableDisable(gCfg.Enable)
+	case config.DB_UPDATE:
+		debug.Logger.Info("Vrrp Global DB Updated:", *svr.GlobalConfig)
+		svr.GlobalConfig.Vrf = gCfg.Vrf
+		if gCfg.Enable {
+			debug.Logger.Info("Vrrp Enabled, configuring Protocol Mac during restart")
+			svr.HandleProtocolMacEntry(true /*Enable*/)
+		}
 	}
 }
 

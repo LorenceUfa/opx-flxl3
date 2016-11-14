@@ -44,7 +44,7 @@ func (svr *VrrpServer) readVrrpGblCfg() {
 		gblCfg := &config.GlobalConfig{
 			Vrf:       cfg.Vrf,
 			Enable:    cfg.Enable,
-			Operation: config.UPDATE,
+			Operation: config.DB_UPDATE,
 		}
 		svr.HandleGlobalConfig(gblCfg)
 	}
