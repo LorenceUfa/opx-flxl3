@@ -895,7 +895,7 @@ func (server *ARPServer) updateLagInfra(msg commonDefs.LagNotifyMsg) {
 	lagIfIdx := int(msg.IfIndex)
 	portList := msg.IfIndexList
 	if msg.MsgType == commonDefs.NOTIFY_LAG_CREATE {
-		server.processLagCreate(lagIfIdx, portList, true)
+		server.processLagCreate(msg.LagName, lagIfIdx, portList, true)
 	} else if msg.MsgType == commonDefs.NOTIFY_LAG_UPDATE {
 		server.processLagUpdate(lagIfIdx, portList)
 	} else if msg.MsgType == commonDefs.NOTIFY_LAG_DELETE {
@@ -903,11 +903,15 @@ func (server *ARPServer) updateLagInfra(msg commonDefs.LagNotifyMsg) {
 	}
 }
 
-func (server *ARPServer) processLagCreate(lagIfIdx int, portList []int32, createFlag bool) {
+func (server *ARPServer) processLagCreate(lagName string, lagIfIdx int, portList []int32, createFlag bool) {
 	lagEnt, _ := server.lagPropMap[lagIfIdx]
 	if createFlag == true {
 		lagEnt.PortMap = nil
 		lagEnt.PortMap = make(map[int]bool)
+		lagEnt.VlanIdMap = nil
+		lagEnt.VlanIdMap = make(map[int]bool)
+		lagEnt.IfName = ""
+		lagEnt.IfName = lagName
 	}
 	for _, portIfIdx := range portList {
 		lagEnt.PortMap[int(portIfIdx)] = true
@@ -922,6 +926,7 @@ func (server *ARPServer) processLagDelete(lagIfIdx int, portList []int32, delete
 	}
 	if deleteFlag == true {
 		lagEnt.PortMap = nil
+		lagEnt.VlanIdMap = nil
 		delete(server.lagPropMap, lagIfIdx)
 	}
 }
@@ -948,7 +953,9 @@ func (server *ARPServer) processLagUpdate(lagIfIdx int, portList []int32) {
 		createPortList = append(createPortList, int32(portIfdx))
 	}
 
-	server.processLagCreate(lagIfIdx, createPortList, false)
+	//Dummy arg not used during updates
+	lagName := ""
+	server.processLagCreate(lagName, lagIfIdx, createPortList, false)
 	server.processLagDelete(lagIfIdx, delPortList, false)
 	server.updateInfraWithL3LagUpdate(lagIfIdx, createPortList, delPortList)
 }
