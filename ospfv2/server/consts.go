@@ -46,6 +46,7 @@ const (
 	CHECK_AGE               uint16        = 300  // 5 mins
 	MAX_AGE_DIFF            uint16        = 900  // 15 mins
 	//LSSequenceNumber      int           = InitialSequenceNumber
+	LSInfinity uint32 = 0x00ffffff
 )
 
 const (

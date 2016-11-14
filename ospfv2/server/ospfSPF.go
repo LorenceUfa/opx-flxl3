@@ -39,13 +39,6 @@ type SPFStruct struct {
 	SPFCtrlReplyCh chan bool
 }
 
-type RoutingTblStruct struct {
-	TempAreaRoutingTbl   map[AreaIdKey]AreaRoutingTbl
-	GlobalRoutingTbl     map[RoutingTblEntryKey]GlobalRoutingTblEntry
-	OldGlobalRoutingTbl  map[RoutingTblEntryKey]GlobalRoutingTblEntry
-	TempGlobalRoutingTbl map[RoutingTblEntryKey]GlobalRoutingTblEntry
-}
-
 type VertexKey struct {
 	Type   uint8
 	ID     uint32
@@ -306,8 +299,8 @@ func (server *OSPFV2Server) UpdateAreaGraphRouterLsa(lsaEnt RouterLsa, lsaKey Ls
 	}
 	ent, exist := server.SPFData.AreaGraph[vertexKey]
 	if exist {
-		server.logger.Info(fmt.Sprintln("Entry already exists in SPF Graph for vertexKey:", vertexKey))
-		server.logger.Info(fmt.Sprintln("SPF Graph:", server.SPFData.AreaGraph))
+		server.logger.Info("Entry already exists in SPF Graph for vertexKey:", vertexKey)
+		server.logger.Info("SPF Graph:", server.SPFData.AreaGraph)
 		return nil
 	}
 	/*
@@ -410,14 +403,14 @@ func (server *OSPFV2Server) UpdateAreaGraphRouterLsa(lsaEnt RouterLsa, lsaKey Ls
 	}
 	lsDbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
 	if !exist {
-		server.logger.Err(fmt.Sprintln("No LS Database found for areaId:", areaId))
+		server.logger.Err("No LS Database found for areaId:", areaId)
 		err := errors.New(fmt.Sprintln("No LS Database found for areaId:", areaId))
 		return err
 	}
 	for _, vKey := range ent.NbrVertexKey {
 		_, exist := server.SPFData.AreaGraph[vKey]
 		if exist {
-			server.logger.Info(fmt.Sprintln("Entry for Vertex:", vKey, "already exist in Area Graph"))
+			server.logger.Info("Entry for Vertex:", vKey, "already exist in Area Graph")
 			continue
 		}
 		lsaKey := LsaKey{
@@ -429,7 +422,7 @@ func (server *OSPFV2Server) UpdateAreaGraphRouterLsa(lsaEnt RouterLsa, lsaKey Ls
 			lsaKey.LSType = NetworkLSA
 			lsaEnt, exist := lsDbEnt.NetworkLsaMap[lsaKey]
 			if !exist {
-				server.logger.Err(fmt.Sprintln("Network LSA with LsaKey:", lsaKey, "not found in LS Database of areaId:", areaId))
+				server.logger.Err("Network LSA with LsaKey:", lsaKey, "not found in LS Database of areaId:", areaId)
 				err := errors.New(fmt.Sprintln("Network LSA with LsaKey:", lsaKey, "not found in LS Database of areaId:", areaId))
 				if check == true {
 					continue
@@ -448,7 +441,7 @@ func (server *OSPFV2Server) UpdateAreaGraphRouterLsa(lsaEnt RouterLsa, lsaKey Ls
 			lsaKey.LSType = RouterLSA
 			lsaEnt, exist := lsDbEnt.RouterLsaMap[lsaKey]
 			if !exist {
-				server.logger.Err(fmt.Sprintln("Router LSA with LsaKey:", lsaKey, "not found in LS Database of areaId:", areaId))
+				server.logger.Err("Router LSA with LsaKey:", lsaKey, "not found in LS Database of areaId:", areaId)
 				err := errors.New(fmt.Sprintln("Router LSA with LsaKey:", lsaKey, "not found in LS Database of areaId:", areaId))
 				//continue
 				if check == true {
@@ -536,22 +529,22 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 
 	for j := 0; j < len(treeVSlice); j++ {
 		verArr := make([]VertexData, 0)
-		server.logger.Debug(fmt.Sprintln("treeVSlice:", treeVSlice))
-		server.logger.Debug(fmt.Sprintln("The value of j:", j, "treeVSlice:", treeVSlice[j].vKey))
+		server.logger.Debug("treeVSlice:", treeVSlice)
+		server.logger.Debug("The value of j:", j, "treeVSlice:", treeVSlice[j].vKey)
 		//ent, exist := server.SPFData.AreaGraph[treeVSlice[j]]
 		ent, exist := server.SPFData.AreaGraph[treeVSlice[j].vKey]
 		if !exist {
-			server.logger.Info(fmt.Sprintln("No entry found for:", treeVSlice[j].vKey))
+			server.logger.Info("No entry found for:", treeVSlice[j].vKey)
 			err := errors.New(fmt.Sprintln("No entry found for:", treeVSlice[j].vKey))
 			return err
 		}
 
-		server.logger.Debug(fmt.Sprintln("Number of neighbor of treeVSlice:", treeVSlice[j].vKey, "ent:", ent, "is:", len(ent.NbrVertexKey)))
+		server.logger.Debug("Number of neighbor of treeVSlice:", treeVSlice[j].vKey, "ent:", ent, "is:", len(ent.NbrVertexKey))
 		for i := 0; i < len(ent.NbrVertexKey); i++ {
 			verKey := ent.NbrVertexKey[i]
 			cost := ent.NbrVertexCost[i]
 			entry, exist := server.SPFData.AreaGraph[verKey]
-			server.logger.Debug(fmt.Sprintln("Neighboring Vertex Number :", i, "verKey", verKey, "cost:", cost, "entry:", entry))
+			server.logger.Debug("Neighboring Vertex Number :", i, "verKey", verKey, "cost:", cost, "entry:", entry)
 			if !exist {
 				server.logger.Err("Something is wrong in SPF Calculation: Entry should exist in Area Graph")
 				err := errors.New("Something is wrong in SPF Calculation: Entry should exist in Area Graph")
@@ -573,10 +566,10 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 				err := errors.New("Something is wrong is SPF Calculation")
 				return err
 			}
-			server.logger.Debug(fmt.Sprintln("Parent Node:", treeVSlice[j].vKey, tEntry))
-			server.logger.Debug(fmt.Sprintln("Child Node:", verKey, tEnt))
+			server.logger.Debug("Parent Node:", treeVSlice[j].vKey, tEntry)
+			server.logger.Debug("Child Node:", verKey, tEnt)
 			if tEnt.Distance > tEntry.Distance+cost {
-				server.logger.Debug(fmt.Sprintln("We have lower cost path via", tEntry))
+				server.logger.Debug("We have lower cost path via", tEntry)
 				tEnt.Distance = tEntry.Distance + cost
 				for l := 0; l < tEnt.NumOfPaths; l++ {
 					tEnt.Paths[l] = nil
@@ -594,9 +587,9 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 				}
 				tEnt.NumOfPaths = tEntry.NumOfPaths
 			} else if tEnt.Distance == tEntry.Distance+cost {
-				server.logger.Debug(fmt.Sprintln("We have equal cost path via:", tEntry))
-				server.logger.Debug(fmt.Sprintln("tEnt:", tEnt, "tEntry:", tEntry))
-				server.logger.Debug(fmt.Sprintln("tEnt.NumOfPaths:", tEnt.NumOfPaths, "tEntry.NumOfPaths:", tEntry.NumOfPaths))
+				server.logger.Debug("We have equal cost path via:", tEntry)
+				server.logger.Debug("tEnt:", tEnt, "tEntry:", tEntry)
+				server.logger.Debug("tEnt.NumOfPaths:", tEnt.NumOfPaths, "tEntry.NumOfPaths:", tEntry.NumOfPaths)
 				paths := make([]Path, (tEntry.NumOfPaths + tEnt.NumOfPaths))
 				for l := 0; l < tEnt.NumOfPaths; l++ {
 					var path Path
@@ -605,7 +598,7 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 					paths[l] = path
 					tEnt.Paths[l] = nil
 				}
-				server.logger.Debug(fmt.Sprintln("1. paths:", paths))
+				server.logger.Debug("1. paths:", paths)
 				tEnt.Paths = tEnt.Paths[:0]
 				tEnt.Paths = nil
 				for l := 0; l < tEntry.NumOfPaths; l++ {
@@ -615,12 +608,12 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 					path[len(tEntry.Paths[l])] = treeVSlice[j].vKey
 					paths[tEnt.NumOfPaths+l] = path
 				}
-				server.logger.Debug(fmt.Sprintln("2. paths:", paths))
+				server.logger.Debug("2. paths:", paths)
 				tEnt.Paths = paths
 				tEnt.NumOfPaths = tEntry.NumOfPaths + tEnt.NumOfPaths
 			}
 			if _, ok := server.SPFData.SPFTree[verKey]; !ok {
-				server.logger.Debug(fmt.Sprintln("Adding verKey:", verKey, "to treeVSlice"))
+				server.logger.Debug("Adding verKey:", verKey, "to treeVSlice")
 				vData := VertexData{
 					vKey:     verKey,
 					distance: tEnt.Distance,
@@ -822,7 +815,7 @@ func (server *OSPFV2Server) spfCalculation() {
 	for areaId, aEnt := range server.AreaConfMap {
 
 		server.logger.Info("Area Id : ", areaId, "Area Bdr Status:", server.globalData.AreaBdrRtrStatus)
-		if len(aEnt.IntfMap) == 0 {
+		if len(aEnt.IntfMap) == 0 || aEnt.AdminState == false {
 			continue
 		}
 		//aEnt.TransitCapability = false
