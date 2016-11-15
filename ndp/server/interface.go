@@ -39,6 +39,7 @@ import (
 
 const (
 	NDP_PCAP_FILTER                              = "(ip6[6] == 0x3a) and (ip6[40] >= 133 && ip6[40] <= 136)"
+	NDP_ETHER_SRC                                = " and not ether src "
 	NDP_PCAP_TIMEOUT                             = 1 * time.Second
 	NDP_PCAP_SNAPSHOTlEN                         = 1024
 	NDP_PCAP_PROMISCUOUS                         = false
@@ -619,4 +620,22 @@ func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) (string, stri
 	}
 
 	return "", ""
+}
+
+func (intf *Interface) updateFilter(macAddr string) {
+	if intf.PcapBase.PcapHandle != nil {
+		err := intf.PcapBase.PcapHandle.SetBPFFilter(getNewFilter(macAddr))
+		if err != nil {
+			debug.Logger.Err("failed to update interface:", intf.IntfRef, "filter, err:", err)
+		}
+	}
+}
+
+func (intf *Interface) resetFilter() {
+	if intf.PcapBase.PcapHandle != nil {
+		err := intf.PcapBase.PcapHandle.SetBPFFilter(NDP_PCAP_FILTER)
+		if err != nil {
+			debug.Logger.Err("Reseting BPF Filter failed for interface:", intf.IntfRef, "Error", err)
+		}
+	}
 }

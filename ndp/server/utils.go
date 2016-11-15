@@ -23,6 +23,8 @@
 package server
 
 import (
+	"fmt"
+	"l3/ndp/debug"
 	"net"
 	"strings"
 )
@@ -41,6 +43,18 @@ func isLinkLocal(ipAddr string) bool {
 		ip = net.ParseIP(ipAddr)
 	}
 	return ip.IsLinkLocalUnicast() && (ip.To4() == nil)
+}
+
+func baseFilter(macAddr string) (filter string) {
+	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC)
+	debug.Logger.Info("new filter is:", filter)
+	return filter
+}
+
+func getNewFilter(macAddr string) (filter string) {
+	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC, macAddr)
+	debug.Logger.Info("new filter is:", filter)
+	return filter
 }
 
 func (svr *NDPServer) IsIPv6Addr(ipAddr string) bool {

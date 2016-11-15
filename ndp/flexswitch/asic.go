@@ -38,34 +38,20 @@ var once sync.Once
 func initAsicdNotification() commonDefs.AsicdNotification {
 	nMap := make(commonDefs.AsicdNotification)
 	nMap = commonDefs.AsicdNotification{
-		commonDefs.NOTIFY_L2INTF_STATE_CHANGE:       true,
-		commonDefs.NOTIFY_IPV4_L3INTF_STATE_CHANGE:  false,
-		commonDefs.NOTIFY_IPV6_L3INTF_STATE_CHANGE:  true,
-		commonDefs.NOTIFY_VLAN_CREATE:               true,
-		commonDefs.NOTIFY_VLAN_DELETE:               true,
-		commonDefs.NOTIFY_VLAN_UPDATE:               true,
-		commonDefs.NOTIFY_LOGICAL_INTF_CREATE:       false,
-		commonDefs.NOTIFY_LOGICAL_INTF_DELETE:       false,
-		commonDefs.NOTIFY_LOGICAL_INTF_UPDATE:       false,
-		commonDefs.NOTIFY_IPV4INTF_CREATE:           false,
-		commonDefs.NOTIFY_IPV4INTF_DELETE:           false,
-		commonDefs.NOTIFY_IPV6INTF_CREATE:           true,
-		commonDefs.NOTIFY_IPV6INTF_DELETE:           true,
-		commonDefs.NOTIFY_LAG_CREATE:                true,
-		commonDefs.NOTIFY_LAG_DELETE:                true,
-		commonDefs.NOTIFY_LAG_UPDATE:                true,
-		commonDefs.NOTIFY_IPV4NBR_MAC_MOVE:          false,
-		commonDefs.NOTIFY_IPV6NBR_MAC_MOVE:          true,
-		commonDefs.NOTIFY_IPV4_ROUTE_CREATE_FAILURE: false,
-		commonDefs.NOTIFY_IPV4_ROUTE_DELETE_FAILURE: false,
-		commonDefs.NOTIFY_IPV6_ROUTE_CREATE_FAILURE: false,
-		commonDefs.NOTIFY_IPV6_ROUTE_DELETE_FAILURE: false,
-		commonDefs.NOTIFY_VTEP_CREATE:               false,
-		commonDefs.NOTIFY_VTEP_DELETE:               false,
-		commonDefs.NOTIFY_MPLSINTF_STATE_CHANGE:     false,
-		commonDefs.NOTIFY_MPLSINTF_CREATE:           false,
-		commonDefs.NOTIFY_MPLSINTF_DELETE:           false,
-		commonDefs.NOTIFY_PORT_CONFIG_MODE_CHANGE:   false,
+		commonDefs.NOTIFY_L2INTF_STATE_CHANGE:           true,
+		commonDefs.NOTIFY_IPV6_L3INTF_STATE_CHANGE:      true,
+		commonDefs.NOTIFY_VLAN_CREATE:                   true,
+		commonDefs.NOTIFY_VLAN_DELETE:                   true,
+		commonDefs.NOTIFY_VLAN_UPDATE:                   true,
+		commonDefs.NOTIFY_IPV6INTF_CREATE:               true,
+		commonDefs.NOTIFY_IPV6INTF_DELETE:               true,
+		commonDefs.NOTIFY_LAG_CREATE:                    true,
+		commonDefs.NOTIFY_LAG_DELETE:                    true,
+		commonDefs.NOTIFY_LAG_UPDATE:                    true,
+		commonDefs.NOTIFY_IPV6NBR_MAC_MOVE:              true,
+		commonDefs.NOTIFY_IPV6VIRTUAL_INTF_CREATE:       true,
+		commonDefs.NOTIFY_IPV6VIRTUAL_INTF_DELETE:       true,
+		commonDefs.NOTIFY_IPV6_VIRTUALINTF_STATE_CHANGE: true,
 	}
 	return nMap
 }
@@ -141,5 +127,26 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 		macMoveMsg := msg.(commonDefs.IPv6NbrMacMoveNotifyMsg)
 		debug.Logger.Debug("Received Asicd IPv6 Neighbor Mac Move Notification:", macMoveMsg)
 		api.SendMacMoveNotification(macMoveMsg.IpAddr, macMoveMsg.IfIndex, macMoveMsg.VlanId)
+	case commonDefs.IPv6VirtualIntfNotifyMsg:
+		virIpMsg := msg.(commonDefs.IPv6VirtualIntfNotifyMsg)
+		if virIpMsg.MsgType == commonDefs.NOTIFY_IPV6VIRTUAL_INTF_CREATE {
+			debug.Logger.Debug("Received Asicd IPV6 Virtual INTF Notfication CREATE:", virIpMsg)
+			api.SendVirtualIpNotification(virIpMsg.IfIndex, virIpMsg.ParentIfIndex, virIpMsg.IpAddr, virIpMsg.MacAddr, virIpMsg.IfName,
+				config.VIRTUAL_CREATE)
+		} else {
+			debug.Logger.Debug("Received Asicd IPV6 Virtual INTF Notfication DELETE:", virIpMsg)
+			api.SendVirtualIpNotification(virIpMsg.IfIndex, virIpMsg.ParentIfIndex, virIpMsg.IpAddr, virIpMsg.MacAddr, virIpMsg.IfName,
+				config.VIRTUAL_DELETE)
+		}
+
+	case commonDefs.IPv6VirtualIntfStateNotifyMsg:
+		virIpMsg := msg.(commonDefs.IPv6VirtualIntfStateNotifyMsg)
+		if virIpMsg.IfState == asicdCommonDefs.INTF_STATE_UP {
+			debug.Logger.Debug("Received Asicd IPV6 Virtual Intf State Up:", virIpMsg)
+			api.SendVirtualIpStateMsg(virIpMsg.IfIndex, virIpMsg.IpAddr, config.STATE_UP)
+		} else {
+			debug.Logger.Debug("Received Asicd IPV6 Virtual Intf State Down:", virIpMsg)
+			api.SendVirtualIpStateMsg(virIpMsg.IfIndex, virIpMsg.IpAddr, config.STATE_DOWN)
+		}
 	}
 }
