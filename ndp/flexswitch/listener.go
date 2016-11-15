@@ -160,3 +160,7 @@ func (h *ConfigHandler) GetIPV6AdjState(intfRef string) (*ndpd.IPV6AdjState, err
 	}
 	return h.convertIPV6AdjStateEntryToThriftEntry(*ndpEntry), nil
 }
+
+func (h *ConfigHandler) DeleteNdpEntry(ipAddr string) error {
+	return nil
+}

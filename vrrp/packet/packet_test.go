@@ -32,6 +32,7 @@ import (
 	"log/syslog"
 	"net"
 	"reflect"
+	"syscall"
 	"testing"
 	"utils/logging"
 )
@@ -79,6 +80,7 @@ func TestEncodeV2(t *testing.T) {
 		VirutalMac:   testVMac,
 		IpAddr:       testSrcIp,
 		Vip:          testVip,
+		IpType:       syscall.AF_INET,
 	}
 	encodedPkt := testPktInfo.Encode(pktInfo)
 	if len(encodedPkt) != len(testEncodePkt) {
@@ -110,8 +112,8 @@ func TestDecodeV2(t *testing.T) {
 	wantPktInfo := &PacketInfo{
 		DstMac: VRRP_PROTOCOL_MAC,
 		SrcMac: testVMac,
-		IpAddr: testVip,
-		DstIp:  VRRP_GROUP_IP,
+		IpAddr: testSrcIp,
+		DstIp:  VRRP_V4_GROUP_IP,
 		Hdr: &Header{
 			Version:      common.VERSION2,
 			Type:         VRRP_PKT_TYPE_ADVERTISEMENT,

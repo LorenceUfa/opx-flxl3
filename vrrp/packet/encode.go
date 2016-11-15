@@ -24,11 +24,13 @@ package packet
 
 import (
 	"encoding/binary"
+	_ "fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"l3/vrrp/common"
+	_ "l3/vrrp/common"
 	_ "l3/vrrp/debug"
 	"net"
+	"syscall"
 )
 
 /*
@@ -56,11 +58,7 @@ Octet Offset--> 0                   1                   2                   3
 		+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 func EncodeHeader(hdr *Header) ([]byte, uint16) {
-	pktLen := VRRP_HEADER_SIZE_EXCLUDING_IPVX + (hdr.CountIPAddr * 4)
-	if pktLen < VRRP_HEADER_MIN_SIZE {
-		pktLen = VRRP_HEADER_MIN_SIZE
-	}
-	bytes := make([]byte, pktLen)
+	bytes := make([]byte, VRRP_HEADER_MIN_SIZE)
 	bytes[0] = (hdr.Version << 4) | hdr.Type
 	bytes[1] = hdr.VirtualRtrId
 	bytes[2] = hdr.Priority
@@ -70,12 +68,25 @@ func EncodeHeader(hdr *Header) ([]byte, uint16) {
 	binary.BigEndian.PutUint16(bytes[6:8], hdr.CheckSum)
 	baseIpByte := 8
 	for i := 0; i < int(hdr.CountIPAddr); i++ {
-		copy(bytes[baseIpByte:(baseIpByte+4)], hdr.IpAddr[i].To4())
-		baseIpByte += 4
+		if baseIpByte < VRRP_HEADER_MIN_SIZE {
+			if hdr.IpAddr[i].To4() != nil {
+				copy(bytes[baseIpByte:(baseIpByte+4)], hdr.IpAddr[i].To4())
+				baseIpByte += 4
+			} else {
+				copy(bytes[baseIpByte:], hdr.IpAddr[i].To16())
+				baseIpByte += 16
+			}
+		} else {
+			if hdr.IpAddr[i].To4() != nil {
+				bytes = append(bytes, hdr.IpAddr[i].To4()...)
+			} else {
+				bytes = append(bytes, hdr.IpAddr[i].To16()...)
+			}
+		}
 	}
 	// Create Checksum for the header and store it
 	binary.BigEndian.PutUint16(bytes[6:8], computeChecksum(hdr.Version, bytes))
-	return bytes, uint16(pktLen)
+	return bytes, uint16(len(bytes))
 }
 
 func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
@@ -120,11 +131,11 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 		sip = net.ParseIP(pInfo.IpAddr)
 	}
 	// IPvX Layer
-	switch pInfo.Version {
-	case common.VERSION2:
+	switch pInfo.IpType {
+	case syscall.AF_INET:
 		dip := net.ParseIP(VRRP_V4_GROUP_IP)
 		ipv4 := &layers.IPv4{
-			Version:  uint8(4),
+			Version:  VRRP_IPV4_VERSION,
 			IHL:      uint8(VRRP_IPV4_HEADER_MIN_SIZE),
 			Protocol: layers.IPProtocol(VRRP_PROTO_ID),
 			Length:   uint16(VRRP_IPV4_HEADER_MIN_SIZE + hdrLen),
@@ -135,8 +146,17 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 		//debug.Logger.Debug("ipv4 information is:", *ipv4)
 		gopacket.SerializeLayers(buffer, options, eth, ipv4, gopacket.Payload(payload))
 
-	case common.VERSION3:
-		// @TODO: need to create ipv6 information after reading rfc
+	case syscall.AF_INET6:
+		dip := net.ParseIP(VRRP_V6_GROUP_IP)
+		ipv6 := &layers.IPv6{
+			Version:    VRRP_IPV6_VERSION,
+			HopLimit:   VRRP_HOP_LIMIT,
+			NextHeader: layers.IPProtocol(VRRP_PROTO_ID),
+			Length:     uint16(len(payload)),
+			SrcIP:      sip,
+			DstIP:      dip,
+		}
+		gopacket.SerializeLayers(buffer, options, eth, ipv6, gopacket.Payload(payload))
 	}
 
 	return buffer.Bytes()

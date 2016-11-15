@@ -30,6 +30,7 @@ import (
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -119,7 +120,7 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f.stateInfo = &common.State{}
 	f.ipAddr = l3Info.IpAddr
 	f.ifIndex = l3Info.IfIndex
-	f.VirtualMACAddress = createVirtualMac(cfg.VRID)
+	f.VirtualMACAddress = f.createVirtualMac(cfg.VRID)
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
@@ -205,12 +206,17 @@ func (f *FSM) GetStateInfo(info *common.State) {
 					* FSM PRIVATE API's *
 *************************************************************************************************************/
 
-func createVirtualMac(vrid int32) (vmac string) {
+func (f *FSM) createVirtualMac(vrid int32) (vmac string) {
+	if f.Config.Version == common.VERSION2 {
+		vmac = packet.VRRP_V4_IEEE_MAC_ADDR
+	} else if f.Config.Version == common.VERSION3 {
+		vmac = packet.VRRP_V6_IEEE_MAC_ADDR
+	}
 	if vrid < 10 {
-		vmac = packet.VRRP_IEEE_MAC_ADDR + "0" + strconv.Itoa(int(vrid))
+		vmac = "0" + strconv.Itoa(int(vrid))
 
 	} else {
-		vmac = packet.VRRP_IEEE_MAC_ADDR + strconv.Itoa(int(vrid))
+		vmac = strconv.Itoa(int(vrid))
 	}
 	return vmac
 }
@@ -270,7 +276,7 @@ func (f *FSM) initPktListener() (err error) {
 			return err
 		}
 		filter := VRRP2_BPF_FILTER
-		if f.Config.Version == common.VERSION3 {
+		if f.Config.IpType == syscall.AF_INET6 {
 			filter = VRRP3_BPF_FILTER
 		}
 		err = f.pHandle.SetBPFFilter(filter)
@@ -294,7 +300,7 @@ func (f *FSM) deInitPktListener() {
 }
 
 func (f *FSM) processRcvdPkt(pktCh *PktChannelInfo) {
-	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.Version)
+	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.IpType)
 	if pktInfo == nil {
 		debug.Logger.Err("Decoding Vrrp Header Failed")
 		return
@@ -333,6 +339,7 @@ func (f *FSM) getPacketInfo() *packet.PacketInfo {
 		Priority:     uint8(f.Config.Priority), //VRRP_IGNORE_PRIORITY,
 		AdvertiseInt: uint16(f.Config.AdvertisementInterval),
 		VirutalMac:   f.VirtualMACAddress,
+		IpType:       f.Config.IpType,
 	}
 	if f.Config.VirtualIPAddr == "" {
 		// If no virtual ip then use interface/router ip address as virtual ip
@@ -450,6 +457,7 @@ func (f *FSM) updateVirtualIP(enable bool) {
 		MacAddr: f.VirtualMACAddress,
 		Enable:  enable,
 		Version: f.Config.Version,
+		IpType:  f.Config.IpType,
 	}
 }
 

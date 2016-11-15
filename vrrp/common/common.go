@@ -38,6 +38,8 @@ const (
 	IP_MSG_STATE_CHANGE      = "state_change"
 	NETMASK_DELIMITER        = "/"
 	SLASH_32                 = "32"
+	VERSION2_STR             = "version2"
+	VERSION3_STR             = "version3"
 )
 
 const (
@@ -100,6 +102,7 @@ type IntfCfg struct {
 	AdminState            bool
 	Version               uint8 // Information that will be used by server.. as all configs will be passed onto one channel only
 	Operation             uint8 // Information that will be used by server
+	IpType                int   // Information that will be used by server
 }
 
 type State struct {
@@ -125,4 +128,5 @@ type VirtualIpInfo struct {
 	MacAddr string
 	Enable  bool
 	Version uint8
+	IpType  int
 }

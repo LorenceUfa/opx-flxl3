@@ -25,10 +25,12 @@ package flexswitch
 
 import (
 	"errors"
+	"fmt"
 	"l3/vrrp/api"
 	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"strings"
+	"syscall"
 	"vrrpd"
 )
 
@@ -69,9 +71,16 @@ func (h *ConfigHandler) CreateVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
-		AdminState:            cfg.AdminState,
-		Version:               common.VERSION2,
 		Operation:             common.CREATE,
+		IpType:                syscall.AF_INET,
+	}
+	if cfg.AdminState == common.STATE_UP {
+		v4Cfg.AdminState = true
+	}
+	if cfg.Version == common.VERSION2_STR {
+		v4Cfg.Version = common.VERSION2
+	} else if cfg.Version == common.VERSION3_STR {
+		v4Cfg.Version = common.VERSION3
 	}
 	debug.Logger.Info("Push create cfg:", *v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
@@ -83,6 +92,9 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 	if !strings.Contains(newconfig.Address, common.NETMASK_DELIMITER) {
 		newconfig.Address += common.NETMASK_DELIMITER + common.SLASH_32
 	}
+	if origconfig.Version != newconfig.Version {
+		return false, errors.New(fmt.Sprintln("Changing Version from:", origconfig.Version, "to", newconfig.Version, "is not supported"))
+	}
 	v4Cfg := &common.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -91,9 +103,16 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 		AdvertisementInterval: newconfig.AdvertisementInterval,
 		PreemptMode:           newconfig.PreemptMode,
 		AcceptMode:            newconfig.AcceptMode,
-		AdminState:            newconfig.AdminState,
-		Version:               common.VERSION2,
 		Operation:             common.UPDATE,
+		IpType:                syscall.AF_INET,
+	}
+	if newconfig.AdminState == common.STATE_UP {
+		v4Cfg.AdminState = true
+	}
+	if newconfig.Version == common.VERSION2_STR {
+		v4Cfg.Version = common.VERSION2
+	} else if newconfig.AdminState == common.VERSION3_STR {
+		v4Cfg.Version = common.VERSION3
 	}
 	debug.Logger.Info("Push update cfg:", *v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
@@ -114,9 +133,16 @@ func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
-		AdminState:            cfg.AdminState,
-		Version:               common.VERSION2,
 		Operation:             common.DELETE,
+		IpType:                syscall.AF_INET,
+	}
+	if cfg.AdminState == common.STATE_UP {
+		v4Cfg.AdminState = true
+	}
+	if cfg.Version == common.VERSION2_STR {
+		v4Cfg.Version = common.VERSION2
+	} else if cfg.Version == common.VERSION3_STR {
+		v4Cfg.Version = common.VERSION3
 	}
 	debug.Logger.Info("Push delete cfg:", *v4Cfg, "to api layer")
 	r, err = api.VrrpIntfConfig(v4Cfg)
@@ -134,9 +160,12 @@ func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
-		AdminState:            cfg.AdminState,
 		Version:               common.VERSION3,
 		Operation:             common.CREATE,
+		IpType:                syscall.AF_INET6,
+	}
+	if cfg.AdminState == common.STATE_UP {
+		v6Cfg.AdminState = true
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
 	debug.Logger.Info("Thrift request returning for creating vrrp v6 interface cfg returning:", r, err)
@@ -153,9 +182,12 @@ func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig
 		AdvertisementInterval: newconfig.AdvertisementInterval,
 		PreemptMode:           newconfig.PreemptMode,
 		AcceptMode:            newconfig.AcceptMode,
-		AdminState:            newconfig.AdminState,
 		Version:               common.VERSION3,
 		Operation:             common.UPDATE,
+		IpType:                syscall.AF_INET6,
+	}
+	if newconfig.AdminState == common.STATE_UP {
+		v6Cfg.AdminState = true
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
 	debug.Logger.Info("Thrift request returning for updating vrrp v6 interface config for:", *origconfig, "to new:", *newconfig, "returning:", r, err)
@@ -172,9 +204,12 @@ func (h *ConfigHandler) DeleteVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 		AdvertisementInterval: cfg.AdvertisementInterval,
 		PreemptMode:           cfg.PreemptMode,
 		AcceptMode:            cfg.AcceptMode,
-		AdminState:            cfg.AdminState,
 		Version:               common.VERSION3,
 		Operation:             common.DELETE,
+		IpType:                syscall.AF_INET6,
+	}
+	if cfg.AdminState == common.STATE_UP {
+		v6Cfg.AdminState = true
 	}
 	r, err = api.VrrpIntfConfig(v6Cfg)
 	debug.Logger.Info("Thrift request returning for deleting vrrp v6 interface cfg returning:", r, err)
