@@ -75,6 +75,14 @@ func (server *ARPServer) processAsicdNotification(msg commonDefs.AsicdNotifyMsg)
 		macMoveMsg := msg.(commonDefs.IPv4NbrMacMoveNotifyMsg)
 		server.processIPv4NbrMacMove(macMoveMsg)
 		server.dumpInfra()
+	case commonDefs.IPv4VirtualIntfNotifyMsg:
+		virIntfMsg := msg.(commonDefs.IPv4VirtualIntfNotifyMsg)
+		server.logger.Info("Msg Virtual Intf:", virIntfMsg)
+		server.processVirtualIntfEvent(virIntfMsg)
+	case commonDefs.IPv4VirtualIntfStateNotifyMsg:
+		virStMsg := msg.(commonDefs.IPv4VirtualIntfStateNotifyMsg)
+		server.logger.Info("Virtual Intf State Change Message:", virStMsg)
+		server.processVirtualIntfStateEvent(virStMsg)
 	}
 }
 

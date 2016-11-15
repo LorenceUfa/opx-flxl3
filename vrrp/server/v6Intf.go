@@ -20,54 +20,54 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-
-package rpc
+package server
 
 import (
-	"arpd"
-	"arpdInt"
-	"fmt"
-	"l3/arp/server"
+	"l3/vrrp/common"
+	"l3/vrrp/debug"
+	"net"
 )
 
-func (h *ARPHandler) SendResolveArpIPv4(targetIp string, ifId arpdInt.Int) {
-	rConf := server.ResolveIPv4{
-		TargetIP: targetIp,
-		IfId:     int(ifId),
-	}
-	h.server.ResolveIPv4Ch <- rConf
-	return
+type V6Intf struct {
+	Cfg     common.Ipv6Info // this is ipv6 interface created on the system config
+	Vrrpkey *KeyInfo
 }
 
-func (h *ARPHandler) SendSetArpGlobalConfig(refTimeout int) error {
-	err := h.sanityCheckArpGlobalConfig(refTimeout)
-	if err != nil {
-		return err
+func (intf *V6Intf) Init(obj *common.BaseIpInfo) {
+	intf.Cfg.Info.IntfRef = obj.IntfRef
+	intf.Cfg.Info.IfIndex = obj.IfIndex
+	intf.Cfg.Info.OperState = obj.OperState
+	ip, _, _ := net.ParseCIDR(obj.IpAddr)
+	if ip.IsLinkLocalUnicast() {
+		intf.Cfg.LinkScopeAddr = ip.String()
+	} else {
+		intf.Cfg.Info.IpAddr = ip.String()
 	}
-	arpConf := server.ArpConf{
-		RefTimeout: refTimeout,
-	}
-	h.server.ArpConfCh <- arpConf
-	return err
+	intf.Vrrpkey = nil
+	debug.Logger.Debug("v6 ip interface initialized:", intf.Cfg)
 }
 
-func (h *ARPHandler) ResolveArpIPV4(targetIp string, ifId arpdInt.Int) error {
-	h.logger.Info(fmt.Sprintln("Received ResolveArpIPV4 call with targetIp:", targetIp, "ifId:", ifId))
-	h.SendResolveArpIPv4(targetIp, ifId)
-	return nil
+func (intf *V6Intf) Update(obj *common.BaseIpInfo) {
+	// most likely update of OperState only
+	intf.Cfg.Info.OperState = obj.OperState
 }
 
-func (h *ARPHandler) CreateArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Received CreateArpGlobal call with Timeout:", conf.Timeout))
-	err := h.SendSetArpGlobalConfig(int(conf.Timeout))
-	if err != nil {
-		return false, err
-	}
-	return true, err
+func (intf *V6Intf) DeInit(obj *common.BaseIpInfo) {
 }
 
-func (h *ARPHandler) SendGarp(ifName, macAddr, ipAddr string) error {
-	h.logger.Info("received send garp request", ifName, macAddr, ipAddr)
-	h.server.GarpEntryCh <- &server.GarpEntry{ifName, macAddr, ipAddr}
-	return nil
+func (intf *V6Intf) GetObjFromDb(l3Info *common.BaseIpInfo) {
+	l3Info.IpAddr = intf.Cfg.Info.IpAddr
+	l3Info.OperState = intf.Cfg.Info.OperState
+}
+
+func (intf *V6Intf) SetVrrpIntfKey(key KeyInfo) {
+	intf.Vrrpkey = &key
+}
+
+func (intf *V6Intf) GetVrrpIntfKey() *KeyInfo {
+	return intf.Vrrpkey
+}
+
+func (intf *V6Intf) GetIntfRef() string {
+	return intf.Cfg.Info.IntfRef
 }
