@@ -32,10 +32,14 @@ import (
 	"net"
 )
 
-func (server *ARPServer) StartArpRxTx(ifName string, macAddr string) (*pcap.Handle, error) {
-	filter := fmt.Sprintf(`not ether src %s`, macAddr)
-	filter = filter + " and not ether proto 0x8809"
-	server.logger.Debug(fmt.Sprintln("Port: ", ifName, "Pcap filter:", filter))
+const (
+	OR_ETHER_SRC = " or ether src "
+	CLOSE_FILTER = "))"
+)
+
+func (server *ARPServer) StartArpRxTx(ifName string, macAddr string, filter string) (*pcap.Handle, error) {
+	filter = filter + CLOSE_FILTER
+	server.logger.Debug("Port: ", ifName, "Pcap filter:", filter)
 	pcapHdl, err := pcap.OpenLive(ifName, server.snapshotLen, server.promiscuous, server.pcapTimeout)
 	if pcapHdl == nil {
 		return nil, errors.New(fmt.Sprintln("Unable to open pcap handler on", ifName, "error:", err))
