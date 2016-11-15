@@ -1990,7 +1990,9 @@ func (s *BGPServer) removePeer(neighbor config.NeighborConfig) {
 
 	if neighbor.NeighborAddress != nil {
 		peerIP = neighbor.NeighborAddress.String()
-	} else if neighbor.IfIndex != -1 {
+	}
+
+	if neighbor.IfIndex != -1 {
 		if _, ok = s.ifaceNeighbors[neighbor.PeerAddressType]; ok {
 			if ifacePeer, ok = s.ifaceNeighbors[neighbor.PeerAddressType][neighbor.IfIndex]; ok {
 				if ifacePeer.NeighborConf.RunningConf.NeighborAddress != nil {
@@ -1999,13 +2001,6 @@ func (s *BGPServer) removePeer(neighbor config.NeighborConfig) {
 				delete(s.ifaceNeighbors[neighbor.PeerAddressType], neighbor.IfIndex)
 			}
 		}
-		if peerIP == "" {
-			s.logger.Err("Failed to remove peer. Peer IP not found for ifIndex", neighbor.IfIndex)
-			return
-		}
-	} else {
-		s.logger.Err("removePeer - IP and ifIndex not set in neighbor conf")
-		return
 	}
 
 	if peer, ok := s.PeerMap[peerIP]; ok {

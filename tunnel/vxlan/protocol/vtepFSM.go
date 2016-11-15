@@ -201,6 +201,11 @@ func (m *VxlanVtepMachine) Apply(r *fsm.Ruleset) *fsm.Machine {
 
 func (vm *VxlanVtepMachine) BEGIN() {
 
+	vtep := vm.vtep
+	// restart the timer on deprovisioning as we will retry each of the
+	// state transitions again
+	vtep.retrytimer.Reset(retrytime)
+
 	vm.VxlanVtepEvents <- MachineEvent{
 		E:   VxlanVtepEventBegin,
 		Src: VxlanVtepMachineModuleStr,
@@ -393,7 +398,9 @@ func (vm *VxlanVtepMachine) VxlanVtepStartListener(m fsm.Machine, data interface
 
 	vtep := vm.vtep
 
-	logger.Info(fmt.Sprintf("%s: Starting listening for packets on vtep intf %s and intf %s ", vtep.VtepName, vtep.VtepHandleName, vtep.NextHop.IfName))
+	hwdata := data.(VtepCreateCfgData)
+	vtep.SetIfIndex(hwdata.IfIndex)
+	logger.Info(fmt.Sprintf("%s: Starting listening for packets on vtep intf %s and intf %s ifindex %d", vtep.VtepName, vtep.VtepHandleName, vtep.NextHop.IfName, vtep.VtepIfIndex))
 	VxlanVtepRxTx(vtep)
 	VxlanCreatePortRxTx(vtep.NextHop.IfName, vtep.UDP)
 	return VxlanVtepStateStart

@@ -89,7 +89,7 @@ func areaTestLogic(tNum int) int {
 		newAreaId := "10.10.0.0"
 		err := ospf.processAreaConfig(areaConf)
 		if err == nil {
-			ospf.updateIntfToAreaMap(key, oldAreaId, newAreaId)
+			ospf.updateIntfToAreaMap(key, oldAreaId, newAreaId, false)
 		}
 
 	case 6:

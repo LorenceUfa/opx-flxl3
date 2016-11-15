@@ -38,7 +38,7 @@ func initTestParams() {
 	go startDummyChannels(ospf)
 }
 
-func TestOspfIntfFSM(t *testing.T) {
+func _TestOspfIntfFSM(t *testing.T) {
 	fmt.Println("\n**************** INTF FSM ************\n")
 	initTestParams()
 	err := intfFSMTestLogic()

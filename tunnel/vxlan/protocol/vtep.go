@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,8 +36,9 @@ const (
 // VtepDbKey
 // Holds the key for the VtepDB
 type VtepDbKey struct {
-	Name string
-	Vni  uint32
+	Name  string
+	Vni   uint32
+	DstIp string
 }
 
 // vtepStatus
@@ -63,6 +65,8 @@ type VtepCounters struct {
 type VtepDbEntry struct {
 	// reference to the vxlan db, and value used in encap/decap
 	Vni uint32
+	// Key used for external reference
+	VtepConfigName string
 	// name of this vtep interface
 	VtepName string
 	// interface name which vtep will get src ip/mac info from
@@ -98,14 +102,11 @@ type VtepDbEntry struct {
 	// Enable/Disable state
 	Enable bool
 
-	// handle name used to rx/tx packets to linux if
+	// handle name used to rx/tx packets to linux if, also known as the Int version of the vEth dev
 	VtepHandleName string
 	// handle used to rx/tx packets to linux if
 	handle     *pcap.Handle
 	taghandles map[uint16]*pcap.Handle
-
-	// Reference to the vxlan server
-	server *VXLANServer
 
 	counters VtepCounters
 
@@ -170,11 +171,25 @@ func GetVtepDB() map[VtepDbKey]*VtepDbEntry {
 	return vtepDB
 }
 
+func GetVtepDBList() []*VtepDbEntry {
+	return vtepDbList
+}
+
 func GetVtepDBEntry(key *VtepDbKey) *VtepDbEntry {
 	if vtep, ok := vtepDB[*key]; ok {
 		return vtep
 	}
 	return nil
+}
+
+func DeleteVtepDbEntryFromList(i int) {
+	logger.Info("DeleteVtepDbEntryFromList", i, vtepDbList)
+	j := i + 1
+	copy(vtepDbList[i:], vtepDbList[j:])
+	for k, n := len(vtepDbList)-j+i, len(vtepDbList); k < n; k++ {
+		vtepDbList[k] = nil // or the zero value of T
+	}
+	vtepDbList = vtepDbList[:len(vtepDbList)-j+i]
 }
 
 func GetVtepDbListEntry(idx int32, vxlan **VtepDbEntry) bool {
@@ -192,12 +207,47 @@ type srcMacVtepMap struct {
 }
 */
 
+var vtepNameIdList = make([]int, 0)
+var vtepNameIdCnt = 1
+
+func GenInternalVtepName() string {
+	if len(vtepNameIdList) == 0 {
+		name := fmt.Sprintf("Vtep%d", vtepNameIdCnt)
+		vtepNameIdCnt++
+		return name
+	}
+	x := vtepNameIdList[0]
+	vtepNameIdList = append(vtepNameIdList[:0], vtepNameIdList[1:]...)
+	return fmt.Sprintf("Vtep%d", x)
+}
+
+func FreeGenInternalVtepName(vtepName string) {
+	id, err := strconv.Atoi(strings.TrimLeft(vtepName, "Vtep"))
+	if err == nil {
+		foundEntry := false
+		for _, i := range vtepNameIdList {
+			if i == id {
+				foundEntry = true
+				break
+			}
+		}
+
+		if foundEntry {
+			//logger.Err("Error Deleting Vtep%d ignoring", id)
+			return
+		}
+
+		vtepNameIdList = append(vtepNameIdList, id)
+	}
+}
+
 func NewVtepDbEntry(c *VtepConfig) *VtepDbEntry {
+	vtepName := GenInternalVtepName()
 	vtep := &VtepDbEntry{
-		Vni: c.Vni,
-		// TODO if we are running in hw linux vs proxy then this should not be + Int
-		VtepName:       c.VtepName,
-		VtepHandleName: c.VtepName + "Int",
+		Vni:            c.Vni,
+		VtepConfigName: c.VtepName,
+		VtepName:       vtepName,
+		VtepHandleName: vtepName + "Int",
 		SrcIfName:      c.SrcIfName,
 		UDP:            c.UDP,
 		TTL:            uint8(c.TTL),
@@ -283,9 +333,6 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 			vxlan := GetVxlanDBEntry(vtep.Vni)
 			if vxlan.Enable && vtep.VxlanVtepMachineFsm != nil {
 				vtep.VxlanVtepMachineFsm.BEGIN()
-				// restart the timer on deprovisioning as we will retry each of the
-				// state transitions again
-				vtep.retrytimer.Reset(retrytime)
 			}
 		} else {
 			vtep.retrytimer.Stop()
@@ -307,12 +354,14 @@ func ReProvisionVtep(vtep *VtepDbEntry) {
 func DeleteVtep(c *VtepConfig) {
 
 	key := &VtepDbKey{
-		Name: c.VtepName,
-		Vni:  c.Vni,
+		Name:  c.VtepName,
+		Vni:   c.Vni,
+		DstIp: c.TunnelDstIp.String(),
 	}
 
 	vtep := GetVtepDBEntry(key)
 	if vtep != nil {
+		FreeGenInternalVtepName(vtep.VtepName)
 		if (VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE ||
 			VxlanGlobalStateGet() == VXLAN_GLOBAL_DISABLE_PENDING) &&
 			c.Enable {
@@ -327,12 +376,13 @@ func DeleteVtep(c *VtepConfig) {
 				vtep.retrytimer.Stop()
 				vtep.retrytimer = nil
 			}
-
 		}
 		if VxlanGlobalStateGet() == VXLAN_GLOBAL_ENABLE {
 			for idx, vtep := range vtepDbList {
-				if vtep.VtepName == c.VtepName {
-					vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+				if vtep.VtepConfigName == c.VtepName &&
+					vtep.Vni == c.Vni &&
+					vtep.DstIp.String() == c.TunnelDstIp.String() {
+					DeleteVtepDbEntryFromList(idx)
 				}
 			}
 
@@ -343,8 +393,9 @@ func DeleteVtep(c *VtepConfig) {
 
 func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 	key := &VtepDbKey{
-		Name: c.VtepName,
-		Vni:  c.Vni,
+		Name:  c.VtepName,
+		Vni:   c.Vni,
+		DstIp: c.TunnelDstIp.String(),
 	}
 	vtep := GetVtepDBEntry(key)
 	if vtep == nil {
@@ -371,9 +422,10 @@ func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 		}
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepName == v.VtepName &&
-				vtep.Vni == v.Vni {
-				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+			if vtep.VtepConfigName == v.VtepConfigName &&
+				vtep.Vni == v.Vni &&
+				vtep.DstIp.String() == v.DstIp.String() {
+				DeleteVtepDbEntryFromList(idx)
 			}
 		}
 
@@ -403,6 +455,10 @@ func SaveVtepSrcMacSrcIp(paramspath string) {
 
 func CreateVtepRxTx(vtep *VtepDbEntry) {
 	vtep.createVtepSenderListener()
+}
+
+func (vtep *VtepDbEntry) SetIfIndex(ifindex int32) {
+	vtep.VtepIfIndex = ifindex
 }
 
 func (vtep *VtepDbEntry) createUntaggedVtepSenderListener() error {
