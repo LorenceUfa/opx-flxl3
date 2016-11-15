@@ -119,8 +119,8 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 			cfg.IntfRef))
 	}
 
-	if netUtils.IsIpv6LinkLocal(cfg.IpAddr) && cfg.IpType == syscall.AF_INET6 {
-		return falase, errors.New(fmt.Sprintln("Cannot use link local ip for vrrp address:", cfg.IntfRef, cfg.VRID, cfg.IpAddr))
+	if netUtils.IsIpv6LinkLocal(cfg.VirtualIPAddr) && cfg.IpType == syscall.AF_INET6 {
+		return false, errors.New(fmt.Sprintln("Cannot use link local ip for vrrp address:", cfg.IntfRef, cfg.VRID, cfg.VirtualIPAddr))
 	}
 
 	debug.Logger.Info("Validation of create config:", *cfg, "is success")
@@ -137,8 +137,8 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
 	if intf.Config.VRID != cfg.VRID {
 		return false, errors.New("Updating VRID is not allowed")
 	}
-	if netUtils.IsIpv6LinkLocal(cfg.IpAddr) && cfg.IpType == syscall.AF_INET6 {
-		return falase, errors.New(fmt.Sprintln("Cannot use link local ip for updating vrrp address:", cfg.IntfRef, cfg.VRID, cfg.IpAddr))
+	if netUtils.IsIpv6LinkLocal(cfg.VirtualIPAddr) && cfg.IpType == syscall.AF_INET6 {
+		return false, errors.New(fmt.Sprintln("Cannot use link local ip for updating vrrp address:", cfg.IntfRef, cfg.VRID, cfg.VirtualIPAddr))
 	}
 	return true, nil
 }
@@ -234,7 +234,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 		ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
 		ip = ip.To16()
 		if virtualIpInfo.Enable {
-			// @TODO: delete the entry from ndp
+			svr.NdpClient.DeleteNdpEntry(ip.String())
 		}
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
 	}
