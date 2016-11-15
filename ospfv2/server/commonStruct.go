@@ -110,28 +110,12 @@ type DeleteNbrMsg struct {
 	NbrKeyList []NbrConfKey //List of Nbr Identity
 }
 
-type IntfToNbrFSMChStruct struct {
-	NbrHelloEventCh   chan NbrHelloEventMsg
-	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
-	NetworkDRChangeCh chan NetworkDRChangeMsg
-}
-
 type GenerateRouterLSAMsg struct {
 	AreaId uint32
 }
-
-type IntfFSMToLsdbChStruct struct {
-	GenerateRouterLSACh chan GenerateRouterLSAMsg
-}
-
 type NbrDownMsg struct {
 	NbrKey NbrConfKey
 }
-
-type NbrToIntfFSMChStruct struct {
-	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
-}
-
 type RecvdLsaMsgType uint8
 
 const (
@@ -165,20 +149,34 @@ type UpdateSelfNetworkLSAMsg struct {
 	NbrList []uint32
 }
 
+type LsdbToFloodLSAMsg struct {
+	AreaId  uint32
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
+type IntfToNbrFSMChStruct struct {
+	NbrHelloEventCh   chan NbrHelloEventMsg
+	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
+	NetworkDRChangeCh chan NetworkDRChangeMsg
+}
+
+type IntfFSMToLsdbChStruct struct {
+	GenerateRouterLSACh chan GenerateRouterLSAMsg
+}
+
+type NbrToIntfFSMChStruct struct {
+	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
+}
+
 type NbrFSMToLsdbChStruct struct {
 	RecvdLsaMsgCh          chan RecvdLsaMsg
 	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
 }
 
-type LsdbToFloodForSelfOrigLSAMsg struct {
-	LsdbKey LsdbKey
-	LsaKey  LsaKey
-}
-
-type LsdbToFloodingChStruct struct {
-	LsdbToFloodForAgedLSACh     chan bool
-	LsdbToFloodForSelfOrigLSACh chan LsdbToFloodForSelfOrigLSAMsg
+type LsdbToFloodChStruct struct {
+	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
 }
 
 type LsdbToSPFChStruct struct {
@@ -190,11 +188,11 @@ type SPFToLsdbChStruct struct {
 }
 
 type MessagingChStruct struct {
-	IntfToNbrFSMChData   IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData  IntfFSMToLsdbChStruct
-	NbrToIntfFSMChData   NbrToIntfFSMChStruct
-	NbrFSMToLsdbChData   NbrFSMToLsdbChStruct
-	LsdbToFloodingChData LsdbToFloodingChStruct
-	LsdbToSPFChData      LsdbToSPFChStruct
-	SPFToLsdbChData      SPFToLsdbChStruct
+	IntfToNbrFSMChData  IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
+	NbrToIntfFSMChData  NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
+	LsdbToFloodChData   LsdbToFloodChStruct
+	LsdbToSPFChData     LsdbToSPFChStruct
+	SPFToLsdbChData     SPFToLsdbChStruct
 }

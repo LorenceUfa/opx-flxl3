@@ -127,6 +127,12 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
 	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
 	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap = make(map[IntfConfKey]chan NbrDownMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh = make(chan RecvdLsaMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
+	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
+	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
+	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
 }
 
 func (server *OSPFV2Server) initServer() error {

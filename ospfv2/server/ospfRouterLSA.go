@@ -121,11 +121,11 @@ func (server *OSPFV2Server) GetLinkDetails(areaId uint32, areaEnt AreaConf) []Li
 	return linkDetails
 }
 
-func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) (LsaKey, error) {
+func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) error {
 	var lsaKey LsaKey
 	areaEnt, err := server.GetAreaConfForGivenArea(msg.AreaId)
 	if err != nil {
-		return lsaKey, err
+		return err
 	}
 	var linkDetails []LinkDetail = nil
 	linkDetails = append(linkDetails, server.GetLinkDetails(msg.AreaId, areaEnt)...)
@@ -149,7 +149,7 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) (LsaKey,
 
 	lsdbEnt, lsdbExist := server.LsdbData.AreaLsdb[lsdbKey]
 	if !lsdbExist {
-		return lsaKey, errors.New(fmt.Sprintln("Area doesnot exist. No router LSA will be generated", lsdbKey))
+		return errors.New(fmt.Sprintln("Area doesnot exist. No router LSA will be generated", lsdbKey))
 	}
 	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
 	if numOfLinks == 0 {
@@ -157,7 +157,7 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) (LsaKey,
 		delete(selfOrigLsaEnt, lsaKey)
 		server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 		server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
-		return lsaKey, nil
+		return nil
 	}
 	lsaEnt, exist := lsdbEnt.RouterLsaMap[lsaKey]
 	lsaEnt.LsaMd.LSAge = 0
@@ -182,7 +182,9 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) (LsaKey,
 	selfOrigLsaEnt[lsaKey] = true
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
-	return lsaKey, nil
+	//TODO:
+	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
+	return nil
 }
 
 func (server *OSPFV2Server) processRecvdSelfRouterLSA(msg RecvdSelfLsaMsg) error {
@@ -215,16 +217,17 @@ func (server *OSPFV2Server) processRecvdSelfRouterLSA(msg RecvdSelfLsaMsg) error
 		checksumOffset := uint16(14)
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
+		lsaEnt.LsaMd.LSChecksum = 0
 		lsaEnc := encodeRouterLsa(lsaEnt, msg.LsaKey)
 		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		lsdbEnt.RouterLsaMap[msg.LsaKey] = lsaEnt
 		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
 		//TODO:
-		//Flood new Self Router LSA
+		//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
 		return nil
 	} else {
 		//TODO:
-		//Flood existing Self Router LSA
+		//Flood existing Self Router LSA (areaId, lsaEnt, lsaKey)
 	}
 
 	return nil

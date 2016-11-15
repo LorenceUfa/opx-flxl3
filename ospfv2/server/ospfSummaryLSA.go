@@ -29,64 +29,128 @@ import (
 //"l3/ospfv2/objects"
 )
 
+func (server *OSPFV2Server) processRecvdSelfSummary4LSA(msg RecvdSelfLsaMsg) error {
+	lsa, ok := msg.LsaData.(SummaryLsa)
+	if !ok {
+		server.logger.Err("Unable to assert given network lsa")
+		return nil
+	}
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[msg.LsdbKey]
+	if !exist {
+		server.logger.Err("No such Area exist", msg.LsdbKey)
+		return nil
+	}
+	lsaEnt, exist := lsdbEnt.Summary4LsaMap[msg.LsaKey]
+	if !exist {
+		server.logger.Err("No such Summary 4 LSA exist", msg.LsaKey)
+		//TODO: Mark the recvd lsa as MaxAge and flood
+		return nil
+	}
+	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
+	if !exist {
+		server.logger.Err("No self originated LSA exist")
+		return nil
+	}
+	_, exist = selfOrigLsaEnt[msg.LsaKey]
+	if !exist {
+		server.logger.Err("No such self originated summary LSA exist")
+		//TODO: Mark the recvd lsa as MaxAge and flood
+		return nil
+	}
+	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
+		lsaEnt.LsaMd.LSAge = 0
+		lsaEnt.LsaMd.LSChecksum = 0
+		lsaEnc := encodeSummaryLsa(lsaEnt, msg.LsaKey)
+		checksumOffset := uint16(14)
+		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		lsdbEnt.Summary4LsaMap[msg.LsaKey] = lsaEnt
+		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
+		//TODO: Flood new Self Summary 4 LSA (areaId, lsaKey, lsaEnt)
+		return nil
+	} else {
+		//TODO: Flood existing Self Summary 4 LSA (areaId, lsaKey, lsaEnt)
+	}
+	return nil
+}
+
+func (server *OSPFV2Server) processRecvdSelfSummary3LSA(msg RecvdSelfLsaMsg) error {
+	lsa, ok := msg.LsaData.(SummaryLsa)
+	if !ok {
+		server.logger.Err("Unable to assert given network lsa")
+		return nil
+	}
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[msg.LsdbKey]
+	if !exist {
+		server.logger.Err("No such Area exist", msg.LsdbKey)
+		return nil
+	}
+	lsaEnt, exist := lsdbEnt.Summary3LsaMap[msg.LsaKey]
+	if !exist {
+		server.logger.Err("No such Summary 3 LSA exist", msg.LsaKey)
+		//TODO: Mark the recvd lsa as MaxAge and flood
+		return nil
+	}
+	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
+	if !exist {
+		server.logger.Err("No self originated LSA exist")
+		return nil
+	}
+	_, exist = selfOrigLsaEnt[msg.LsaKey]
+	if !exist {
+		server.logger.Err("No such self originated summary LSA exist")
+		//TODO: Mark the recvd lsa as MaxAge and flood
+		return nil
+	}
+	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
+		lsaEnt.LsaMd.LSAge = 0
+		lsaEnc := encodeSummaryLsa(lsaEnt, msg.LsaKey)
+		checksumOffset := uint16(14)
+		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		lsdbEnt.Summary3LsaMap[msg.LsaKey] = lsaEnt
+		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
+		//TODO: Flood new Self Summary 3 LSA (areaId, lsaKey, lsaEnt)
+		return nil
+	} else {
+		//TODO: Flood existing Self Summary 3 LSA (areaId, lsaKey, lsaEnt)
+	}
+	return nil
+}
+
 func (server *OSPFV2Server) processRecvdSelfSummaryLSA(msg RecvdSelfLsaMsg) error {
-	/*
-	   lsa, ok := msg.LsaData.(RouterLsa)
-	   if !ok {
-	           server.logger.Err("Unable to assert given router lsa")
-	           return nil
-	   }
-	   lsdbEnt, exist := server.LsdbData.AreaLsdb[msg.LsdbKey]
-	   if !exist {
-	           server.logger.Err("No such Area exist", msg.LsdbKey)
-	           return nil
-	   }
-	   lsaEnt, exist := lsdbEnt.RouterLsaMap[msg.LsaKey]
-	   if !exist {
-	           server.logger.Err("No such router LSA exist", msg.LsaKey)
-	           return nil
-	   }
-	   selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
-	   if !exist {
-	           server.logger.Err("No such self originated router LSA exist")
-	           return nil
-	   }
-	   if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
-	           lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
-	           lsaEnt.LsaMd.LSAge = 0
-	           lsaEnc := encodeRouterLsa(lsaEnt, msg.LsaKey)
-	           lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
-	           lsdbEnt.RouterLsaMap[msg.LsaKey] = lsaEnt
-	           server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-	           //TODO:
-	           //Flood new Self Router LSA
-	           return nil
-	   } else {
-	           //TODO:
-	           //Flood existing Self Router LSA
-	   }
-	*/
+	if msg.LsaKey.LSType == Summary3LSA {
+		server.processRecvdSelfSummary3LSA(msg)
+	} else {
+		server.processRecvdSelfSummary4LSA(msg)
+	}
 	return nil
 }
 
 func (server *OSPFV2Server) processRecvdSummaryLSA(msg RecvdLsaMsg) error {
-	/*
-	   lsdbEnt, exist := server.LsdbData.AreaLsdb[msg.LsdbKey]
-	   if !exist {
-	           server.logger.Err("No such Area exist", msg.LsdbKey)
-	           return nil
-	   }
-	   if msg.MsgType == LSA_ADD {
-	           lsa, ok := msg.LsaData.(RouterLsa)
-	           if !ok {
-	                   server.logger.Err("Unable to assert given router lsa")
-	                   return nil
-	           }
-	           lsdbEnt.RouterLsaMap[msg.LsaKey] = lsa
-	   } else if msg.MsgType == LSA_DEL {
-	           delete(lsdbEnt.RouterLsaMap, msg.LsaKey)
-	   }
-	   server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-	*/
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[msg.LsdbKey]
+	if !exist {
+		server.logger.Err("No such Area exist", msg.LsdbKey)
+		return nil
+	}
+	if msg.MsgType == LSA_ADD {
+		lsa, ok := msg.LsaData.(SummaryLsa)
+		if !ok {
+			server.logger.Err("Unable to assert given router lsa")
+			return nil
+		}
+		if msg.LsaKey.LSType == Summary3LSA {
+			lsdbEnt.Summary3LsaMap[msg.LsaKey] = lsa
+		} else {
+			lsdbEnt.Summary4LsaMap[msg.LsaKey] = lsa
+		}
+	} else if msg.MsgType == LSA_DEL {
+		if msg.LsaKey.LSType == Summary3LSA {
+			delete(lsdbEnt.Summary3LsaMap, msg.LsaKey)
+		} else {
+			delete(lsdbEnt.Summary4LsaMap, msg.LsaKey)
+		}
+	}
+	server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
 	return nil
 }

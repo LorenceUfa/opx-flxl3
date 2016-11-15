@@ -70,6 +70,23 @@ func genOspfv2AreaUpdateMask(attrset []bool) uint32 {
 	return mask
 }
 
+func (server *OSPFV2Server) isAreaBDR() bool {
+	cnt := 0
+	for _, areaEnt := range server.AreaConfMap {
+		if areaEnt.AdminState == true {
+			cnt++
+			if cnt == 2 {
+				break
+			}
+		}
+	}
+	if cnt == 2 {
+		return true
+	}
+	return false
+
+}
+
 func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrset []bool) (bool, error) {
 	server.logger.Info("Area configuration update")
 	// Stop All the INTF FSM in this area
@@ -104,6 +121,7 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
 	}
 	server.AreaConfMap[newCfg.AreaId] = newAreaEnt
+	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
 	return true, nil
 }
 
@@ -124,26 +142,12 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	areaEnt.IntfMap = make(map[IntfConfKey]bool)
 	areaEnt.AdminState = cfg.AdminState
 	server.AreaConfMap[cfg.AreaId] = areaEnt
-	cnt := 0
-	for _, areaEnt := range server.AreaConfMap {
-		if areaEnt.AdminState == true {
-			cnt++
-			if cnt == 2 {
-				break
-			}
-		}
-	}
-	if cnt == 2 {
-		server.globalData.AreaBdrRtrStatus = true
-	} else {
-		server.globalData.AreaBdrRtrStatus = false
-	}
+	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
 	server.InitAreaLsdb(cfg.AreaId)
 	return true, nil
 }
 
 func (server *OSPFV2Server) deleteArea(cfg *objects.Ospfv2Area) (bool, error) {
-	server.logger.Info("Area configuration delete")
 	server.logger.Info("Area configuration delete")
 	areaEnt, exist := server.AreaConfMap[cfg.AreaId]
 	if !exist {
@@ -156,9 +160,7 @@ func (server *OSPFV2Server) deleteArea(cfg *objects.Ospfv2Area) (bool, error) {
 		return false, errors.New("Unable to delete Area as there are interface configured in this area")
 	}
 	delete(server.AreaConfMap, cfg.AreaId)
-	if len(server.AreaConfMap) <= 1 {
-		server.globalData.AreaBdrRtrStatus = false
-	}
+	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
 	return true, nil
 }
 

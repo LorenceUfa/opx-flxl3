@@ -268,7 +268,6 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
 	intfConfEnt.NbrCreateCh = make(chan NbrCreateMsg)
 	intfConfEnt.NbrChangeCh = make(chan NbrChangeMsg)
-	//intfConfEnt.NbrStateChangeCh = make(chan NbrStateChangeMsg)
 
 	intfConfEnt.LsaCount = 0
 	server.IntfConfMap[intfConfKey] = intfConfEnt

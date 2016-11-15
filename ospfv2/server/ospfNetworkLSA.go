@@ -54,19 +54,22 @@ func (server *OSPFV2Server) flushNetworkLSA(intfKey IntfConfKey) error {
 		return errors.New(fmt.Sprintln("Error: No Network found for", lsaKey))
 	}
 	lsaEnt.LsaMd.LSAge = MAX_AGE
-	lsdbEnt.NetworkLsaMap[lsaKey] = lsaEnt
+
+	delete(lsdbEnt.NetworkLsaMap, lsaKey)
+	//lsdbEnt.NetworkLsaMap[lsaKey] = lsaEnt
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+	//TODO: Flood new Network LSA (areaId, lsaEnt, lsaKey)
 	return nil
 }
 
-func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []uint32) (uint32, LsaKey, error) {
+func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []uint32) error {
 	var lsaKey LsaKey
 	intfConfEnt, err := server.GetIntfConfForGivenIntfKey(intfKey)
 	if err != nil {
-		return 0, lsaKey, err
+		return err
 	}
 	if intfConfEnt.Type != objects.INTF_TYPE_BROADCAST {
-		return 0, lsaKey, errors.New("Network LSA won't be generated for Non Broadcast Network")
+		return errors.New("Network LSA won't be generated for Non Broadcast Network")
 	}
 	lsdbKey := LsdbKey{
 		AreaId: intfConfEnt.AreaId,
@@ -78,7 +81,7 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	}
 	lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
 	if !exist {
-		return 0, lsaKey, errors.New(fmt.Sprintln("Error: No lsDbEnt found for", lsdbKey))
+		return errors.New(fmt.Sprintln("Error: No lsDbEnt found for", lsdbKey))
 	}
 	lsaEnt, exist := lsdbEnt.NetworkLsaMap[lsaKey]
 	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
@@ -104,17 +107,17 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
 	selfOrigLsaEnt[lsaKey] = true
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
-	return intfConfEnt.AreaId, lsaKey, nil
+	//TODO: Flood new Network LSA (areaId, lsaEnt, lsaKey)
+	return nil
 }
 
-func (server *OSPFV2Server) processUpdateSelfNetworkLSA(msg UpdateSelfNetworkLSAMsg) (uint32, LsaKey, error) {
-	var lsaKey LsaKey
+func (server *OSPFV2Server) processUpdateSelfNetworkLSA(msg UpdateSelfNetworkLSAMsg) error {
 	if msg.Op == FLUSH {
-		return 0, lsaKey, server.flushNetworkLSA(msg.IntfKey)
+		return server.flushNetworkLSA(msg.IntfKey)
 	} else if msg.Op == GENERATE {
 		return server.generateNetworkLSA(msg.IntfKey, msg.NbrList)
 	}
-	return 0, lsaKey, errors.New("Invalid Op value")
+	return errors.New("Invalid Op value")
 }
 
 func (server *OSPFV2Server) processRecvdSelfNetworkLSA(msg RecvdSelfLsaMsg) error {
@@ -131,32 +134,35 @@ func (server *OSPFV2Server) processRecvdSelfNetworkLSA(msg RecvdSelfLsaMsg) erro
 	lsaEnt, exist := lsdbEnt.NetworkLsaMap[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such Network LSA exist", msg.LsaKey)
+		// TODO: Mark as Max Age and flood (
+		//server.NetworkLSAMarkMaxAgeAndFlood(msg)
 		return nil
 	}
 	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
 	if !exist {
-		server.logger.Err("No such self originated LSA exist", msg.LsdbKey)
+		server.logger.Err("No self originated LSA exist", msg.LsdbKey)
 		return nil
 	}
 	_, exist = selfOrigLsaEnt[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such self originated Network LSA exist", msg.LsaKey)
+		// TODO:Mark as Max Age and flood
+		//server.NetworkLSAMarkMaxAgeAndFlood(msg)
 		return nil
 	}
 	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
 		checksumOffset := uint16(14)
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
+		lsaEnt.LsaMd.LSChecksum = 0
 		lsaEnc := encodeNetworkLsa(lsaEnt, msg.LsaKey)
 		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		lsdbEnt.NetworkLsaMap[msg.LsaKey] = lsaEnt
 		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-		//TODO:
-		//Flood new Self Network LSA
+		//TODO: Flood new Self Network LSA (lsaEnt, msg.LsaKey)
 		return nil
 	} else {
-		//TODO:
-		//Flood existing Self Network LSA
+		//TODO: Flood existing Self Network LSA (lsaEnt, msh.LsaKey)
 	}
 
 	return nil

@@ -32,7 +32,6 @@ func (server *OSPFV2Server) initLsdbData() {
 	server.LsdbData.AreaSelfOrigLsa = make(map[LsdbKey]SelfOrigLsa)
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
-	server.LsdbData.AgedLsaData.AgedLsaMap = make(map[AgedLsaKey]bool)
 	server.LsdbData.LsdbAgingTicker = nil
 }
 
@@ -40,7 +39,6 @@ func (server *OSPFV2Server) dinitLsdb() {
 	server.LsdbData.LsdbAgingTicker = nil
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = nil
 	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = nil
-	server.LsdbData.AgedLsaData.AgedLsaMap = nil
 	for lsdbKey, _ := range server.LsdbData.AreaLsdb {
 		delete(server.LsdbData.AreaLsdb, lsdbKey)
 	}
@@ -89,6 +87,8 @@ func (server *OSPFV2Server) DinitAreaLsdb(areaId uint32) {
 	if exist {
 		delete(server.LsdbData.AreaSelfOrigLsa, lsdbKey)
 	}
+	server.CalcSPFAndRoutingTbl()
+
 }
 
 func (server *OSPFV2Server) StartLsdbRoutine() {
@@ -164,52 +164,39 @@ func (server *OSPFV2Server) ProcessLsdb() {
 			return
 		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:
 			server.logger.Info("Generate self originated Router LSA", msg)
-			lsaKey, err := server.GenerateRouterLSA(msg)
+			err := server.GenerateRouterLSA(msg)
 			if err != nil {
 				continue
 			}
-			server.SendMsgToStartSpf()
-			spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
-			server.logger.Debug("SPF Calculation Return Status", spfState)
-			//Flood
-			server.SendMsgToFloodSelfOrigLsa(msg.AreaId, lsaKey)
-			if server.globalData.AreaBdrRtrStatus == true {
-				//TODO:
-				//Summary LSA
-			}
+			server.CalcSPFAndRoutingTbl()
 		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh:
 			server.logger.Info("Update self originated Network LSA", msg)
-			areaId, lsaKey, err := server.processUpdateSelfNetworkLSA(msg)
+			err := server.processUpdateSelfNetworkLSA(msg)
 			if err != nil {
 				continue
 			}
-			server.SendMsgToStartSpf()
-			spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
-			server.logger.Debug("SPF Calculation Return Status", spfState)
-			//Flood
-			// If op == FLUSH then Add lsa to Max AgedLsaStruct
-			// else flood using LsdbToFloodForSelfOrigLSAMsg
-			if msg.Op != FLUSH {
-				server.SendMsgToFloodSelfOrigLsa(areaId, lsaKey)
-			}
-			if server.globalData.AreaBdrRtrStatus == true {
-				//TODO:
-				//Summary LSA
-			}
+			server.CalcSPFAndRoutingTbl()
 		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh:
 			server.logger.Info("Update LSA", msg)
 			server.processRecvdLSA(msg)
-			server.SendMsgToStartSpf()
-			spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
-			server.logger.Debug("SPF Calculation Return Status", spfState)
-			if server.globalData.AreaBdrRtrStatus == true {
-				//TODO:
-				//Summary LSA
-			}
+			server.CalcSPFAndRoutingTbl()
 		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh:
 			server.logger.Info("Recvd Self LSA", msg)
+			server.processRecvdSelfLSA(msg)
+			server.CalcSPFAndRoutingTbl()
+		//TODO: Handle AS External
 		case <-server.LsdbData.LsdbAgingTicker.C:
 			server.processLsdbAgingTicker()
 		}
+	}
+}
+
+func (server *OSPFV2Server) CalcSPFAndRoutingTbl() {
+	server.SendMsgToStartSpf()
+	spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
+	server.logger.Debug("SPF Calculation Return Status", spfState)
+	if server.globalData.AreaBdrRtrStatus == true {
+		//TODO:
+		//Summary LSA
 	}
 }

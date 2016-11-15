@@ -24,7 +24,6 @@
 package server
 
 import (
-	"sync"
 	"time"
 )
 
@@ -69,16 +68,5 @@ type LsdbStruct struct {
 	AreaLsdb        map[LsdbKey]LSDatabase
 	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
 	LsdbCtrlChData  LsdbCtrlChStruct
-	AgedLsaData     AgedLsaStruct
 	LsdbAgingTicker *time.Ticker
-}
-
-type AgedLsaKey struct {
-	LsdbKey LsdbKey
-	LsaKey  LsaKey
-}
-
-type AgedLsaStruct struct {
-	AgedLsaMap      map[AgedLsaKey]bool // Value False:Not Yet FLooded, True means Flooded
-	AgedLsaMapMutex sync.Mutex
 }
