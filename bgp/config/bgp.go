@@ -43,6 +43,8 @@ type GlobalBase struct {
 	EBGPMaxPaths        uint32
 	EBGPAllowMultipleAS bool
 	IBGPMaxPaths        uint32
+	Defaultv4Route      bool
+	Defaultv6Route      bool
 }
 
 type GlobalConfig struct {
