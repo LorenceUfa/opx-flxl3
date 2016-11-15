@@ -21,53 +21,38 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package rpc
+// bgp.go
+package packet
 
 import (
-	"arpd"
-	"arpdInt"
-	"fmt"
-	"l3/arp/server"
+	"net"
 )
 
-func (h *ARPHandler) SendResolveArpIPv4(targetIp string, ifId arpdInt.Int) {
-	rConf := server.ResolveIPv4{
-		TargetIP: targetIp,
-		IfId:     int(ifId),
-	}
-	h.server.ResolveIPv4Ch <- rConf
-	return
+var ProtocolFamilyDefaultRouteMap = map[uint32]NLRI{
+	GetProtocolFamily(AfiIP, SafiUnicast):  NewIPPrefix(net.ParseIP("0.0.0.0"), uint8(0)),
+	GetProtocolFamily(AfiIP6, SafiUnicast): NewIPPrefix(net.ParseIP("::"), uint8(0)),
 }
 
-func (h *ARPHandler) SendSetArpGlobalConfig(refTimeout int) error {
-	err := h.sanityCheckArpGlobalConfig(refTimeout)
-	if err != nil {
-		return err
+func ConstructNLRIForDefaultRoutes(update map[uint32]bool) (valid, invalid map[uint32][]NLRI) {
+	for protoFamily, add := range update {
+		ipPrefix, ok := ProtocolFamilyDefaultRouteMap[protoFamily]
+		if !ok {
+			continue
+		}
+		if add {
+			if valid == nil {
+				valid = make(map[uint32][]NLRI)
+			}
+			valid[protoFamily] = make([]NLRI, 1)
+			valid[protoFamily][0] = ipPrefix
+		} else {
+			if invalid == nil {
+				invalid = make(map[uint32][]NLRI)
+			}
+			invalid[protoFamily] = make([]NLRI, 1)
+			invalid[protoFamily][0] = ipPrefix
+		}
 	}
-	arpConf := server.ArpConf{
-		RefTimeout: refTimeout,
-	}
-	h.server.ArpConfCh <- arpConf
-	return err
-}
 
-func (h *ARPHandler) ResolveArpIPV4(targetIp string, ifId arpdInt.Int) error {
-	h.logger.Info(fmt.Sprintln("Received ResolveArpIPV4 call with targetIp:", targetIp, "ifId:", ifId))
-	h.SendResolveArpIPv4(targetIp, ifId)
-	return nil
-}
-
-func (h *ARPHandler) CreateArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Received CreateArpGlobal call with Timeout:", conf.Timeout))
-	err := h.SendSetArpGlobalConfig(int(conf.Timeout))
-	if err != nil {
-		return false, err
-	}
-	return true, err
-}
-
-func (h *ARPHandler) SendGarp(ifName, macAddr, ipAddr string) error {
-	h.logger.Info("received send garp request", ifName, macAddr, ipAddr)
-	h.server.GarpEntryCh <- &server.GarpEntry{ifName, macAddr, ipAddr}
-	return nil
+	return valid, invalid
 }

@@ -56,8 +56,8 @@ func main() {
 		}
 		// create handler and map for recieving notifications from switch/asicd
 		asicHdl := flexswitch.GetSwitchInst()
-		asicHdl.Logger = ndpBase.GetLogger()
-		debug.NDPSetLogger(ndpBase.GetLogger()) // @TODO: Change this to interface and move it to util
+		asicHdl.Logger = ndpBase.Logger
+		debug.NDPSetLogger(ndpBase.Logger) // @TODO: Change this to interface and move it to util
 		debug.Logger.Info("Initializing switch plugin")
 		// connect to server and do the initializing
 		switchPlugin := ndpBase.InitSwitch("Flexswitch", "ndpd", "NDP", *asicHdl)

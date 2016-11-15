@@ -25,7 +25,6 @@ package rpc
 
 import (
 	"arpd"
-	"fmt"
 	"l3/arp/server"
 )
 
@@ -39,12 +38,18 @@ func (h *ARPHandler) SendDeleteResolveArpIPv4(NextHopIp string) {
 }
 
 func (h *ARPHandler) DeleteArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Delete Arp config attrs:", conf))
+	h.logger.Info("Delete Arp config attrs:", conf)
 	return true, nil
 }
 
 func (h *ARPHandler) DeleteResolveArpIPv4(NextHopIp string) error {
-	h.logger.Info(fmt.Sprintln("Received DeleteResolveArpIPv4 call with NextHopIp:", NextHopIp))
+	h.logger.Info("Received DeleteResolveArpIPv4 call with NextHopIp:", NextHopIp)
 	h.SendDeleteResolveArpIPv4(NextHopIp)
+	return nil
+}
+
+func (h *ARPHandler) DeleteArpEntry(ipAddr string) error {
+	h.logger.Info("Received Delete Arp Entry for:", ipAddr)
+	h.server.DeleteArpEntryCh <- &server.DeleteArpEntry{ipAddr}
 	return nil
 }
