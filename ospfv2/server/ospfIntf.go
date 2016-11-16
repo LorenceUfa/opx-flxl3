@@ -39,7 +39,7 @@ type IntfConfKey struct {
 type IntfConf struct {
 	AdminState      bool
 	AreaId          uint32
-	Type            uint8
+	Type            uint8 //Broadcast, P2P
 	RtrPriority     uint8
 	TransitDelay    uint16
 	RetransInterval uint16
@@ -73,6 +73,7 @@ type IntfConf struct {
 	IfName    string
 	IpAddr    uint32
 	IfMacAddr net.HardwareAddr
+	IfType    uint32 //Loopback/Vlan/Lag/Port
 	Netmask   uint32
 	txHdl     IntfTxHandle
 	rxHdl     IntfRxHandle
@@ -221,6 +222,7 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		intfConfEnt.IfMacAddr = ipEnt.MacAddr
 		intfConfEnt.Netmask = ipEnt.NetMask
 		intfConfEnt.IpAddr = ipEnt.IpAddr
+		intfConfEnt.IfType = ipEnt.IfType
 	}
 	intfConfEnt.AdminState = cfg.AdminState
 	areaEnt, exist := server.AreaConfMap[cfg.AreaId]

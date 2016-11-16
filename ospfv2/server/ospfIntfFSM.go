@@ -26,6 +26,7 @@ package server
 import (
 	"l3/ospfv2/objects"
 	"time"
+	"utils/commonDefs"
 )
 
 func (server *OSPFV2Server) InitOspfIntfFSM(intfConfKey IntfConfKey) {
@@ -94,66 +95,78 @@ func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) {
 
 func (server *OSPFV2Server) StopIntfFSM(key IntfConfKey) {
 	ent, _ := server.IntfConfMap[key]
-	areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
-	if err != nil {
-		server.logger.Err("Error:", err)
-		return
-	}
+	if ent.IfType != commonDefs.IfTypeLoopback {
+		areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
+		if err != nil {
+			server.logger.Err("Error:", err)
+			return
+		}
 
-	if server.globalData.AdminState == true &&
-		ent.AdminState == true &&
-		areaConf.AdminState == true &&
-		ent.OperState == true &&
-		ent.FSMState != objects.INTF_FSM_STATE_DOWN {
-		ent.FSMCtrlCh <- false
-		cnt := 0
-		for {
-			select {
-			case _ = <-ent.FSMCtrlReplyCh:
-				server.logger.Info("Stopped Sending Hello Pkt")
-				ent, _ := server.IntfConfMap[key]
-				ent.BackupSeenCh = nil
-				ent.NbrCreateCh = nil
-				ent.NbrChangeCh = nil
-				ent.FSMCtrlCh = nil
-				ent.FSMCtrlReplyCh = nil
-				server.IntfConfMap[key] = ent
-				return
-			default:
-				time.Sleep(time.Duration(10) * time.Millisecond)
-				cnt = cnt + 1
-				if cnt == 100 {
-					server.logger.Err("Unable to stop the Tx thread")
+		if server.globalData.AdminState == true &&
+			ent.AdminState == true &&
+			areaConf.AdminState == true &&
+			ent.OperState == true &&
+			ent.FSMState != objects.INTF_FSM_STATE_DOWN {
+			ent.FSMCtrlCh <- false
+			cnt := 0
+			for {
+				select {
+				case _ = <-ent.FSMCtrlReplyCh:
+					server.logger.Info("Stopped Sending Hello Pkt")
+					ent, _ := server.IntfConfMap[key]
+					ent.BackupSeenCh = nil
+					ent.NbrCreateCh = nil
+					ent.NbrChangeCh = nil
+					ent.FSMCtrlCh = nil
+					ent.FSMCtrlReplyCh = nil
+					server.IntfConfMap[key] = ent
 					return
+				default:
+					time.Sleep(time.Duration(10) * time.Millisecond)
+					cnt = cnt + 1
+					if cnt == 100 {
+						server.logger.Err("Unable to stop the Tx thread")
+						return
+					}
 				}
 			}
 		}
+	} else {
+		ent.FSMState = objects.INTF_FSM_STATE_DOWN
+		server.IntfConfMap[key] = ent
+		server.SendMsgToGenerateRouterLSA(ent.AreaId)
 	}
 }
 
 func (server *OSPFV2Server) StartIntfFSM(key IntfConfKey) {
 	ent, _ := server.IntfConfMap[key]
-	areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
-	if err != nil {
-		server.logger.Err("Error:", err)
-		return
-	}
-	if server.globalData.AdminState == true &&
-		ent.AdminState == true &&
-		areaConf.AdminState == true &&
-		ent.OperState == true &&
-		ent.FSMState == objects.INTF_FSM_STATE_DOWN {
-		ent.FSMCtrlCh = make(chan bool)
-		ent.FSMCtrlReplyCh = make(chan bool)
-		ent.BackupSeenCh = make(chan BackupSeenMsg)
-		ent.NbrCreateCh = make(chan NbrCreateMsg)
-		ent.NbrChangeCh = make(chan NbrChangeMsg)
-		server.IntfConfMap[key] = ent
-		if ent.Type == objects.INTF_TYPE_POINT2POINT {
-			go server.StartOspfP2PIntfFSM(key)
-		} else if ent.Type == objects.INTF_TYPE_BROADCAST {
-			go server.StartOspfBroadcastIntfFSM(key)
+	if ent.IfType != commonDefs.IfTypeLoopback {
+		areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
+		if err != nil {
+			server.logger.Err("Error:", err)
+			return
 		}
+		if server.globalData.AdminState == true &&
+			ent.AdminState == true &&
+			areaConf.AdminState == true &&
+			ent.OperState == true &&
+			ent.FSMState == objects.INTF_FSM_STATE_DOWN {
+			ent.FSMCtrlCh = make(chan bool)
+			ent.FSMCtrlReplyCh = make(chan bool)
+			ent.BackupSeenCh = make(chan BackupSeenMsg)
+			ent.NbrCreateCh = make(chan NbrCreateMsg)
+			ent.NbrChangeCh = make(chan NbrChangeMsg)
+			server.IntfConfMap[key] = ent
+			if ent.Type == objects.INTF_TYPE_POINT2POINT {
+				go server.StartOspfP2PIntfFSM(key)
+			} else if ent.Type == objects.INTF_TYPE_BROADCAST {
+				go server.StartOspfBroadcastIntfFSM(key)
+			}
+		}
+	} else {
+		ent.FSMState = objects.INTF_FSM_STATE_LOOPBACK
+		server.IntfConfMap[key] = ent
+		server.SendMsgToGenerateRouterLSA(ent.AreaId)
 	}
 }
 

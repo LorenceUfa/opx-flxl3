@@ -31,6 +31,7 @@ const (
 	snapshotLen             int32         = 65549 //packet capture length
 	promiscuous             bool          = false //mode
 	pcapTimeout             time.Duration = 5 * time.Second
+	LOGICAL_INTF_MTU        int32         = 1512
 	ALLSPFROUTER            uint32        = 0xE0000005
 	ALLDROUTER              uint32        = 0xE0000006
 	ALLSPFROUTERMAC         string        = "01:00:5e:00:00:05"

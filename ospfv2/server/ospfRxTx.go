@@ -23,6 +23,7 @@ package server
 
 import (
 	"l3/ospfv2/objects"
+	"utils/commonDefs"
 )
 
 func (server *OSPFV2Server) StopAllRxTxPkt() {
@@ -45,21 +46,23 @@ func (server *OSPFV2Server) StopAreaRxTxPkt(areaId uint32) {
 
 func (server *OSPFV2Server) StopIntfRxTxPkt(intfKey IntfConfKey) {
 	ent, _ := server.IntfConfMap[intfKey]
-	areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
-	if err != nil {
-		server.logger.Err("Error:", err)
-		return
-	}
+	if ent.IfType != commonDefs.IfTypeLoopback {
+		areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
+		if err != nil {
+			server.logger.Err("Error:", err)
+			return
+		}
 
-	if server.globalData.AdminState == true &&
-		ent.AdminState == true &&
-		areaConf.AdminState == true &&
-		ent.OperState == true {
+		if server.globalData.AdminState == true &&
+			ent.AdminState == true &&
+			areaConf.AdminState == true &&
+			ent.OperState == true {
 
-		server.StopOspfRecvPkts(intfKey)
-		//Nothing to stop for Tx
-		server.DeinitRxPkt(intfKey)
-		server.DeinitTxPkt(intfKey)
+			server.StopOspfRecvPkts(intfKey)
+			//Nothing to stop for Tx
+			server.DeinitRxPkt(intfKey)
+			server.DeinitTxPkt(intfKey)
+		}
 	}
 }
 
@@ -79,26 +82,28 @@ func (server *OSPFV2Server) StartAreaRxTxPkt(areaId uint32) {
 
 func (server *OSPFV2Server) StartIntfRxTxPkt(intfKey IntfConfKey) {
 	ent, _ := server.IntfConfMap[intfKey]
-	areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
-	if err != nil {
-		server.logger.Err("Error:", err)
-		return
-	}
+	if ent.IfType != commonDefs.IfTypeLoopback {
+		areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
+		if err != nil {
+			server.logger.Err("Error:", err)
+			return
+		}
 
-	if server.globalData.AdminState == true &&
-		ent.AdminState == true &&
-		areaConf.AdminState == true &&
-		ent.OperState == true {
-		err := server.InitRxPkt(intfKey)
-		if err != nil {
-			server.logger.Err("Error: InitRxPkt()", err)
-			return
+		if server.globalData.AdminState == true &&
+			ent.AdminState == true &&
+			areaConf.AdminState == true &&
+			ent.OperState == true {
+			err := server.InitRxPkt(intfKey)
+			if err != nil {
+				server.logger.Err("Error: InitRxPkt()", err)
+				return
+			}
+			err = server.InitTxPkt(intfKey)
+			if err != nil {
+				server.logger.Err("Error: InitTxPkt()", err)
+				return
+			}
+			go server.StartOspfRecvPkts(intfKey)
 		}
-		err = server.InitTxPkt(intfKey)
-		if err != nil {
-			server.logger.Err("Error: InitTxPkt()", err)
-			return
-		}
-		go server.StartOspfRecvPkts(intfKey)
 	}
 }
