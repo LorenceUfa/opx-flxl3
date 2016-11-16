@@ -66,6 +66,7 @@ type OSPFV2Server struct {
 
 	globalData      GlobalStruct
 	IntfConfMap     map[IntfConfKey]IntfConf
+	NbrConfMap      map[NbrConfKey]NbrConf
 	AreaConfMap     map[uint32]AreaConf //Key AreaId
 	MessagingChData MessagingChStruct
 

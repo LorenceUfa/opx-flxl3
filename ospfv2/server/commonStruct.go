@@ -66,8 +66,8 @@ type NbrChangeMsg struct {
 }
 
 type NbrConfKey struct {
-	NbrIdentity         uint32
-	NbrAddressLessIfIdx uint32
+	NbrIdentity uint32
+	//	NbrAddressLessIfIdx uint32
 }
 
 type IntfTxHandle struct {
