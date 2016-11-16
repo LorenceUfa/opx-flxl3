@@ -280,7 +280,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 		l3Info.IfIndex = ifIndex
 		ipIntf.GetObjFromDb(l3Info)
 	}
-	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh)
+	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh, svr.UpdateRxCh, svr.UpdateTxCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
 	// up... if that's the case then lets start fsm right away
 	if l3Info.OperState == common.STATE_UP && svr.GlobalConfig.Enable && cfg.AdminState {
@@ -330,6 +330,8 @@ func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *common.IntfCfg) {
 	case common.DELETE:
 		svr.HandleVrrpIntfDeleteConfig(cfg)
 	}
+
+	svr.updateConfiguredIntfCount()
 }
 
 func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
@@ -383,6 +385,7 @@ func (svr *VrrpServer) HandleGlobalConfig(gCfg *common.GlobalConfig) {
 			svr.HandleProtocolMacEntry(true /*Enable*/)
 		}
 	}
+	svr.updateGlobalStatus()
 }
 
 func (svr *VrrpServer) HandleIpStateChange(msg *common.BaseIpInfo) {
@@ -467,4 +470,22 @@ func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 	case common.IP_MSG_STATE_CHANGE:
 		svr.HandleIpStateChange(msg)
 	}
+}
+
+func (svr *VrrpServer) updateConfiguredIntfCount() {
+	svr.globalState.V4Intfs = int32(len(svr.V4))
+	svr.globalState.V6Intfs = int32(len(svr.V6))
+}
+
+func (svr *VrrpServer) updateRxCount() {
+	svr.globalState.TotalRxFrames++
+}
+
+func (svr *VrrpServer) updateTxCount() {
+	svr.globalState.TotalTxFrames++
+}
+
+func (svr *VrrpServer) updateGlobalStatus() {
+	svr.globalState.Status = svr.GlobalConfig.Enable
+	svr.globalState.Vrf = svr.GlobalConfig.Vrf
 }

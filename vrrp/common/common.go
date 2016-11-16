@@ -130,3 +130,12 @@ type VirtualIpInfo struct {
 	Version uint8
 	IpType  int
 }
+
+type GlobalState struct {
+	Vrf           string
+	Status        bool
+	V4Intfs       int32
+	V6Intfs       int32
+	TotalRxFrames int32
+	TotalTxFrames int32
+}

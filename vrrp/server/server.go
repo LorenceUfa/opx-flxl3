@@ -42,6 +42,7 @@ type VrrpServer struct {
 	NdpClient          ndpClient.NdpdClientIntf
 	dmnBase            *dmnBase.FSBaseDmn
 	GlobalConfig       *common.GlobalConfig
+	globalState        common.GlobalState
 	V4                 map[int32]*V4Intf
 	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
@@ -53,6 +54,8 @@ type VrrpServer struct {
 	GblCfgCh           chan *common.GlobalConfig
 	L3IntfNotifyCh     chan *common.BaseIpInfo
 	VirtualIpCh        chan *common.VirtualIpInfo // used for updating virtual ip state in hardware/linux
+	UpdateTxCh         chan struct{}
+	UpdateRxCh         chan struct{}
 }
 
 type VrrpTxChannelInfo struct {
@@ -87,6 +90,14 @@ func (svr *VrrpServer) EventListener() {
 			if ok {
 				svr.UpdateVirtualIntf(vipUpdateInfo)
 			}
+		case _, ok := <-svr.UpdateRxCh:
+			if ok {
+				svr.updateRxCount()
+			}
+		case _, ok := <-svr.UpdateTxCh:
+			if ok {
+				svr.updateTxCount()
+			}
 		}
 	}
 }
@@ -111,6 +122,8 @@ func (svr *VrrpServer) InitGlobalDS() {
 	svr.CfgCh = make(chan *common.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 	svr.L3IntfNotifyCh = make(chan *common.BaseIpInfo)
 	svr.VirtualIpCh = make(chan *common.VirtualIpInfo)
+	svr.UpdateTxCh = make(chan struct{})
+	svr.UpdateRxCh = make(chan struct{})
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {

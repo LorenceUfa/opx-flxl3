@@ -106,14 +106,17 @@ type FSM struct {
 	pktCh               chan *PktChannelInfo       // received vrrp packet are pushed on this channel for fsm
 	IntfEventCh         chan *IntfEvent            // channel used by VrrpInterface to communicate and update in config or ip interface state
 	vipCh               chan *common.VirtualIpInfo // this will be used to bring up/down virtual ip interface
+	rxCh                chan struct{}              // inform server to update global rx count
+	txCh                chan struct{}              // inform server to update global tx count
 	running             bool
+	empty               struct{}
 }
 
 /************************************************************************************************************
 					* FSM EXPOSED API's *
 *************************************************************************************************************/
 
-func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo) *FSM {
+func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo, rxCh chan struct{}, txCh chan struct{}) *FSM {
 	debug.Logger.Info(FSM_PREFIX, "Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
 	f := FSM{}
 	f.Config = cfg
@@ -127,6 +130,10 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
 	f.previousState = VRRP_UNINITIALIZE_STATE
+	f.rxCh = rxCh
+	f.txCh = txCh
+	var empty struct{}
+	f.empty = empty
 	return &f
 }
 
@@ -239,6 +246,7 @@ func (f *FSM) updateRxStInfo(pktInfo *packet.PacketInfo) {
 	f.stateInfo.AdverRx++
 	f.stateInfo.LastAdverRx = time.Now().String()
 	f.stateInfo.CurrentFsmState = getStateName(f.State)
+	f.rxCh <- f.empty
 }
 
 func (f *FSM) updateTxStInfo() {
@@ -246,6 +254,7 @@ func (f *FSM) updateTxStInfo() {
 	f.stateInfo.AdverTx++
 	f.stateInfo.LastAdverTx = time.Now().String()
 	f.stateInfo.CurrentFsmState = getStateName(f.State)
+	f.txCh <- f.empty
 }
 
 func (f *FSM) receivePkt() {
