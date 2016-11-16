@@ -251,8 +251,12 @@ func (server *OSPFV2Server) findP2PNextHopIP(vFirst VertexKey, vSecond VertexKey
 	firstLsa, exist := lsDbEnt.RouterLsaMap[firstLsaKey]
 	if !exist {
 		server.logger.Err("Unable to find the Router Lsa for first node")
-		err = errors.New("Unable to find the Router Lsa for second node")
+		err = errors.New("Unable to find the Router Lsa for first node")
 		return 0, 0, err
+	}
+	if firstLsa.LsaMd.LSAge == MAX_AGE {
+		server.logger.Err("Router Lsa for first node with MAX_AGE")
+		return 0, 0, errors.New("Router Lsa for first node with MAX_AGE")
 	}
 	secondLsaKey := LsaKey{
 		LSType:    RouterLSA,
@@ -264,6 +268,10 @@ func (server *OSPFV2Server) findP2PNextHopIP(vFirst VertexKey, vSecond VertexKey
 		server.logger.Err("Unable to find the Router Lsa for second node")
 		err = errors.New("Unable to find the Router Lsa for second node")
 		return 0, 0, err
+	}
+	if secondLsa.LsaMd.LSAge == MAX_AGE {
+		server.logger.Err("Router Lsa for second node with MAX_AGE")
+		return 0, 0, errors.New("Router Lsa for second node with MAX_AGE")
 	}
 	var firstLink LinkDetail
 	flag := false
@@ -319,6 +327,10 @@ func (server *OSPFV2Server) UpdateRoutingTblForRouter(areaIdKey AreaIdKey, vKey 
 	lsaEnt, exist := lsDbEnt.RouterLsaMap[gEnt.LsaKey]
 	if !exist {
 		server.logger.Err("No LS Database Entry found for lsaKey:", gEnt.LsaKey)
+		return
+	}
+	if lsaEnt.LsaMd.LSAge == MAX_AGE {
+		server.logger.Err("Router LSA with MAX_AGE", gEnt.LsaKey)
 		return
 	}
 	var destType DestType
@@ -449,6 +461,10 @@ func (server *OSPFV2Server) UpdateRoutingTblWithStub(areaId uint32, vKey VertexK
 	lsaEnt, exist := lsDbEnt.RouterLsaMap[pEnt.LsaKey]
 	if !exist {
 		server.logger.Err("No LS Database Entry found for lsaKey:", pEnt.LsaKey)
+		return
+	}
+	if lsaEnt.LsaMd.LSAge == MAX_AGE {
+		server.logger.Err("Router LSA with MAX_AGE", pEnt.LsaKey)
 		return
 	}
 	var destType DestType

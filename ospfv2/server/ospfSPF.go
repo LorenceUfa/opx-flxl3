@@ -141,6 +141,9 @@ func (server *OSPFV2Server) checkRouterLsaConsistency(areaId uint32, rtrId uint3
 		server.logger.Err("Unable to find router lsa for ", rtrId)
 		return false
 	}
+	if lsaEnt.LsaMd.LSAge == MAX_AGE {
+		return false
+	}
 	for i := 0; i < int(lsaEnt.NumOfLinks); i++ {
 		if (lsaEnt.LinkDetails[i].LinkId & netmask) == network {
 			if lsaEnt.LinkDetails[i].LinkType == STUB_LINK {
@@ -233,6 +236,13 @@ func (server *OSPFV2Server) UpdateAreaGraphNetworkLsa(lsaEnt NetworkLsa, lsaKey 
 				continue
 			}
 			return err
+		}
+		if lsaEnt.LsaMd.LSAge == MAX_AGE {
+			server.logger.Err("Router LSA with MAX_AGE", lsaKey)
+			if check == true {
+				continue
+			}
+			return errors.New("Router LSA with MAX_AGE")
 		}
 		err := server.UpdateAreaGraphRouterLsa(lsaEnt, lsaKey, areaId)
 		if err != nil {
@@ -430,6 +440,13 @@ func (server *OSPFV2Server) UpdateAreaGraphRouterLsa(lsaEnt RouterLsa, lsaKey Ls
 				//continue
 				return err
 			}
+			if lsaEnt.LsaMd.LSAge == MAX_AGE {
+				server.logger.Err("Network LSA with MAX_AGE", lsaKey)
+				if check == true {
+					continue
+				}
+				return errors.New("Network LSA with MAX_AGE")
+			}
 			err := server.UpdateAreaGraphNetworkLsa(lsaEnt, lsaKey, areaId)
 			if err != nil {
 				if check == true {
@@ -448,6 +465,13 @@ func (server *OSPFV2Server) UpdateAreaGraphRouterLsa(lsaEnt RouterLsa, lsaKey Ls
 					continue
 				}
 				return err
+			}
+			if lsaEnt.LsaMd.LSAge == MAX_AGE {
+				server.logger.Err("Router LSA with MAX_AGE", lsaKey)
+				if check == true {
+					continue
+				}
+				return errors.New("Router LSA with MAX_AGE")
 			}
 			err := server.UpdateAreaGraphRouterLsa(lsaEnt, lsaKey, areaId)
 			if err != nil {
@@ -494,6 +518,10 @@ func (server *OSPFV2Server) CreateAreaGraph(areaId uint32) (VertexKey, error) {
 		return vKey, err
 	}
 
+	if lsaEnt.LsaMd.LSAge == MAX_AGE {
+		server.logger.Err("Router LSA with MAX_AGE", lsaKey)
+		return vKey, errors.New("Router LSA with MAX_AGE")
+	}
 	err = server.UpdateAreaGraphRouterLsa(lsaEnt, selfRtrLsaKey, areaId)
 	if check == true {
 		err = nil
