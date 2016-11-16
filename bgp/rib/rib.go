@@ -263,11 +263,6 @@ func (l *LocRib) ProcessRoutes(peerIP string, add, rem []packet.NLRI, addPath, r
 
 	nextHopStr := addPath.GetNextHop(protoFamily).String()
 	for _, nlri := range add {
-		if nlri.GetPrefix().String() == "0.0.0.0" {
-			l.logger.Infof("Can't process NLRI 0.0.0.0")
-			continue
-		}
-
 		l.logger.Info("Processing nlri", nlri.GetCIDR())
 		op := l.stateDBMgr.UpdateObject
 		dest, alreadyCreated := l.GetDest(nlri, protoFamily, true)

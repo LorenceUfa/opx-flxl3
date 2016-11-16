@@ -13,56 +13,67 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 package main
 
 import (
-	"flag"
 	"fmt"
-	"l3/vrrp/rpc"
+	"l3/vrrp/api"
+	"l3/vrrp/debug"
+	"l3/vrrp/flexswitch"
 	"l3/vrrp/server"
-	"utils/keepalive"
-	"utils/logging"
+	"utils/commonDefs"
+	"utils/dmnBase"
 )
 
 func main() {
-	fmt.Println("Starting vrrp daemon")
-	paramsDir := flag.String("params", "./params", "Params directory")
-	flag.Parse()
-	fileName := *paramsDir
-	if fileName[len(fileName)-1] != '/' {
-		fileName = fileName + "/"
-	}
+	plugin := ""
 
-	fmt.Println("Start logger")
-	logger, err := logging.NewLogger("vrrpd", "VRRP", true)
-	if err != nil {
-		fmt.Println("Failed to start the logger. Nothing will be logged...")
-	}
-	logger.Info("Started the logger successfully.")
+	switch plugin {
 
-	logger.Info("Starting VRRP server....")
-	// Create vrrp server handler
-	vrrpSvr := vrrpServer.VrrpNewServer(logger)
-	// Until Server is connected to clients do not start with RPC
-	vrrpSvr.VrrpStartServer(*paramsDir)
+	case "OvsDB":
 
-	// Start keepalive routine
-	go keepalive.InitKeepAlive("vrrpd", fileName)
+	default:
+		vrrpBase := dmnBase.NewBaseDmn("vrrpd", "VRRP")
+		status := vrrpBase.Init()
+		if status == false {
+			fmt.Println("Failed init basedmn for VRRP")
+			return
+		}
+		debug.SetLogger(vrrpBase.Logger)
 
-	// Create vrrp rpc handler
-	vrrpHdl := vrrpRpc.VrrpNewHandler(vrrpSvr, logger)
-	logger.Info("Starting VRRP RPC listener....")
-	err = vrrpRpc.VrrpRpcStartServer(logger, vrrpHdl, *paramsDir)
-	if err != nil {
-		logger.Err(fmt.Sprintln("VRRP: Cannot start vrrp server", err))
-		return
+		asicdHdl := flexswitch.GetSwitchInst()
+		asicdHdl.Logger = vrrpBase.Logger
+
+		arpHdl := flexswitch.GetArpInst()
+
+		debug.Logger.Info("Initializing switch plugin")
+		switchPlugin := vrrpBase.InitSwitch("Flexswitch", "vrrpd", "VRRP", *asicdHdl)
+
+		debug.Logger.Info("Initializing arp client")
+		arpClient := flexswitch.InitArpInst(commonDefs.FLEXSWITCH_PLUGIN, vrrpBase.ParamsDir+"clients.json", vrrpBase.ClientsList, *arpHdl)
+
+		debug.Logger.Info("Creating Config Plugin")
+		cfgPlugin := flexswitch.NewConfigPlugin(flexswitch.NewConfigHandler(), vrrpBase.ParamsDir, switchPlugin)
+
+		vrrpSvr := server.VrrpNewServer(switchPlugin, arpClient, vrrpBase)
+
+		api.Init(vrrpSvr)
+		debug.Logger.Info("Starting VRRP Server")
+
+		vrrpSvr.VrrpStartServer()
+
+		vrrpBase.StartKeepAlive()
+
+		debug.Logger.Info("Starting Config Listener for FlexSwitch Plugin")
+
+		cfgPlugin.StartConfigListener()
 	}
 }

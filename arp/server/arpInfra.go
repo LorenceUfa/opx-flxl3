@@ -25,6 +25,7 @@ package server
 
 import (
 	"asicd/asicdCommonDefs"
+	"fmt"
 	"github.com/google/gopacket/pcap"
 	"net"
 	"utils/commonDefs"
@@ -75,6 +76,7 @@ type PortProperty struct {
 	CtrlCh        chan bool
 	CtrlReplyCh   chan bool
 	PcapHdl       *pcap.Handle
+	baseFilter    string
 	OperState     bool
 }
 
@@ -91,6 +93,14 @@ type LagProperty struct {
 	PortMap     map[int]bool
 }
 
+type VirtualIntfProperty struct {
+	IfName        string
+	IfIndex       int32
+	ParentIfIndex int32
+	IpAddr        string
+	MacAddr       string
+}
+
 func (server *ARPServer) isL3Intf(ifIdx int) bool {
 	_, exist := server.l3IntfPropMap[ifIdx]
 	return exist
@@ -101,6 +111,7 @@ func (server *ARPServer) buildArpInfra() {
 	server.constructLagInfra()
 	server.constructVlanInfra()
 	server.constructL3Infra()
+	server.constructVirtualIpInfra()
 	server.dumpInfra()
 }
 
@@ -108,6 +119,8 @@ func (server *ARPServer) constructPortInfra() {
 	server.getBulkPortState()
 	server.getBulkPortConfig()
 	for portIfIdx, portEnt := range server.portPropMap {
+		portEnt.baseFilter = server.constructBaseFilter(portEnt.MacAddr)
+		server.portPropMap[portIfIdx] = portEnt
 		if portEnt.OperState == true {
 			server.EnableRxOnPort(portIfIdx)
 		}
@@ -421,6 +434,20 @@ func (server *ARPServer) updateIPv4Infra(msg commonDefs.IPv4IntfNotifyMsg) {
 	}
 }
 
+func (server *ARPServer) processVirtualIntfEvent(msg commonDefs.IPv4VirtualIntfNotifyMsg) {
+	if msg.MsgType == commonDefs.NOTIFY_IPV4VIRTUAL_INTF_CREATE {
+		virEntry := server.virtualIntfPropMap[msg.IfIndex]
+		virEntry.IfIndex = msg.IfIndex
+		virEntry.ParentIfIndex = msg.ParentIfIndex
+		virEntry.IpAddr = msg.IpAddr
+		virEntry.MacAddr = msg.MacAddr
+		virEntry.IfName = msg.IfName
+		server.virtualIntfPropMap[msg.IfIndex] = virEntry
+	} else {
+		delete(server.virtualIntfPropMap, msg.IfIndex)
+	}
+}
+
 func (server *ARPServer) processIPv4IntfCreate(IpAddr string, IfIndex int32) {
 	var ifName string
 	ip, ipNet, _ := net.ParseCIDR(IpAddr)
@@ -523,6 +550,25 @@ func (server *ARPServer) processIPv4L3StateChange(msg commonDefs.IPv4L3IntfState
 	}
 }
 
+func (server *ARPServer) sendVipGarp(ifIndex int32) {
+	virEntry, exists := server.virtualIntfPropMap[ifIndex]
+	if exists {
+		ip, _, _ := net.ParseCIDR(virEntry.IpAddr)
+		ip = ip.To4()
+		server.GarpEntryCh <- &GarpEntry{virEntry.IfName, virEntry.MacAddr, ip.String()}
+		//go server.SendGarp(virEntry.IfName, virEntry.MacAddr, ip.String())
+	}
+}
+
+func (server *ARPServer) processVirtualIntfStateEvent(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) {
+	if msg.IfState == 0 {
+		server.RestoreBPFFilter(msg)
+	} else {
+		server.UpdateBPFFilter(msg)
+		server.sendVipGarp(msg.IfIndex)
+	}
+}
+
 func (server *ARPServer) processL2StateChange(msg commonDefs.L2IntfStateNotifyMsg) {
 	ifIdx := int(msg.IfIndex)
 	ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(msg.IfIndex)
@@ -590,12 +636,16 @@ func (server *ARPServer) DisableRxOnPort(portIfIdx int) {
 	server.portPropMap[portIfIdx] = portEnt
 }
 
+func (server *ARPServer) constructBaseFilter(macAddr string) string {
+	return fmt.Sprintf("(not ether proto 0x8809 and not (ether src %s", macAddr)
+}
+
 func (server *ARPServer) EnableRxOnPort(portIfIdx int) {
 	var err error
 	portEnt := server.portPropMap[portIfIdx]
 	if portEnt.OperState == true {
 		if portEnt.PcapHdl == nil {
-			portEnt.PcapHdl, err = server.StartArpRxTx(portEnt.IfName, portEnt.MacAddr)
+			portEnt.PcapHdl, err = server.StartArpRxTx(portEnt.IfName, portEnt.MacAddr, portEnt.baseFilter)
 			if err != nil {
 				server.logger.Err("Error opening pcap handle on", portEnt.IfName, err)
 				return
@@ -964,6 +1014,121 @@ func (server *ARPServer) deletePortFromL3Lag(l3IfIdx, vlanId, lagIfIdx, portIfId
 		server.arpEntryDeleteCh <- DeleteArpEntryMsg{
 			Type:  DeleteBasedOnPort,
 			IfIdx: portIfIdx,
+		}
+	}
+}
+
+func (server *ARPServer) restorePortFilter(ifIndex int) error {
+	port := server.portPropMap[ifIndex]
+	port.baseFilter = server.constructBaseFilter(port.MacAddr)
+	if port.PcapHdl != nil {
+		filter := port.baseFilter + CLOSE_FILTER
+		err := port.PcapHdl.SetBPFFilter(filter)
+		if err != nil {
+			server.logger.Err("Failed to Restore Pcap Filter:", filter, "for port:", port.IfName)
+		}
+	}
+	server.portPropMap[ifIndex] = port
+	return nil
+}
+
+func (server *ARPServer) restoreVlanMembersFilters(vlanIfIndex int) error {
+	vlan := server.vlanPropMap[vlanIfIndex]
+	for ifIndex, _ := range vlan.UntagIfIdxMap {
+		server.restorePortFilter(ifIndex)
+	}
+	for ifIndex, _ := range vlan.TagIfIdxMap {
+		server.restorePortFilter(ifIndex)
+	}
+	server.vlanPropMap[vlanIfIndex] = vlan
+	return nil
+}
+
+func (server *ARPServer) RestoreBPFFilter(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) error {
+	virEntry, exists := server.virtualIntfPropMap[msg.IfIndex]
+	if !exists {
+		server.logger.Err("No entry found for virtual interface during state down and hence filter cannot be restored:", msg.IfIndex, msg.IpAddr)
+		return nil
+	}
+	_, exists = server.vlanPropMap[int(virEntry.ParentIfIndex)]
+	if exists {
+		return server.restoreVlanMembersFilters(int(virEntry.ParentIfIndex))
+	}
+	_, exists = server.portPropMap[int(virEntry.ParentIfIndex)]
+	if exists {
+		return server.restorePortFilter(int(virEntry.ParentIfIndex))
+	}
+	return nil
+}
+
+func (server *ARPServer) updatePortFilter(ifIndex int, macAddr string) error {
+	port := server.portPropMap[ifIndex]
+	if port.PcapHdl != nil {
+		filter := fmt.Sprintf("%s%s%s%s", port.baseFilter, OR_ETHER_SRC, macAddr, CLOSE_FILTER)
+		err := port.PcapHdl.SetBPFFilter(filter)
+		if err != nil {
+			server.logger.Err("Failed to Update Pcap Filter:", filter, "for port:", port.IfName)
+		} else {
+			server.logger.Debug("Port:", port.IfName, "filter updated to:", filter, "successfully")
+		}
+	}
+	server.portPropMap[ifIndex] = port
+	return nil
+}
+
+func (server *ARPServer) updateVlanMembersFilters(vlanIfIndex int, macAddr string) error {
+	vlan := server.vlanPropMap[vlanIfIndex]
+	for ifIndex, _ := range vlan.UntagIfIdxMap {
+		server.updatePortFilter(ifIndex, macAddr)
+	}
+	for ifIndex, _ := range vlan.TagIfIdxMap {
+		server.updatePortFilter(ifIndex, macAddr)
+	}
+	server.vlanPropMap[vlanIfIndex] = vlan
+	return nil
+}
+
+func (server *ARPServer) updateFilter(ifIndex int, macAddr string) error {
+	_, exists := server.vlanPropMap[ifIndex]
+	if exists {
+		return server.updateVlanMembersFilters(ifIndex, macAddr)
+	}
+	_, exists = server.portPropMap[ifIndex]
+	if exists {
+		return server.updatePortFilter(ifIndex, macAddr)
+	}
+	return nil
+}
+
+func (server *ARPServer) UpdateBPFFilter(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) error {
+	virEntry, exists := server.virtualIntfPropMap[msg.IfIndex]
+	if !exists {
+		server.logger.Err("No entry found for virtual interface during state down and hence filter cannot be restored:", msg.IfIndex, msg.IpAddr)
+		return nil
+	}
+
+	return server.updateFilter(int(virEntry.ParentIfIndex), virEntry.MacAddr)
+}
+
+func (server *ARPServer) constructVirtualIpInfra() {
+	ipsInfo, err := server.AsicdPlugin.GetAllSubIPv4IntfState()
+	if err != nil {
+		server.logger.Warning("Failed to get all sub ipv4 interfaces from system, ERROR:", err)
+		return
+	}
+	for _, ipInfo := range ipsInfo {
+		if ipInfo.Type == commonDefs.SUB_INTF_SECONDARY_TYPE {
+			continue
+		}
+		virEntry := server.virtualIntfPropMap[ipInfo.IfIndex]
+		virEntry.IfIndex = ipInfo.IfIndex
+		virEntry.ParentIfIndex = ipInfo.ParentIfIndex
+		virEntry.IpAddr = ipInfo.IpAddr
+		virEntry.MacAddr = ipInfo.MacAddr
+		virEntry.IfName = ipInfo.IfName
+		server.virtualIntfPropMap[ipInfo.IfIndex] = virEntry
+		if ipInfo.OperState == "UP" {
+			server.updateFilter(int(virEntry.ParentIfIndex), virEntry.MacAddr)
 		}
 	}
 }

@@ -40,6 +40,7 @@ import (
 
 const BGPIdleHoldTimeDefault uint16 = 5 // 240 seconds
 const BGPRestartTimeDefault uint32 = 1  // 240 seconds
+const BGPTimersJitterDivisor int64 = 4  // 4 means 25% 0f the original timer value
 
 var IdleHoldTimeInterval = map[uint16]uint16{
 	0:   0,
@@ -897,6 +898,7 @@ func (fsm *FSM) Init(state BaseStateIface) {
 
 func (fsm *FSM) StartFSM() {
 	fsm.logger.Info("Neighbor:", fsm.pConf.NeighborAddress, "FSM:", fsm.id, "Start")
+	rand.Seed(time.Now().UnixNano())
 	if fsm.State == nil {
 		fsm.logger.Info("Neighbor:", fsm.pConf.NeighborAddress, "FSM:", fsm.id,
 			"Start state is not set... starting the state machine in IDLE state")
@@ -1096,7 +1098,12 @@ func (fsm *FSM) SetPassiveTcpEstablishment(flag bool) {
 
 func (fsm *FSM) StartConnectRetryTimer() {
 	fsm.StopConnectRetryTimer()
-	fsm.connectRetryTimer.Reset(time.Duration(fsm.connectRetryTime) * time.Second)
+	connRetryMilliSec := int64(fsm.connectRetryTime * 1000)
+	jitter := rand.Int63n(connRetryMilliSec / BGPTimersJitterDivisor)
+	connRetryMilliSec -= jitter
+	fsm.logger.Info("Neighbor:", fsm.pConf.NeighborAddress, "FSM", fsm.id, "use", connRetryMilliSec,
+		"ms for connect retry timer")
+	fsm.connectRetryTimer.Reset(time.Duration(connRetryMilliSec) * time.Millisecond)
 }
 
 func (fsm *FSM) StopConnectRetryTimer() {
@@ -1130,7 +1137,12 @@ func (fsm *FSM) StopHoldTimer() {
 func (fsm *FSM) StartKeepAliveTimer() {
 	fsm.StopKeepAliveTimer()
 	if fsm.keepAliveTime != 0 {
-		fsm.keepAliveTimer.Reset(time.Duration(fsm.keepAliveTime) * time.Second)
+		keepAliveMilliSec := int64(fsm.keepAliveTime * 1000)
+		jitter := rand.Int63n(keepAliveMilliSec / BGPTimersJitterDivisor)
+		keepAliveMilliSec -= jitter
+		fsm.logger.Debug("Neighbor:", fsm.pConf.NeighborAddress, "FSM", fsm.id, "use", keepAliveMilliSec,
+			"ms for keep alive time")
+		fsm.keepAliveTimer.Reset(time.Duration(keepAliveMilliSec) * time.Millisecond)
 	}
 }
 

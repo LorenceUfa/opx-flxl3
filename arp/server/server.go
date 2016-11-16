@@ -69,6 +69,12 @@ type ArpConf struct {
 	RefTimeout int
 }
 
+type GarpEntry struct {
+	IfName  string
+	MacAddr string
+	IpAddr  string
+}
+
 type ARPServer struct {
 	logger                  *logging.Writer
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
@@ -92,10 +98,11 @@ type ARPServer struct {
 	arpSliceRefreshTimer    *time.Timer
 	arpSliceRefreshDuration time.Duration
 	usrConfDbName           string
-	l3IntfPropMap           map[int]L3IntfProperty //Key: IfIndex
-	portPropMap             map[int]PortProperty   //Key: IfIndex
-	vlanPropMap             map[int]VlanProperty   //Key: IfIndex
-	lagPropMap              map[int]LagProperty    //Key:IfIndex
+	l3IntfPropMap           map[int]L3IntfProperty        //Key: IfIndex
+	portPropMap             map[int]PortProperty          //Key: IfIndex
+	vlanPropMap             map[int]VlanProperty          //Key: IfIndex
+	lagPropMap              map[int]LagProperty           //Key: IfIndex
+	virtualIntfPropMap      map[int32]VirtualIntfProperty //key: IfIndex
 	arpSlice                []string
 	arpEntryUpdateCh        chan UpdateArpEntryMsg
 	arpEntryDeleteCh        chan DeleteArpEntryMsg
@@ -107,12 +114,15 @@ type ARPServer struct {
 	arpActionProcessCh      chan ArpActionMsg
 	ResolveIPv4Ch           chan ResolveIPv4
 	DeleteResolvedIPv4Ch    chan DeleteResolvedIPv4
+	DeleteArpEntryCh        chan *DeleteArpEntry
+	GarpEntryCh             chan *GarpEntry
 	ArpConfCh               chan ArpConf
 	dumpArpTable            bool
 	InitDone                chan bool
 
 	ArpActionCh                chan ArpActionMsg
 	arpDeleteArpEntryFromRibCh chan string
+	arpDeleteArpEntryIntCh     chan string
 
 	AsicdPlugin asicdClient.AsicdClientIntf
 }
@@ -126,6 +136,7 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.lagPropMap = make(map[int]LagProperty)
 	arpServer.vlanPropMap = make(map[int]VlanProperty)
 	arpServer.portPropMap = make(map[int]PortProperty)
+	arpServer.virtualIntfPropMap = make(map[int32]VirtualIntfProperty)
 	arpServer.arpSlice = make([]string, 0)
 	arpServer.arpEntryUpdateCh = make(chan UpdateArpEntryMsg)
 	arpServer.arpEntryDeleteCh = make(chan DeleteArpEntryMsg)
@@ -135,8 +146,11 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.arpCounterUpdateCh = make(chan bool)
 	arpServer.arpActionProcessCh = make(chan ArpActionMsg)
 	arpServer.arpDeleteArpEntryFromRibCh = make(chan string)
+	arpServer.arpDeleteArpEntryIntCh = make(chan string)
 	arpServer.ResolveIPv4Ch = make(chan ResolveIPv4)
 	arpServer.DeleteResolvedIPv4Ch = make(chan DeleteResolvedIPv4)
+	arpServer.DeleteArpEntryCh = make(chan *DeleteArpEntry)
+	arpServer.GarpEntryCh = make(chan *GarpEntry)
 	arpServer.ArpConfCh = make(chan ArpConf)
 	arpServer.InitDone = make(chan bool)
 	arpServer.ArpActionCh = make(chan ArpActionMsg)
@@ -243,6 +257,16 @@ func (server *ARPServer) StartServer(asicdPlugin asicdClient.AsicdClientIntf) {
 			server.processResolveIPv4(rConf)
 		case rConf := <-server.DeleteResolvedIPv4Ch:
 			server.processDeleteResolvedIPv4(rConf.IpAddr)
+		case arpEntryInfo, ok := <-server.DeleteArpEntryCh:
+			if ok {
+				server.processDeleteArpEntryInt(arpEntryInfo)
+			}
+			/*
+				case garpInfo, ok := <-server.GarpEntryCh:
+					if ok {
+						server.processGarp(garpInfo)
+					}
+			*/
 		case arpActionMsg := <-server.ArpActionCh:
 			server.processArpAction(arpActionMsg)
 		case msg := <-server.AsicdSubSocketCh:

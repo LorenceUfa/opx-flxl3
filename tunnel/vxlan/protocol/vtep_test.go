@@ -43,16 +43,7 @@ func (b mockintf) IsClientIntfType(client VXLANClientIntf, clientStr string) boo
 	}
 	return false
 }
-func (b mockintf) SetServerChannels(s *VxLanConfigChannels) {
 
-}
-
-func (b mockintf) ConnectToClients(path string) {
-
-}
-func (b mockintf) ConstructPortConfigMap() {
-
-}
 func (b mockintf) GetIntfInfo(name string, intfchan chan<- MachineEvent) {
 
 	logger.Info("MOCK: Calling GetIntfInfo")

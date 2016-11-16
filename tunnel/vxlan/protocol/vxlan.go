@@ -66,14 +66,28 @@ func GetVxlanDB() map[uint32]*VxlanDbEntry {
 	return vxlanDB
 }
 
+func GetVxlanDBList() []*VxlanDbEntry {
+	return vxlanDbList
+}
+
+func DeleteVxlanDbEntryFromList(i int) {
+	logger.Info("DeleteVxlanDbEntryFromList", i, vxlanDbList)
+	j := i + 1
+	copy(vxlanDbList[i:], vxlanDbList[j:])
+	for k, n := len(vxlanDbList)-j+i, len(vxlanDbList); k < n; k++ {
+		vxlanDbList[k] = nil // or the zero value of T
+	}
+	vxlanDbList = vxlanDbList[:len(vxlanDbList)-j+i]
+}
+
 // saveVxLanConfigData:
 // function saves off the configuration data and saves off the vlan to vni mapping
 func saveVxLanConfigData(c *VxlanConfig) {
 	vxlanentry := NewVxlanDbEntry(c)
 	vxlanDB[c.VNI] = vxlanentry
-	for idx, v := range vxlanDbList {
+	for idx, v := range GetVxlanDBList() {
 		if vxlanentry.VNI == v.VNI {
-			vxlanDbList = append(vxlanDbList[:idx], vxlanDbList[idx+1:]...)
+			DeleteVxlanDbEntryFromList(idx)
 			break
 		}
 	}
@@ -159,7 +173,7 @@ func DeleteVxLAN(c *VxlanConfig, disable bool) {
 		if !disable {
 			for idx, vni := range vxlanDbList {
 				if vni.VNI == c.VNI {
-					vxlanDbList = append(vxlanDbList[:idx], vxlanDbList[idx+1:]...)
+					DeleteVxlanDbEntryFromList(idx)
 					break
 				}
 			}
