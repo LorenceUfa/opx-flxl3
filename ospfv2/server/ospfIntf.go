@@ -135,6 +135,10 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		server.logger.Err("Ospf Interface configuration doesnot exist")
 		return false, errors.New("Ospf Interface configuration doesnot exist")
 	}
+	if intfConfEnt.AdminState == true {
+		server.StopIntfFSM(intfConfKey)
+		server.StopIntfRxTxPkt(intfConfKey)
+	}
 	oldIntfConfEnt := intfConfEnt
 	mask := getOspfv2IntfUpdateMask(attrset)
 	if mask&objects.OSPFV2_INTF_UPDATE_ADMIN_STATE == objects.OSPFV2_INTF_UPDATE_ADMIN_STATE {
@@ -169,16 +173,6 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	if mask&objects.OSPFV2_INTF_UPDATE_METRIC_VALUE == objects.OSPFV2_INTF_UPDATE_METRIC_VALUE {
 		intfConfEnt.Cost = uint32(newCfg.MetricValue)
 	}
-	if oldIntfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-		//Stop Tx and Rx and Interface FSM
-		nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
-		if len(nbrKeyList) > 0 {
-			//Declare all nbrs dead
-			server.SendDeleteNbrsMsg(nbrKeyList)
-		}
-		//Send Message to generate Router LSA oldIntfConfEnt.AreaId
-		server.SendMsgToGenerateRouterLSA(oldIntfConfEnt.AreaId)
-	}
 	areaEnt, _ := server.AreaConfMap[oldIntfConfEnt.AreaId]
 	delete(areaEnt.IntfMap, intfConfKey)
 	server.AreaConfMap[oldIntfConfEnt.AreaId] = areaEnt
@@ -190,18 +184,9 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	areaEnt.IntfMap[intfConfKey] = true
 	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
 
-	if intfConfEnt.AdminState == true &&
-		server.globalData.AdminState == true &&
-		areaEnt.AdminState == true &&
-		intfConfEnt.OperState == true {
-		//StartSendAndRecvPkts : Start Tx and Rx and IntfFSM
-		err := server.StartSendAndRecvPkts(intfConfKey)
-		if err != nil {
-			server.logger.Err("Error starting send and recv pkt and Intf FSM", err)
-			return false, err
-		}
-		//Send Message to generate Router LSA
-		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+	if intfConfEnt.AdminState == true {
+		server.StartIntfRxTxPkt(intfConfKey)
+		server.StartIntfFSM(intfConfKey)
 	}
 	return true, nil
 }
@@ -252,22 +237,22 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	intfConfEnt.RtrDeadInterval = cfg.RtrDeadInterval
 	intfConfEnt.Cost = uint32(cfg.MetricValue)
 
-	intfConfEnt.DRIpAddr = 0
-	intfConfEnt.DRtrId = 0
-	intfConfEnt.BDRIpAddr = 0
-	intfConfEnt.BDRtrId = 0
+	//intfConfEnt.DRIpAddr = 0
+	//intfConfEnt.DRtrId = 0
+	//intfConfEnt.BDRIpAddr = 0
+	//intfConfEnt.BDRtrId = 0
 	intfConfEnt.AuthKey = 0
 
-	intfConfEnt.FSMState = objects.INTF_FSM_STATE_UNKNOWN
+	intfConfEnt.FSMState = objects.INTF_FSM_STATE_DOWN
 
-	intfConfEnt.FSMCtrlCh = make(chan bool)
-	intfConfEnt.FSMCtrlReplyCh = make(chan bool)
-	intfConfEnt.HelloIntervalTicker = nil
-	intfConfEnt.WaitTimer = nil
+	//intfConfEnt.FSMCtrlCh = make(chan bool)
+	//intfConfEnt.FSMCtrlReplyCh = make(chan bool)
+	//intfConfEnt.HelloIntervalTicker = nil
+	//intfConfEnt.WaitTimer = nil
 
-	intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
-	intfConfEnt.NbrCreateCh = make(chan NbrCreateMsg)
-	intfConfEnt.NbrChangeCh = make(chan NbrChangeMsg)
+	//intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
+	//intfConfEnt.NbrCreateCh = make(chan NbrCreateMsg)
+	//intfConfEnt.NbrChangeCh = make(chan NbrChangeMsg)
 
 	intfConfEnt.LsaCount = 0
 	server.IntfConfMap[intfConfKey] = intfConfEnt
@@ -275,24 +260,10 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	areaEnt.IntfMap[intfConfKey] = true
 	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[intfConfKey] = make(chan NbrDownMsg)
 	server.AreaConfMap[cfg.AreaId] = areaEnt
-	if server.globalData.AdminState == true &&
-		cfg.AdminState == true &&
-		areaEnt.AdminState == true &&
-		intfConfEnt.OperState == true {
-		server.logger.Info("StartSendAndRecvPkts : Start Tx and Rx and IntfFSM")
-		err := server.StartSendAndRecvPkts(intfConfKey)
-		if err != nil {
-			return false, err
-		}
-		// Send Message to generate Router LSA
-		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
-	} else {
-		intfConfEnt, _ := server.IntfConfMap[intfConfKey]
-		intfConfEnt.FSMState = objects.INTF_FSM_STATE_DOWN
-		server.IntfConfMap[intfConfKey] = intfConfEnt
-
+	if intfConfEnt.AdminState == true {
+		server.StartIntfRxTxPkt(intfConfKey)
+		server.StartIntfFSM(intfConfKey)
 	}
-
 	return true, nil
 }
 
@@ -309,16 +280,9 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	}
 
 	server.logger.Info("Intf Conf Ent", intfConfEnt)
-
-	if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-		//Stop Tx and Rx and IntfFSM
-		nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
-		if len(nbrKeyList) > 0 {
-			//Declare all nbrs dead
-			server.SendDeleteNbrsMsg(nbrKeyList)
-		}
-		//Send Message to generate Router LSA
-		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+	if intfConfEnt.AdminState == true {
+		server.StopIntfFSM(intfConfKey)
+		server.StopIntfRxTxPkt(intfConfKey)
 	}
 
 	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
@@ -347,4 +311,11 @@ func (server *OSPFV2Server) GetIntfConfForGivenIntfKey(intfConfKey IntfConfKey) 
 		return intfConfEnt, errors.New(fmt.Sprintln("Error: Unable to get interface config for", intfConfKey))
 	}
 	return intfConfEnt, nil
+}
+
+func (server *OSPFV2Server) GetIntfNbrList(intfEnt IntfConf) (nbrList []NbrConfKey) {
+	for nbrKey, _ := range intfEnt.NbrMap {
+		nbrList = append(nbrList, nbrKey)
+	}
+	return nbrList
 }

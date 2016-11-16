@@ -89,19 +89,20 @@ func (server *OSPFV2Server) isAreaBDR() bool {
 
 func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrset []bool) (bool, error) {
 	server.logger.Info("Area configuration update")
-	// Stop All the INTF FSM in this area
-	nbrKeyList := server.StopAreaIntfFSM(newCfg.AreaId)
-	if len(nbrKeyList) > 0 {
-		//Delete All the nbrs in this area
-		server.SendDeleteNbrsMsg(nbrKeyList)
-	}
-	//Send Message to flush router LSA newCfg.AreaId
-	server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
 	oldAreaEnt, exist := server.AreaConfMap[newCfg.AreaId]
 	if !exist {
 		server.logger.Err("Cannot update, area doesnot exist")
 		return false, errors.New("Cannot update, area doesnot exist")
 	}
+
+	if oldAreaEnt.AdminState == true {
+		//This will cause Nbrs to be deleted from NbrFSM
+		server.StopAreaIntfFSM(newCfg.AreaId)
+		server.StopAreaRxTxPkt(newCfg.AreaId)
+		// This will cause area Lsdb to be flushed and Flush Routes also
+		server.FlushAreaLsdb(newCfg.AreaId)
+	}
+
 	newAreaEnt := oldAreaEnt
 	mask := genOspfv2AreaUpdateMask(attrset)
 	if mask&objects.OSPFV2_AREA_UPDATE_ADMIN_STATE == objects.OSPFV2_AREA_UPDATE_ADMIN_STATE {
@@ -114,14 +115,13 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		newAreaEnt.ImportASExtern = newCfg.ImportASExtern
 	}
 
-	if newAreaEnt.AdminState == true {
-		//Start All the Intf FSM in this area
-		server.StartAreaIntfFSM(newCfg.AreaId)
-		//Send Message to generate router LSA SendMessage to generate router LSA
-		server.SendMsgToGenerateRouterLSA(newCfg.AreaId)
-	}
 	server.AreaConfMap[newCfg.AreaId] = newAreaEnt
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
+	if newAreaEnt.AdminState == true {
+		server.InitAreaLsdb(newCfg.AreaId)
+		server.StartAreaRxTxPkt(newCfg.AreaId)
+		server.StartAreaIntfFSM(newCfg.AreaId)
+	}
 	return true, nil
 }
 
@@ -143,7 +143,14 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	areaEnt.AdminState = cfg.AdminState
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
-	server.InitAreaLsdb(cfg.AreaId)
+	if cfg.AdminState == true {
+		server.InitAreaLsdb(cfg.AreaId)
+		// TODO: Probably we don't need below 2 calls as
+		// we cannot create an interface if corresponding area
+		// doesnot exist
+		//server.StartAreaRxTxPkt(newCfg.AreaId)
+		//server.StartAreaIntfFSM(newCfg.AreaId)
+	}
 	return true, nil
 }
 
@@ -154,7 +161,13 @@ func (server *OSPFV2Server) deleteArea(cfg *objects.Ospfv2Area) (bool, error) {
 		server.logger.Err("Unable to Delete Area doesnot exist")
 		return false, errors.New("Unable to delete area doesnot exist")
 	}
-	server.DinitAreaLsdb(cfg.AreaId)
+	if areaEnt.AdminState == true {
+		//This will cause Nbrs to be deleted from NbrFSM
+		server.StopAreaIntfFSM(cfg.AreaId)
+		server.StopAreaRxTxPkt(cfg.AreaId)
+		// This will cause area Lsdb to be flushed and Flush Routes also
+		server.FlushAreaLsdb(cfg.AreaId)
+	}
 	if len(areaEnt.IntfMap) > 0 {
 		server.logger.Err("Unable to delete Area as there are interface configured in this area")
 		return false, errors.New("Unable to delete Area as there are interface configured in this area")

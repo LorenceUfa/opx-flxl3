@@ -439,5 +439,5 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 			}
 		}
 	}
-	server.SendMsgToFloodLsa(lsdbToFloodLSAMsgList)
+	server.SendMsgFromLsdbToFloodLsa(lsdbToFloodLSAMsgList)
 }

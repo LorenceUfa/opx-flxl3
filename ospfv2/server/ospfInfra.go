@@ -500,18 +500,10 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
 		if exist {
 			intfConfEnt.OperState = true
-			areaEnt, exist := server.AreaConfMap[intfConfEnt.AreaId]
-			if !exist {
-				server.logger.Err("Interface map and Area Map out of sync")
-				return
-			}
 			server.IntfConfMap[intfConfKey] = intfConfEnt
-			if server.globalData.AdminState == true &&
-				areaEnt.AdminState == true &&
-				intfConfEnt.AdminState == true {
-				server.StartSendAndRecvPkts(intfConfKey)
-				//Generate Router LSA for intfConfEnt.AreaId
-				server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+			if intfConfEnt.AdminState == true {
+				server.StartIntfRxTxPkt(intfConfKey)
+				server.StartIntfFSM(intfConfKey)
 			}
 		}
 	} else {
@@ -525,22 +517,10 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
 		if exist {
 			intfConfEnt.OperState = false
-			areaEnt, exist := server.AreaConfMap[intfConfEnt.AreaId]
-			if !exist {
-				server.logger.Err("Interface map and Area Map out of sync")
-				return
-			}
 			server.IntfConfMap[intfConfKey] = intfConfEnt
-			if server.globalData.AdminState == true &&
-				areaEnt.AdminState == true &&
-				intfConfEnt.AdminState == true {
-				nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
-				if len(nbrKeyList) > 0 {
-					// Send message to Nbr FSM for killing nbr
-					server.SendDeleteNbrsMsg(nbrKeyList)
-				}
-				//Generate Router LSA for intfConfEnt.AreaId
-				server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+			if intfConfEnt.AdminState == true {
+				server.StopIntfFSM(intfConfKey)
+				server.StopIntfRxTxPkt(intfConfKey)
 			}
 		}
 	}

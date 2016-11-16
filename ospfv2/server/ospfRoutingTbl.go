@@ -758,13 +758,12 @@ func (server *OSPFV2Server) InstallRoute(rKey RoutingTblEntryKey) {
 		server.logger.Info("No new routing table entry exist for rkey:", rKey, "hence not installing it")
 		return
 	}
-	destNetIp := convertUint32ToDotNotation(rKey.DestId)     //String :1
-	networkMask := convertUint32ToDotNotation(rKey.AddrMask) //String : 2
-	metric := ribd.Int(newEnt.RoutingTblEnt.Cost)            //int : 3
-	routeType := "OSPF"                                      // 7 : String
-	//routeType := "IBGP" // 7 : String
+	destNetIp := convertUint32ToDotNotation(rKey.DestId)
+	networkMask := convertUint32ToDotNotation(rKey.AddrMask)
+	metric := ribd.Int(newEnt.RoutingTblEnt.Cost)
+	routeType := "OSPF"
 	for key, _ := range newEnt.RoutingTblEnt.NextHops {
-		nextHopIp := convertUint32ToDotNotation(key.NextHopIP) //String : 4
+		nextHopIp := convertUint32ToDotNotation(key.NextHopIP)
 		ifIdx, exist := server.infraData.ipToIfIdxMap[key.IfIPAddr]
 		if !exist {
 			server.logger.Err("Unable to find entry for ip:", key.IfIPAddr, "in ipToIfIdxMap")
@@ -788,6 +787,7 @@ func (server *OSPFV2Server) InstallRoute(rKey RoutingTblEntryKey) {
 		ret, err := server.ribdComm.ribdClient.ClientHdl.CreateIPv4Route(&cfg)
 		if err != nil {
 			server.logger.Err("Error Installing Route:", err, ret)
+			continue
 		}
 		/*
 		   server.logger.Info("Return Value for RIB CreateV4Route call: ", ret)
@@ -888,5 +888,44 @@ func (server *OSPFV2Server) InstallRoutingTbl() {
 			server.InstallRoute(rKey)
 		}
 		NewRoutingTblKeys[rKey] = true
+	}
+}
+
+func (server *OSPFV2Server) FlushRoutingTbl() {
+	for rKey, rEnt := range server.RoutingTblData.GlobalRoutingTbl {
+		server.logger.Info("Deleting route for rKey:", rKey)
+		destNetIp := convertUint32ToDotNotation(rKey.DestId)
+		networkMask := convertUint32ToDotNotation(rKey.AddrMask)
+		routeType := "OSPF"
+		for key, _ := range rEnt.RoutingTblEnt.NextHops {
+			nextHopIp := convertUint32ToDotNotation(key.NextHopIP)
+			cfg := ribd.IPv4Route{
+				DestinationNw: destNetIp,
+				Protocol:      routeType,
+				Cost:          0,
+				NetworkMask:   networkMask,
+			}
+			nextHopInfo := ribd.NextHopInfo{
+				NextHopIp: nextHopIp,
+			}
+			cfg.NextHop = make([]*ribd.NextHopInfo, 0)
+			cfg.NextHop = append(cfg.NextHop, &nextHopInfo)
+			if server.ribdComm.ribdClient.ClientHdl == nil {
+				server.logger.Err("Nil ribd handle. Can not delete route. ")
+				continue
+			}
+
+			ret, err := server.ribdComm.ribdClient.ClientHdl.DeleteIPv4Route(&cfg)
+			if err != nil {
+				server.logger.Err("Error Deleting Route:", err)
+			}
+			server.logger.Info("Return Value for RIB DeleteV4Route call: ", ret)
+			/*
+			   err = server.DelIPv4RoutesState(rKey)
+			   if err != nil {
+			           server.logger.Info(fmt.Sprintln("DB: Failed to delete route from db. route , err ", rKey, err))
+			   }
+			*/
+		}
 	}
 }

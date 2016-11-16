@@ -28,47 +28,150 @@ import (
 	"time"
 )
 
-func (server *OSPFV2Server) StopOspfIntfFSM(key IntfConfKey) {
+func (server *OSPFV2Server) InitOspfIntfFSM(intfConfKey IntfConfKey) {
+	ent, _ := server.IntfConfMap[intfConfKey]
+	helloInterval := time.Duration(ent.HelloInterval) * time.Second
+	ent.HelloIntervalTicker = time.NewTicker(helloInterval)
+	if ent.Type == objects.INTF_TYPE_BROADCAST {
+		waitTime := time.Duration(ent.RtrDeadInterval) * time.Second
+		ent.WaitTimer = time.NewTimer(waitTime)
+	}
+	if ent.Type == objects.INTF_TYPE_BROADCAST {
+		ent.FSMState = objects.INTF_FSM_STATE_WAITING
+	} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
+		ent.FSMState = objects.INTF_FSM_STATE_P2P
+	}
+	ent.NbrMap = make(map[NbrConfKey]NbrData)
+	ent.BDRIpAddr = 0
+	ent.DRIpAddr = 0
+	ent.BDRtrId = 0
+	ent.DRtrId = 0
+	server.IntfConfMap[intfConfKey] = ent
+}
+
+func (server *OSPFV2Server) DeinitOspfIntfFSM(intfConfKey IntfConfKey) {
+	ent, _ := server.IntfConfMap[intfConfKey]
+	ent.NbrMap = nil
+	ent.FSMState = objects.INTF_FSM_STATE_DOWN
+	if ent.Type == objects.INTF_TYPE_BROADCAST {
+		ent.WaitTimer.Stop()
+		ent.WaitTimer = nil
+	}
+	ent.HelloIntervalTicker.Stop()
+	ent.HelloIntervalTicker = nil
+	server.IntfConfMap[intfConfKey] = ent
+}
+
+func (server *OSPFV2Server) StartAllIntfFSM() {
+	for intfKey, _ := range server.IntfConfMap {
+		server.StartIntfFSM(intfKey)
+	}
+}
+
+func (server *OSPFV2Server) StopAllIntfFSM() {
+	for intfKey, _ := range server.IntfConfMap {
+		server.StopIntfFSM(intfKey)
+	}
+
+}
+
+func (server *OSPFV2Server) StartAreaIntfFSM(areaId uint32) {
+	for intfKey, intfEnt := range server.IntfConfMap {
+		if areaId == intfEnt.AreaId {
+			server.StartIntfFSM(intfKey)
+		}
+	}
+}
+
+func (server *OSPFV2Server) StopAreaIntfFSM(areaId uint32) {
+	for intfKey, intfEnt := range server.IntfConfMap {
+		if areaId == intfEnt.AreaId {
+			server.StopIntfFSM(intfKey)
+		}
+	}
+
+}
+
+func (server *OSPFV2Server) StopIntfFSM(key IntfConfKey) {
 	ent, _ := server.IntfConfMap[key]
-	ent.FSMCtrlCh <- false
-	cnt := 0
-	for {
-		select {
-		case _ = <-ent.FSMCtrlReplyCh:
-			server.logger.Info("Stopped Sending Hello Pkt")
-			return
-		default:
-			time.Sleep(time.Duration(10) * time.Millisecond)
-			cnt = cnt + 1
-			if cnt == 100 {
-				server.logger.Err("Unable to stop the Tx thread")
+	areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
+	if err != nil {
+		server.logger.Err("Error:", err)
+		return
+	}
+
+	if server.globalData.AdminState == true &&
+		ent.AdminState == true &&
+		areaConf.AdminState == true &&
+		ent.OperState == true &&
+		ent.FSMState != objects.INTF_FSM_STATE_DOWN {
+		ent.FSMCtrlCh <- false
+		cnt := 0
+		for {
+			select {
+			case _ = <-ent.FSMCtrlReplyCh:
+				server.logger.Info("Stopped Sending Hello Pkt")
+				ent, _ := server.IntfConfMap[key]
+				ent.BackupSeenCh = nil
+				ent.NbrCreateCh = nil
+				ent.NbrChangeCh = nil
+				ent.FSMCtrlCh = nil
+				ent.FSMCtrlReplyCh = nil
+				server.IntfConfMap[key] = ent
 				return
+			default:
+				time.Sleep(time.Duration(10) * time.Millisecond)
+				cnt = cnt + 1
+				if cnt == 100 {
+					server.logger.Err("Unable to stop the Tx thread")
+					return
+				}
 			}
 		}
 	}
 }
 
-func (server *OSPFV2Server) StartOspfIntfFSM(key IntfConfKey) {
+func (server *OSPFV2Server) StartIntfFSM(key IntfConfKey) {
 	ent, _ := server.IntfConfMap[key]
-	if ent.Type == objects.INTF_TYPE_POINT2POINT {
-		server.StartOspfP2PIntfFSM(key)
-	} else if ent.Type == objects.INTF_TYPE_BROADCAST {
-		server.StartOspfBroadcastIntfFSM(key)
+	areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
+	if err != nil {
+		server.logger.Err("Error:", err)
+		return
+	}
+	if server.globalData.AdminState == true &&
+		ent.AdminState == true &&
+		areaConf.AdminState == true &&
+		ent.OperState == true &&
+		ent.FSMState == objects.INTF_FSM_STATE_DOWN {
+		ent.FSMCtrlCh = make(chan bool)
+		ent.FSMCtrlReplyCh = make(chan bool)
+		ent.BackupSeenCh = make(chan BackupSeenMsg)
+		ent.NbrCreateCh = make(chan NbrCreateMsg)
+		ent.NbrChangeCh = make(chan NbrChangeMsg)
+		server.IntfConfMap[key] = ent
+		if ent.Type == objects.INTF_TYPE_POINT2POINT {
+			go server.StartOspfP2PIntfFSM(key)
+		} else if ent.Type == objects.INTF_TYPE_BROADCAST {
+			go server.StartOspfBroadcastIntfFSM(key)
+		}
 	}
 }
 
 func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
-	server.StartSendHelloPkt(key)
+	server.InitOspfIntfFSM(key)
+	server.SendHelloPkt(key)
+	ent, _ := server.IntfConfMap[key]
+	server.SendMsgToGenerateRouterLSA(ent.AreaId)
+	nbrDownMsgCh, _ := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[key]
 	for {
 		ent, exist := server.IntfConfMap[key]
 		if !exist {
 			server.logger.Err("Interface does not exist", key)
 			return
 		}
-		nbrDownMsgCh, _ := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[key]
 		select {
 		case <-ent.HelloIntervalTicker.C:
-			server.StartSendHelloPkt(key)
+			server.SendHelloPkt(key)
 		case createMsg := <-ent.NbrCreateCh:
 			if createMsg.DRtrIpAddr != 0 ||
 				createMsg.BDRtrIpAddr != 0 {
@@ -112,7 +215,11 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 			server.logger.Info("Recev Nbr State Change message", downMsg)
 			server.processNbrDownEvent(downMsg, key, true)
 		case _ = <-ent.FSMCtrlCh:
-			server.StopSendHelloPkt(key)
+			//server.StopSendHelloPkt(key)
+			nbrList := server.GetIntfNbrList(ent)
+			server.SendDeleteNbrsMsg(nbrList)
+			server.DeinitOspfIntfFSM(key)
+			server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			ent.FSMCtrlReplyCh <- false
 			return
 		}
@@ -120,17 +227,20 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 }
 
 func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
-	server.StartSendHelloPkt(key)
+	server.InitOspfIntfFSM(key)
+	server.SendHelloPkt(key)
+	ent, _ := server.IntfConfMap[key]
+	server.SendMsgToGenerateRouterLSA(ent.AreaId)
+	nbrDownMsgCh, _ := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[key]
 	for {
 		ent, exist := server.IntfConfMap[key]
 		if !exist {
 			server.logger.Err("Intf conf doesnot exist", key)
 			return
 		}
-		nbrDownMsgCh, _ := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[key]
 		select {
 		case <-ent.HelloIntervalTicker.C:
-			server.StartSendHelloPkt(key)
+			server.SendHelloPkt(key)
 		case <-ent.WaitTimer.C:
 			server.logger.Info("Wait timer expired")
 			server.ElectBDRAndDR(key)
@@ -193,7 +303,11 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 			server.logger.Info("Recev Nbr State Change message", downMsg)
 			server.processNbrDownEvent(downMsg, key, false)
 		case _ = <-ent.FSMCtrlCh:
-			server.StopSendHelloPkt(key)
+			//server.StopSendHelloPkt(key)
+			nbrList := server.GetIntfNbrList(ent)
+			server.SendDeleteNbrsMsg(nbrList)
+			server.DeinitOspfIntfFSM(key)
+			server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			ent.FSMCtrlReplyCh <- false
 			return
 		}

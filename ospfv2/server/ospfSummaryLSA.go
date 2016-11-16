@@ -43,7 +43,9 @@ func (server *OSPFV2Server) processRecvdSelfSummary4LSA(msg RecvdSelfLsaMsg) err
 	lsaEnt, exist := lsdbEnt.Summary4LsaMap[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such Summary 4 LSA exist", msg.LsaKey)
-		//TODO: Mark the recvd lsa as MaxAge and flood
+		// Mark the recvd lsa as MaxAge and flood
+		lsa.LsaMd.LSAge = MAX_AGE
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
 	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
@@ -54,7 +56,9 @@ func (server *OSPFV2Server) processRecvdSelfSummary4LSA(msg RecvdSelfLsaMsg) err
 	_, exist = selfOrigLsaEnt[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such self originated summary LSA exist")
-		//TODO: Mark the recvd lsa as MaxAge and flood
+		// Mark the recvd lsa as MaxAge and flood
+		lsa.LsaMd.LSAge = MAX_AGE
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
 	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
@@ -66,10 +70,12 @@ func (server *OSPFV2Server) processRecvdSelfSummary4LSA(msg RecvdSelfLsaMsg) err
 		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		lsdbEnt.Summary4LsaMap[msg.LsaKey] = lsaEnt
 		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-		//TODO: Flood new Self Summary 4 LSA (areaId, lsaKey, lsaEnt)
+		// Flood new Self Summary 4 LSA (areaId, lsaKey, lsaEnt)
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 		return nil
 	} else {
-		//TODO: Flood existing Self Summary 4 LSA (areaId, lsaKey, lsaEnt)
+		//Flood existing Self Summary 4 LSA (areaId, lsaKey, lsaEnt)
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 	}
 	return nil
 }
@@ -88,7 +94,9 @@ func (server *OSPFV2Server) processRecvdSelfSummary3LSA(msg RecvdSelfLsaMsg) err
 	lsaEnt, exist := lsdbEnt.Summary3LsaMap[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such Summary 3 LSA exist", msg.LsaKey)
-		//TODO: Mark the recvd lsa as MaxAge and flood
+		// Mark the recvd lsa as MaxAge and flood
+		lsa.LsaMd.LSAge = MAX_AGE
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
 	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
@@ -99,21 +107,26 @@ func (server *OSPFV2Server) processRecvdSelfSummary3LSA(msg RecvdSelfLsaMsg) err
 	_, exist = selfOrigLsaEnt[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such self originated summary LSA exist")
-		//TODO: Mark the recvd lsa as MaxAge and flood
+		// Mark the recvd lsa as MaxAge and flood
+		lsa.LsaMd.LSAge = MAX_AGE
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
 	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
+		lsaEnt.LsaMd.LSChecksum = 0
 		lsaEnc := encodeSummaryLsa(lsaEnt, msg.LsaKey)
 		checksumOffset := uint16(14)
 		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		lsdbEnt.Summary3LsaMap[msg.LsaKey] = lsaEnt
 		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-		//TODO: Flood new Self Summary 3 LSA (areaId, lsaKey, lsaEnt)
+		// Flood new Self Summary 3 LSA (areaId, lsaKey, lsaEnt)
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 		return nil
 	} else {
-		//TODO: Flood existing Self Summary 3 LSA (areaId, lsaKey, lsaEnt)
+		// Flood existing Self Summary 3 LSA (areaId, lsaKey, lsaEnt)
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 	}
 	return nil
 }
@@ -153,4 +166,132 @@ func (server *OSPFV2Server) processRecvdSummaryLSA(msg RecvdLsaMsg) error {
 	}
 	server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
 	return nil
+}
+
+func (server *OSPFV2Server) compareSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt SummaryLsa) bool {
+	lsdbEnt, _ := server.LsdbData.AreaLsdb[lsdbKey]
+	var sLsa SummaryLsa
+	if lsaKey.LSType == Summary3LSA {
+		sLsa, _ = lsdbEnt.Summary3LsaMap[lsaKey]
+	} else {
+		sLsa, _ = lsdbEnt.Summary4LsaMap[lsaKey]
+	}
+	if sLsa.Netmask != lsaEnt.Netmask ||
+		sLsa.Metric != lsaEnt.Metric {
+		return false
+	}
+	return true
+}
+
+func (server *OSPFV2Server) updateSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt SummaryLsa) {
+	lsdbEnt, _ := server.LsdbData.AreaLsdb[lsdbKey]
+	var sLsa SummaryLsa
+	if lsaKey.LSType == Summary3LSA {
+		sLsa, _ = lsdbEnt.Summary3LsaMap[lsaKey]
+	} else {
+		sLsa, _ = lsdbEnt.Summary4LsaMap[lsaKey]
+	}
+	sLsa.Metric = lsaEnt.Metric
+	sLsa.Netmask = lsaEnt.Netmask
+	sLsa.LsaMd.LSAge = 0
+	sLsa.LsaMd.LSChecksum = 0
+	sLsa.LsaMd.LSLen = lsaEnt.LsaMd.LSLen
+	sLsa.LsaMd.LSSequenceNum = sLsa.LsaMd.LSSequenceNum + 1
+	sLsa.LsaMd.Options = EOption
+	sLsaEnc := encodeSummaryLsa(sLsa, lsaKey)
+	checksumOffset := uint16(14)
+	sLsa.LsaMd.LSChecksum = computeFletcherChecksum(sLsaEnc[2:], checksumOffset)
+	if lsaKey.LSType == Summary3LSA {
+		lsdbEnt.Summary3LsaMap[lsaKey] = sLsa
+	} else {
+		lsdbEnt.Summary4LsaMap[lsaKey] = sLsa
+	}
+	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+	// Flood Updated Summary Lsa
+	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, sLsa)
+}
+
+func (server *OSPFV2Server) insertNewSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt SummaryLsa) {
+	lsdbEnt, _ := server.LsdbData.AreaLsdb[lsdbKey]
+	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	var sLsa SummaryLsa
+	if lsaKey.LSType == Summary3LSA {
+		sLsa, _ = lsdbEnt.Summary3LsaMap[lsaKey]
+	} else {
+		sLsa, _ = lsdbEnt.Summary4LsaMap[lsaKey]
+	}
+	sLsa.Metric = lsaEnt.Metric
+	sLsa.Netmask = lsaEnt.Netmask
+	sLsa.LsaMd.LSAge = 0
+	sLsa.LsaMd.LSChecksum = 0
+	sLsa.LsaMd.LSLen = lsaEnt.LsaMd.LSLen
+	sLsa.LsaMd.LSSequenceNum = int(InitialSequenceNum)
+	sLsa.LsaMd.Options = EOption
+	sLsaEnc := encodeSummaryLsa(sLsa, lsaKey)
+	checksumOffset := uint16(14)
+	sLsa.LsaMd.LSChecksum = computeFletcherChecksum(sLsaEnc[2:], checksumOffset)
+	if lsaKey.LSType == Summary3LSA {
+		lsdbEnt.Summary3LsaMap[lsaKey] = sLsa
+	} else {
+		lsdbEnt.Summary4LsaMap[lsaKey] = sLsa
+	}
+	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+	selfOrigLsaEnt[lsaKey] = true
+	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
+	//Flood New Summary Lsa
+	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, sLsa)
+}
+
+func (server *OSPFV2Server) flushSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey) {
+	lsdbEnt, _ := server.LsdbData.AreaLsdb[lsdbKey]
+	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	var sLsa SummaryLsa
+	if lsaKey.LSType == Summary3LSA {
+		sLsa, _ = lsdbEnt.Summary3LsaMap[lsaKey]
+	} else {
+		sLsa, _ = lsdbEnt.Summary4LsaMap[lsaKey]
+	}
+	sLsa.LsaMd.LSAge = MAX_AGE
+	// Flood LSA to flush
+	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, sLsa)
+	delete(selfOrigLsaEnt, lsaKey)
+	if lsaKey.LSType == Summary3LSA {
+		delete(lsdbEnt.Summary3LsaMap, lsaKey)
+	} else {
+		delete(lsdbEnt.Summary4LsaMap, lsaKey)
+	}
+	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
+	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+}
+
+func (server *OSPFV2Server) installSummaryLsa() {
+	server.logger.Info("Installing Summary LSA")
+	for lsdbKey, sLsa := range server.SummaryLsDb {
+		selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+		oldSelfOrigSummaryLsa := make(map[LsaKey]bool)
+		for sKey, _ := range selfOrigLsaEnt {
+			if sKey.LSType == Summary3LSA ||
+				sKey.LSType == Summary4LSA {
+				oldSelfOrigSummaryLsa[sKey] = true
+			}
+		}
+
+		for sKey, sEnt := range sLsa {
+			if selfOrigLsaEnt[sKey] == true {
+				oldSelfOrigSummaryLsa[sKey] = false
+				ret := server.compareSummaryLsa(lsdbKey, sKey, sEnt)
+				if ret == false {
+					server.updateSummaryLsa(lsdbKey, sKey, sEnt)
+				}
+			} else {
+				server.insertNewSummaryLsa(lsdbKey, sKey, sEnt)
+			}
+		}
+		for sKey, val := range oldSelfOrigSummaryLsa {
+			if val == true {
+				server.flushSummaryLsa(lsdbKey, sKey)
+			}
+		}
+		oldSelfOrigSummaryLsa = nil
+	}
 }

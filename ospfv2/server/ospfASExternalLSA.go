@@ -43,7 +43,9 @@ func (server *OSPFV2Server) processRecvdSelfASExternalLSA(msg RecvdSelfLsaMsg) e
 	lsaEnt, exist := lsdbEnt.ASExternalLsaMap[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such ASExternal LSA exist", msg.LsaKey)
-		//TODO: Mark the recvd LSA as MAX_AGE and Flood
+		// Mark the recvd LSA as MAX_AGE and Flood
+		lsa.LsaMd.LSAge = MAX_AGE
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
 	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[msg.LsdbKey]
@@ -54,7 +56,9 @@ func (server *OSPFV2Server) processRecvdSelfASExternalLSA(msg RecvdSelfLsaMsg) e
 	_, exist = selfOrigLsaEnt[msg.LsaKey]
 	if !exist {
 		server.logger.Err("No such self originated ASExternal LSA exist", msg.LsaKey)
-		//TODO: Mark the recvd LSA as MAX_AGE and Flood
+		// Mark the recvd LSA as MAX_AGE and Flood
+		lsa.LsaMd.LSAge = MAX_AGE
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
 	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
@@ -66,10 +70,12 @@ func (server *OSPFV2Server) processRecvdSelfASExternalLSA(msg RecvdSelfLsaMsg) e
 		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		lsdbEnt.ASExternalLsaMap[msg.LsaKey] = lsaEnt
 		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-		//TODO: Flood new Self ASExternal LSA
+		// Flood new Self ASExternal LSA
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 		return nil
 	} else {
-		//TODO: Flood existing Self ASExternal LSA
+		// Flood existing Self ASExternal LSA
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 	}
 
 	return nil

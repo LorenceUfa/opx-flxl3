@@ -388,7 +388,7 @@ func (server *OSPFV2Server) StopOspfRecvPkts(key IntfConfKey) {
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
 			cnt = cnt + 1
-			if cnt == 100 {
+			if cnt == 1000 {
 				server.logger.Err("Unable to stop the Rx thread")
 				return
 			}
@@ -396,11 +396,14 @@ func (server *OSPFV2Server) StopOspfRecvPkts(key IntfConfKey) {
 	}
 }
 
-func (server *OSPFV2Server) initRxPkts(ifName string, ipAddr uint32) (*pcap.Handle, error) {
+func (server *OSPFV2Server) InitRxPkt(intfKey IntfConfKey) error {
+	intfEnt, _ := server.IntfConfMap[intfKey]
+	ifName := intfEnt.IfName
+	ipAddr := intfEnt.IpAddr
 	recvHdl, err := pcap.OpenLive(ifName, snapshotLen, promiscuous, pcapTimeout)
 	if err != nil {
 		server.logger.Err("Error opening recv pcap handler", ifName)
-		return nil, err
+		return err
 	}
 	ip := convertUint32ToDotNotation(ipAddr)
 	filter := fmt.Sprintf("proto ospf and not src host %s", ip)
@@ -408,7 +411,20 @@ func (server *OSPFV2Server) initRxPkts(ifName string, ipAddr uint32) (*pcap.Hand
 	err = recvHdl.SetBPFFilter(filter)
 	if err != nil {
 		server.logger.Err("Unable to set filter on", ifName)
-		return nil, err
+		return err
 	}
-	return recvHdl, nil
+	intfEnt.rxHdl.RecvPcapHdl = recvHdl
+	intfEnt.rxHdl.PktRecvCtrlCh = make(chan bool)
+	intfEnt.rxHdl.PktRecvCtrlReplyCh = make(chan bool)
+	server.IntfConfMap[intfKey] = intfEnt
+	return nil
+}
+
+func (server *OSPFV2Server) DeinitRxPkt(intfKey IntfConfKey) {
+	intfEnt, _ := server.IntfConfMap[intfKey]
+	intfEnt.rxHdl.RecvPcapHdl.Close()
+	intfEnt.rxHdl.RecvPcapHdl = nil
+	intfEnt.rxHdl.PktRecvCtrlCh = nil
+	intfEnt.rxHdl.PktRecvCtrlReplyCh = nil
+	server.IntfConfMap[intfKey] = intfEnt
 }

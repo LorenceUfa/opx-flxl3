@@ -87,7 +87,6 @@ func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
 	server.InitCompleteCh = make(chan bool)
 	server.IntfConfMap = make(map[IntfConfKey]IntfConf)
 	server.AreaConfMap = make(map[uint32]AreaConf)
-	server.SummaryLsDb = make(map[LsdbKey]SummaryLsaMap)
 	return &server, nil
 }
 

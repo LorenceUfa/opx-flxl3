@@ -25,9 +25,20 @@ package server
 
 import ()
 
-func (server *OSPFV2Server) SendMsgToFloodLsa(msg []LsdbToFloodLSAMsg) {
+func (server *OSPFV2Server) SendMsgFromLsdbToFloodLsa(msg []LsdbToFloodLSAMsg) {
 	if len(msg) > 0 {
 		server.logger.Info("Sending msg To Flooding routine from Lsdb for self orig lsa :")
 		server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh <- msg
 	}
+}
+
+func (server *OSPFV2Server) CreateAndSendMsgFromLsdbToFloodLsa(areaId uint32, lsaKey LsaKey, lsa interface{}) {
+	msgData := LsdbToFloodLSAMsg{
+		AreaId:  areaId,
+		LsaKey:  lsaKey,
+		LsaData: lsa,
+	}
+	var msg []LsdbToFloodLSAMsg
+	msg = append(msg, msgData)
+	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh <- msg
 }

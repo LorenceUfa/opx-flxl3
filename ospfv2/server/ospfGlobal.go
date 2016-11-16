@@ -70,17 +70,26 @@ func genOspfv2GlobalUpdateMask(attrset []bool) uint32 {
 func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, attrset []bool) (bool, error) {
 	server.logger.Info("Global configuration update")
 	if server.globalData.AdminState == true {
-		nbrKeyList := server.StopAllIntfFSM()
-		if len(nbrKeyList) > 0 {
-			server.SendDeleteNbrsMsg(nbrKeyList)
-		}
+		server.StopAllIntfFSM()
+		//Stop Rx Pkt
+		//Deinit Rx Pkt
+		//Deinit Tx Pkt
+		server.StopAllRxTxPkt()
+		// TODO: Stop Nbr FSM
+
+		// Deinit LSDB Data Structure
+		// Stop LSDB
 		server.StopLsdbRoutine()
+
+		//TODO: Stop Flooding
+
+		// Flush all the routes
+		// Deinit Routing Tbl
+		// Deinit SPF Structures
+		// Stop SPF
 		server.StopSPF()
-		// TODO
-		//Delete all the routes
-		//Flush all the routes
-		//Stop Nbr FSM
-		//Stop Ribd updates
+
+		//TODO: Stop Ribd updates
 	}
 
 	mask := genOspfv2GlobalUpdateMask(attrset)
@@ -98,12 +107,28 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	}
 
 	if server.globalData.AdminState == true {
+		// Init SPF Structures
+		// Init Routing Tbl
+		// Start SPF
 		server.StartSPF()
+
+		// TODO: Start Flooding
+
+		// Init LSDB Data Structure
+		// Start LSDB
 		server.StartLsdbRoutine()
+		// TODO: Start Nbr FSM
+
+		// Init Rx
+		// Init Tx
+		// Start Rx
+		server.StartAllRxTxPkt()
+
+		// Init Ospf Intf FSM
+		//Start All Interface FSM
 		server.StartAllIntfFSM()
-		server.SendMsgToGenerateRouterLSAForAllAreas()
-		// TODO
-		//Start Nbr FSM
+
+		//TODO
 		//Start Ribd Updates if ASBdrRtrStatus = true
 	}
 

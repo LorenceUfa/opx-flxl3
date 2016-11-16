@@ -182,8 +182,8 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) error {
 	selfOrigLsaEnt[lsaKey] = true
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
-	//TODO:
 	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
+	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
 	return nil
 }
 
@@ -222,12 +222,12 @@ func (server *OSPFV2Server) processRecvdSelfRouterLSA(msg RecvdSelfLsaMsg) error
 		lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		lsdbEnt.RouterLsaMap[msg.LsaKey] = lsaEnt
 		server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
-		//TODO:
 		//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 		return nil
 	} else {
-		//TODO:
 		//Flood existing Self Router LSA (areaId, lsaEnt, lsaKey)
+		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsaEnt)
 	}
 
 	return nil

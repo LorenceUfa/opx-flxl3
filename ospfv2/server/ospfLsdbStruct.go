@@ -60,8 +60,10 @@ type LSDatabase struct {
 type SelfOrigLsa map[LsaKey]bool
 
 type LsdbCtrlChStruct struct {
-	LsdbCtrlCh      chan bool
-	LsdbCtrlReplyCh chan bool
+	LsdbGblCtrlCh       chan bool
+	LsdbGblCtrlReplyCh  chan bool
+	LsdbAreaCtrlCh      chan uint32
+	LsdbAreaCtrlReplyCh chan uint32
 }
 
 type LsdbStruct struct {

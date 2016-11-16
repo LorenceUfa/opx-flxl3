@@ -27,18 +27,14 @@ import (
 	"time"
 )
 
-func (server *OSPFV2Server) initLsdbData() {
+func (server *OSPFV2Server) InitLsdbData() {
 	server.LsdbData.AreaLsdb = make(map[LsdbKey]LSDatabase)
 	server.LsdbData.AreaSelfOrigLsa = make(map[LsdbKey]SelfOrigLsa)
-	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
-	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
 	server.LsdbData.LsdbAgingTicker = nil
 }
 
-func (server *OSPFV2Server) dinitLsdb() {
+func (server *OSPFV2Server) DeinitLsdb() {
 	server.LsdbData.LsdbAgingTicker = nil
-	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh = nil
-	server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh = nil
 	for lsdbKey, _ := range server.LsdbData.AreaLsdb {
 		delete(server.LsdbData.AreaLsdb, lsdbKey)
 	}
@@ -70,7 +66,7 @@ func (server *OSPFV2Server) InitAreaLsdb(areaId uint32) {
 	}
 
 }
-func (server *OSPFV2Server) DinitAreaLsdb(areaId uint32) {
+func (server *OSPFV2Server) DeinitAreaLsdb(areaId uint32) {
 	lsdbKey := LsdbKey{
 		AreaId: areaId,
 	}
@@ -87,26 +83,32 @@ func (server *OSPFV2Server) DinitAreaLsdb(areaId uint32) {
 	if exist {
 		delete(server.LsdbData.AreaSelfOrigLsa, lsdbKey)
 	}
-	server.CalcSPFAndRoutingTbl()
+}
 
+func (server *OSPFV2Server) FlushAreaLsdb(areaId uint32) {
+	server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlCh <- areaId
+	<-server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh
 }
 
 func (server *OSPFV2Server) StartLsdbRoutine() {
-	server.initLsdbData()
+	server.LsdbData.LsdbCtrlChData.LsdbGblCtrlCh = make(chan bool)
+	server.LsdbData.LsdbCtrlChData.LsdbGblCtrlReplyCh = make(chan bool)
+	server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlCh = make(chan uint32)
+	server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh = make(chan uint32)
 	go server.ProcessLsdb()
-	//Start LsdbAgingTicker
-	server.LsdbData.LsdbAgingTicker = time.NewTicker(LsaAgingTimeGranularity)
 }
 
 func (server *OSPFV2Server) StopLsdbRoutine() {
-	server.LsdbData.LsdbAgingTicker.Stop()
-	server.LsdbData.LsdbCtrlChData.LsdbCtrlCh <- true
+	server.LsdbData.LsdbCtrlChData.LsdbGblCtrlCh <- true
 	cnt := 0
 	for {
 		select {
-		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh:
+		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbGblCtrlReplyCh:
 			server.logger.Info("Successfully Stopped ProcessLsdb routine")
-			server.dinitLsdb()
+			server.LsdbData.LsdbCtrlChData.LsdbGblCtrlCh = nil
+			server.LsdbData.LsdbCtrlChData.LsdbGblCtrlReplyCh = nil
+			server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlCh = nil
+			server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh = nil
 			return
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
@@ -156,12 +158,20 @@ func (server *OSPFV2Server) processRecvdSelfLSA(msg RecvdSelfLsaMsg) error {
 }
 
 func (server *OSPFV2Server) ProcessLsdb() {
+	server.InitLsdbData()
+	server.LsdbData.LsdbAgingTicker = time.NewTicker(LsaAgingTimeGranularity)
 	for {
 		select {
-		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbCtrlCh:
+		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbGblCtrlCh:
 			server.logger.Info("Stopping ProcessLsdb routine")
-			server.LsdbData.LsdbCtrlChData.LsdbCtrlReplyCh <- true
+			server.LsdbData.LsdbAgingTicker.Stop()
+			server.DeinitLsdb()
+			server.LsdbData.LsdbCtrlChData.LsdbGblCtrlReplyCh <- true
 			return
+		case areaId := <-server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlCh:
+			server.DeinitAreaLsdb(areaId)
+			server.CalcSPFAndRoutingTbl()
+			server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh <- areaId
 		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:
 			server.logger.Info("Generate self originated Router LSA", msg)
 			err := server.GenerateRouterLSA(msg)
@@ -192,11 +202,17 @@ func (server *OSPFV2Server) ProcessLsdb() {
 }
 
 func (server *OSPFV2Server) CalcSPFAndRoutingTbl() {
+	server.SummaryLsDb = nil
 	server.SendMsgToStartSpf()
 	spfState := <-server.MessagingChData.SPFToLsdbChData.DoneSPF
 	server.logger.Debug("SPF Calculation Return Status", spfState)
 	if server.globalData.AreaBdrRtrStatus == true {
-		//TODO:
+		server.logger.Info("Examine transit areas, Summary LSA...")
+		server.HandleTransitAreaSummaryLsa()
+		server.logger.Info("Generate Summary LSA...")
+		server.GenerateSummaryLsa()
+		server.logger.Info("========", server.SummaryLsDb, "==========")
 		//Summary LSA
+		server.installSummaryLsa()
 	}
 }

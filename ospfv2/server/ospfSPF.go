@@ -32,11 +32,11 @@ import (
 )
 
 type SPFStruct struct {
-	AreaGraph      map[VertexKey]Vertex
-	SPFTree        map[VertexKey]TreeVertex
-	AreaStubs      map[VertexKey]StubVertex
-	SPFCtrlCh      chan bool
-	SPFCtrlReplyCh chan bool
+	AreaGraph         map[VertexKey]Vertex
+	SPFTree           map[VertexKey]TreeVertex
+	AreaStubs         map[VertexKey]StubVertex
+	SPFGblCtrlCh      chan bool
+	SPFGblCtrlReplyCh chan bool
 }
 
 type VertexKey struct {
@@ -775,32 +775,7 @@ func (server *OSPFV2Server) UpdateRoutingTbl(vKey VertexKey, areaId uint32) {
 	}
 }
 
-func (server *OSPFV2Server) initRoutingTbl() {
-	server.RoutingTblData.GlobalRoutingTbl = make(map[RoutingTblEntryKey]GlobalRoutingTblEntry)
-}
-
-func (server *OSPFV2Server) initialiseSPFStructs() {
-	server.SPFData.AreaGraph = make(map[VertexKey]Vertex)
-	server.SPFData.AreaStubs = make(map[VertexKey]StubVertex)
-	server.SPFData.SPFTree = make(map[VertexKey]TreeVertex)
-
-}
-
-func (server *OSPFV2Server) SPFRoutine() {
-	for {
-		select {
-		case msg := <-server.MessagingChData.LsdbToSPFChData.StartSPF:
-			server.logger.Info("Recevd SPF Calculation Notification for:", msg)
-			server.spfCalculation()
-			server.SendMsgForSpfDone()
-		case <-server.SPFData.SPFCtrlCh:
-			//Stop SPF
-			server.SPFData.SPFCtrlReplyCh <- true
-		}
-	}
-}
-
-func (server *OSPFV2Server) spfCalculation() {
+func (server *OSPFV2Server) SPFCalculation() {
 	server.logger.Info("Area LS Database:", server.LsdbData.AreaLsdb)
 	// Create New Routing table
 	// Invalidate Old Routing table
@@ -819,7 +794,7 @@ func (server *OSPFV2Server) spfCalculation() {
 			continue
 		}
 		//aEnt.TransitCapability = false
-		server.initialiseSPFStructs()
+		server.InitSPFStructs()
 		areaIdKey := AreaIdKey{
 			AreaId: areaId,
 		}
@@ -880,29 +855,32 @@ func (server *OSPFV2Server) spfCalculation() {
 	server.RoutingTblData.OldGlobalRoutingTbl = nil
 	server.RoutingTblData.TempGlobalRoutingTbl = nil
 	//server.dumpGlobalRoutingTbl()
-	if server.globalData.AreaBdrRtrStatus == true {
-		server.logger.Info("Examine transit areas, Summary LSA...")
-		server.HandleTransitAreaSummaryLsa()
-		server.logger.Info("Generate Summary LSA...")
-		server.GenerateSummaryLsa()
-		server.logger.Info("========", server.SummaryLsDb, "==========")
-	}
+	/*
+		if server.globalData.AreaBdrRtrStatus == true {
+			server.logger.Info("Examine transit areas, Summary LSA...")
+			server.HandleTransitAreaSummaryLsa()
+			server.logger.Info("Generate Summary LSA...")
+			server.GenerateSummaryLsa()
+			server.logger.Info("========", server.SummaryLsDb, "==========")
+		}
+	*/
 }
 
 func (server *OSPFV2Server) StartSPF() {
-	server.SPFData.SPFCtrlReplyCh = make(chan bool)
-	server.SPFData.SPFCtrlCh = make(chan bool)
-	server.initRoutingTbl()
+	server.SPFData.SPFGblCtrlReplyCh = make(chan bool)
+	server.SPFData.SPFGblCtrlCh = make(chan bool)
 	go server.SPFRoutine()
 }
 
 func (server *OSPFV2Server) StopSPF() {
-	server.SPFData.SPFCtrlCh <- true
+	server.SPFData.SPFGblCtrlCh <- true
 	cnt := 0
 	for {
 		select {
-		case _ = <-server.SPFData.SPFCtrlReplyCh:
+		case _ = <-server.SPFData.SPFGblCtrlReplyCh:
 			server.logger.Info("Stopped SPF Routine")
+			server.SPFData.SPFGblCtrlReplyCh = nil
+			server.SPFData.SPFGblCtrlCh = nil
 			return
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
@@ -913,5 +891,44 @@ func (server *OSPFV2Server) StopSPF() {
 			}
 		}
 	}
-	//TODO: Flush all the routes
+}
+
+func (server *OSPFV2Server) InitRoutingTbl() {
+	server.RoutingTblData.GlobalRoutingTbl = make(map[RoutingTblEntryKey]GlobalRoutingTblEntry)
+}
+
+func (server *OSPFV2Server) DeinitRoutingTbl() {
+	server.RoutingTblData.GlobalRoutingTbl = nil
+}
+
+func (server *OSPFV2Server) InitSPFStructs() {
+	server.SPFData.AreaGraph = make(map[VertexKey]Vertex)
+	server.SPFData.AreaStubs = make(map[VertexKey]StubVertex)
+	server.SPFData.SPFTree = make(map[VertexKey]TreeVertex)
+}
+
+func (server *OSPFV2Server) DeinitSPFStructs() {
+	server.SPFData.AreaGraph = nil
+	server.SPFData.AreaStubs = nil
+	server.SPFData.SPFTree = nil
+}
+
+func (server *OSPFV2Server) SPFRoutine() {
+	server.InitSPFStructs()
+	server.InitRoutingTbl()
+	for {
+		select {
+		case msg := <-server.MessagingChData.LsdbToSPFChData.StartSPF:
+			server.logger.Info("Recevd SPF Calculation Notification for:", msg)
+			server.SPFCalculation()
+			server.SendMsgForSpfDone()
+		case <-server.SPFData.SPFGblCtrlCh:
+			server.FlushRoutingTbl()
+			server.DeinitRoutingTbl()
+			server.DeinitSPFStructs()
+			server.SPFData.SPFGblCtrlReplyCh <- true
+			server.logger.Info("Stopped SPF successfully")
+			return
+		}
+	}
 }
