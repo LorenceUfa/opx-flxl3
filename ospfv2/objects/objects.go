@@ -139,8 +139,8 @@ const (
 const (
 	INTF_FSM_STATE_UNKNOWN  uint8 = 0
 	INTF_FSM_STATE_DOWN     uint8 = 1
-	INTF_FSM_STATE_LOOPBACK uint8 = 2
-	INTF_FSM_STATE_WAITING  uint8 = 3
+	INTF_FSM_STATE_WAITING  uint8 = 2
+	INTF_FSM_STATE_LOOPBACK uint8 = 3
 	INTF_FSM_STATE_P2P      uint8 = 4
 	INTF_FSM_STATE_OTHER_DR uint8 = 5
 	INTF_FSM_STATE_DR       uint8 = 6
@@ -150,8 +150,8 @@ const (
 const (
 	INTF_FSM_STATE_UNKNOWN_STR  string = "unknown"
 	INTF_FSM_STATE_DOWN_STR     string = "down"
-	INTF_FSM_STATE_LOOPBACK_STR string = "loopback"
 	INTF_FSM_STATE_WAITING_STR  string = "waiting"
+	INTF_FSM_STATE_LOOPBACK_STR string = "loopback"
 	INTF_FSM_STATE_P2P_STR      string = "point-to-point"
 	INTF_FSM_STATE_OTHER_DR_STR string = "other-dr"
 	INTF_FSM_STATE_DR_STR       string = "dr"
