@@ -23,41 +23,22 @@
 
 package server
 
-import (
-	"errors"
-	"github.com/google/gopacket/pcap"
-)
+import ()
 
-func (server *OSPFV2Server) SendOspfPkt(key IntfConfKey, ospfPkt []byte) error {
-	entry, _ := server.IntfConfMap[key]
-	handle := entry.txHdl.SendPcapHdl
-	if handle == nil {
-		server.logger.Err("Invalid pcap handle")
-		err := errors.New("Invalid pcap handle")
-		return err
+func (server *OSPFV2Server) SendMsgFromLsdbToFloodLsa(msg []LsdbToFloodLSAMsg) {
+	if len(msg) > 0 {
+		server.logger.Info("Sending msg To Flooding routine from Lsdb for self orig lsa :")
+		server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh <- msg
 	}
-	entry.txHdl.SendMutex.Lock()
-	err := handle.WritePacketData(ospfPkt)
-	entry.txHdl.SendMutex.Unlock()
-	return err
 }
 
-func (server *OSPFV2Server) InitTxPkt(intfKey IntfConfKey) error {
-	intfEnt, _ := server.IntfConfMap[intfKey]
-	ifName := intfEnt.IfName
-	sendHdl, err := pcap.OpenLive(ifName, snapshotLen, promiscuous, pcapTimeout)
-	if err != nil {
-		server.logger.Err("Error opening pcap handler on ", ifName)
-		return err
+func (server *OSPFV2Server) CreateAndSendMsgFromLsdbToFloodLsa(areaId uint32, lsaKey LsaKey, lsa interface{}) {
+	msgData := LsdbToFloodLSAMsg{
+		AreaId:  areaId,
+		LsaKey:  lsaKey,
+		LsaData: lsa,
 	}
-	intfEnt.txHdl.SendPcapHdl = sendHdl
-	server.IntfConfMap[intfKey] = intfEnt
-	return nil
-}
-
-func (server *OSPFV2Server) DeinitTxPkt(intfKey IntfConfKey) {
-	intfEnt, _ := server.IntfConfMap[intfKey]
-	intfEnt.txHdl.SendPcapHdl.Close()
-	intfEnt.txHdl.SendPcapHdl = nil
-	server.IntfConfMap[intfKey] = intfEnt
+	var msg []LsdbToFloodLSAMsg
+	msg = append(msg, msgData)
+	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh <- msg
 }
