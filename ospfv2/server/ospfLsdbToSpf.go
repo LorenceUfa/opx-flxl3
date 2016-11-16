@@ -23,41 +23,9 @@
 
 package server
 
-import (
-	"errors"
-	"github.com/google/gopacket/pcap"
-)
+import ()
 
-func (server *OSPFV2Server) SendOspfPkt(key IntfConfKey, ospfPkt []byte) error {
-	entry, _ := server.IntfConfMap[key]
-	handle := entry.txHdl.SendPcapHdl
-	if handle == nil {
-		server.logger.Err("Invalid pcap handle")
-		err := errors.New("Invalid pcap handle")
-		return err
-	}
-	entry.txHdl.SendMutex.Lock()
-	err := handle.WritePacketData(ospfPkt)
-	entry.txHdl.SendMutex.Unlock()
-	return err
-}
-
-func (server *OSPFV2Server) InitTxPkt(intfKey IntfConfKey) error {
-	intfEnt, _ := server.IntfConfMap[intfKey]
-	ifName := intfEnt.IfName
-	sendHdl, err := pcap.OpenLive(ifName, snapshotLen, promiscuous, pcapTimeout)
-	if err != nil {
-		server.logger.Err("Error opening pcap handler on ", ifName)
-		return err
-	}
-	intfEnt.txHdl.SendPcapHdl = sendHdl
-	server.IntfConfMap[intfKey] = intfEnt
-	return nil
-}
-
-func (server *OSPFV2Server) DeinitTxPkt(intfKey IntfConfKey) {
-	intfEnt, _ := server.IntfConfMap[intfKey]
-	intfEnt.txHdl.SendPcapHdl.Close()
-	intfEnt.txHdl.SendPcapHdl = nil
-	server.IntfConfMap[intfKey] = intfEnt
+func (server *OSPFV2Server) SendMsgToStartSpf() {
+	server.logger.Info("Sending msg from Lsdb To Spf:")
+	server.MessagingChData.LsdbToSPFChData.StartSPF <- true
 }

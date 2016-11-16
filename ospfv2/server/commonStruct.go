@@ -110,74 +110,73 @@ type DeleteNbrMsg struct {
 	NbrKeyList []NbrConfKey //List of Nbr Identity
 }
 
+type GenerateRouterLSAMsg struct {
+	AreaId uint32
+}
+type NbrDownMsg struct {
+	NbrKey NbrConfKey
+}
+type RecvdLsaMsgType uint8
+
+const (
+	LSA_ADD RecvdLsaMsgType = 0
+	LSA_DEL RecvdLsaMsgType = 1
+)
+
+type RecvdLsaMsg struct {
+	MsgType RecvdLsaMsgType
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
+type RecvdSelfLsaMsg struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
+type LsaOp uint8
+
+const (
+	GENERATE LsaOp = 0
+	FLUSH    LsaOp = 1
+)
+
+type UpdateSelfNetworkLSAMsg struct {
+	Op      LsaOp
+	IntfKey IntfConfKey
+	NbrList []uint32
+}
+
+type LsdbToFloodLSAMsg struct {
+	AreaId  uint32
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
 	NetworkDRChangeCh chan NetworkDRChangeMsg
 }
 
-type GenerateRouterLSAMsg struct {
-	AreaId uint32
-}
-
 type IntfFSMToLsdbChStruct struct {
 	GenerateRouterLSACh chan GenerateRouterLSAMsg
-}
-
-type NbrDownMsg struct {
-	NbrKey NbrConfKey
 }
 
 type NbrToIntfFSMChStruct struct {
 	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
 }
 
-type LsaUpdateMsg struct {
-	IntfKey IntfConfKey
-	NbrKey  NbrConfKey
-	LsaType uint8
-	LsaData interface{}
-}
-
-const (
-	GENERATE uint8 = 0
-	FLUSH    uint8 = 1
-)
-
-type UpdateSelfNetworkLSAMsg struct {
-	Op      uint8
-	IntfKey IntfConfKey
-	NbrList []uint32
-}
-
 type NbrFSMToLsdbChStruct struct {
-	LsaUpdateCh            chan LsaUpdateMsg
+	RecvdLsaMsgCh          chan RecvdLsaMsg
+	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
 }
 
-type LsaUpdateStatusMsg struct {
-	LsaUpdateMsg LsaUpdateMsg
-	Status       bool
-}
-
-type LsdbToNbrFSMChStruct struct {
-	LsaUpdateStatusCh chan LsaUpdateStatusMsg
-}
-
-const (
-	FLOOD_TO_ALL_NBR              uint8 = 0
-	FLOOD_TO_ALL_NBR_EXCEPT_GIVEN uint8 = 1
-	//FLOOD_TO_GIVEN_NBR            uint8 = 2 //This is only for self orig
-)
-
-type LsdbToFloodingMsg struct {
-	FloodType    uint8
-	LsaUpdateMsg LsaUpdateMsg
-}
-
-type LsdbToFloodingChStruct struct {
-	LsdbToFloodingCh      chan LsdbToFloodingMsg
-	LsdbToFloodForAgedLSA chan bool
+type LsdbToFloodChStruct struct {
+	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
 }
 
 type LsdbToSPFChStruct struct {
@@ -189,12 +188,11 @@ type SPFToLsdbChStruct struct {
 }
 
 type MessagingChStruct struct {
-	IntfToNbrFSMChData   IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData  IntfFSMToLsdbChStruct
-	NbrToIntfFSMChData   NbrToIntfFSMChStruct
-	NbrFSMToLsdbChData   NbrFSMToLsdbChStruct
-	LsdbToNbrFSMChData   LsdbToNbrFSMChStruct
-	LsdbToFloodingChData LsdbToFloodingChStruct
-	LsdbToSPFChData      LsdbToSPFChStruct
-	SPFToLsdbChData      SPFToLsdbChStruct
+	IntfToNbrFSMChData  IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
+	NbrToIntfFSMChData  NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
+	LsdbToFloodChData   LsdbToFloodChStruct
+	LsdbToSPFChData     LsdbToSPFChStruct
+	SPFToLsdbChData     SPFToLsdbChStruct
 }
