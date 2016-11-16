@@ -25,7 +25,7 @@ package server
 
 import ()
 
-func (server *OSPFV2Server) processLsdbAgeSelfOrigRouterLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *RouterLsa) {
+func (server *OSPFV2Server) processLsdbAgeSelfOrigRouterLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *RouterLsa) bool {
 	//Increment LSA age
 	if lsa.LsaMd.LSAge < MAX_AGE {
 		lsa.LsaMd.LSAge++
@@ -37,13 +37,21 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigRouterLsa(lsdbKey LsdbKey, lsa
 		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
-			return
+			return false
 		}
 	}
 	//TODO: If Age=LSRefreshTime Regenerate
+	if lsa.LsaMd.LSAge == LS_REFRESH_TIME {
+		msg := GenerateRouterLSAMsg{
+			AreaId: lsdbKey.AreaId,
+		}
+		server.GenerateRouterLSA(msg)
+		return true
+	}
+	return false
 }
 
-func (server *OSPFV2Server) processLsdbAgeSelfOrigNetworkLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *NetworkLsa) {
+func (server *OSPFV2Server) processLsdbAgeSelfOrigNetworkLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *NetworkLsa) bool {
 	//Increment LSA age
 	if lsa.LsaMd.LSAge < MAX_AGE {
 		lsa.LsaMd.LSAge++
@@ -55,13 +63,14 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigNetworkLsa(lsdbKey LsdbKey, ls
 		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
-			return
+			return false
 		}
 	}
 	//TODO: If Age=LSRefreshTime Regenerate
+	return false
 }
 
-func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary3Lsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *SummaryLsa) {
+func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary3Lsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *SummaryLsa) bool {
 	//Increment LSA age
 	if lsa.LsaMd.LSAge < MAX_AGE {
 		lsa.LsaMd.LSAge++
@@ -73,14 +82,14 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary3Lsa(lsdbKey LsdbKey, l
 		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
-			return
+			return false
 		}
 	}
 	//TODO: If Age=LSRefreshTime Regenerate
-
+	return false
 }
 
-func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary4Lsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *SummaryLsa) {
+func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary4Lsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *SummaryLsa) bool {
 	//Increment LSA age
 	if lsa.LsaMd.LSAge < MAX_AGE {
 		lsa.LsaMd.LSAge++
@@ -92,14 +101,14 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary4Lsa(lsdbKey LsdbKey, l
 		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
-			return
+			return false
 		}
 	}
 	//TODO: If Age=LSRefreshTime Regenerate
-
+	return false
 }
 
-func (server *OSPFV2Server) processLsdbAgeSelfOrigASExternalLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *ASExternalLsa) {
+func (server *OSPFV2Server) processLsdbAgeSelfOrigASExternalLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *ASExternalLsa) bool {
 	//Increment LSA age
 	if lsa.LsaMd.LSAge < MAX_AGE {
 		lsa.LsaMd.LSAge++
@@ -111,56 +120,52 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigASExternalLsa(lsdbKey LsdbKey,
 		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
-			return
+			return false
 		}
 	}
 	//TODO: If Age=LSRefreshTime Regenerate
-
+	return false
 }
 
-func (server *OSPFV2Server) processLsdbAgeSelfOrigLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt interface{}) {
+func (server *OSPFV2Server) processLsdbAgeSelfOrigLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsaEnt interface{}) bool {
 	switch lsaKey.LSType {
 	case RouterLSA:
 		lsa, ok := lsaEnt.(*RouterLsa)
 		if !ok {
 			server.logger.Err("Unable to assert lsa")
-			return
+			return false
 		}
-		server.processLsdbAgeSelfOrigRouterLsa(lsdbKey, lsaKey, lsa)
-		return
+		return server.processLsdbAgeSelfOrigRouterLsa(lsdbKey, lsaKey, lsa)
 	case NetworkLSA:
 		lsa, ok := lsaEnt.(*NetworkLsa)
 		if !ok {
 			server.logger.Err("Unable to assert lsa")
-			return
+			return false
 		}
-		server.processLsdbAgeSelfOrigNetworkLsa(lsdbKey, lsaKey, lsa)
-		return
+		return server.processLsdbAgeSelfOrigNetworkLsa(lsdbKey, lsaKey, lsa)
 	case Summary3LSA:
 		lsa, ok := lsaEnt.(*SummaryLsa)
 		if !ok {
 			server.logger.Err("Unable to assert lsa")
-			return
+			return false
 		}
-		server.processLsdbAgeSelfOrigSummary3Lsa(lsdbKey, lsaKey, lsa)
-		return
+		return server.processLsdbAgeSelfOrigSummary3Lsa(lsdbKey, lsaKey, lsa)
 	case Summary4LSA:
 		lsa, ok := lsaEnt.(*SummaryLsa)
 		if !ok {
 			server.logger.Err("Unable to assert lsa")
-			return
+			return false
 		}
-		server.processLsdbAgeSelfOrigSummary4Lsa(lsdbKey, lsaKey, lsa)
-		return
+		return server.processLsdbAgeSelfOrigSummary4Lsa(lsdbKey, lsaKey, lsa)
 	case ASExternalLSA:
 		lsa, ok := lsaEnt.(*ASExternalLsa)
 		if !ok {
 			server.logger.Err("Unable to assert lsa")
-			return
+			return false
 		}
-		server.processLsdbAgeSelfOrigASExternalLsa(lsdbKey, lsaKey, lsa)
-		return
+		return server.processLsdbAgeSelfOrigASExternalLsa(lsdbKey, lsaKey, lsa)
 	}
+	return false
 }
 
 func (server *OSPFV2Server) processLsdbAgeNonSelfRouterLsa(lsdbKey LsdbKey, lsaKey LsaKey, lsa *RouterLsa) (LsdbToFloodLSAMsg, bool) {
@@ -332,13 +337,18 @@ func (server *OSPFV2Server) processLsdbAgeNonSelfLsa(lsdbKey LsdbKey, lsaKey Lsa
 
 func (server *OSPFV2Server) processLsdbAgingTicker() {
 	var lsdbToFloodLSAMsgList []LsdbToFloodLSAMsg
+	var needSPFCalcRouter bool
+	var needSPFCalcNetwork bool
+	var needSPFCalcSummary3 bool
+	var needSPFCalcSummary4 bool
+	var needSPFCalcASExternal bool
 	for lsdbKey, lsdbEnt := range server.LsdbData.AreaLsdb {
 		for lsaKey, lsaEnt := range lsdbEnt.RouterLsaMap {
 			selfOrigEnt, exist := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
 			if exist {
 				_, exist := selfOrigEnt[lsaKey]
 				if exist {
-					server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
+					needSPFCalcRouter = server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
 				} else {
 					lsdbToFloodLSAMsg, flag := server.processLsdbAgeNonSelfLsa(lsdbKey, lsaKey, &lsaEnt)
 					if flag == true {
@@ -359,7 +369,7 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 			if exist {
 				_, exist := selfOrigEnt[lsaKey]
 				if exist {
-					server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
+					needSPFCalcNetwork = server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
 				} else {
 					lsdbToFloodLSAMsg, flag := server.processLsdbAgeNonSelfLsa(lsdbKey, lsaKey, &lsaEnt)
 					if flag == true {
@@ -380,7 +390,7 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 			if exist {
 				_, exist := selfOrigEnt[lsaKey]
 				if exist {
-					server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
+					needSPFCalcSummary3 = server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
 				} else {
 					lsdbToFloodLSAMsg, flag := server.processLsdbAgeNonSelfLsa(lsdbKey, lsaKey, &lsaEnt)
 					if flag == true {
@@ -401,7 +411,7 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 			if exist {
 				_, exist := selfOrigEnt[lsaKey]
 				if exist {
-					server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
+					needSPFCalcSummary4 = server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
 				} else {
 					lsdbToFloodLSAMsg, flag := server.processLsdbAgeNonSelfLsa(lsdbKey, lsaKey, &lsaEnt)
 					if flag == true {
@@ -422,7 +432,7 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 			if exist {
 				_, exist := selfOrigEnt[lsaKey]
 				if exist {
-					server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
+					needSPFCalcASExternal = server.processLsdbAgeSelfOrigLsa(lsdbKey, lsaKey, &lsaEnt)
 				} else {
 					lsdbToFloodLSAMsg, flag := server.processLsdbAgeNonSelfLsa(lsdbKey, lsaKey, &lsaEnt)
 					if flag == true {
@@ -440,4 +450,11 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 		}
 	}
 	server.SendMsgFromLsdbToFloodLsa(lsdbToFloodLSAMsgList)
+	if needSPFCalcRouter == true ||
+		needSPFCalcNetwork == true ||
+		needSPFCalcSummary3 == true ||
+		needSPFCalcSummary4 == true ||
+		needSPFCalcASExternal == true {
+		server.CalcSPFAndRoutingTbl()
+	}
 }

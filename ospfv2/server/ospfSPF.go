@@ -519,7 +519,7 @@ func (server *OSPFV2Server) CreateAreaGraph(areaId uint32) (VertexKey, error) {
 	}
 
 	if lsaEnt.LsaMd.LSAge == MAX_AGE {
-		server.logger.Err("Router LSA with MAX_AGE", lsaKey)
+		server.logger.Err("Router LSA with MAX_AGE", selfRtrLsaKey)
 		return vKey, errors.New("Router LSA with MAX_AGE")
 	}
 	err = server.UpdateAreaGraphRouterLsa(lsaEnt, selfRtrLsaKey, areaId)
