@@ -148,13 +148,9 @@ func (server *OSPFV2Server) initServer() error {
 	server.initRibdComm()
 	server.ConnectToServers()
 	server.StartSubscribers()
-	err := server.initAsicdForRxMulticastPkt()
-	if err != nil {
-		server.logger.Err("Unable to initialize asicd for receiving multicast packets", err)
-		return err
-	}
 	server.initInfra()
 	server.buildInfra()
+	//TODO:server.DeleteRouteFromDB()
 	server.InitGetBulkSliceRefresh()
 	go server.GetBulkSliceRefresh()
 	if server.dbHdl == nil {

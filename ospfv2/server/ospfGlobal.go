@@ -90,6 +90,11 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		server.StopSPF()
 
 		//TODO: Stop Ribd updates
+		err := server.deinitAsicdForRxMulticastPkt()
+		if err != nil {
+			server.logger.Err("Unable to initialize ASIC for recving Multicast Packets", err)
+			return false, err
+		}
 	}
 
 	mask := genOspfv2GlobalUpdateMask(attrset)
@@ -107,6 +112,11 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	}
 
 	if server.globalData.AdminState == true {
+		err := server.initAsicdForRxMulticastPkt()
+		if err != nil {
+			server.logger.Err("Unable to initialize ASIC for recving Multicast Packets", err)
+			return false, err
+		}
 		// Init SPF Structures
 		// Init Routing Tbl
 		// Start SPF
@@ -147,6 +157,11 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 	server.globalData.ASBdrRtrStatus = cfg.ASBdrRtrStatus
 	server.globalData.ReferenceBandwidth = cfg.ReferenceBandwidth
 	if server.globalData.AdminState == true {
+		err := server.initAsicdForRxMulticastPkt()
+		if err != nil {
+			server.logger.Err("Unable to initialize ASIC for recving Multicast Packets", err)
+			return false, err
+		}
 		server.StartSPF()
 		server.StartLsdbRoutine()
 		//TODO: Start NBR FSM
