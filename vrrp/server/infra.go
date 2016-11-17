@@ -34,14 +34,6 @@ import (
 	"utils/netUtils"
 )
 
-func (svr *VrrpServer) GetPorts() {
-	return
-}
-
-func (svr *VrrpServer) GetVlans() {
-	return
-}
-
 func (svr *VrrpServer) getIPv4Intfs() {
 	debug.Logger.Info("Get all ipv4 interfaces from asicd")
 	ipv4Info, err := svr.SwitchPlugin.GetAllIPv4IntfState()
@@ -325,13 +317,14 @@ func (svr *VrrpServer) HandleVrrpIntfConfig(cfg *common.IntfCfg) {
 	switch cfg.Operation {
 	case common.CREATE:
 		svr.HandlerVrrpIntfCreateConfig(cfg)
+		svr.addConfiguredIntfCount(cfg.IpType)
 	case common.UPDATE:
 		svr.HandleVrrpIntfUpdateConfig(cfg)
 	case common.DELETE:
 		svr.HandleVrrpIntfDeleteConfig(cfg)
+		svr.removeConfiguredIntfCount(cfg.IpType)
 	}
 
-	svr.updateConfiguredIntfCount()
 }
 
 func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
@@ -472,9 +465,20 @@ func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 	}
 }
 
-func (svr *VrrpServer) updateConfiguredIntfCount() {
-	svr.globalState.V4Intfs = int32(len(svr.V4))
-	svr.globalState.V6Intfs = int32(len(svr.V6))
+func (svr *VrrpServer) addConfiguredIntfCount(ipType int) {
+	if ipType == syscall.AF_INET {
+		svr.globalState.V4Intfs++
+	} else if ipType == syscall.AF_INET6 {
+		svr.globalState.V6Intfs++
+	}
+}
+
+func (svr *VrrpServer) removeConfiguredIntfCount(ipType int) {
+	if ipType == syscall.AF_INET {
+		svr.globalState.V4Intfs--
+	} else if ipType == syscall.AF_INET6 {
+		svr.globalState.V6Intfs--
+	}
 }
 
 func (svr *VrrpServer) updateRxCount() {

@@ -123,7 +123,7 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f.stateInfo = &common.State{}
 	f.ipAddr = l3Info.IpAddr
 	f.ifIndex = l3Info.IfIndex
-	f.VirtualMACAddress = f.createVirtualMac(cfg.VRID)
+	f.createVirtualMac(cfg.VRID)
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
@@ -213,19 +213,19 @@ func (f *FSM) GetStateInfo(info *common.State) {
 					* FSM PRIVATE API's *
 *************************************************************************************************************/
 
-func (f *FSM) createVirtualMac(vrid int32) (vmac string) {
+func (f *FSM) createVirtualMac(vrid int32) {
 	if f.Config.Version == common.VERSION2 {
-		vmac = packet.VRRP_V4_IEEE_MAC_ADDR
+		f.VirtualMACAddress = VERSION2_IEEE_MAC_ADDR_PREFIX
 	} else if f.Config.Version == common.VERSION3 {
-		vmac = packet.VRRP_V6_IEEE_MAC_ADDR
+		f.VirtualMACAddress = VERSION3_IEEE_MAC_ADDR_PREFIX
 	}
 	if vrid < 10 {
-		vmac = "0" + strconv.Itoa(int(vrid))
+		f.VirtualMACAddress += "0" + strconv.Itoa(int(vrid))
 
 	} else {
-		vmac = strconv.Itoa(int(vrid))
+		f.VirtualMACAddress += strconv.Itoa(int(vrid))
 	}
-	return vmac
+	debug.Logger.Debug("Vmac created for interface:", f.Config.IntfRef, "is:", f.VirtualMACAddress)
 }
 
 func getStateName(state uint8) (rv string) {
@@ -479,19 +479,21 @@ const (
 )
 
 const (
-	VRRP_MASTER_PRIORITY         = 255
-	VRRP_IGNORE_PRIORITY         = 65535
-	VRRP_MASTER_DOWN_PRIORITY    = 0
-	VRRP_INITIALIZE_STATE_STRING = "Initialize"
-	VRRP_BACKUP_STATE_STRING     = "Backup"
-	VRRP_MASTER_STATE_STRING     = "Master"
-	VRRP_SNAPSHOT_LEN            = 1024
-	VRRP_PROMISCOUS_MODE         = false
-	VRRP_TIMEOUT                 = 1 // in seconds
-	VRRP2_BPF_FILTER             = "ip host " + packet.VRRP_V4_GROUP_IP
-	VRRP3_BPF_FILTER             = "ip host " + packet.VRRP_V6_GROUP_IP
-	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
-	FSM_PREFIX                   = "FSM ------> "
+	VRRP_MASTER_PRIORITY          = 255
+	VRRP_IGNORE_PRIORITY          = 65535
+	VRRP_MASTER_DOWN_PRIORITY     = 0
+	VRRP_INITIALIZE_STATE_STRING  = "Initialize"
+	VRRP_BACKUP_STATE_STRING      = "Backup"
+	VRRP_MASTER_STATE_STRING      = "Master"
+	VRRP_SNAPSHOT_LEN             = 1024
+	VRRP_PROMISCOUS_MODE          = false
+	VRRP_TIMEOUT                  = 1 // in seconds
+	VRRP2_BPF_FILTER              = "ip host " + packet.VRRP_V4_GROUP_IP
+	VRRP3_BPF_FILTER              = "ip host " + packet.VRRP_V6_GROUP_IP
+	VRRP_MAC_MASK                 = "ff:ff:ff:ff:ff:ff"
+	FSM_PREFIX                    = "FSM ------> "
+	VERSION2_IEEE_MAC_ADDR_PREFIX = "00-00-5E-00-01-"
+	VERSION3_IEEE_MAC_ADDR_PREFIX = "00-00-5E-00-02-"
 )
 
 const (

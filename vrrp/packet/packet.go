@@ -42,8 +42,6 @@ const (
 	VRRP_PROTOCOL_MAC                    = "01:00:5e:00:00:12"   // protocol mac used in the encoding packet
 	VRRP_V4_GROUP_IP                     = "224.0.0.18"          // ipv4 group address
 	VRRP_V6_GROUP_IP                     = "FF02:0:0:0:0:0:0:12" // ipv6 group address
-	VRRP_V4_IEEE_MAC_ADDR                = "00-00-5E-00-01-"     // vrrp base v4 ieee mac address
-	VRRP_V6_IEEE_MAC_ADDR                = "00-00-5E-00-02-"     // vrrp base v6 ieee mac address
 
 	// error message from Packet
 	VRRP_CHECKSUM_ERR      = "VRRP checksum failure"

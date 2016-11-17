@@ -103,10 +103,6 @@ func (svr *VrrpServer) EventListener() {
 }
 
 func (svr *VrrpServer) GetSystemInfo() {
-	// Get ports information
-	svr.GetPorts()
-	// Get vlans information
-	svr.GetVlans()
 	// Get IP Information
 	svr.GetIPIntfs()
 }
