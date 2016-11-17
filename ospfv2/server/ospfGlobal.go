@@ -146,6 +146,16 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 	server.globalData.RouterId = cfg.RouterId
 	server.globalData.ASBdrRtrStatus = cfg.ASBdrRtrStatus
 	server.globalData.ReferenceBandwidth = cfg.ReferenceBandwidth
+	if server.globalData.AdminState == true {
+		server.StartSPF()
+		server.StartLsdbRoutine()
+		//TODO: Start NBR FSM
+		server.StartAllRxTxPkt()
+		server.StartAllIntfFSM()
+		if server.globalData.ASBdrRtrStatus == true {
+			//TODO: Start Ribd Updates
+		}
+	}
 	return true, nil
 }
 
