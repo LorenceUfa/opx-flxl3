@@ -28,17 +28,26 @@ import (
 )
 
 const (
-	snapshotLen           int32         = 65549 //packet capture length
-	promiscuous           bool          = false //mode
-	pcapTimeout           time.Duration = 5 * time.Second
-	ALLSPFROUTER          uint32        = 0xE0000005
-	ALLDROUTER            uint32        = 0xE0000006
-	ALLSPFROUTERMAC       string        = "01:00:5e:00:00:05"
-	ALLDROUTERMAC         string        = "01:00:5e:00:00:06"
-	MASKMAC               string        = "ff:ff:ff:ff:ff:ff"
-	InitialSequenceNumber uint32        = 0x80000001
-	MaxSequenceNumber     uint32        = 0x7fffffff
+	snapshotLen             int32         = 65549 //packet capture length
+	promiscuous             bool          = false //mode
+	pcapTimeout             time.Duration = 5 * time.Second
+	LOGICAL_INTF_MTU        int32         = 1512
+	ALLSPFROUTER            uint32        = 0xE0000005
+	ALLDROUTER              uint32        = 0xE0000006
+	ALLSPFROUTERMAC         string        = "01:00:5e:00:00:05"
+	ALLDROUTERMAC           string        = "01:00:5e:00:00:06"
+	MASKMAC                 string        = "ff:ff:ff:ff:ff:ff"
+	InitialSequenceNum      uint32        = 0x80000001
+	MaxSequenceNumber       uint32        = 0x7fffffff
+	LsaAgingTimeGranularity time.Duration = 1 * time.Second
+	MAX_AGE                 uint16        = 3600 // 1 hour
+	LS_REFRESH_TIME         uint16        = 1800 // 30 min
+	MIN_LS_INTERVAL         uint16        = 5    // 5 second
+	MIN_LS_ARRIVAL          uint16        = 1    // 1 second
+	CHECK_AGE               uint16        = 300  // 5 mins
+	MAX_AGE_DIFF            uint16        = 900  // 15 mins
 	//LSSequenceNumber      int           = InitialSequenceNumber
+	LSInfinity uint32 = 0x00ffffff
 )
 
 const (
@@ -60,6 +69,13 @@ const (
 	LSRequestType     uint8 = 3
 	LSUpdateType      uint8 = 4
 	LSAckType         uint8 = 5
+)
+
+const (
+	P2P_LINK     uint8 = 1
+	TRANSIT_LINK uint8 = 2
+	STUB_LINK    uint8 = 3
+	VIRTUAL_LINK uint8 = 4
 )
 
 type DstIPType uint8
@@ -88,11 +104,4 @@ const (
 	LsdbDel      uint8 = 1
 	LsdbUpdate   uint8 = 2
 	LsdbNoAction uint8 = 3
-)
-
-const (
-	P2PLink     uint8 = 1
-	TransitLink uint8 = 2
-	StubLink    uint8 = 3
-	VirtualLink uint8 = 4
 )
