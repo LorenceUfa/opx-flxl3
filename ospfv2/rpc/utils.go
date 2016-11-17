@@ -94,10 +94,10 @@ func convertFromRPCFmtOspfv2Area(config *ospfv2d.Ospfv2Area) (*objects.Ospfv2Are
 func convertToRPCFmtOspfv2AreaState(obj *objects.Ospfv2AreaState) *ospfv2d.Ospfv2AreaState {
 	areaId := convertUint32ToDotNotation(obj.AreaId)
 	return &ospfv2d.Ospfv2AreaState{
-		AreaId:           areaId,
-		NumSpfRuns:       int32(obj.NumSpfRuns),
-		NumBdrRtr:        int32(obj.NumBdrRtr),
-		NumAsBdrRtr:      int32(obj.NumAsBdrRtr),
+		AreaId: areaId,
+		//NumSpfRuns:       int32(obj.NumSpfRuns),
+		//NumBdrRtr:        int32(obj.NumBdrRtr),
+		//NumAsBdrRtr:      int32(obj.NumAsBdrRtr),
 		NumRouterLsa:     int32(obj.NumRouterLsa),
 		NumNetworkLsa:    int32(obj.NumNetworkLsa),
 		NumSummary3Lsa:   int32(obj.NumSummary3Lsa),
@@ -239,7 +239,6 @@ func convertFromRPCFmtLSType(LSType string) (uint8, error) {
 	return lsType, nil
 }
 
-/*
 func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv2LsdbState {
 	var lsType string
 	switch obj.LSType {
@@ -268,7 +267,6 @@ func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv
 		Advertisement: obj.Advertisement,
 	}
 }
-*/
 
 func convertToRPCFmtOspfv2NbrState(obj *objects.Ospfv2NbrState) *ospfv2d.Ospfv2NbrState {
 	ipAddr := convertUint32ToDotNotation(obj.IpAddr)

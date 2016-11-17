@@ -59,10 +59,10 @@ type Ospfv2Area struct {
 }
 
 type Ospfv2AreaState struct {
-	AreaId           uint32
-	NumSpfRuns       uint32
-	NumBdrRtr        uint32
-	NumAsBdrRtr      uint32
+	AreaId uint32
+	//NumSpfRuns       uint32
+	//NumBdrRtr        uint32
+	//NumAsBdrRtr      uint32
 	NumRouterLsa     uint32
 	NumNetworkLsa    uint32
 	NumSummary3Lsa   uint32

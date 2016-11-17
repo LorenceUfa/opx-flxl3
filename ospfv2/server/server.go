@@ -73,6 +73,8 @@ type OSPFV2Server struct {
 	SPFData        SPFStruct
 	RoutingTblData RoutingTblStruct
 	SummaryLsDb    map[LsdbKey]SummaryLsaMap
+
+	GetBulkData GetBulkStruct
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -132,6 +134,8 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
 	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
 	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
+	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh = make(chan bool)
+	server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh = make(chan bool)
 }
 
 func (server *OSPFV2Server) initServer() error {
@@ -148,7 +152,8 @@ func (server *OSPFV2Server) initServer() error {
 	}
 	server.initInfra()
 	server.buildInfra()
-
+	server.InitGetBulkSliceRefresh()
+	go server.GetBulkSliceRefresh()
 	return nil
 }
 
@@ -257,6 +262,18 @@ func (server *OSPFV2Server) handleRPCRequest(req *ServerRequest) {
 			retObj.BulkInfo, retObj.Err = server.getBulkNbrState(val.FromIdx, val.Count)
 		}
 		server.ReplyChan <- interface{}(&retObj)
+	case GET_OSPFV2_LSDB_STATE:
+		var retObj GetOspfv2LsdbStateOutArgs
+		if val, ok := req.Data.(*GetOspfv2LsdbStateInArgs); ok {
+			retObj.Obj, retObj.Err = server.getLsdbState(val.LSType, val.LSId, val.AreaId, val.AdvRtrId)
+		}
+		server.ReplyChan <- interface{}(&retObj)
+	case GET_BULK_OSPFV2_LSDB_STATE:
+		var retObj GetBulkOspfv2LsdbStateOutArgs
+		if val, ok := req.Data.(*GetBulkInArgs); ok {
+			retObj.BulkInfo, retObj.Err = server.getBulkLsdbState(val.FromIdx, val.Count)
+		}
+		server.ReplyChan <- interface{}(&retObj)
 	default:
 		server.logger.Err("Error: Server received unrecognized request -", req.Op)
 	}
@@ -281,6 +298,18 @@ func (server *OSPFV2Server) StartOspfv2Server() {
 			server.processRibdNotification(ribRxBuf)
 		case <-server.ribdComm.ribdSubSocketErrCh:
 			server.logger.Err("Invalid Message from Ribd")
+		case <-server.GetBulkData.SliceRefreshCh:
+			//Refresh IntfConf Slice
+			server.RefreshIntfConfSlice()
+			//Refresh AreaConf Slice
+			server.RefreshAreaConfSlice()
+			//TODO: Refresh Lsdb Slice
+			server.SendMsgToLsdbToRefreshSlice()
+			<-server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh
+			//TODO: Refresh NbrConf Slice
+			server.logger.Info("Ospf GetBulk Slice Refresh in progress")
+			server.GetBulkData.SliceRefreshDoneCh <- true
+			server.logger.Info("Ospf GetBulk Slice Refresh in done")
 		}
 	}
 }

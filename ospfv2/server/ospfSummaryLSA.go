@@ -157,6 +157,11 @@ func (server *OSPFV2Server) processRecvdSummaryLSA(msg RecvdLsaMsg) error {
 		} else {
 			lsdbEnt.Summary4LsaMap[msg.LsaKey] = lsa
 		}
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: msg.LsdbKey,
+			LsaKey:  msg.LsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		if msg.LsaKey.LSType == Summary3LSA {
 			delete(lsdbEnt.Summary3LsaMap, msg.LsaKey)
@@ -240,6 +245,11 @@ func (server *OSPFV2Server) insertNewSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, 
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood New Summary Lsa
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, sLsa)
+	lsdbSlice := LsdbSliceStruct{
+		LsdbKey: lsdbKey,
+		LsaKey:  lsaKey,
+	}
+	server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 }
 
 func (server *OSPFV2Server) flushSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey) {

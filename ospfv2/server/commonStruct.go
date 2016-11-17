@@ -30,6 +30,21 @@ import (
 	"time"
 )
 
+type LsdbSliceStruct struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+}
+
+type GetBulkStruct struct {
+	IntfConfSlice        []IntfConfKey
+	AreaConfSlice        []uint32
+	LsdbSlice            []LsdbSliceStruct
+	SliceRefreshCh       chan bool
+	SliceRefreshDoneCh   chan bool
+	SliceRefreshTimer    *time.Timer
+	SliceRefreshDuration time.Duration
+}
+
 type NbrData struct {
 	TwoWayStatus bool
 	RtrPrio      uint8
@@ -187,6 +202,14 @@ type SPFToLsdbChStruct struct {
 	DoneSPF chan bool
 }
 
+type ServerToLsdbChStruct struct {
+	RefreshLsdbSliceCh chan bool
+}
+
+type LsdbToServerChStruct struct {
+	RefreshLsdbSliceDoneCh chan bool
+}
+
 type MessagingChStruct struct {
 	IntfToNbrFSMChData  IntfToNbrFSMChStruct
 	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
@@ -195,4 +218,6 @@ type MessagingChStruct struct {
 	LsdbToFloodChData   LsdbToFloodChStruct
 	LsdbToSPFChData     LsdbToSPFChStruct
 	SPFToLsdbChData     SPFToLsdbChStruct
+	ServerToLsdbChData  ServerToLsdbChStruct
+	LsdbToServerChData  LsdbToServerChStruct
 }

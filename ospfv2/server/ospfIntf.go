@@ -266,6 +266,8 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		server.StartIntfRxTxPkt(intfConfKey)
 		server.StartIntfFSM(intfConfKey)
 	}
+	//Adding Interface Conf Key To Slice
+	server.GetBulkData.IntfConfSlice = append(server.GetBulkData.IntfConfSlice, intfConfKey)
 	return true, nil
 }
 
@@ -298,12 +300,68 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 func (server *OSPFV2Server) getIntfState(ipAddr, addressLessIfIdx uint32) (*objects.Ospfv2IntfState, error) {
 	var retObj objects.Ospfv2IntfState
 	server.logger.Info("ipAddr:", ipAddr, "addressLessIfIdx:", addressLessIfIdx, server.IntfConfMap)
+	intfKey := IntfConfKey{
+		IpAddr:  ipAddr,
+		IntfIdx: addressLessIfIdx,
+	}
+	intfEnt, exist := server.IntfConfMap[intfKey]
+	if !exist {
+		server.logger.Err("Get Intf State: Interface does not exist", intfKey)
+		return nil, errors.New("Interface does not exist")
+	}
+	retObj.IpAddress = ipAddr
+	retObj.AddressLessIfIdx = addressLessIfIdx
+	retObj.State = intfEnt.FSMState
+	retObj.DesignatedRouterId = intfEnt.DRtrId
+	retObj.BackupDesignatedRouterId = intfEnt.BDRtrId
+	retObj.DesignatedRouter = intfEnt.DRIpAddr
+	retObj.BackupDesignatedRouter = intfEnt.BDRIpAddr
+	retObj.NumNbrs = uint32(len(intfEnt.NbrMap))
 	return &retObj, nil
 }
 
 func (server *OSPFV2Server) getBulkIntfState(fromIdx, cnt int) (*objects.Ospfv2IntfStateGetInfo, error) {
 	var retObj objects.Ospfv2IntfStateGetInfo
 	server.logger.Info(server.IntfConfMap)
+	//numIntfConf := len(server.IntfConfMap)
+	count := 0
+	idx := fromIdx
+	sliceLen := len(server.GetBulkData.IntfConfSlice)
+	if fromIdx >= sliceLen {
+		return nil, errors.New("Invalid Range")
+	}
+	for count < cnt {
+		if idx == sliceLen {
+			break
+		}
+		intfKey := server.GetBulkData.IntfConfSlice[idx]
+		intfEnt, exist := server.IntfConfMap[intfKey]
+		if !exist {
+			idx++
+			continue
+		}
+		var obj objects.Ospfv2IntfState
+		obj.IpAddress = intfKey.IpAddr
+		obj.AddressLessIfIdx = intfKey.IntfIdx
+		obj.State = intfEnt.FSMState
+		obj.DesignatedRouterId = intfEnt.DRtrId
+		obj.BackupDesignatedRouterId = intfEnt.BDRtrId
+		obj.DesignatedRouter = intfEnt.DRIpAddr
+		obj.BackupDesignatedRouter = intfEnt.BDRIpAddr
+		obj.NumNbrs = uint32(len(intfEnt.NbrMap))
+		retObj.List = append(retObj.List, &obj)
+		count++
+		idx++
+	}
+
+	retObj.EndIdx = idx
+	if retObj.EndIdx == sliceLen {
+		retObj.More = false
+		retObj.Count = 0
+	} else {
+		retObj.More = true
+		retObj.Count = sliceLen - retObj.EndIdx + 1
+	}
 	return &retObj, nil
 }
 
@@ -320,4 +378,12 @@ func (server *OSPFV2Server) GetIntfNbrList(intfEnt IntfConf) (nbrList []NbrConfK
 		nbrList = append(nbrList, nbrKey)
 	}
 	return nbrList
+}
+
+func (server *OSPFV2Server) RefreshIntfConfSlice() {
+	server.GetBulkData.IntfConfSlice = server.GetBulkData.IntfConfSlice[:len(server.GetBulkData.AreaConfSlice)-1]
+	server.GetBulkData.IntfConfSlice = nil
+	for intfKey, _ := range server.IntfConfMap {
+		server.GetBulkData.IntfConfSlice = append(server.GetBulkData.IntfConfSlice, intfKey)
+	}
 }
