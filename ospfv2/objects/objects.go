@@ -63,13 +63,15 @@ type Ospfv2AreaState struct {
 	//NumSpfRuns       uint32
 	//NumBdrRtr        uint32
 	//NumAsBdrRtr      uint32
-	NumRouterLsa     uint32
-	NumNetworkLsa    uint32
-	NumSummary3Lsa   uint32
-	NumSummary4Lsa   uint32
-	NumASExternalLsa uint32
-	NumIntfs         uint32
-	NumNbrs          uint32
+	NumOfRouterLSA     uint32
+	NumOfNetworkLSA    uint32
+	NumOfSummary3LSA   uint32
+	NumOfSummary4LSA   uint32
+	NumOfASExternalLSA uint32
+	NumOfIntfs         uint32
+	NumOfLSA           uint32
+	NumOfNbrs          uint32
+	NumOfRoutes        uint32
 }
 
 type Ospfv2AreaStateGetInfo struct {
@@ -105,8 +107,18 @@ type Ospfv2Global struct {
 }
 
 type Ospfv2GlobalState struct {
-	Vrf              string
-	AreaBdrRtrStatus bool
+	Vrf                string
+	AreaBdrRtrStatus   bool
+	NumOfAreas         uint32
+	NumOfIntfs         uint32
+	NumOfNbrs          uint32
+	NumOfLSA           uint32
+	NumOfRouterLSA     uint32
+	NumOfNetworkLSA    uint32
+	NumOfSummary3LSA   uint32
+	NumOfSummary4LSA   uint32
+	NumOfASExternalLSA uint32
+	NumOfRoutes        uint32
 }
 
 type Ospfv2GlobalStateGetInfo struct {
@@ -192,7 +204,18 @@ type Ospfv2IntfState struct {
 	DesignatedRouterId       uint32
 	BackupDesignatedRouter   uint32
 	BackupDesignatedRouterId uint32
-	NumNbrs                  uint32
+	NumOfRouterLSA           uint32
+	NumOfNetworkLSA          uint32
+	NumOfSummary3LSA         uint32
+	NumOfSummary4LSA         uint32
+	NumOfASExternalLSA       uint32
+	NumOfLSA                 uint32
+	NumOfNbrs                uint32
+	NumOfRoutes              uint32
+	Mtu                      uint32
+	Cost                     uint32
+	NumOfStateChange         uint32
+	TimeOfStateChange        string
 }
 type Ospfv2IntfStateGetInfo struct {
 	EndIdx int

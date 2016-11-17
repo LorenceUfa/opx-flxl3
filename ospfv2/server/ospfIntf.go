@@ -57,6 +57,8 @@ type IntfConf struct {
 
 	OperState           bool
 	FSMState            uint8
+	NumOfStateChange    uint32
+	TimeOfStateChange   string
 	FSMCtrlCh           chan bool
 	FSMCtrlReplyCh      chan bool
 	HelloIntervalTicker *time.Ticker
@@ -316,7 +318,26 @@ func (server *OSPFV2Server) getIntfState(ipAddr, addressLessIfIdx uint32) (*obje
 	retObj.BackupDesignatedRouterId = intfEnt.BDRtrId
 	retObj.DesignatedRouter = intfEnt.DRIpAddr
 	retObj.BackupDesignatedRouter = intfEnt.BDRIpAddr
-	retObj.NumNbrs = uint32(len(intfEnt.NbrMap))
+	retObj.NumOfNbrs = uint32(len(intfEnt.NbrMap))
+	retObj.Mtu = intfEnt.Mtu
+	retObj.Cost = intfEnt.Cost
+	lsdbKey := LsdbKey{
+		AreaId: intfEnt.AreaId,
+	}
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
+	if exist {
+		retObj.NumOfRouterLSA = uint32(len(lsdbEnt.RouterLsaMap))
+		retObj.NumOfNetworkLSA = uint32(len(lsdbEnt.NetworkLsaMap))
+		retObj.NumOfSummary3LSA = uint32(len(lsdbEnt.Summary3LsaMap))
+		retObj.NumOfSummary4LSA = uint32(len(lsdbEnt.Summary4LsaMap))
+		retObj.NumOfASExternalLSA = uint32(len(lsdbEnt.ASExternalLsaMap))
+		retObj.NumOfLSA = retObj.NumOfRouterLSA + retObj.NumOfNetworkLSA +
+			retObj.NumOfSummary3LSA + retObj.NumOfSummary4LSA +
+			retObj.NumOfASExternalLSA
+	}
+	//TODO: NumOfRoutes
+	retObj.NumOfStateChange = intfEnt.NumOfStateChange
+	retObj.TimeOfStateChange = intfEnt.TimeOfStateChange
 	return &retObj, nil
 }
 
@@ -348,7 +369,26 @@ func (server *OSPFV2Server) getBulkIntfState(fromIdx, cnt int) (*objects.Ospfv2I
 		obj.BackupDesignatedRouterId = intfEnt.BDRtrId
 		obj.DesignatedRouter = intfEnt.DRIpAddr
 		obj.BackupDesignatedRouter = intfEnt.BDRIpAddr
-		obj.NumNbrs = uint32(len(intfEnt.NbrMap))
+		obj.NumOfNbrs = uint32(len(intfEnt.NbrMap))
+		obj.Mtu = intfEnt.Mtu
+		obj.Cost = intfEnt.Cost
+		lsdbKey := LsdbKey{
+			AreaId: intfEnt.AreaId,
+		}
+		lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
+		if exist {
+			obj.NumOfRouterLSA = uint32(len(lsdbEnt.RouterLsaMap))
+			obj.NumOfNetworkLSA = uint32(len(lsdbEnt.NetworkLsaMap))
+			obj.NumOfSummary3LSA = uint32(len(lsdbEnt.Summary3LsaMap))
+			obj.NumOfSummary4LSA = uint32(len(lsdbEnt.Summary4LsaMap))
+			obj.NumOfASExternalLSA = uint32(len(lsdbEnt.ASExternalLsaMap))
+			obj.NumOfLSA = obj.NumOfRouterLSA + obj.NumOfNetworkLSA +
+				obj.NumOfSummary3LSA + obj.NumOfSummary4LSA +
+				obj.NumOfASExternalLSA
+		}
+		//TODO: NumOfRoutes
+		obj.NumOfStateChange = intfEnt.NumOfStateChange
+		obj.TimeOfStateChange = intfEnt.TimeOfStateChange
 		retObj.List = append(retObj.List, &obj)
 		count++
 		idx++

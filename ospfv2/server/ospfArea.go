@@ -194,21 +194,24 @@ func (server *OSPFV2Server) getAreaState(areaId uint32) (*objects.Ospfv2AreaStat
 	}
 	lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
 	if exist {
-		retObj.NumASExternalLsa = uint32(len(lsdbEnt.ASExternalLsaMap))
-		retObj.NumNetworkLsa = uint32(len(lsdbEnt.NetworkLsaMap))
-		retObj.NumRouterLsa = uint32(len(lsdbEnt.RouterLsaMap))
-		retObj.NumSummary3Lsa = uint32(len(lsdbEnt.Summary3LsaMap))
-		retObj.NumSummary4Lsa = uint32(len(lsdbEnt.Summary4LsaMap))
+		retObj.NumOfRouterLSA = uint32(len(lsdbEnt.RouterLsaMap))
+		retObj.NumOfNetworkLSA = uint32(len(lsdbEnt.NetworkLsaMap))
+		retObj.NumOfSummary3LSA = uint32(len(lsdbEnt.Summary3LsaMap))
+		retObj.NumOfSummary4LSA = uint32(len(lsdbEnt.Summary4LsaMap))
+		retObj.NumOfASExternalLSA = uint32(len(lsdbEnt.ASExternalLsaMap))
 	}
-	numOfNbrs := 0
+	retObj.NumOfLSA = retObj.NumOfRouterLSA + retObj.NumOfNetworkLSA +
+		retObj.NumOfSummary3LSA + retObj.NumOfSummary4LSA +
+		retObj.NumOfASExternalLSA
+	retObj.NumOfIntfs = uint32(len(areaEnt.IntfMap))
 	for intfKey, _ := range areaEnt.IntfMap {
 		intfEnt, exist := server.IntfConfMap[intfKey]
 		if !exist {
 			continue
 		}
-		numOfNbrs += len(intfEnt.NbrMap)
+		retObj.NumOfNbrs += uint32(len(intfEnt.NbrMap))
 	}
-	retObj.NumNbrs = uint32(numOfNbrs)
+	//TODO: NumOfRoutes
 	return &retObj, nil
 }
 
@@ -239,21 +242,24 @@ func (server *OSPFV2Server) getBulkAreaState(fromIdx, cnt int) (*objects.Ospfv2A
 		}
 		lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
 		if exist {
-			obj.NumASExternalLsa = uint32(len(lsdbEnt.ASExternalLsaMap))
-			obj.NumNetworkLsa = uint32(len(lsdbEnt.NetworkLsaMap))
-			obj.NumRouterLsa = uint32(len(lsdbEnt.RouterLsaMap))
-			obj.NumSummary3Lsa = uint32(len(lsdbEnt.Summary3LsaMap))
-			obj.NumSummary4Lsa = uint32(len(lsdbEnt.Summary4LsaMap))
+			obj.NumOfRouterLSA = uint32(len(lsdbEnt.RouterLsaMap))
+			obj.NumOfNetworkLSA = uint32(len(lsdbEnt.NetworkLsaMap))
+			obj.NumOfSummary3LSA = uint32(len(lsdbEnt.Summary3LsaMap))
+			obj.NumOfSummary4LSA = uint32(len(lsdbEnt.Summary4LsaMap))
+			obj.NumOfASExternalLSA = uint32(len(lsdbEnt.ASExternalLsaMap))
 		}
-		numOfNbrs := 0
+		obj.NumOfLSA = obj.NumOfRouterLSA + obj.NumOfNetworkLSA +
+			obj.NumOfSummary3LSA + obj.NumOfSummary4LSA +
+			obj.NumOfASExternalLSA
+		obj.NumOfIntfs = uint32(len(areaEnt.IntfMap))
 		for intfKey, _ := range areaEnt.IntfMap {
 			intfEnt, exist := server.IntfConfMap[intfKey]
 			if !exist {
 				continue
 			}
-			numOfNbrs += len(intfEnt.NbrMap)
+			obj.NumOfNbrs += uint32(len(intfEnt.NbrMap))
 		}
-		obj.NumNbrs = uint32(numOfNbrs)
+		//TODO: NumOfRoutes
 		retObj.List = append(retObj.List, &obj)
 		count++
 		idx++

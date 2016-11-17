@@ -184,6 +184,23 @@ func (server *OSPFV2Server) getGlobalState(vrf string) (*objects.Ospfv2GlobalSta
 	var retObj objects.Ospfv2GlobalState
 	retObj.Vrf = vrf
 	retObj.AreaBdrRtrStatus = server.globalData.AreaBdrRtrStatus
+	retObj.NumOfAreas = uint32(len(server.AreaConfMap))
+	retObj.NumOfIntfs = uint32(len(server.IntfConfMap))
+	numOfNbrs := 0
+	for _, intfEnt := range server.IntfConfMap {
+		numOfNbrs += len(intfEnt.NbrMap)
+	}
+	for _, lsdbEnt := range server.LsdbData.AreaLsdb {
+		retObj.NumOfRouterLSA += uint32(len(lsdbEnt.RouterLsaMap))
+		retObj.NumOfNetworkLSA += uint32(len(lsdbEnt.NetworkLsaMap))
+		retObj.NumOfSummary3LSA += uint32(len(lsdbEnt.Summary3LsaMap))
+		retObj.NumOfSummary4LSA += uint32(len(lsdbEnt.Summary4LsaMap))
+		retObj.NumOfASExternalLSA += uint32(len(lsdbEnt.ASExternalLsaMap))
+	}
+	retObj.NumOfLSA = retObj.NumOfRouterLSA + retObj.NumOfNetworkLSA +
+		retObj.NumOfSummary3LSA + retObj.NumOfSummary4LSA +
+		retObj.NumOfASExternalLSA
+	//TODO: num of routes
 	return &retObj, nil
 }
 
