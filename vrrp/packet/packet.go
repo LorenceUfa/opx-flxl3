@@ -38,10 +38,10 @@ const (
 	VRRP_IPV4_VERSION               byte = 4                     // ip version
 	VRRP_IPV6_VERSION               byte = 6                     // ip version
 	VRRP_IPV4_HEADER_MIN_SIZE            = 20                    // min ipv4 header size
-	VRRP_HEADER_MIN_SIZE                 = 20                    // min vrrp header size
 	VRRP_PROTOCOL_MAC                    = "01:00:5e:00:00:12"   // protocol mac used in the encoding packet
 	VRRP_V4_GROUP_IP                     = "224.0.0.18"          // ipv4 group address
 	VRRP_V6_GROUP_IP                     = "FF02:0:0:0:0:0:0:12" // ipv6 group address
+	VRRP_HEADER_MIN_SIZE                 = 20                    // min vrrp header size for version2
 
 	// error message from Packet
 	VRRP_CHECKSUM_ERR      = "VRRP checksum failure"

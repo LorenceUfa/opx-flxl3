@@ -27,7 +27,7 @@ import (
 	_ "fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	_ "l3/vrrp/common"
+	"l3/vrrp/common"
 	_ "l3/vrrp/debug"
 	"net"
 	"syscall"
@@ -58,7 +58,7 @@ Octet Offset--> 0                   1                   2                   3
 		+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 func EncodeHeader(hdr *Header) ([]byte, uint16) {
-	bytes := make([]byte, VRRP_HEADER_MIN_SIZE)
+	bytes := make([]byte, VRRP_HEADER_SIZE_EXCLUDING_IPVX)
 	bytes[0] = (hdr.Version << 4) | hdr.Type
 	bytes[1] = hdr.VirtualRtrId
 	bytes[2] = hdr.Priority
@@ -66,22 +66,17 @@ func EncodeHeader(hdr *Header) ([]byte, uint16) {
 	rsvdAdver := (uint16(hdr.Rsvd) << 13) | hdr.MaxAdverInt
 	binary.BigEndian.PutUint16(bytes[4:], rsvdAdver)
 	binary.BigEndian.PutUint16(bytes[6:8], hdr.CheckSum)
-	baseIpByte := 8
 	for i := 0; i < int(hdr.CountIPAddr); i++ {
-		if baseIpByte < VRRP_HEADER_MIN_SIZE {
-			if hdr.IpAddr[i].To4() != nil {
-				copy(bytes[baseIpByte:(baseIpByte+4)], hdr.IpAddr[i].To4())
-				baseIpByte += 4
-			} else {
-				copy(bytes[baseIpByte:], hdr.IpAddr[i].To16())
-				baseIpByte += 16
-			}
+		if hdr.IpAddr[i].To4() != nil {
+			bytes = append(bytes, hdr.IpAddr[i].To4()...)
 		} else {
-			if hdr.IpAddr[i].To4() != nil {
-				bytes = append(bytes, hdr.IpAddr[i].To4()...)
-			} else {
-				bytes = append(bytes, hdr.IpAddr[i].To16()...)
-			}
+			bytes = append(bytes, hdr.IpAddr[i].To16()...)
+		}
+	}
+	if hdr.Version == common.VERSION2 && len(bytes) < VRRP_HEADER_MIN_SIZE {
+		paddingBytes := VRRP_HEADER_MIN_SIZE - len(bytes)
+		for idx := 0; idx < paddingBytes; idx++ {
+			bytes = append(bytes, 0) // padding for version2
 		}
 	}
 	// Create Checksum for the header and store it
@@ -106,7 +101,6 @@ func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
 		ip = net.ParseIP(pInfo.Vip)
 	}
 	hdr.IpAddr = append(hdr.IpAddr, ip)
-	//debug.Logger.Debug("Vrrp Header:", hdr)
 	return EncodeHeader(&hdr)
 }
 
@@ -120,7 +114,6 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 		DstMAC:       dstMAC,
 		EthernetType: layers.EthernetTypeIPv4,
 	}
-	//debug.Logger.Debug("(dmac, smac):(", dstMAC.String(), ",", srcMAC.String(), ")")
 	buffer := gopacket.NewSerializeBuffer()
 	options := gopacket.SerializeOptions{
 		FixLengths:       true,
@@ -143,7 +136,6 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 			SrcIP:    sip,
 			DstIP:    dip,
 		}
-		//debug.Logger.Debug("ipv4 information is:", *ipv4)
 		gopacket.SerializeLayers(buffer, options, eth, ipv4, gopacket.Payload(payload))
 
 	case syscall.AF_INET6:
