@@ -45,12 +45,22 @@ var testEncodePkt = []byte{
 	0x00, 0x12, 0x21, 0x01, 0x64, 0x01, 0x00, 0x01, 0xba, 0x52, 0xc0, 0xa8, 0x00, 0x01, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
+
+var version3Packet = []byte{
+	0x01, 0x00, 0x5e, 0x00, 0x00, 0x12, 0x00, 0x00, 0x5e, 0x00, 0x01, 0x01, 0x08, 0x00, 0x45, 0xc0,
+	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0xff, 0x70, 0x2e, 0x87, 0xac, 0x12, 0x00, 0x02, 0xe0, 0x00,
+	0x00, 0x12, 0x31, 0x01, 0x64, 0x01, 0x00, 0x64, 0xbe, 0x85, 0xac, 0x12, 0x00, 0x01, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+}
 var testVrid = uint8(1)
 var testPriority = uint8(100)
 var testAdvInt = uint16(1)
+var testAdvIntV3 = uint16(100)
 var testVMac = "00:00:5e:00:01:01"
 var testSrcIp = "192.168.0.30"
+var testSrcIpV3 = "172.18.0.2"
 var testVip = "192.168.0.1"
+var testVipV3 = "172.18.0.1"
 
 func TestInit(t *testing.T) {
 	testPktInfo = Init()
@@ -104,7 +114,7 @@ func TestEncodeV2(t *testing.T) {
 func TestDecodeV2(t *testing.T) {
 	TestInit(t)
 	p := gopacket.NewPacket(testEncodePkt, layers.LinkTypeEthernet, gopacket.Default)
-	decodePkt := testPktInfo.Decode(p, common.VERSION2)
+	decodePkt := testPktInfo.Decode(p, syscall.AF_INET)
 	if decodePkt == nil {
 		t.Error("failed to decode packet")
 		return
@@ -126,6 +136,40 @@ func TestDecodeV2(t *testing.T) {
 		},
 	}
 	wantPktInfo.Hdr.IpAddr = append(wantPktInfo.Hdr.IpAddr, net.ParseIP(testVip).To4())
+	if !reflect.DeepEqual(wantPktInfo, decodePkt) {
+		t.Error("failed to decode packet")
+		t.Error("wantPktInfo header is:", *wantPktInfo.Hdr, "entire packet info:", wantPktInfo)
+		t.Error("decodePktInfo header is:", *decodePkt.Hdr, "entire packet info:", decodePkt)
+		return
+	}
+}
+
+func TestDecodeV3(t *testing.T) {
+	TestInit(t)
+	p := gopacket.NewPacket(version3Packet, layers.LinkTypeEthernet, gopacket.Default)
+	decodePkt := testPktInfo.Decode(p, syscall.AF_INET)
+	if decodePkt == nil {
+		t.Error("failed to decode packet")
+		return
+	}
+
+	wantPktInfo := &PacketInfo{
+		DstMac: VRRP_PROTOCOL_MAC,
+		SrcMac: testVMac,
+		IpAddr: testSrcIpV3,
+		DstIp:  VRRP_V4_GROUP_IP,
+		Hdr: &Header{
+			Version:      common.VERSION3,
+			Type:         VRRP_PKT_TYPE_ADVERTISEMENT,
+			VirtualRtrId: testVrid,
+			Priority:     testPriority,
+			CountIPAddr:  1,
+			Rsvd:         0,
+			MaxAdverInt:  testAdvIntV3,
+			CheckSum:     uint16(48773),
+		},
+	}
+	wantPktInfo.Hdr.IpAddr = append(wantPktInfo.Hdr.IpAddr, net.ParseIP(testVipV3).To4())
 	if !reflect.DeepEqual(wantPktInfo, decodePkt) {
 		t.Error("failed to decode packet")
 		t.Error("wantPktInfo header is:", *wantPktInfo.Hdr, "entire packet info:", wantPktInfo)

@@ -25,6 +25,7 @@ package packet
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"l3/vrrp/common"
@@ -67,7 +68,7 @@ func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error {
 	chksum := computeChecksum(hdr.Version, layerContent)
 	if chksum != hdr.CheckSum {
 		debug.Logger.Err(chksum, "!=", hdr.CheckSum)
-		return errors.New(VRRP_CHECKSUM_ERR)
+		return errors.New(fmt.Sprintln(VRRP_CHECKSUM_ERR, "computed CheckSum:", chksum, "received chksum in pkt:", hdr.CheckSum))
 	}
 
 	// Verify VRRP fields
@@ -88,7 +89,12 @@ func DecodeHeader(data []byte) *Header {
 	hdr.Rsvd = uint8(rsvdAdver >> 13)
 	hdr.MaxAdverInt = rsvdAdver & 0x1FFF
 	hdr.CheckSum = binary.BigEndian.Uint16(data[6:8])
-	ipvxAddrlength := len(data) - VRRP_HEADER_MIN_SIZE
+	var ipvxAddrlength int
+	if VRRP_HEADER_SIZE_EXCLUDING_IPVX > len(data) {
+		ipvxAddrlength = VRRP_HEADER_SIZE_EXCLUDING_IPVX - len(data)
+	} else {
+		ipvxAddrlength = len(data) - VRRP_HEADER_SIZE_EXCLUDING_IPVX
+	}
 	baseIpByte := 8
 	switch hdr.Version {
 	case common.VERSION2:
@@ -124,26 +130,33 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, ipType int) *PacketInfo {
 		return nil
 	}
 	eth := ethLayer.(*layers.Ethernet)
-	// Get Entire IP layer Info
-	ipLayer := pkt.Layer(layers.LayerTypeIPv4)
-	if ipLayer == nil {
-		debug.Logger.Err("Not an ip packet?")
-		return nil
-	}
+	var ipLayer gopacket.Layer
 	var dstIp string
 	var srcIp string
-	switch ipType {
-	case syscall.AF_INET:
+	switch eth.EthernetType {
+	case layers.EthernetTypeIPv4:
+		// Get Entire IP layer Info
+		ipLayer = pkt.Layer(layers.LayerTypeIPv4)
+		if ipLayer == nil {
+			debug.Logger.Err("Not an ip packet?")
+			return nil
+		}
 		// Get Ip Hdr and start doing basic check according to RFC
 		ipHdr := ipLayer.(*layers.IPv4)
 		if ipHdr.TTL != VRRP_TTL {
-			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL, "dropping packet from", ipHdr.SrcIP.String())
+			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL,
+				"dropping packet from", ipHdr.SrcIP.String())
 			return nil
 		}
 		dstIp = ipHdr.DstIP.String()
 		srcIp = ipHdr.SrcIP.String()
-	case syscall.AF_INET6:
-		// @TODO: need to read rfc for validation
+	case layers.EthernetTypeIPv6:
+		// Get Entire IP layer Info
+		ipLayer = pkt.Layer(layers.LayerTypeIPv6)
+		if ipLayer == nil {
+			debug.Logger.Err("Not an ip packet?")
+			return nil
+		}
 		ipHdr := ipLayer.(*layers.IPv6)
 		dstIp = ipHdr.DstIP.String()
 		srcIp = ipHdr.SrcIP.String()
