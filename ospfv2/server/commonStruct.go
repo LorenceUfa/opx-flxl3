@@ -170,6 +170,15 @@ type LsdbToFloodLSAMsg struct {
 	LsaData interface{}
 }
 
+type RouteAddMsg struct {
+	RTblKey   RoutingTblEntryKey
+	RTblEntry GlobalRoutingTblEntry
+}
+
+type RouteDelMsg struct {
+	RTblKey RoutingTblEntryKey
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
@@ -210,14 +219,20 @@ type LsdbToServerChStruct struct {
 	RefreshLsdbSliceDoneCh chan bool
 }
 
+type RouteTblToDBClntChStruct struct {
+	RouteAddMsgCh chan RouteAddMsg
+	RouteDelMsgCh chan RouteDelMsg
+}
+
 type MessagingChStruct struct {
-	IntfToNbrFSMChData  IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
-	NbrToIntfFSMChData  NbrToIntfFSMChStruct
-	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
-	LsdbToFloodChData   LsdbToFloodChStruct
-	LsdbToSPFChData     LsdbToSPFChStruct
-	SPFToLsdbChData     SPFToLsdbChStruct
-	ServerToLsdbChData  ServerToLsdbChStruct
-	LsdbToServerChData  LsdbToServerChStruct
+	IntfToNbrFSMChData     IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
+	NbrToIntfFSMChData     NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData     NbrFSMToLsdbChStruct
+	LsdbToFloodChData      LsdbToFloodChStruct
+	LsdbToSPFChData        LsdbToSPFChStruct
+	SPFToLsdbChData        SPFToLsdbChStruct
+	ServerToLsdbChData     ServerToLsdbChStruct
+	LsdbToServerChData     LsdbToServerChStruct
+	RouteTblToDBClntChData RouteTblToDBClntChStruct
 }

@@ -25,6 +25,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"io/ioutil"
 	"utils/dbutils"
@@ -136,6 +137,8 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
 	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh = make(chan bool)
 	server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh = make(chan bool)
+	server.MessagingChData.RouteTblToDBClntChData.RouteAddMsgCh = make(chan RouteAddMsg, 100)
+	server.MessagingChData.RouteTblToDBClntChData.RouteDelMsgCh = make(chan RouteDelMsg, 100)
 }
 
 func (server *OSPFV2Server) initServer() error {
@@ -154,6 +157,11 @@ func (server *OSPFV2Server) initServer() error {
 	server.buildInfra()
 	server.InitGetBulkSliceRefresh()
 	go server.GetBulkSliceRefresh()
+	if server.dbHdl == nil {
+		server.logger.Err("DB Handle is nil")
+		return errors.New("DB Handle is nil")
+	}
+	go server.StartDBClient()
 	return nil
 }
 
@@ -303,7 +311,7 @@ func (server *OSPFV2Server) StartOspfv2Server() {
 			server.RefreshIntfConfSlice()
 			//Refresh AreaConf Slice
 			server.RefreshAreaConfSlice()
-			//TODO: Refresh Lsdb Slice
+			//Refresh Lsdb Slice
 			server.SendMsgToLsdbToRefreshSlice()
 			<-server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh
 			//TODO: Refresh NbrConf Slice
