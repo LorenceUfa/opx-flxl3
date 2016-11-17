@@ -78,10 +78,10 @@ func newospfLSAHeader() *ospfLSAHeader {
 	return &ospfLSAHeader{}
 }
 
-func newDbdMsg(key NeighborConfKey, dbd_data NbrDbdData) ospfNeighborDBDMsg {
-	dbdNbrMsg := ospfNeighborDBDMsg{
-		ospfNbrConfKey: key,
-		ospfNbrDBDData: dbd_data,
+func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) nbrDbdData {
+	dbdNbrMsg := nbrDbdData{
+		nbrKey:     key,
+		nbrDbdData: dbd_data,
 	}
 	return dbdNbrMsg
 }
@@ -239,7 +239,7 @@ func encodeDatabaseDescriptionData(dd_data NbrDbdData) []byte {
 	return pkt
 }
 
-func (server *OSPFServer) BuildDBDPkt(intfKey IntfConfKey, ent IntfConf,
+func (server *OSPFV2Server) BuildDBDPkt(intfKey IntfConfKey, ent IntfConf,
 	nbrConf OspfNeighborEntry, dbdData NbrDbdData, dstMAC net.HardwareAddr) (data []byte) {
 	ospfHdr := OSPFHeader{
 		ver:      OSPF_VERSION_2,
@@ -295,7 +295,7 @@ func (server *OSPFServer) BuildDBDPkt(intfKey IntfConfKey, ent IntfConf,
 
 	ethLayer := layers.Ethernet{
 		SrcMAC:       ent.IfMacAddr,
-		DstMAC:       DstMAC,
+		DstMAC:       dstMAC,
 		EthernetType: layers.EthernetTypeIPv4,
 	}
 
@@ -313,7 +313,7 @@ func (server *OSPFServer) BuildDBDPkt(intfKey IntfConfKey, ent IntfConf,
 
 }
 
-func (server *OSPFServer) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
+func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
 	ipHdrMd *IpHdrMetadata, key IntfConfKey, srcMAC net.HardwareAddr) error {
 	ospfdbd_data := NewOspfDatabaseDescriptionData()
 	ospfdbd_data.lsa_headers = []ospfLSAHeader{}
@@ -329,50 +329,44 @@ func (server *OSPFServer) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetadat
 	//ipaddr := convertIPInByteToString(ipHdrMd.srcIP)
 	ipaddr := net.IPv4(ipHdrMd.srcIP[0], ipHdrMd.srcIP[1], ipHdrMd.srcIP[2], ipHdrMd.srcIP[3])
 
-	dbdNbrMsg := ospfNeighborDBDMsg{
-		ospfNbrConfKey: NeighborConfKey{
+	dbdNbrMsg := nbrDbdData{
+		nbrKey: NbrConfKey{
 			IPAddr:  config.IpAddress(ipaddr.String()),
 			IntfIdx: key.IntfIdx,
 		},
-		ospfNbrDBDData: *ospfdbd_data,
+		nbrDbdData: *ospfdbd_data,
 	}
 	server.logger.Debug(fmt.Sprintln("DBD: nbr key ", ipaddr, key.IntfIdx))
-	if ospfNeighborIPToMAC == nil {
-		server.logger.Info(fmt.Sprintln("DBD: ospfNeighborIPToMAC is NULL. Check if nbr thread is running."))
-		return nil
-	}
-	ospfNeighborIPToMAC[dbdNbrMsg.ospfNbrConfKey] = srcMAC
 	//fmt.Println(" lsa_header length = ", len(ospfdbd_data.lsa_headers))
-	dbdNbrMsg.ospfNbrDBDData.lsa_headers = []ospfLSAHeader{}
+	dbdNbrMsg.nbrDbdData.lsa_headers = []ospfLSAHeader{}
 
-	copy(dbdNbrMsg.ospfNbrDBDData.lsa_headers, ospfdbd_data.lsa_headers)
+	copy(dbdNbrMsg.nbrDbdData.lsa_headers, ospfdbd_data.lsa_headers)
 	for i := 0; i < len(ospfdbd_data.lsa_headers); i++ {
-		dbdNbrMsg.ospfNbrDBDData.lsa_headers = append(dbdNbrMsg.ospfNbrDBDData.lsa_headers,
+		dbdNbrMsg.nbrDbdData.lsa_headers = append(dbdNbrMsg.nbrDbdData.lsa_headers,
 			ospfdbd_data.lsa_headers[i])
 	}
-
-	server.neighborDBDEventCh <- dbdNbrMsg
-	//fmt.Println("msg lsa_header length = ", len(dbdNbrMsg.ospfNbrDBDData.lsa_headers))
+	//send packet to nbr fsm
+	//fmt.Println("msg lsa_header length = ", len(dbdNbrMsg.nbrDbdData.lsa_headers))
 	return nil
 }
 
-func (server *OSPFServer) ConstructAndSendDbdPacket(nbrKey NeighborConfKey,
+func (server *OSPFV2Server) ConstructAndSendDbdPacket(nbrKey NbrConfKey,
 	ibit bool, mbit bool, msbit bool, options uint8,
-	seq uint32, append_lsa bool, is_duplicate bool, ifMtu int32) (dbd_mdata NbrDbdData, last_exchange bool) {
+	seq uint32, append_lsa bool, is_duplicate bool) (dbd_mdata NbrDbdData, last_exchange bool) {
 	last_exchange = true
-	nbrCon, exists := server.NbrConfMap[nbrKey]
+	nbrConf, exists := server.NbrConfMap[nbrKey]
 	if !exists {
 		server.logger.Err(fmt.Sprintln("DBD: Failed to send initial dbd packet as nbr doesnt exist. nbr",
 			nbrKey.IPAddr))
 		return dbd_mdata, last_exchange
 	}
-
+	intfConf, _ := server.IntfConfMap[nbrKey.IntfConfKey]
 	dbd_mdata.ibit = ibit
 	dbd_mdata.mbit = mbit
 	dbd_mdata.msbit = msbit
 
 	server.logger.Debug(fmt.Sprintln("DBD: MTU ", ifMtu))
-	dbd_mdata.interface_mtu = uint16(ifMtu)
+	dbd_mdata.interface_mtu = intfConf.Mtu
 	dbd_mdata.options = options
 	dbd_mdata.dd_sequence_number = seq
 
@@ -383,21 +377,15 @@ func (server *OSPFServer) ConstructAndSendDbdPacket(nbrKey NeighborConfKey,
 		dbd_mdata.lsa_headers = []ospfLSAHeader{}
 		var index uint8
 
-		nbrCon.db_summary_list_mutex.Lock()
-		db_list, exist := ospfNeighborDBSummary_list[nbrKey]
+		db_list, exist := nbrConf.NbrDBSummaryList[nbrKey]
 		server.logger.Debug(fmt.Sprintln("DBD: db_list ", db_list))
 		if exist {
 			for index = 0; index < uint8(len(db_list)); index++ {
-				if db_list[index].valid {
-					dbd_mdata.lsa_headers = append(dbd_mdata.lsa_headers, db_list[index].lsa_headers)
-					lsa_count_att++
-				} else {
-					lsa_count_done++
-				}
-				db_list[index].valid = false
+				dbd_mdata.lsa_headers = append(dbd_mdata.lsa_headers, db_list[index])
+				lsa_count_att++
+				lsa_count_done++
 			}
 		}
-		nbrCon.db_summary_list_mutex.Unlock()
 		if (lsa_count_att + lsa_count_done) == len(db_list) {
 			dbd_mdata.mbit = false
 			last_exchange = true
@@ -409,7 +397,7 @@ func (server *OSPFServer) ConstructAndSendDbdPacket(nbrKey NeighborConfKey,
 		" seq num ", seq, "options ", dbd_mdata.options, " headers_list ", dbd_mdata.lsa_headers))
 
 	data := newDbdMsg(nbrKey, dbd_mdata)
-	server.ospfNbrDBDSendCh <- data
+	// send the data on channel
 	return dbd_mdata, last_exchange
 }
 
@@ -418,12 +406,12 @@ func (server *OSPFServer) ConstructAndSendDbdPacket(nbrKey NeighborConfKey,
 	This API detects how many LSA headers can be added in
 	the DB packet
 */
-func (server *OSPFServer) calculateDBLsaAttach(nbrKey NeighborConfKey, nbrConf OspfNeighborEntry) (last_exchange bool, lsa_attach uint8) {
+func (server *OSPFV2Server) calculateDBLsaAttach(nbrKey NbrConfKey, nbrConf OspfNeighborEntry) (last_exchange bool, lsa_attach uint8) {
 	last_exchange = true
 	lsa_attach = 0
 
 	max_lsa_headers := calculateMaxLsaHeaders()
-	db_list := ospfNeighborDBSummary_list[nbrKey]
+	db_list := nbrConf.NbrDBSummaryList[nbrKey]
 	slice_len := len(db_list)
 	server.logger.Info(fmt.Sprintln("DBD: slice_len ", slice_len, "max_lsa_header ", max_lsa_headers,
 		"nbrConf.lsa_index ", nbrConf.ospfNbrLsaIndex))

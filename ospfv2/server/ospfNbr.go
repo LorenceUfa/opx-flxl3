@@ -35,7 +35,7 @@ type NbrConf struct {
 	RtrId           uint32
 	isMaster        bool
 	DDSequenceNum   uint32
-	NbrId           uint32
+	NbrRtrId        uint32
 	NbrPriority     int32
 	NbrIP           uint32
 	NbrOptions      uint32
@@ -45,12 +45,13 @@ type NbrConf struct {
 	NbrDeadTimer    *time.Timer
 	Nbrflags        int32 //flags showing fields to update from nbrstruct
 	//Nbr lists
-	//	NbrLsaReTxList   []ospfLsaHeader
-	//	NbrLsaReqList    []ospfLsaHeader
-	//	NbrDbSummaryList []ospfLsaHeader
+	NbrReqList       map[NbrConfKey][]*ospfLSAHeader
+	NbrDBSummaryList map[NbrConfKey][]*ospfLSAHeader
+	NbrRetxList      map[NbrConfKey][]*ospfLSAHeader
 }
 
 //Nbr states
+//TODO move to objects
 type NbrState int
 
 const (
@@ -86,6 +87,12 @@ type NbrDbdData struct {
 	lsa_headers        []ospfLSAHeader
 }
 
+type NbrDbdMsg struct {
+	nbrKey     NbrConfKey
+	nbrFull    bool
+	nbrDbdData NbrDbdData
+}
+
 //Lsa header
 type ospfLSAHeader struct {
 	ls_age          uint16
@@ -99,37 +106,27 @@ type ospfLSAHeader struct {
 }
 
 /* LSA lists */
-type NbrReqData struct {
-	lsa_headers ospfLSAHeader
-	valid       bool // entry is valid or not
-}
-
 func newNbrReqData() *NbrReqData {
-	return &NbrReqData{}
-}
-
-type NbrDbSummaryData struct {
-	lsa_headers ospfLSAHeader
-	valid       bool
+	return &ospfLSAHeader{}
 }
 
 func newNbrDbSummaryData() *NbrDbSummaryData {
-	return &NbrDbSummaryData{}
-}
-
-type NbrRetxData struct {
-	lsa_headers ospfLSAHeader
-	valid       bool
+	return &ospfLsaHeader{}
 }
 
 func newNbrRetxData() *NbrRetxData {
-	return &NbrRetxData{}
+	return &ospfLSAHeader{}
+}
+
+func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) NbrDbdMsg {
+	dbdNbrMsg := NbrDbdMsg{
+		nbrKey:     key,
+		nbrDbdData: dbd_data,
+	}
+	return dbdNbrMsg
 }
 
 /* neighbor lists each indexed by neighbor router id. */
-var NbrReqList map[NbrConfKey][]*NbrReqData
-var NbrDBSummaryList map[NbrConfKey][]*NbrDbSummaryData
-var NbrRetxList map[NbrConfKey][]*NbrRetxData
 
 //intf to nbr map
 var IntfToNbrMap map[IntfConfKey][]NbrConfKey
@@ -149,8 +146,6 @@ const (
 	NBR_BDR                   int = 0x00000024
 	NBR_DEAD_DURATION         int = 0x00000026
 )
-
-var NbrconfMap map[NbrConfKey]NbrConf
 
 func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags int32) {
 	valid, nbrE := server.NbrConfMap[nbrKey]
@@ -179,6 +174,20 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 	server.NbrConfMap[nbrKey] = nbrE
 }
 
+func (server *OSPFV2Server) UpdateIntfToNbrMap(nbrKey NbrConfKey) {
+	var newList []NbrConfKey
+	nbrConf := server.NbrConfMap[nbrKey]
+	nbrMdata, exists := IntfToNbrMap[nbrConf.IntfKey]
+	if !exists {
+		newList = []NbrConfKey{}
+	} else {
+		newList = IntfToNbrMap[nbrConf.IntfKey]
+	}
+	newList = append(newList, nbrKey)
+	IntfToNbrMap[nbrConf.IntfKey] = newList
+	server.logger.Debug("Nbr : Intf to nbr list updated ", newList)
+}
+
 func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf NbrConf) bool {
 	if nbrDbPkt.msbit != nbrConf.isMaster {
 		server.logger.Info(fmt.Sprintln("NBREVENT: SeqNumberMismatch. Nbr should be master  dbdmsbit ", nbrDbPkt.msbit,
@@ -202,7 +211,7 @@ func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf
 			return true
 		}
 	} else {
-		if nbrDbPkt.dd_sequence_number != nbrConf.ospfNbrSeqNum {
+		if nbrDbPkt.dd_sequence_number != nbrConf.DDSequenceNum {
 			server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is slave but dbd packet seq no doesnt match.dbd seq ",
 				nbrDbPkt.dd_sequence_number, "nbr seq ", nbrConf.DDSequenceNum))
 			return true
