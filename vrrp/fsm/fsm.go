@@ -94,6 +94,7 @@ type FSM struct {
 	PktInfo             *packet.PacketInfo         // fsm will use this packet infor for decode/encode
 	ifIndex             int32                      // My own ifIndex
 	ipAddr              string                     // My own ip address
+	ipType              int                        // indicates whether fsm is for v4 or v6
 	VirtualMACAddress   string                     // VRRP MAC aka VMAC
 	State               uint8                      // current state in which fsm is running
 	previousState       uint8                      // previous state in which fsm was running
@@ -123,7 +124,8 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f.stateInfo = &common.State{}
 	f.ipAddr = l3Info.IpAddr
 	f.ifIndex = l3Info.IfIndex
-	f.createVirtualMac(cfg.VRID)
+	f.ipType = l3Info.IpType
+	f.createVirtualMac()
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
@@ -213,17 +215,17 @@ func (f *FSM) GetStateInfo(info *common.State) {
 					* FSM PRIVATE API's *
 *************************************************************************************************************/
 
-func (f *FSM) createVirtualMac(vrid int32) {
-	if f.Config.Version == common.VERSION2 {
+func (f *FSM) createVirtualMac() {
+	if f.ipType == syscall.AF_INET {
 		f.VirtualMACAddress = VERSION2_IEEE_MAC_ADDR_PREFIX
-	} else if f.Config.Version == common.VERSION3 {
+	} else if f.ipType == syscall.AF_INET6 {
 		f.VirtualMACAddress = VERSION3_IEEE_MAC_ADDR_PREFIX
 	}
-	if vrid < 10 {
-		f.VirtualMACAddress += "0" + strconv.Itoa(int(vrid))
-
+	vridStr := strconv.FormatInt(int64(f.Config.VRID), 16)
+	if len(vridStr) == 1 {
+		f.VirtualMACAddress += "0" + vridStr
 	} else {
-		f.VirtualMACAddress += strconv.Itoa(int(vrid))
+		f.VirtualMACAddress += vridStr
 	}
 	debug.Logger.Debug("Vmac created for interface:", f.Config.IntfRef, "is:", f.VirtualMACAddress)
 }
@@ -391,7 +393,7 @@ func (f *FSM) initialize() {
 }
 
 func (f *FSM) handleDecodedPkt(decodeInfo *DecodedInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "Processing Decoded Packet")
+	//debug.Logger.Debug(FSM_PREFIX, "Processing Decoded Packet")
 	switch f.State {
 	case VRRP_INITIALIZE_STATE:
 		f.initialize()

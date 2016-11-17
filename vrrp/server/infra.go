@@ -246,6 +246,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Debug("Constructed Key for vrrp interface is:", key)
 	l3Info := &common.BaseIpInfo{}
 	l3Info.IntfRef = cfg.IntfRef
+	l3Info.IpType = cfg.IpType
 	var ipIntf IPIntf
 	var ifIndex int32
 	// Get DB based on config version
