@@ -108,9 +108,6 @@ type VtepDbEntry struct {
 	handle     *pcap.Handle
 	taghandles map[uint16]*pcap.Handle
 
-	// Reference to the vxlan server
-	server *VXLANServer
-
 	counters VtepCounters
 
 	VxlanVtepMachineFsm *VxlanVtepMachine
@@ -174,11 +171,25 @@ func GetVtepDB() map[VtepDbKey]*VtepDbEntry {
 	return vtepDB
 }
 
+func GetVtepDBList() []*VtepDbEntry {
+	return vtepDbList
+}
+
 func GetVtepDBEntry(key *VtepDbKey) *VtepDbEntry {
 	if vtep, ok := vtepDB[*key]; ok {
 		return vtep
 	}
 	return nil
+}
+
+func DeleteVtepDbEntryFromList(i int) {
+	logger.Info("DeleteVtepDbEntryFromList", i, vtepDbList)
+	j := i + 1
+	copy(vtepDbList[i:], vtepDbList[j:])
+	for k, n := len(vtepDbList)-j+i, len(vtepDbList); k < n; k++ {
+		vtepDbList[k] = nil // or the zero value of T
+	}
+	vtepDbList = vtepDbList[:len(vtepDbList)-j+i]
 }
 
 func GetVtepDbListEntry(idx int32, vxlan **VtepDbEntry) bool {
@@ -322,9 +333,6 @@ func DeProvisionVtep(vtep *VtepDbEntry, del bool) {
 			vxlan := GetVxlanDBEntry(vtep.Vni)
 			if vxlan.Enable && vtep.VxlanVtepMachineFsm != nil {
 				vtep.VxlanVtepMachineFsm.BEGIN()
-				// restart the timer on deprovisioning as we will retry each of the
-				// state transitions again
-				vtep.retrytimer.Reset(retrytime)
 			}
 		} else {
 			vtep.retrytimer.Stop()
@@ -374,7 +382,7 @@ func DeleteVtep(c *VtepConfig) {
 				if vtep.VtepConfigName == c.VtepName &&
 					vtep.Vni == c.Vni &&
 					vtep.DstIp.String() == c.TunnelDstIp.String() {
-					vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+					DeleteVtepDbEntryFromList(idx)
 				}
 			}
 
@@ -414,10 +422,10 @@ func saveVtepConfigData(c *VtepConfig) *VtepDbEntry {
 		}
 		vtepDB[*key] = vtep
 		for idx, v := range vtepDbList {
-			if vtep.VtepConfigName == v.VtepName &&
+			if vtep.VtepConfigName == v.VtepConfigName &&
 				vtep.Vni == v.Vni &&
 				vtep.DstIp.String() == v.DstIp.String() {
-				vtepDbList = append(vtepDbList[:idx], vtepDbList[idx+1:]...)
+				DeleteVtepDbEntryFromList(idx)
 			}
 		}
 

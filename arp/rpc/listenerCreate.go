@@ -65,3 +65,9 @@ func (h *ARPHandler) CreateArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
 	}
 	return true, err
 }
+
+func (h *ARPHandler) SendGarp(ifName, macAddr, ipAddr string) error {
+	h.logger.Info("received send garp request", ifName, macAddr, ipAddr)
+	h.server.GarpEntryCh <- &server.GarpEntry{ifName, macAddr, ipAddr}
+	return nil
+}

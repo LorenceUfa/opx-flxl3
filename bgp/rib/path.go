@@ -39,6 +39,7 @@ import (
 const (
 	RouteTypeAgg uint8 = 1 << iota
 	RouteTypeConnected
+	RouteTypeDefault
 	RouteTypeStatic
 	RouteTypeIGP
 	RouteTypeEGP
@@ -54,6 +55,7 @@ const (
 var RouteTypeToSource = map[uint8]uint8{
 	RouteTypeAgg:       RouteSrcLocal,
 	RouteTypeConnected: RouteSrcLocal,
+	RouteTypeDefault:   RouteSrcLocal,
 	RouteTypeStatic:    RouteSrcLocal,
 	RouteTypeIGP:       RouteSrcLocal,
 	RouteTypeEGP:       RouteSrcExternal,
@@ -322,7 +324,8 @@ func (p *Path) GetReachability(protoFamily uint32) *ReachabilityInfo {
 }
 
 func (p *Path) IsReachable(protoFamily uint32) bool {
-	if p.routeType == RouteTypeStatic || p.routeType == RouteTypeConnected || p.routeType == RouteTypeIGP {
+	if p.routeType == RouteTypeStatic || p.routeType == RouteTypeConnected || p.routeType == RouteTypeDefault ||
+		p.routeType == RouteTypeIGP {
 		return true
 	}
 

@@ -69,7 +69,10 @@ type OSPFV2Server struct {
 	AreaConfMap     map[uint32]AreaConf //Key AreaId
 	MessagingChData MessagingChStruct
 
-	LsdbData LsdbStruct
+	LsdbData       LsdbStruct
+	SPFData        SPFStruct
+	RoutingTblData RoutingTblStruct
+	SummaryLsDb    map[LsdbKey]SummaryLsaMap
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -122,9 +125,13 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.IntfToNbrFSMChData.DeleteNbrCh = make(chan DeleteNbrMsg)
 	server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh = make(chan NetworkDRChangeMsg)
 	server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh = make(chan GenerateRouterLSAMsg)
-	server.MessagingChData.LsdbCtrlChData.LsdbCtrlCh = make(chan bool)
-	server.MessagingChData.LsdbCtrlChData.LsdbCtrlReplyCh = make(chan bool)
 	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap = make(map[IntfConfKey]chan NbrDownMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh = make(chan RecvdLsaMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
+	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
+	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
+	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
 }
 
 func (server *OSPFV2Server) initServer() error {

@@ -21,51 +21,27 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package vrrpServer
+package flexswitch
 
 import (
-	"fmt"
-	"models/objects"
-	"utils/dbutils"
-	"vrrpd"
+	"l3/arp/clientMgr"
+	"l3/arp/clientMgr/flexswitch"
+	"sync"
+	"utils/commonDefs"
 )
 
-func (svr *VrrpServer) VrrpInitDB() error {
-	svr.logger.Info("Initializing DB")
-	var err error
-	svr.vrrpDbHdl = dbutils.NewDBUtil(svr.logger)
-	err = svr.vrrpDbHdl.Connect()
-	if err != nil {
-		svr.logger.Err(fmt.Sprintln("Failed to Create DB Handle", err))
-		return err
-	}
+// this is for notification messages
+var arpClientInst *flexswitch.ArpdClientStruct = nil
+var arpOnce sync.Once
 
-	svr.logger.Info("DB connection is established")
-	return err
+func GetArpInst() *flexswitch.ArpdClientStruct {
+	arpOnce.Do(func() {
+		arpClientInst = &flexswitch.ArpdClientStruct{}
+	})
+	return arpClientInst
 }
 
-func (svr *VrrpServer) VrrpCloseDB() {
-	svr.logger.Info("Closed vrrp db")
-	svr.vrrpDbHdl.Disconnect()
-}
-
-func (svr *VrrpServer) VrrpReadDB() error {
-	svr.logger.Info("Reading VrrpIntf Config from DB")
-	if svr.vrrpDbHdl == nil {
-		return nil
-	}
-	var dbObj objects.VrrpIntf
-	objList, err := dbObj.GetAllObjFromDb(svr.vrrpDbHdl)
-	if err != nil {
-		svr.logger.Warning("DB querry failed for VrrpIntf Config")
-		return err
-	}
-	for idx := 0; idx < len(objList); idx++ {
-		obj := vrrpd.NewVrrpIntf()
-		dbObject := objList[idx].(objects.VrrpIntf)
-		objects.ConvertvrrpdVrrpIntfObjToThrift(&dbObject, obj)
-		svr.VrrpCreateGblInfo(*obj)
-	}
-	svr.logger.Info("Done reading from DB")
-	return err
+// this is initializing the NBMgr for arp client
+func InitArpInst(plugin, paramsDir string, clntList []commonDefs.ClientJson, arpHdl flexswitch.ArpdClientStruct) arpClient.ArpdClientIntf {
+	return arpClient.NewArpdClient(plugin, paramsDir, clntList, arpHdl)
 }

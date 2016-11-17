@@ -110,36 +110,89 @@ type DeleteNbrMsg struct {
 	NbrKeyList []NbrConfKey //List of Nbr Identity
 }
 
+type GenerateRouterLSAMsg struct {
+	AreaId uint32
+}
+type NbrDownMsg struct {
+	NbrKey NbrConfKey
+}
+type RecvdLsaMsgType uint8
+
+const (
+	LSA_ADD RecvdLsaMsgType = 0
+	LSA_DEL RecvdLsaMsgType = 1
+)
+
+type RecvdLsaMsg struct {
+	MsgType RecvdLsaMsgType
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
+type RecvdSelfLsaMsg struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
+type LsaOp uint8
+
+const (
+	GENERATE LsaOp = 0
+	FLUSH    LsaOp = 1
+)
+
+type UpdateSelfNetworkLSAMsg struct {
+	Op      LsaOp
+	IntfKey IntfConfKey
+	NbrList []uint32
+}
+
+type LsdbToFloodLSAMsg struct {
+	AreaId  uint32
+	LsaKey  LsaKey
+	LsaData interface{}
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
 	NetworkDRChangeCh chan NetworkDRChangeMsg
 }
 
-type GenerateRouterLSAMsg struct {
-	AreaId uint32
-}
-
 type IntfFSMToLsdbChStruct struct {
 	GenerateRouterLSACh chan GenerateRouterLSAMsg
-}
-
-type NbrDownMsg struct {
-	NbrKey NbrConfKey
 }
 
 type NbrToIntfFSMChStruct struct {
 	NbrDownMsgChMap map[IntfConfKey]chan NbrDownMsg
 }
 
-type LsdbCtrlChStruct struct {
-	LsdbCtrlCh      chan bool
-	LsdbCtrlReplyCh chan bool
+type NbrFSMToLsdbChStruct struct {
+	RecvdLsaMsgCh          chan RecvdLsaMsg
+	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
+	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
+}
+
+type LsdbToFloodChStruct struct {
+	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
+}
+
+type LsdbToSPFChStruct struct {
+	StartSPF chan bool
+}
+
+type SPFToLsdbChStruct struct {
+	DoneSPF chan bool
 }
 
 type MessagingChStruct struct {
 	IntfToNbrFSMChData  IntfToNbrFSMChStruct
 	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
-	LsdbCtrlChData      LsdbCtrlChStruct
 	NbrToIntfFSMChData  NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
+	LsdbToFloodChData   LsdbToFloodChStruct
+	LsdbToSPFChData     LsdbToSPFChStruct
+	SPFToLsdbChData     SPFToLsdbChStruct
 }

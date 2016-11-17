@@ -23,6 +23,10 @@
 
 package server
 
+import (
+	"time"
+)
+
 type LsdbKey struct {
 	AreaId uint32
 }
@@ -55,7 +59,16 @@ type LSDatabase struct {
 
 type SelfOrigLsa map[LsaKey]bool
 
+type LsdbCtrlChStruct struct {
+	LsdbGblCtrlCh       chan bool
+	LsdbGblCtrlReplyCh  chan bool
+	LsdbAreaCtrlCh      chan uint32
+	LsdbAreaCtrlReplyCh chan uint32
+}
+
 type LsdbStruct struct {
 	AreaLsdb        map[LsdbKey]LSDatabase
 	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
+	LsdbCtrlChData  LsdbCtrlChStruct
+	LsdbAgingTicker *time.Ticker
 }

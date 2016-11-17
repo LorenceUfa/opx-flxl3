@@ -34,26 +34,34 @@ import (
 	"time"
 )
 
-type ProcessOspfPktRecvStruct struct {
-	processOspfRecvPktCh       chan gopacket.Packet
-	processOspfRecvCtrlCh      chan bool
-	processOspfRecvCtrlReplyCh chan bool
-	intfConfKey                IntfConfKey
+type OspfPktRecvStruct struct {
+	OspfRecvPktCh       chan gopacket.Packet
+	OspfRecvCtrlCh      chan bool
+	OspfRecvCtrlReplyCh chan bool
+	IntfConfKey         IntfConfKey
 }
 
-func (server *OSPFV2Server) processOspfData(data []byte, ethHdrMd *EthHdrMetadata, ipHdrMd *IpHdrMetadata, ospfHdrMd *OspfHdrMetadata, key IntfConfKey) error {
+type OspfHelloPktRecvStruct struct {
+	OspfRecvHelloPktCh       chan *OspfPktStruct
+	OspfRecvHelloCtrlCh      chan bool
+	OspfRecvHelloCtrlReplyCh chan bool
+	IntfConfKey              IntfConfKey
+}
+
+type OspfLsaAndDbdPktRecvStruct struct {
+	OspfRecvLsaAndDbdPktCh       chan *OspfPktStruct
+	OspfRecvLsaAndDbdCtrlCh      chan bool
+	OspfRecvLsaAndDbdCtrlReplyCh chan bool
+	IntfConfKey                  IntfConfKey
+}
+
+func (server *OSPFV2Server) processOspfData(recvPktData *OspfPktStruct, helloPktMsgCh, lsaAndDbdMsgCh chan *OspfPktStruct) error {
 	var err error = nil
-	switch ospfHdrMd.PktType {
+	switch recvPktData.OspfHdrMd.PktType {
 	case HelloType:
-		err = server.processRxHelloPkt(data, ospfHdrMd, ipHdrMd, ethHdrMd, key)
-	case DBDescriptionType:
-		//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, key, ethHdrMd.srcMAC)
-	case LSRequestType:
-		//err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, key)
-	case LSUpdateType:
-		//err = server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, key)
-	case LSAckType:
-		//err = server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, key)
+		helloPktMsgCh <- recvPktData
+	case DBDescriptionType, LSRequestType, LSUpdateType, LSAckType:
+		lsaAndDbdMsgCh <- recvPktData
 	default:
 		err = errors.New("Invalid Ospf packet type")
 	}
@@ -198,79 +206,148 @@ func (server *OSPFV2Server) processOspfHeader(ospfPkt []byte, key IntfConfKey, m
 	return nil
 }
 
-func (server *OSPFV2Server) processOspfPkt(pkt gopacket.Packet, key IntfConfKey) {
+type OspfPktDataStruct struct {
+	data      []byte
+	ethHdrMd  *EthHdrMetadata
+	ipHdrMd   *IpHdrMetadata
+	ospfHdrMd *OspfHdrMetadata
+	key       IntfConfKey
+}
+
+func (server *OSPFV2Server) processOspfPkt(pkt gopacket.Packet, key IntfConfKey, ospfPktData *OspfPktStruct) error {
 	server.logger.Info("Recevied Ospf Packet")
 	ent, exist := server.IntfConfMap[key]
 	if !exist {
-		server.logger.Err("Dropped because of interface no more valid")
-		return
+		return errors.New("Dropped because of interface no more valid")
 	}
 
 	ethLayer := pkt.Layer(layers.LayerTypeEthernet)
 	if ethLayer == nil {
-		server.logger.Err("Not an Ethernet frame")
-		return
+		return errors.New("Not an Ethernet frame")
 	}
 	eth := ethLayer.(*layers.Ethernet)
 
 	ethHdrMd := NewEthHdrMetadata()
 	ethHdrMd.SrcMAC = eth.SrcMAC
-
+	ospfPktData.EthHdrMd = ethHdrMd
 	ipLayer := pkt.Layer(layers.LayerTypeIPv4)
 	if ipLayer == nil {
-		server.logger.Err("Not an IP packet")
-		return
+		return errors.New("Not an IP packet")
 	}
 
 	ipHdrMd := NewIpHdrMetadata()
 	err := server.processIPv4Layer(ipLayer, ent.IpAddr, ipHdrMd)
 	if err != nil {
-		server.logger.Err("Dropped because of IPv4 layer processing", err)
-		return
+		return errors.New(fmt.Sprintln("Dropped because of IPv4 layer processing", err))
 	}
+	ospfPktData.IpHdrMd = ipHdrMd
 
 	ospfHdrMd := NewOspfHdrMetadata()
 	ospfPkt := ipLayer.LayerPayload()
 	err = server.processOspfHeader(ospfPkt, key, ospfHdrMd, ipHdrMd)
 	if err != nil {
-		server.logger.Err("Dropped because of Ospf Header processing", err)
-		return
+		return errors.New(fmt.Sprintln("Dropped because of Ospf Header processing", err))
 	}
+	ospfPktData.OspfHdrMd = ospfHdrMd
 
-	ospfData := ospfPkt[OSPF_HEADER_SIZE:]
-	err = server.processOspfData(ospfData, ethHdrMd, ipHdrMd, ospfHdrMd, key)
-	if err != nil {
-		server.logger.Err("Dropped because of Ospf Header processing", err)
-		return
-	}
-	return
+	ospfPktData.Data = ospfPkt[OSPF_HEADER_SIZE:]
+	return nil
 }
 
-func (server *OSPFV2Server) ProcessOspfRecvPkt(processRecvPkt ProcessOspfPktRecvStruct) {
+func (server *OSPFV2Server) ProcessOspfRecvHelloPkt(recvPktData OspfHelloPktRecvStruct) {
 	for {
 		select {
-		case packet := <-processRecvPkt.processOspfRecvPktCh:
-			server.processOspfPkt(packet, processRecvPkt.intfConfKey)
-		case _ = <-processRecvPkt.processOspfRecvCtrlCh:
+		case msg := <-recvPktData.OspfRecvHelloPktCh:
+			err := server.processRxHelloPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, msg.EthHdrMd, recvPktData.IntfConfKey)
+			if err != nil {
+				server.logger.Err("Error Processing Rx Hello Pkt:", err)
+			}
+		case _ = <-recvPktData.OspfRecvHelloCtrlCh:
+			server.logger.Info("Stopping ProcessOspfRecvHelloPkt routine")
+			recvPktData.OspfRecvHelloCtrlReplyCh <- true
+		}
+	}
+
+}
+
+func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDbdPktRecvStruct) {
+	for {
+		select {
+		case msg := <-recvPktData.OspfRecvLsaAndDbdPktCh:
+			switch msg.OspfHdrMd.PktType {
+			case DBDescriptionType:
+				//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, key)
+			case LSRequestType:
+				//err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, key)
+			case LSUpdateType:
+				//err = server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, key)
+			case LSAckType:
+				//err = server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, key)
+			default:
+				server.logger.Err("Invalid Packet type")
+			}
+		case _ = <-recvPktData.OspfRecvLsaAndDbdCtrlCh:
+			server.logger.Info("Stopping ProcessOspfRecvLsaAndDbdPkt routine")
+			recvPktData.OspfRecvLsaAndDbdCtrlReplyCh <- true
+		}
+	}
+}
+
+func (server *OSPFV2Server) ProcessOspfRecvPkt(recvPkt OspfPktRecvStruct) {
+	ospfRecvHelloCtrlCh := make(chan bool)
+	ospfRecvHelloCtrlReplyCh := make(chan bool)
+	ospfRecvHelloPktCh := make(chan *OspfPktStruct, 1000)
+	recvHelloPkt := OspfHelloPktRecvStruct{
+		OspfRecvHelloPktCh:       ospfRecvHelloPktCh,
+		OspfRecvHelloCtrlCh:      ospfRecvHelloCtrlCh,
+		OspfRecvHelloCtrlReplyCh: ospfRecvHelloCtrlReplyCh,
+		IntfConfKey:              recvPkt.IntfConfKey,
+	}
+	go server.ProcessOspfRecvHelloPkt(recvHelloPkt)
+	ospfRecvLsaAndDbdCtrlCh := make(chan bool)
+	ospfRecvLsaAndDbdCtrlReplyCh := make(chan bool)
+	ospfRecvLsaAndDbdPktCh := make(chan *OspfPktStruct, 1000)
+	recvLsaAndDbdPkt := OspfLsaAndDbdPktRecvStruct{
+		OspfRecvLsaAndDbdPktCh:       ospfRecvLsaAndDbdPktCh,
+		OspfRecvLsaAndDbdCtrlCh:      ospfRecvLsaAndDbdCtrlCh,
+		OspfRecvLsaAndDbdCtrlReplyCh: ospfRecvLsaAndDbdCtrlReplyCh,
+		IntfConfKey:                  recvPkt.IntfConfKey,
+	}
+	go server.ProcessOspfRecvLsaAndDbdPkt(recvLsaAndDbdPkt)
+	for {
+		select {
+		case packet := <-recvPkt.OspfRecvPktCh:
+			ospfPktData := NewOspfPktStruct()
+			err := server.processOspfPkt(packet, recvPkt.IntfConfKey, ospfPktData)
+			if err != nil {
+				server.logger.Err("Error processing Ospf Pkt:", err)
+				continue
+			}
+			server.processOspfData(ospfPktData, recvHelloPkt.OspfRecvHelloPktCh, recvLsaAndDbdPkt.OspfRecvLsaAndDbdPktCh)
+		case _ = <-recvPkt.OspfRecvCtrlCh:
 			server.logger.Info("Stopping ProcessOspfRecvPkt")
-			processRecvPkt.processOspfRecvCtrlReplyCh <- true
+			recvHelloPkt.OspfRecvHelloCtrlCh <- true
+			_ = <-recvHelloPkt.OspfRecvHelloCtrlReplyCh
+			recvLsaAndDbdPkt.OspfRecvLsaAndDbdCtrlCh <- true
+			_ = recvLsaAndDbdPkt.OspfRecvLsaAndDbdCtrlReplyCh
+			recvPkt.OspfRecvCtrlReplyCh <- true
 			return
 		}
 	}
 }
 
 func (server *OSPFV2Server) StartOspfRecvPkts(key IntfConfKey) {
-	processOspfRecvCtrlCh := make(chan bool)
-	processOspfRecvCtrlReplyCh := make(chan bool)
-	processOspfRecvPktCh := make(chan gopacket.Packet, 1000)
-	processRecvPkt := ProcessOspfPktRecvStruct{
-		processOspfRecvPktCh:       processOspfRecvPktCh,
-		processOspfRecvCtrlCh:      processOspfRecvCtrlCh,
-		processOspfRecvCtrlReplyCh: processOspfRecvCtrlReplyCh,
-		intfConfKey:                key,
+	ospfRecvCtrlCh := make(chan bool)
+	ospfRecvCtrlReplyCh := make(chan bool)
+	ospfRecvPktCh := make(chan gopacket.Packet, 1000)
+	recvPkt := OspfPktRecvStruct{
+		OspfRecvPktCh:       ospfRecvPktCh,
+		OspfRecvCtrlCh:      ospfRecvCtrlCh,
+		OspfRecvCtrlReplyCh: ospfRecvCtrlReplyCh,
+		IntfConfKey:         key,
 	}
 	ent, _ := server.IntfConfMap[key]
-	go server.ProcessOspfRecvPkt(processRecvPkt)
+	go server.ProcessOspfRecvPkt(recvPkt)
 	handle := ent.rxHdl.RecvPcapHdl
 	recv := gopacket.NewPacketSource(handle, layers.LayerTypeEthernet)
 	in := recv.Packets()
@@ -286,13 +363,13 @@ func (server *OSPFV2Server) StartOspfRecvPkts(key IntfConfKey) {
 
 				ipPkt := ipLayer.(*layers.IPv4)
 				if ipPkt.Protocol == layers.IPProtocol(OSPF_PROTO_ID) {
-					processRecvPkt.processOspfRecvPktCh <- packet
+					recvPkt.OspfRecvPktCh <- packet
 				}
 			}
 		case _ = <-ent.rxHdl.PktRecvCtrlCh:
 			server.logger.Info("Stopping the Recv Ospf packet thread")
-			processRecvPkt.processOspfRecvCtrlCh <- true
-			_ = processRecvPkt.processOspfRecvCtrlReplyCh
+			recvPkt.OspfRecvCtrlCh <- true
+			_ = <-recvPkt.OspfRecvCtrlReplyCh
 			ent.rxHdl.PktRecvCtrlReplyCh <- true
 			return
 		}
@@ -311,7 +388,7 @@ func (server *OSPFV2Server) StopOspfRecvPkts(key IntfConfKey) {
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
 			cnt = cnt + 1
-			if cnt == 100 {
+			if cnt == 1000 {
 				server.logger.Err("Unable to stop the Rx thread")
 				return
 			}
@@ -319,11 +396,14 @@ func (server *OSPFV2Server) StopOspfRecvPkts(key IntfConfKey) {
 	}
 }
 
-func (server *OSPFV2Server) initRxPkts(ifName string, ipAddr uint32) (*pcap.Handle, error) {
+func (server *OSPFV2Server) InitRxPkt(intfKey IntfConfKey) error {
+	intfEnt, _ := server.IntfConfMap[intfKey]
+	ifName := intfEnt.IfName
+	ipAddr := intfEnt.IpAddr
 	recvHdl, err := pcap.OpenLive(ifName, snapshotLen, promiscuous, pcapTimeout)
 	if err != nil {
 		server.logger.Err("Error opening recv pcap handler", ifName)
-		return nil, err
+		return err
 	}
 	ip := convertUint32ToDotNotation(ipAddr)
 	filter := fmt.Sprintf("proto ospf and not src host %s", ip)
@@ -331,7 +411,20 @@ func (server *OSPFV2Server) initRxPkts(ifName string, ipAddr uint32) (*pcap.Hand
 	err = recvHdl.SetBPFFilter(filter)
 	if err != nil {
 		server.logger.Err("Unable to set filter on", ifName)
-		return nil, err
+		return err
 	}
-	return recvHdl, nil
+	intfEnt.rxHdl.RecvPcapHdl = recvHdl
+	intfEnt.rxHdl.PktRecvCtrlCh = make(chan bool)
+	intfEnt.rxHdl.PktRecvCtrlReplyCh = make(chan bool)
+	server.IntfConfMap[intfKey] = intfEnt
+	return nil
+}
+
+func (server *OSPFV2Server) DeinitRxPkt(intfKey IntfConfKey) {
+	intfEnt, _ := server.IntfConfMap[intfKey]
+	intfEnt.rxHdl.RecvPcapHdl.Close()
+	intfEnt.rxHdl.RecvPcapHdl = nil
+	intfEnt.rxHdl.PktRecvCtrlCh = nil
+	intfEnt.rxHdl.PktRecvCtrlReplyCh = nil
+	server.IntfConfMap[intfKey] = intfEnt
 }
