@@ -88,6 +88,10 @@ func DecodeHeader(data []byte) *Header {
 	rsvdAdver := binary.BigEndian.Uint16(data[4:6])
 	hdr.Rsvd = uint8(rsvdAdver >> 13)
 	hdr.MaxAdverInt = rsvdAdver & 0x1FFF
+	if hdr.Version == common.VERSION3 {
+		// converting centi-seconds to seconds
+		hdr.MaxAdverInt = hdr.MaxAdverInt / 100
+	}
 	hdr.CheckSum = binary.BigEndian.Uint16(data[6:8])
 	var ipvxAddrlength int
 	if VRRP_HEADER_SIZE_EXCLUDING_IPVX > len(data) {

@@ -55,7 +55,6 @@ var version3Packet = []byte{
 var testVrid = uint8(1)
 var testPriority = uint8(100)
 var testAdvInt = uint16(1)
-var testAdvIntV3 = uint16(100)
 var testVMac = "00:00:5e:00:01:01"
 var testSrcIp = "192.168.0.30"
 var testSrcIpV3 = "172.18.0.2"
@@ -117,7 +116,7 @@ func TestEncodeV3(t *testing.T) {
 		Version:      common.VERSION3,
 		Vrid:         testVrid,
 		Priority:     testPriority,
-		AdvertiseInt: testAdvIntV3,
+		AdvertiseInt: testAdvInt,
 		VirutalMac:   testVMac,
 		IpAddr:       testSrcIpV3,
 		Vip:          testVipV3,
@@ -196,7 +195,7 @@ func TestDecodeV3(t *testing.T) {
 			Priority:     testPriority,
 			CountIPAddr:  1,
 			Rsvd:         0,
-			MaxAdverInt:  testAdvIntV3,
+			MaxAdverInt:  testAdvInt,
 			CheckSum:     uint16(48773),
 		},
 	}

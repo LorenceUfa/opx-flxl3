@@ -63,6 +63,10 @@ func EncodeHeader(hdr *Header) ([]byte, uint16) {
 	bytes[1] = hdr.VirtualRtrId
 	bytes[2] = hdr.Priority
 	bytes[3] = hdr.CountIPAddr
+	if hdr.Version == common.VERSION3 {
+		// converting centi-seconds to seconds
+		hdr.MaxAdverInt = hdr.MaxAdverInt * 100
+	}
 	rsvdAdver := (uint16(hdr.Rsvd) << 13) | hdr.MaxAdverInt
 	binary.BigEndian.PutUint16(bytes[4:], rsvdAdver)
 	binary.BigEndian.PutUint16(bytes[6:8], hdr.CheckSum)
