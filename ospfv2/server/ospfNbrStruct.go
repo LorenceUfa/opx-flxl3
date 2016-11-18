@@ -49,9 +49,9 @@ type NbrConf struct {
 	Nbrflags        int32 //flags showing fields to update from nbrstruct
 	NbrLastDbd      map[NbrConfKey]NbrDbdData
 	//Nbr lists
-	NbrReqList       map[NbrConfKey][]*ospfLSAHeader
-	NbrDBSummaryList map[NbrConfKey][]*ospfLSAHeader
-	NbrRetxList      map[NbrConfKey][]*ospfLSAHeader
+	NbrReqList       []*ospfLSAHeader
+	NbrDBSummaryList []*ospfLSAHeader
+	NbrRetxList      []*ospfLSAHeader
 }
 
 const (

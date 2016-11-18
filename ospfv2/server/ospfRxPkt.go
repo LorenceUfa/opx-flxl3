@@ -295,9 +295,9 @@ func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDb
 
 			switch msg.OspfHdrMd.PktType {
 			case DBDescriptionType:
-				//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, recvPktData.IntfConfKey, nbrKey)
+				err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
 			case LSRequestType:
-				//err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, key)
+				err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
 			case LSUpdateType:
 				//err = server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, key)
 			case LSAckType:

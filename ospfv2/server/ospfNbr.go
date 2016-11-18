@@ -124,6 +124,54 @@ func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf
 	return false
 }
 
+func (server *OSPFServer) CheckNeighborFullEvent(nbrKey NeighborConfKey) {
+	nbrConf, exists := server.NeighborConfigMap[nbrKey]
+	nbrFull := true
+	if exists {
+		reqlist := ospfNeighborRequest_list[nbrKey]
+		if reqlist != nil {
+			for _, ent := range reqlist {
+				if ent.valid == true {
+					nbrFull = false
+				}
+			}
+		}
+		if !nbrFull {
+			return
+		}
+		nbrConfMsg := ospfNeighborConfMsg{
+			ospfNbrConfKey: nbrKey,
+			ospfNbrEntry: OspfNeighborEntry{
+				OspfNbrRtrId:           nbrConf.OspfNbrRtrId,
+				OspfNbrIPAddr:          nbrConf.OspfNbrIPAddr,
+				OspfRtrPrio:            nbrConf.OspfRtrPrio,
+				intfConfKey:            nbrConf.intfConfKey,
+				OspfNbrOptions:         0,
+				OspfNbrState:           config.NbrFull,
+				isStateUpdate:          true,
+				OspfNbrInactivityTimer: time.Now(),
+				OspfNbrDeadTimer:       nbrConf.OspfNbrDeadTimer,
+				isSeqNumUpdate:         false,
+				isMasterUpdate:         false,
+				nbrEvent:               nbrConf.nbrEvent,
+			},
+			nbrMsgType: NBRUPD,
+		}
+		server.neighborConfCh <- nbrConfMsg
+		server.logger.Info(fmt.Sprintln("NBREVENT: Nbr FULL ", nbrKey.IPAddr))
+	}
+}
+
+func (server *OSPFServer) UpdateNeighborList(nbrKey NeighborConfKey) {
+	nbrConf, exists := server.NeighborConfigMap[nbrKey]
+	if exists {
+		if nbrConf.OspfNbrState == config.NbrFull {
+			return
+		}
+		server.CheckNeighborFullEvent(nbrKey)
+	}
+}
+
 func calculateMaxLsaHeaders() (max_headers uint8) {
 	rem := INTF_MTU_MIN - (OSPF_DBD_MIN_SIZE + OSPF_HEADER_SIZE)
 	max_headers = uint8(rem / OSPF_LSA_HEADER_SIZE)

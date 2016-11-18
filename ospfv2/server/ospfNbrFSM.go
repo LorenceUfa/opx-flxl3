@@ -33,17 +33,29 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 	for {
 		select {
 		//Hello packet recieved.
-		case nbrData <- server.MessagingChData.IntfToNbrFSMChData.NbrHelloEventCh:
+		case nbrData := <-server.MessagingChData.IntfToNbrFSMChData.NbrHelloEventCh:
 			server.logger.Debug("Nbr : Received hello event. ", nbrData.NbrIpAddr)
 			server.ProcessNbrHello(nbrData)
 			//DBD received
-		case dbdData <- server.NbrConfData.neighborDBDEventCh:
+		case dbdData := <-server.NbrConfData.neighborDBDEventCh:
 			server.logger.Debug("Nbr: Received dbd event ", dbdData)
+			server.ProcessNbrDbdMsg(dbdData)
+
+		case lsaAckData := <-server.NbrConfData.neighborLSAACKEventCh:
+
 			//LSAReq received
+		case lsaReqData := <-server.NbrConfData.neighborLSAReqEventCh:
+			nbr, exists := server.NbrConfigMap[nbrLSAReqPkt.nbrKey]
+			if exists && nbr.State >= config.NbrExchange {
+				server.DecodeLSAReq(lsaReqData)
+			}
 
-			//LSAAck received
+		case lsaData := <-server.NbrConfData.neighborLSAUpdEventCh:
+			nbr, exists := server.NbrConfigMap[nbrLSAUpdPkt.nbrKey]
 
-			//LSA received
+			if exists && nbr.State >= config.NbrExchange {
+				server.DecodeLSAUpd(lsaData)
+			}
 
 			//Intf state change
 

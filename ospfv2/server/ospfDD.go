@@ -333,13 +333,12 @@ func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetad
 
 	DecodeDatabaseDescriptionData(data, ospfdbd_data, pktlen)
 	//ipaddr := convertIPInByteToString(ipHdrMd.srcIP)
-	ipaddr := net.IPv4(ipHdrMd.srcIP[0], ipHdrMd.srcIP[1], ipHdrMd.srcIP[2], ipHdrMd.srcIP[3])
 
-	dbdNbrMsg := nbrDbdData{
-		nbrKey:     nbrKey,
+	dbdNbrMsg := NbrDbdMsg{
+		nbrConfKey: nbrKey,
 		nbrDbdData: *ospfdbd_data,
 	}
-	server.logger.Debug(fmt.Sprintln("DBD: nbr key ", ipaddr, nbrKey))
+	server.logger.Debug(fmt.Sprintln("DBD: nbr key ", nbrKey))
 	//fmt.Println(" lsa_header length = ", len(ospfdbd_data.lsa_headers))
 	dbdNbrMsg.nbrDbdData.lsa_headers = []ospfLSAHeader{}
 
@@ -349,7 +348,7 @@ func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetad
 			ospfdbd_data.lsa_headers[i])
 	}
 	//send packet to nbr fsm
-	//fmt.Println("msg lsa_header length = ", len(dbdNbrMsg.nbrDbdData.lsa_headers))
+	server.NbrConfData.neighborDBDEventCh <- dbdNbrMsg
 	return nil
 }
 
