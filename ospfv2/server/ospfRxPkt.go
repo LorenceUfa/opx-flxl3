@@ -271,12 +271,31 @@ func (server *OSPFV2Server) ProcessOspfRecvHelloPkt(recvPktData OspfHelloPktRecv
 }
 
 func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDbdPktRecvStruct) {
+	var nbrIdentity uint32
+	ent, valid := server.IntfConfMap[recvPktData.IntfConfKey]
+	if !valid {
+		server.logger.Err("Intf : RecvLsaAndDbdPkt interface entry does not exist ",
+			recvPktData.IntfConfKe)
+		return
+	}
+
 	for {
 		select {
 		case msg := <-recvPktData.OspfRecvLsaAndDbdPktCh:
+			if ent.Type == objects.INTF_TYPE_POINT2POINT {
+				nbrIdentity = msg.ospfHdrMd.RouterId
+			} else {
+				nbrIdentity = msg.ipHdrMd.SrcIP
+			}
+
+			nbrKey := NbrConfKey{
+				NbrIdentity:         nbrIdentity,
+				NbrAddressLessIfIdx: key.IntfIdx,
+			}
+
 			switch msg.OspfHdrMd.PktType {
 			case DBDescriptionType:
-				//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, key)
+				//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, recvPktData.IntfConfKey, nbrKey)
 			case LSRequestType:
 				//err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, key)
 			case LSUpdateType:

@@ -78,9 +78,9 @@ func newospfLSAHeader() *ospfLSAHeader {
 	return &ospfLSAHeader{}
 }
 
-func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) nbrDbdData {
+func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) NbrDbdMsg {
 	dbdNbrMsg := nbrDbdData{
-		nbrKey:     key,
+		nbrConfKey: key,
 		nbrDbdData: dbd_data,
 	}
 	return dbdNbrMsg
@@ -239,8 +239,15 @@ func encodeDatabaseDescriptionData(dd_data NbrDbdData) []byte {
 	return pkt
 }
 
-func (server *OSPFV2Server) BuildDBDPkt(intfKey IntfConfKey, ent IntfConf,
-	nbrConf OspfNeighborEntry, dbdData NbrDbdData, dstMAC net.HardwareAddr) (data []byte) {
+func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf OspfNeighborEntry, dbdData NbrDbdData) {
+	intfKey := nbrConf.IntfConfKey
+	ent, exist := server.IntfConfMap[intfKey]
+	if !exist {
+		server.logger.Err("Nbr : failed to send db packet ", intfKey)
+		return nil
+	}
+	dstMAC := ent.IfMacAddr
+
 	ospfHdr := OSPFHeader{
 		ver:      OSPF_VERSION_2,
 		pktType:  uint8(DBDescriptionType),
@@ -308,13 +315,12 @@ func (server *OSPFV2Server) BuildDBDPkt(intfKey IntfConfKey, ent IntfConf,
 	//	server.logger.Info(fmt.Sprintln("buffer: ", buffer))
 	dbdPkt := buffer.Bytes()
 	//	server.logger.Info(fmt.Sprintln("dbdPkt: ", dbdPkt))
-
-	return dbdPkt
-
+	server.logger.Debug("Nbr: send db packet out ", dbdPkt)
+	server.SendOspfPkt(intfKey, dbdPkt)
 }
 
 func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
-	ipHdrMd *IpHdrMetadata, key IntfConfKey, srcMAC net.HardwareAddr) error {
+	ipHdrMd *IpHdrMetadata, nbrKey NbrConfKey) error {
 	ospfdbd_data := NewOspfDatabaseDescriptionData()
 	ospfdbd_data.lsa_headers = []ospfLSAHeader{}
 	//routerId := convertIPv4ToUint32(ospfHdrMd.routerId)
@@ -330,13 +336,10 @@ func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetad
 	ipaddr := net.IPv4(ipHdrMd.srcIP[0], ipHdrMd.srcIP[1], ipHdrMd.srcIP[2], ipHdrMd.srcIP[3])
 
 	dbdNbrMsg := nbrDbdData{
-		nbrKey: NbrConfKey{
-			IPAddr:  config.IpAddress(ipaddr.String()),
-			IntfIdx: key.IntfIdx,
-		},
+		nbrKey:     nbrKey,
 		nbrDbdData: *ospfdbd_data,
 	}
-	server.logger.Debug(fmt.Sprintln("DBD: nbr key ", ipaddr, key.IntfIdx))
+	server.logger.Debug(fmt.Sprintln("DBD: nbr key ", ipaddr, nbrKey))
 	//fmt.Println(" lsa_header length = ", len(ospfdbd_data.lsa_headers))
 	dbdNbrMsg.nbrDbdData.lsa_headers = []ospfLSAHeader{}
 
@@ -350,7 +353,7 @@ func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetad
 	return nil
 }
 
-func (server *OSPFV2Server) ConstructAndSendDbdPacket(nbrKey NbrConfKey,
+func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 	ibit bool, mbit bool, msbit bool, options uint8,
 	seq uint32, append_lsa bool, is_duplicate bool) (dbd_mdata NbrDbdData, last_exchange bool) {
 	last_exchange = true
@@ -397,7 +400,7 @@ func (server *OSPFV2Server) ConstructAndSendDbdPacket(nbrKey NbrConfKey,
 		" seq num ", seq, "options ", dbd_mdata.options, " headers_list ", dbd_mdata.lsa_headers))
 
 	data := newDbdMsg(nbrKey, dbd_mdata)
-	// send the data on channel
+	// send the data
 	return dbd_mdata, last_exchange
 }
 

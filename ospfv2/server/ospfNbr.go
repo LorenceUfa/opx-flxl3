@@ -27,84 +27,6 @@ import (
 	"l3/ospfv2/objects"
 )
 
-//NbrConfMap
-type NbrConf struct {
-	IntfKey         IntfConfKey
-	State           int
-	InactivityTimer int32
-	RtrId           uint32
-	isMaster        bool
-	DDSequenceNum   uint32
-	NbrRtrId        uint32
-	NbrPriority     int32
-	NbrIP           uint32
-	NbrOptions      uint32
-	NbrDR           uint32 //mentioned by rfc.
-	NbrBdr          uint32 //needed by rfc. not sure why we need it.
-	NbrDeadDuration int
-	NbrDeadTimer    *time.Timer
-	Nbrflags        int32 //flags showing fields to update from nbrstruct
-	//Nbr lists
-	NbrReqList       map[NbrConfKey][]*ospfLSAHeader
-	NbrDBSummaryList map[NbrConfKey][]*ospfLSAHeader
-	NbrRetxList      map[NbrConfKey][]*ospfLSAHeader
-}
-
-//Nbr states
-//TODO move to objects
-type NbrState int
-
-const (
-	NbrDown          NbrState = 1
-	NbrAttempt       NbrState = 2
-	NbrInit          NbrState = 3
-	NbrTwoWay        NbrState = 4
-	NbrExchangeStart NbrState = 5
-	NbrExchange      NbrState = 6
-	NbrLoading       NbrState = 7
-	NbrFull          NbrState = 8
-)
-
-var NbrStateList = []string{
-	"Undef",
-	"NbrDown",
-	"NbrAttempt",
-	"NbrInit",
-	"NbrTwoWay",
-	"NbrExchangeStart",
-	"NbrExchange",
-	"NbrLoading",
-	"NbrFull"}
-
-//DBD metadata
-type NbrDbdData struct {
-	options            uint8
-	interface_mtu      uint16
-	dd_sequence_number uint32
-	ibit               bool
-	mbit               bool
-	msbit              bool
-	lsa_headers        []ospfLSAHeader
-}
-
-type NbrDbdMsg struct {
-	nbrKey     NbrConfKey
-	nbrFull    bool
-	nbrDbdData NbrDbdData
-}
-
-//Lsa header
-type ospfLSAHeader struct {
-	ls_age          uint16
-	options         uint8
-	ls_type         uint8
-	link_state_id   uint32
-	adv_router_id   uint32
-	ls_sequence_num uint32
-	ls_checksum     uint16
-	ls_len          uint16
-}
-
 /* LSA lists */
 func newNbrReqData() *NbrReqData {
 	return &ospfLSAHeader{}
@@ -125,27 +47,6 @@ func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) NbrDbdMsg {
 	}
 	return dbdNbrMsg
 }
-
-/* neighbor lists each indexed by neighbor router id. */
-
-//intf to nbr map
-var IntfToNbrMap map[IntfConfKey][]NbrConfKey
-
-const (
-	INTF_MTU_MIN              int = 1500
-	NBR_FLAG_STATE            int = 0x00000001
-	NBR_FLAG_INACTIVITY_TIMER int = 0x00000002
-	NBR_FLAF_IS_MASTER        int = 0x00000004
-	NBR_FLAG_SEQ_NUMBER       int = 0x00000008
-	NBR_FLAG_NBR_ID           int = 0x00000010
-	NBR_FLAG_IP               int = 0x00000012
-	NBR_FLAG_PRIORITY         int = 0x00000014
-	NBR_FLAF_IP               int = 0x00000018
-	NBR_OPTIONS               int = 0x00000020
-	NBR_DR                    int = 0x00000022
-	NBR_BDR                   int = 0x00000024
-	NBR_DEAD_DURATION         int = 0x00000026
-)
 
 func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags int32) {
 	valid, nbrE := server.NbrConfMap[nbrKey]
@@ -170,7 +71,9 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 	if flags&NBR_FLAG_PRIORITY == NBR_FLAG_PRIORITY {
 		nbrE.NbrPriority = conf.NbrPriority
 	}
-
+	if flags&NBR_FLAG_OPTION == NBR_FLAG_STATE {
+		nbrE.NbrOption = conf.NbrOption
+	}
 	server.NbrConfMap[nbrKey] = nbrE
 }
 

@@ -37,7 +37,8 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 			server.logger.Debug("Nbr : Received hello event. ", nbrData.NbrIpAddr)
 			server.ProcessNbrHello(nbrData)
 			//DBD received
-
+		case dbdData <- server.NbrConfData.neighborDBDEventCh:
+			server.logger.Debug("Nbr: Received dbd event ", dbdData)
 			//LSAReq received
 
 			//LSAAck received
@@ -55,16 +56,43 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 
 /**** handle neighbor states ***/
 func (server *OSPFV2Server) ProcessNbrHello(nbrData NbrHelloEventMsg) {
-	nbrKey := NbrConfKey{
-		NbrIdentity:         nbrData.NbrIpAddr,
-		NbrAddressLessIfIdx: 0, // Add the index
-	}
+	/*
+		nbrKey := NbrConfKey{
+			NbrIdentity:         nbrData.NbrIpAddr,
+			NbrAddressLessIfIdx: 0,
+		} */
+	nbrKey := nbrData.NbrKey
 	nbrConf, valid := server.NbrConfMap[nbrKey]
 	if !valid {
 		server.logger.Debug("Nbr: add new neighbor ", nbrData.NbrIpAddr)
 		// add new neighbor
 		server.CreateNewNbr(nbrData)
 	}
+	flags := NBR_FLAG_INACTIVITY_TIMER
+	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
+}
+
+func (server *OSPFV2Server) ProcessNbrDbdMsg(dbdMsg NbrDbdMsg) {
+	nbrConf, exists := server.NbrConfMap[dbdMsg.nbrConfKey]
+	if !exist {
+		server.logger.Err("Nbr : ProcessNbrDbdMsg Nbrkey does not exist ", dbdMsg.nbrConfKey)
+		return
+	}
+	switch nbrConf.State {
+	case NbrInit, NbrExchangeStart:
+		server.ProcessNbrExstart(dbdMsg.nbrConfKey, dbdMsg.nbrDbdData)
+	case NbrExchange:
+		server.ProcessNbrExchange(dbdMsg.nbrConfKey, dbdMsg.nbrDbdData)
+	case NbrLoading:
+		sever.ProcessNbrLoading(dbdMsg.nbrConfKey, dbdMsg.nbrDbdData)
+	case NbrFuLL:
+		server.logger.Err("Nbr: Received dbd packet when nbr is full . Restart FSM", dbdMsg.nbrConfKey)
+	case NbrDown:
+		server.logger.Warning("Nbr: Nbr is down state. Dont process dbd ", dbdMsg.nbrConfKey)
+	case NbrTwoWay:
+		server.logger.Warning("Nbr: Nbr is two way state.Dont process dbd ", dbdMsg.nbrConfKey)
+	}
+
 }
 
 func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
@@ -90,6 +118,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	newList := []NbrConfKey{}
 	newList = append(newList, nbrKey)
 	IntfToNbrMap[nbrData.IntfConfKey] = newList
+	nbrConf.NbrLastDbd = make(map[nbrKey]NbrDbdData)
 	server.neighborDeadTimerEvent(nbrKey)
 }
 
@@ -102,8 +131,9 @@ func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrCon
 		dbd_mdata.dd_sequence_number = uint32(time.Now().Nanosecond())
 		// send dbd packets
 		ticker = time.NewTicker(time.Second * 10)
-		server.ConstructAndSendDbdPacket(nbrKey, true, true, true,
+		server.ConstructDbdMdata(nbrKey, true, true, true,
 			INTF_OPTIONS, nbrConf.DDSequenceNum, false, false, intfConf.IfMtu)
+		server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 		flags = NBR_FLAG_STATE | NBR_FLAG_SEQ_NUMBER | NBR_FLAF_IS_MASTER | NBR_FLAG_INACTIVITY_TIMER
 		server.logger.Debug("Nbr: Exstart seq ", dbd_mdata.dd_sequence_number)
 		//Initialise all lists
@@ -121,7 +151,7 @@ func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrCon
 
 }
 
-func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, dbdMsg NbrDbdData) {
+func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrDbPkt NbrDbdData) {
 	valid, nbrConf := server.NbrConfMap[nbrKey]
 	if !valid {
 		server.logger.Err("Nbr : Extart Neighbor does not exist ", nbrKey)
@@ -159,7 +189,6 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, dbdMsg NbrDbdDa
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
 			nbrConf.State = config.NbrExchange
-			nbrConf.nbrEvent = config.NbrNegotiationDone
 		}
 		if nbrDbPkt.msbit && nbrConf.NbrRtrId > binary.BigEndian.Uint32(server.globalData.RouterId) {
 			server.logger.Debug(fmt.Sprintln("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIP))
@@ -167,7 +196,6 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, dbdMsg NbrDbdDa
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
 			nbrConf.State = config.NbrExchange
-			nbrConf.nbrEvent = config.NbrNegotiationDone
 		}
 
 		/*   The initialize(I) and master(MS) bits are off, the
@@ -185,7 +213,6 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, dbdMsg NbrDbdDa
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
 			nbrConf.State = config.NbrExchange
-			nbrConf.nbrEvent = config.NbrNegotiationDone
 		}
 
 	} else {
@@ -198,12 +225,14 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, dbdMsg NbrDbdDa
 		server.generateDbSummaryList(nbrKey)
 
 		if nbrConf.isMaster != true { // i am the master
-			dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, false, true, true,
-				nbrDbPkt.options, nbrDbPkt.dd_sequence_number+1, true, false, ifMtu)
+			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, true, true,
+				nbrDbPkt.options, nbrDbPkt.dd_sequence_number+1, true, false)
+			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 		} else {
 			// send acknowledgement DBD with I and MS bit false , mbit = 1
-			dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, false, true, false,
-				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false, ifMtu)
+			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, true, false,
+				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false)
+			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 			dbd_mdata.dd_sequence_number++
 		}
 
@@ -217,19 +246,26 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, dbdMsg NbrDbdDa
 		if nbrConf.isMaster &&
 			nbrConf.NbrRtrId > binary.BigEndian.Uint32(server.globalData.RouterId) {
 			dbd_mdata.dd_sequence_number = nbrDbPkt.dd_sequence_number
-			dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, true, true, true,
-				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false, ifMtu)
+			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, true, true, true,
+				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false)
+			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 			dbd_mdata.dd_sequence_number++
 		} else {
 			//start with new seq number
 			dbd_mdata.dd_sequence_number = uint32(time.Now().Nanosecond()) //nbrConf.DDSequenceNum
-			dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, true, true, true,
-				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false, ifMtu)
+			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, true, true, true,
+				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false)
+			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 		}
 	}
+	nbrConf.dd_sequence_number = nbrDbPkt.dd_sequence_number
+	nbrConf.options = nbrDbPkt.options
+	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTIONS | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_IS_MASTER
+	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
+
 }
 
-func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, dbdMsg NbrDbdData) {
+func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, nbrDbPkt NbrDbdData) {
 	var last_exachange bool
 	valid, nbrConf := server.NbrConfMap[nbrKey]
 	if !valid {
@@ -245,10 +281,8 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, dbdMsg NbrDbdData
 
 		nbrState = NbrExchangeStart
 		nbrConf.State = NbrExchangeStart
-		server.ProcessNbrExstart(nbrKey, nbrConf, dbdMsg)
+		server.ProcessNbrExstart(nbrKey, nbrDbPkt)
 
-		//invalidate all lists.
-		newDbdMsg(nbrKey, OspfNeighborLastDbd[nbrKey])
 		return
 	} else { // process exchange state
 		/* 2) Add lsa_headers to db packet from db_summary list */
@@ -263,9 +297,10 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, dbdMsg NbrDbdData
 				(nbrConf.nbrEvent != config.NbrExchangeDone ||
 					nbrDbPkt.mbit) {
 				server.logger.Debug(fmt.Sprintln("DBD: (master/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIP))
-				dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, false, false, true,
+				dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, false, true,
 					nbrDbPkt.options, nbrDbPkt.dd_sequence_number+1, true, false, intfConf.IfMtu)
-				OspfNeighborLastDbd[nbrKey] = dbd_mdata
+				server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
+				NbrLastDbd[nbrKey] = dbd_mdata
 			}
 
 			// Genrate request list
@@ -279,9 +314,10 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, dbdMsg NbrDbdData
 			if nbrDbPkt.dd_sequence_number == nbrConf.DDSequenceNum {
 				server.logger.Debug(fmt.Sprintln("DBD: (slave/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIP))
 				server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
-				dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, false, nbrDbPkt.mbit, false,
+				dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, nbrDbPkt.mbit, false,
 					nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false, intfConf.IfMtu)
-				OspfNeighborLastDbd[nbrKey] = dbd_mdata
+				server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
+				NbrLastDbd[nbrKey] = dbd_mdata
 				dbd_mdata.dd_sequence_number++
 			} else {
 				server.logger.Debug(fmt.Sprintln("DBD: (slave/exchange) Duplicated dbd.  . dbd_seq , nbr_seq_num ",
@@ -291,11 +327,9 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, dbdMsg NbrDbdData
 					last_exchange = true
 				}
 				// send old ACK
-				data := newDbdMsg(nbrKey, OspfNeighborLastDbd[nbrKey])
-				server.ospfNbrDBDSendCh <- data
-
-				dbd_mdata = OspfNeighborLastDbd[nbrKey]
-
+				data := newDbdMsg(nbrKey, NbrLastDbd[nbrKey])
+				dbd_mdata = NbrLastDbd[nbrKey]
+				server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 			}
 		}
 		if !nbrDbPkt.mbit && last_exchange {
@@ -304,10 +338,13 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, dbdMsg NbrDbdData
 			server.logger.Debug(fmt.Sprintln("DBD: Loading , nbr ", nbrKey.NbrIP))
 		}
 	}
+	nbrConf.dd_sequence_number = nbrDbPkt.dd_sequence_number
+	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTIONS | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE
+	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
 
 }
 
-func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConf, dbdMsg NbrDbdData) {
+func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConf, nbrDbPkt NbrDbdData) {
 	var seq_num uint32
 	server.logger.Debug(fmt.Sprintln("DBD: Loading . Nbr ", nbrKey.NbrIP))
 	isDiscard := server.exchangePacketDiscardCheck(nbrConf, nbrDbPkt)
@@ -320,8 +357,9 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConf, dbdMsg NbrDbdData)
 
 		nbrConf.State = NbrExchangeStart
 		nbrConf.isMaster = false
-		dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, true, true, true,
+		dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, true, true, true,
 			nbrDbPkt.options, nbrConf.DDSequenceNum+1, false, false, intfConf.IfMtu)
+		server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 		seq_num = dbd_mdata.dd_sequence_number
 	} else if !isDuplicate {
 		/*
@@ -329,18 +367,22 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConf, dbdMsg NbrDbdData)
 		       master - discard
 		*/
 		if nbrConf.isMaster {
-			dbd_mdata, _ := server.ConstructAndSendDbdPacket(nbrKey, false, nbrDbPkt.mbit, false,
+			dbd_mdata, _ := server.ConstructDbdMdata(nbrKey, false, nbrDbPkt.mbit, false,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false, intfConf.IfMtu)
+			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 			seq_num = dbd_mdata.dd_sequence_number + 1
 		}
-		seq_num = OspfNeighborLastDbd[nbrKey].dd_sequence_number
+		seq_num = NbrLastDbd[nbrKey].dd_sequence_number
 		nbrConf.State = NbrLoading
 	} else {
-		seq_num = OspfNeighborLastDbd[nbrKey].dd_sequence_number
+		seq_num = NbrLastDbd[nbrKey].dd_sequence_number
 		nbrConf.State = NbrLoading
 	}
-
+	nbrConf.dd_sequence_number = nbrDbPkt.dd_sequence_number
+	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTIONS | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE
+	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
 }
+
 func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	nbrConf, valid := server.NbrConfMap[nbrKey]
 	if !valid {
