@@ -111,7 +111,7 @@ func (h *ConfigHandler) UpdateVrrpV4Intf(origconfig *vrrpd.VrrpV4Intf, newconfig
 	}
 	if newconfig.Version == common.VERSION2_STR {
 		v4Cfg.Version = common.VERSION2
-	} else if newconfig.AdminState == common.VERSION3_STR {
+	} else if newconfig.Version == common.VERSION3_STR {
 		v4Cfg.Version = common.VERSION3
 	}
 	debug.Logger.Info("Push update cfg:", *v4Cfg, "to api layer")

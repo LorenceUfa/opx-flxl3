@@ -123,7 +123,7 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
 	intf, exists := svr.Intf[key]
 	if !exists {
-		return false, errors.New(fmt.Sprintln("Vrrp Interface doesn't exists for config:", cfg,
+		return false, errors.New(fmt.Sprintln("Vrrp Interface doesn't exists for key:", key, "config:", cfg,
 			"please do create before updating entry"))
 	}
 	if intf.Config.VRID != cfg.VRID {
@@ -280,6 +280,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 		// during create always call start fsm
 		intf.StartFsm()
 	}
+	debug.Logger.Debug("storing interface at location:", key)
 	svr.Intf[key] = intf
 	ipIntf.SetVrrpIntfKey(key)
 	debug.Logger.Info("Fsm is initialized for the interface, now calling create virtual interface")
