@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/garyburd/redigo/redis"
 	"l3/rib/test/testthrift"
 	"l3/rib/testutils"
 	"os"
@@ -18,6 +19,12 @@ func main() {
 
 	routeThriftTest.Createv4RouteList()
 	routeThriftTest.Createv6RouteList()
+	conn, err := redis.Dial("tcp", ":6379")
+	if err != nil {
+		fmt.Println("Failed to dial out to Redis server")
+		return
+	}
+	defer conn.Close()
 
 	route_ops := os.Args[1:]
 	fmt.Println("op:", route_ops)
@@ -133,6 +140,15 @@ func main() {
 		case "RouteCount":
 			fmt.Println("RouteCount")
 			routeThriftTest.GetTotalRouteCount(ribdClient)
+		case "GetV4RoutesFromDB":
+			fmt.Println("GetV4RoutesFromDB")
+			if (i + 2) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main GetV4RoutesFromDB <startIndex> <count>")
+				break
+			}
+			start, _ := strconv.Atoi(route_ops[1])
+			count, _ := strconv.Atoi(route_ops[2])
+			routeThriftTest.GetBulkV4RoutesFromDb(ribdClient, int64(start), int64(count), conn)
 		case "LoopTest":
 			fmt.Println("LoopTest")
 			routeThriftTest.LoopTest(ribdClient)
