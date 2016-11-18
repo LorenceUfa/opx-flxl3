@@ -78,14 +78,6 @@ func newospfLSAHeader() *ospfLSAHeader {
 	return &ospfLSAHeader{}
 }
 
-func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) NbrDbdMsg {
-	dbdNbrMsg := nbrDbdData{
-		nbrConfKey: key,
-		nbrDbdData: dbd_data,
-	}
-	return dbdNbrMsg
-}
-
 func DecodeDatabaseDescriptionData(data []byte, dbd_data *NbrDbdData, pktlen uint16) {
 	dbd_data.interface_mtu = binary.BigEndian.Uint16(data[0:2])
 	dbd_data.options = data[2]
@@ -239,7 +231,7 @@ func encodeDatabaseDescriptionData(dd_data NbrDbdData) []byte {
 	return pkt
 }
 
-func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf OspfNeighborEntry, dbdData NbrDbdData) {
+func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdData) {
 	intfKey := nbrConf.IntfConfKey
 	ent, exist := server.IntfConfMap[intfKey]
 	if !exist {
@@ -249,13 +241,13 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf OspfNeighborEntry, dbdDa
 	dstMAC := ent.IfMacAddr
 
 	ospfHdr := OSPFHeader{
-		ver:      OSPF_VERSION_2,
-		pktType:  uint8(DBDescriptionType),
-		pktlen:   0,
-		routerId: server.ospfGlobalConf.RouterId,
-		areaId:   ent.IfAreaId,
-		chksum:   0,
-		authType: ent.IfAuthType,
+		Ver:      OSPF_VERSION_2,
+		PktType:  uint8(DBDescriptionType),
+		Pktlen:   0,
+		RouterId: server.ospfGlobalConf.RouterId,
+		AreaId:   ent.IfAreaId,
+		Chksum:   0,
+		AuthType: ent.IfAuthType,
 	}
 
 	ospfPktlen := OSPF_HEADER_SIZE
@@ -324,7 +316,7 @@ func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetad
 	ospfdbd_data := NewOspfDatabaseDescriptionData()
 	ospfdbd_data.lsa_headers = []ospfLSAHeader{}
 	//routerId := convertIPv4ToUint32(ospfHdrMd.routerId)
-	pktlen := ospfHdrMd.pktlen
+	pktlen := ospfHdrMd.Pktlen
 
 	if pktlen < OSPF_DBD_MIN_SIZE+OSPF_HEADER_SIZE {
 		server.logger.Warning(fmt.Sprintln("DBD WARNING: Packet < min DBD length. pktlen ", pktlen,
@@ -359,10 +351,10 @@ func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 	nbrConf, exists := server.NbrConfMap[nbrKey]
 	if !exists {
 		server.logger.Err(fmt.Sprintln("DBD: Failed to send initial dbd packet as nbr doesnt exist. nbr",
-			nbrKey.IPAddr))
+			nbrKey.NbrIdentity))
 		return dbd_mdata, last_exchange
 	}
-	intfConf, _ := server.IntfConfMap[nbrKey.IntfConfKey]
+	intfConf, _ := server.IntfConfMap[nbrConf.IntfKey]
 	dbd_mdata.ibit = ibit
 	dbd_mdata.mbit = mbit
 	dbd_mdata.msbit = msbit
@@ -408,7 +400,7 @@ func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 	This API detects how many LSA headers can be added in
 	the DB packet
 */
-func (server *OSPFV2Server) calculateDBLsaAttach(nbrKey NbrConfKey, nbrConf OspfNeighborEntry) (last_exchange bool, lsa_attach uint8) {
+func (server *OSPFV2Server) calculateDBLsaAttach(nbrKey NbrConfKey, nbrConf NbrConf) (last_exchange bool, lsa_attach uint8) {
 	last_exchange = true
 	lsa_attach = 0
 

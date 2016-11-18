@@ -57,8 +57,8 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 	if flags&NBR_FLAG_STATE == NBR_FLAG_STATE {
 		nbrE.State = conf.State
 	}
-	if flags&NBR_FLAG_INACTIVITY_TIMER == NBR_FLAG_INACTIVITY_TIMER {
-		nbrE.InactivityTimer = time.Now()
+	if flags&NBR_FLAG_DEAD_TIMER == NBR_FLAG_DEAD_TIMER {
+		nbrE.NbrDeadTimer = time.Now()
 		server.logger.Debug("Nbr : Nbr inactivity reset ", nbrKey)
 	}
 	if flags&NBR_FLAG_SEQ_NUMBER == NBR_FLAG_SEQ_NUMBER {

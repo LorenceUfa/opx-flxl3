@@ -26,12 +26,12 @@ package server
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"l3/ospf/config"
+	//"github.com/google/gopacket"
+	//"github.com/google/gopacket/layers"
+	//"l3/ospf/config"
 	"math"
-	"net"
-	"time"
+	//"net"
+	//"time"
 )
 
 func (server *OSPFServer) selfGenLsaCheck(key LsaKey) bool {

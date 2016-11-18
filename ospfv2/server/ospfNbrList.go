@@ -24,10 +24,10 @@
 package server
 
 import (
-	"encoding/binary"
+	//"encoding/binary"
 	"fmt"
-	"l3/ospf/config"
-	"time"
+	//"l3/ospf/config"
+	//"time"
 )
 
 func (server *OSPFServer) generateDbSummaryList(nbrConfKey NbrDbdDataKey) {

@@ -131,7 +131,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	newList = append(newList, nbrKey)
 	IntfToNbrMap[nbrData.IntfConfKey] = newList
 	nbrConf.NbrLastDbd = make(map[nbrKey]NbrDbdData)
-	server.neighborDeadTimerEvent(nbrKey)
+	server.ProcessNbrDead(nbrKey)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrConf) {
