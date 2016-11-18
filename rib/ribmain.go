@@ -34,8 +34,8 @@ import (
 	"l3/rib/rpc"
 	"l3/rib/server"
 	//"os"
-	"runtime"
-	"runtime/pprof"
+	//"runtime"
+	//"runtime/pprof"
 	"utils/dbutils"
 	"utils/keepalive"
 	"utils/logging"
@@ -43,9 +43,9 @@ import (
 
 //var cpuprofile = flag.String("cpuprofile", "cpu.prof", "write cpu profile to file")
 //var cpuprofile = "cpu.prof"
-var memProfFile *os.File
+//var memProfFile *os.File
 
-const MEM_PROFILE_FILENAME = "/opt/flexswitch/params/ribdMem.prof"
+//const MEM_PROFILE_FILENAME = "/opt/flexswitch/params/ribdMem.prof"
 
 func SigHandler(logger *logging.Writer, dbHdl *dbutils.DBUtil, routeServer *server.RIBDServer) {
 	logger.Info("Inside sigHandler....")
@@ -57,11 +57,13 @@ func SigHandler(logger *logging.Writer, dbHdl *dbutils.DBUtil, routeServer *serv
 	switch signal {
 	case syscall.SIGHUP, syscall.SIGUSR1:
 		logger.Info("Received SIGHUP signal")
-		runtime.GC()
-		if err := pprof.WriteHeapProfile(memProfFile); err != nil {
-			fmt.Println("RIBD: could not write memory profile:", err)
-		}
-		memProfFile.Close()
+		/*
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(memProfFile); err != nil {
+				fmt.Println("RIBD: could not write memory profile:", err)
+			}
+			memProfFile.Close()
+		*/
 		routeServer.StopServer()
 		if dbHdl != nil {
 			logger.Info("Closing DB handler")
@@ -85,10 +87,12 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}*/
 	var err error
-	memProfFile, err = os.Create(MEM_PROFILE_FILENAME)
-	if err != nil {
-		fmt.Println("RIBD: could not create memory profile:", err)
-	}
+	/*
+		memProfFile, err = os.Create(MEM_PROFILE_FILENAME)
+		if err != nil {
+			fmt.Println("RIBD: could not create memory profile:", err)
+		}
+	*/
 	paramsDir := flag.String("params", "./params", "Params directory")
 	flag.Parse()
 	fileName := *paramsDir
