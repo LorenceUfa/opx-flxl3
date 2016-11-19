@@ -87,7 +87,7 @@ type Ipv4Info struct {
 
 type Ipv6Info struct {
 	Info          BaseIpInfo
-	LinkScopeAddr string
+	GlobalScopeIp string
 }
 
 type IntfCfg struct {

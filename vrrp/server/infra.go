@@ -333,8 +333,10 @@ func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
 	switch add {
 	case true:
 		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC, -1, 1)
+		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_V6_PROTOCOL_MAC, -1, 1)
 	case false:
 		svr.SwitchPlugin.DisablePacketReception(packet.VRRP_PROTOCOL_MAC, -1, 1)
+		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_V6_PROTOCOL_MAC, -1, 1)
 	}
 }
 
@@ -439,13 +441,15 @@ func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 			}
 		case syscall.AF_INET6:
 			v6, exists := svr.V6[msg.IfIndex]
-			if !exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+			if !exists {
 				v6 = &V6Intf{}
 				v6.Init(msg)
-				svr.V6[msg.IfIndex] = v6
 				svr.V6IntfRefToIfIndex[msg.IntfRef] = msg.IfIndex
 				debug.Logger.Info("Reverse v6 ip intf to ifIndex cached for:", msg.IntfRef, "-------->", msg.IfIndex)
+			} else {
+				v6.updateIp(msg.IpAddr)
 			}
+			svr.V6[msg.IfIndex] = v6
 		}
 	case common.IP_MSG_DELETE:
 		switch msg.IpType {

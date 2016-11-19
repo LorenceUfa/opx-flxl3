@@ -83,8 +83,6 @@ func EncodeHeader(hdr *Header) ([]byte, uint16) {
 			bytes = append(bytes, 0) // padding for version2
 		}
 	}
-	// Create Checksum for the header and store it
-	binary.BigEndian.PutUint16(bytes[6:8], computeChecksum(hdr.Version, bytes))
 	return bytes, uint16(len(bytes))
 }
 
@@ -110,26 +108,27 @@ func CreateHeader(pInfo *PacketInfo) ([]byte, uint16) {
 
 func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 	payload, hdrLen := CreateHeader(pInfo)
-	// Ethernet Layer
-	srcMAC, _ := net.ParseMAC(pInfo.VirutalMac)
-	dstMAC, _ := net.ParseMAC(VRRP_PROTOCOL_MAC)
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv4,
-	}
 	buffer := gopacket.NewSerializeBuffer()
 	options := gopacket.SerializeOptions{
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
+
+	srcMAC, _ := net.ParseMAC(pInfo.VirutalMac)
+
 	sip, _, _ := net.ParseCIDR(pInfo.IpAddr)
 	if sip == nil {
 		sip = net.ParseIP(pInfo.IpAddr)
 	}
-	// IPvX Layer
+
+	eth := &layers.Ethernet{
+		SrcMAC: srcMAC,
+	}
+
 	switch pInfo.IpType {
 	case syscall.AF_INET:
+		eth.DstMAC, _ = net.ParseMAC(VRRP_PROTOCOL_MAC)
+		eth.EthernetType = layers.EthernetTypeIPv4
 		dip := net.ParseIP(VRRP_V4_GROUP_IP)
 		ipv4 := &layers.IPv4{
 			Version:  VRRP_IPV4_VERSION,
@@ -140,9 +139,13 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 			SrcIP:    sip,
 			DstIP:    dip,
 		}
+		// Create Checksum for the header and store it
+		binary.BigEndian.PutUint16(payload[6:8], computeChecksum(payload))
 		gopacket.SerializeLayers(buffer, options, eth, ipv4, gopacket.Payload(payload))
 
 	case syscall.AF_INET6:
+		eth.DstMAC, _ = net.ParseMAC(VRRP_V6_PROTOCOL_MAC)
+		eth.EthernetType = layers.EthernetTypeIPv6
 		dip := net.ParseIP(VRRP_V6_GROUP_IP)
 		ipv6 := &layers.IPv6{
 			Version:    VRRP_IPV6_VERSION,
@@ -152,6 +155,8 @@ func (p *PacketInfo) Encode(pInfo *PacketInfo) []byte {
 			SrcIP:      sip,
 			DstIP:      dip,
 		}
+		// Create Checksum for the header and store it
+		binary.BigEndian.PutUint16(payload[6:8], computeV6Checksum(ipv6, payload))
 		gopacket.SerializeLayers(buffer, options, eth, ipv6, gopacket.Payload(payload))
 	}
 

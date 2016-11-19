@@ -24,8 +24,6 @@ package packet
 
 import (
 	"encoding/binary"
-	"errors"
-	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"l3/vrrp/common"
@@ -57,26 +55,6 @@ import (
 	|                                                               |
 	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
-
-func (p *PacketInfo) ValidateHeader(hdr *Header, layerContent []byte) error {
-	if hdr.Version != common.VERSION2 && hdr.Version != common.VERSION3 {
-		return errors.New(VRRP_INCORRECT_VERSION)
-	}
-	// Set Checksum to 0 for verifying checksum
-	binary.BigEndian.PutUint16(layerContent[6:8], 0)
-	// Verify checksum
-	chksum := computeChecksum(hdr.Version, layerContent)
-	if chksum != hdr.CheckSum {
-		debug.Logger.Err(chksum, "!=", hdr.CheckSum)
-		return errors.New(fmt.Sprintln(VRRP_CHECKSUM_ERR, "computed CheckSum:", chksum, "received chksum in pkt:", hdr.CheckSum))
-	}
-
-	// Verify VRRP fields
-	if hdr.CountIPAddr == 0 || hdr.MaxAdverInt == 0 || hdr.Type == 0 {
-		return errors.New(VRRP_INCORRECT_FIELDS)
-	}
-	return nil
-}
 
 func DecodeHeader(data []byte) *Header {
 	var hdr Header
@@ -126,7 +104,7 @@ func DecodeHeader(data []byte) *Header {
 	return &hdr
 }
 
-func (p *PacketInfo) Decode(pkt gopacket.Packet, ipType int) *PacketInfo {
+func (p *PacketInfo) Decode(pkt gopacket.Packet) *PacketInfo {
 	// Check dmac address from the inPacket and if it is same discard the pkt
 	ethLayer := pkt.Layer(layers.LayerTypeEthernet)
 	if ethLayer == nil {
@@ -148,8 +126,7 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, ipType int) *PacketInfo {
 		// Get Ip Hdr and start doing basic check according to RFC
 		ipHdr := ipLayer.(*layers.IPv4)
 		if ipHdr.TTL != VRRP_TTL {
-			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL,
-				"dropping packet from", ipHdr.SrcIP.String())
+			debug.Logger.Err("ttl should be 255 instead of", ipHdr.TTL, "dropping packet from", ipHdr.SrcIP.String())
 			return nil
 		}
 		dstIp = ipHdr.DstIP.String()
@@ -174,7 +151,13 @@ func (p *PacketInfo) Decode(pkt gopacket.Packet, ipType int) *PacketInfo {
 	// Get VRRP header from IP Payload
 	hdr := DecodeHeader(ipPayload)
 	// Do Basic Vrrp Header Check
-	if err := p.ValidateHeader(hdr, ipPayload); err != nil {
+	var err error
+	if layers.EthernetTypeIPv4 == eth.EthernetType {
+		err = p.validateHeader(hdr, ipPayload)
+	} else {
+		err = p.validateV6Header(hdr, ipLayer.(*layers.IPv6), ipPayload)
+	}
+	if err != nil {
 		debug.Logger.Err(err.Error(), ". Dropping received packet from", srcIp)
 		return nil
 	}

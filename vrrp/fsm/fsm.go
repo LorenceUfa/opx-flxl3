@@ -311,7 +311,7 @@ func (f *FSM) deInitPktListener() {
 }
 
 func (f *FSM) processRcvdPkt(pktCh *PktChannelInfo) {
-	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.IpType)
+	pktInfo := f.PktInfo.Decode(pktCh.pkt)
 	if pktInfo == nil {
 		debug.Logger.Err("Decoding Vrrp Header Failed")
 		return
