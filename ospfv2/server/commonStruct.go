@@ -155,6 +155,11 @@ type LsdbToFloodLSAMsg struct {
 	LsaData interface{}
 }
 
+type RecvdLsaPkt struct {
+	LsaPkt []byte
+	NbrKey NbrConfKey
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
@@ -175,6 +180,9 @@ type NbrFSMToLsdbChStruct struct {
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
 }
 
+type NbrFSMToFloodChStruct struct {
+	LsaFlood chan RecvdLsaPkt
+}
 type LsdbToFloodChStruct struct {
 	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
 }
@@ -192,6 +200,7 @@ type MessagingChStruct struct {
 	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
 	NbrToIntfFSMChData  NbrToIntfFSMChStruct
 	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
+	NbrFSMToFloodChData NbrFSMToFloodChStruct
 	LsdbToFloodChData   LsdbToFloodChStruct
 	LsdbToSPFChData     LsdbToSPFChStruct
 	SPFToLsdbChData     SPFToLsdbChStruct

@@ -75,22 +75,8 @@ type ospfNeighborLSDBMsg struct {
 	data   []byte
 }
 
-type NbrLsaAckMsg struct {
-	lsa_headers []ospfLSAHeader
-	nbrKey      NbrConfKey
-}
-
-/* ACK message uses the LSA header byte
-  received from LSA UPD packet. Therefore
-new message type to tx message is added
-*/
-type ospfNeighborAckTxMsg struct {
-	lsa_headers_byte []byte
-	nbrKey           NbrConfKey
-}
-
-func newospfNeighborAckTxMsg() *ospfNeighborAckTxMsg {
-	return &ospfNeighborAckTxMsg{}
+func newNbrAckTxMsg() *NbrAckTxMsg {
+	return &NbrAckTxMsg{}
 }
 
 func NewospfNeighborLSDBMsg() *ospfNeighborLSDBMsg {
@@ -164,7 +150,7 @@ func encodeLSAReq(lsa_data []ospfLSAReq) []byte {
 	return lsa_pkt
 }
 
-func (server *OSPFServer) EncodeLSAReqPkt(intfKey IntfConfKey, ent IntfConf,
+func (server *OSPFV2Server) EncodeLSAReqPkt(intfKey IntfConfKey, ent IntfConf,
 	nbrConf NbrConf, lsa_req_pkt []ospfLSAReq, dstMAC net.HardwareAddr) (data []byte) {
 	ospfHdr := OSPFHeader{
 		ver:      OSPF_VERSION_2,
@@ -230,7 +216,7 @@ func (server *OSPFServer) EncodeLSAReqPkt(intfKey IntfConfKey, ent IntfConf,
 
 }
 
-func (server *OSPFServer) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf) (curr_index uint8) {
+func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf) (curr_index uint8) {
 	/* calculate max no of requests that can be added
 	for req packet */
 
@@ -247,19 +233,19 @@ func (server *OSPFServer) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf) 
 	if len(reqlist) < 1 {
 		server.logger.Warning("Nbr : Req list is nill. No request will be made ", nbrId)
 	}
-	req_list_items := uint8(len(reqlist)) - nbrConf.ospfNbrLsaReqIndex
+	req_list_items := uint8(len(reqlist)) - nbrConf.NbrReqListIndex
 	max_req := calculateMaxLsaReq()
 	if max_req > req_list_items {
 		add_items = req_list_items
-		nbrConf.ospfNbrLsaReqIndex = uint8(len(reqlist))
+		nbrConf.NbrReqListIndex = uint8(len(reqlist))
 
 	} else {
 		add_items = uint8(max_req)
-		nbrConf.ospfNbrLsaReqIndex += max_req
+		nbrConf.NbrReqListIndex += max_req
 	}
 	server.logger.Info(fmt.Sprintln("LSAREQ: nbrIndex ",
-		nbrConf.ospfNbrLsaReqIndex, " add_items ", add_items, " req_list len ", len(reqlist)))
-	index := nbrConf.ospfNbrLsaReqIndex
+		nbrConf.NbrReqListIndex, " add_items ", add_items, " req_list len ", len(reqlist)))
+	index := nbrConf.NbrReqListIndex
 	for i = 0; i < add_items; i++ {
 		req.ls_type = uint32(reqlist[i].lsa_headers.ls_type)
 		req.link_state_id = reqlist[i].lsa_headers.link_state_id
@@ -285,7 +271,7 @@ func (server *OSPFServer) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf) 
 		newList = append(newList, reqlist[add_items]...)
 		nbrConf.NbrReqList = newList
 	}
-	server.logger.Info(fmt.Sprintln("LSA request: total requests out, req_list_len, current req_list_index ", add_items, len(msg.lsa_slice), nbrConf.ospfNbrLsaReqIndex))
+	server.logger.Info(fmt.Sprintln("LSA request: total requests out, req_list_len, current req_list_index ", add_items, len(msg.lsa_slice), nbrConf.NbrReqListIndex))
 	server.logger.Info(fmt.Sprintln("LSA request: lsa_req", msg.lsa_slice))
 
 	if len(msg.lsa_slice) != 0 {
@@ -321,7 +307,7 @@ LSA update packet
        |                              ...                              |
 */
 
-func (server *OSPFServer) BuildLsaUpdPkt(intfKey IntfConfKey, ent IntfConf,
+func (server *OSPFV2Server) BuildLsaUpdPkt(intfKey IntfConfKey, ent IntfConf,
 	dstMAC net.HardwareAddr, dstIp net.IP, lsa_pkt_size int, lsaUpdEnc []byte) (data []byte) {
 	ospfHdr := OSPFHeader{
 		ver:      OSPF_VERSION_2,
@@ -387,7 +373,7 @@ func (server *OSPFServer) BuildLsaUpdPkt(intfKey IntfConfKey, ent IntfConf,
 
 }
 
-func (server *OSPFServer) ProcessRxLsaUpdPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
+func (server *OSPFV2Server) ProcessRxLsaUpdPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
 	ipHdrMd *IpHdrMetadata, key IntfConfKey) error {
 
 	routerId := convertIPInByteToString(ospfHdrMd.routerId)
@@ -421,8 +407,8 @@ func (server *OSPFServer) ProcessRxLsaUpdPkt(data []byte, ospfHdrMd *OspfHdrMeta
 
 */
 
-func (server *OSPFServer) DecodeLSAUpd(msg NbrLsaUpdMsg) {
-	nbr, exists := server.NeighborConfigMap[msg.nbrKey]
+func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
+	nbr, exists := server.NbrConfMap[msg.nbrKey]
 	op := LsdbNoAction
 	discard := true
 	if !exists {
@@ -461,14 +447,17 @@ func (server *OSPFServer) DecodeLSAUpd(msg NbrLsaUpdMsg) {
 			lsa_max_age = true
 		}
 		/* send message to lsdb */
-		lsdb_msg := NewLsdbUpdateMsg()
-		lsdb_msg.AreaId = msg.areaId
-		lsdb_msg.Data = make([]byte, end_index-i)
-		copy(lsdb_msg.Data, msg.data[index:end_index])
+		lsdb_msg := RecvdLsaMsg{}
+		lsdbKey := LsdbKey{
+			AreaId: msg.areaId,
+		}
+		lsdb_msg.LsdbKey = lsdbKey
+		lsdb_msg.LsaData = make([]byte, end_index-i)
+		copy(lsdb_msg.LsaData, msg.data[index:end_index])
 		valid := validateChecksum(lsdb_msg.Data)
 		if !valid {
 			server.logger.Info(fmt.Sprintln("LSAUPD: Invalid checksum. Nbr",
-				server.NeighborConfigMap[msg.nbrKey]))
+				server.NbrConfMap[msg.nbrKey]))
 			//continue
 		}
 		lsa_key := NewLsaKey()
@@ -515,25 +504,22 @@ func (server *OSPFServer) DecodeLSAUpd(msg NbrLsaUpdMsg) {
 		if !discard && !self_gen && op == FloodLsa {
 			server.logger.Info(fmt.Sprintln("LSAUPD: add to lsdb lsid ", lsid, " router_id ", router_id, " lstype ", lsa_header.LSType))
 			lsdb_msg.MsgType = LsdbAdd
-			server.LsdbUpdateCh <- *lsdb_msg
+			lsdb_msg.LsaKey = *lsa_key
+			server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh <- lsdb_msg
 
 		}
 
-		flood_pkt := ospfFloodMsg{
-			nbrKey: msg.nbrKey,
-			areaId: msg.areaId,
-			lsType: lsa_header.LSType,
-			linkid: lsa_header.LinkId,
-			lsOp:   lsop,
+		flood_pkt := RecvdLsaPkt{
+			NbrKey: msg.nbrKey,
 		}
-		flood_pkt.pkt = make([]byte, end_index-index)
-		copy(flood_pkt.pkt, lsdb_msg.Data)
+		flood_pkt.LsaPkt = make([]byte, end_index-index)
+		copy(flood_pkt.LsaPkt, lsdb_msg.LsaData)
 		if lsop != LSASUMMARYFLOOD && !self_gen { // for ABR summary lsa is flooded after LSDB/SPF changes are done.
-			server.ospfNbrLsaUpdSendCh <- flood_pkt
+			server.MessagingChData.NbrFSMToFloodChData.LsaFlood <- flood_pkt
 		}
 
 		/* send ACK */
-		lsaAckMsg := newospfNeighborAckTxMsg()
+		lsaAckMsg := newNbrAckTxMsg()
 		lsaAckMsg.lsa_headers_byte = append(lsaAckMsg.lsa_headers_byte, lsa_header_byte...)
 		lsaAckMsg.nbrKey = msg.nbrKey
 		server.logger.Info(fmt.Sprintln("ACK TX: nbr ", msg.nbrKey, " ack ", lsaAckMsg.lsa_headers_byte))
@@ -545,7 +531,7 @@ func (server *OSPFServer) DecodeLSAUpd(msg NbrLsaUpdMsg) {
 	}
 }
 
-func (server *OSPFServer) selfGenLsaCheck(key LsaKey) bool {
+func (server *OSPFV2Server) selfGenLsaCheck(key LsaKey) bool {
 	rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
 	if key.AdvRouter == rtr_id {
 		return true
@@ -592,8 +578,8 @@ func validateChecksum(data []byte) bool {
       |                              ...                              |
 */
 
-//func (server *OSPFServer) encodeLSAAck
-func (server *OSPFServer) BuildLSAAckPkt(intfKey IntfConfKey, ent IntfConf,
+//func (server *OSPFV2Server) encodeLSAAck
+func (server *OSPFV2Server) BuildLSAAckPkt(intfKey IntfConfKey, ent IntfConf,
 	nbrConf NbrConf, dstMAC net.HardwareAddr, dstIp net.IP, lsa_pkt_size int, lsaAckEnc []byte) (data []byte) {
 	ospfHdr := OSPFHeader{
 		ver:      OSPF_VERSION_2,
@@ -655,7 +641,7 @@ func (server *OSPFServer) BuildLSAAckPkt(intfKey IntfConfKey, ent IntfConf,
 	return lsaAck
 }
 
-func (server *OSPFServer) ProcessRxLSAAckPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
+func (server *OSPFV2Server) ProcessRxLSAAckPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
 	ipHdrMd *IpHdrMetadata, key IntfConfKey) error {
 
 	link_ack := newNbrLsaAckMsg()
@@ -689,9 +675,9 @@ func (server *OSPFServer) ProcessRxLSAAckPkt(data []byte, ospfHdrMd *OspfHdrMeta
 	return nil
 }
 
-func (server *OSPFServer) DecodeLSAAck(msg NbrLsaAckMsg) {
+func (server *OSPFV2Server) DecodeLSAAck(msg NbrLsaAckMsg) {
 	server.logger.Info(fmt.Sprintln("LSAACK: Received LSA ACK pkt ", msg))
-	nbr, exists := server.NeighborConfigMap[msg.nbrKey]
+	nbr, exists := server.NbrConfMap[msg.nbrKey]
 	if !exists {
 		server.logger.Info(fmt.Sprintln("LSAACK: Nbr doesnt exist", msg.nbrKey))
 		return
@@ -745,7 +731,7 @@ Link state request packet
 /*@fn ProcessRxLSAReqPkt
 Send Lsa req packet meta data to Rx packet thread
 */
-func (server *OSPFServer) ProcessRxLSAReqPkt(data []byte, ospfHdrMd *OspfHdrMetadata, ipHdrMd *IpHdrMetadata, nbrKey NbrConfKey) error {
+func (server *OSPFV2Server) ProcessRxLSAReqPkt(data []byte, ospfHdrMd *OspfHdrMetadata, ipHdrMd *IpHdrMetadata, nbrKey NbrConfKey) error {
 	//server.logger.Info(fmt.Sprintln("LSAREQ: Received lsa req with length ", ospfHdrMd.pktlen))
 	lsa_req := decodeLSAReqPkt(data, ospfHdrMd.pktlen)
 	ipaddr := net.IPv4(ipHdrMd.srcIP[0], ipHdrMd.srcIP[1], ipHdrMd.srcIP[2], ipHdrMd.srcIP[3])
@@ -764,9 +750,9 @@ func (server *OSPFServer) ProcessRxLSAReqPkt(data []byte, ospfHdrMd *OspfHdrMeta
 Process message for lsa req. Unicast LSA to the neighbor if needed.
 */
 
-func (server *OSPFServer) DecodeLSAReq(msg NbrLsaReqMsg) {
+func (server *OSPFV2Server) ProcessLsaReq(msg NbrLsaReqMsg) {
 	server.logger.Info(fmt.Sprintln("LSAREQ: Receieved lsa_req packet for nbr ", msg.nbrKey, " data ", msg.lsa_slice))
-	nbrConf, exists := server.NeighborConfigMap[msg.nbrKey]
+	nbrConf, exists := server.NbrConfMap[msg.nbrKey]
 	if exists {
 		intf := server.IntfConfMap[nbrConf.intfConfKey]
 		for index := range msg.lsa_slice {
@@ -786,9 +772,9 @@ func (server *OSPFServer) DecodeLSAReq(msg NbrLsaReqMsg) {
 	} // end of exists
 }
 
-func (server *OSPFServer) generateLsaUpdUnicast(req ospfLSAReq, nbrKey NbrConfKey, areaid uint32) {
+func (server *OSPFV2Server) generateLsaUpdUnicast(req ospfLSAReq, nbrKey NbrConfKey, areaid uint32) {
 	lsa_key := NewLsaKey()
-	nbrConf := server.NeighborConfigMap[nbrKey]
+	nbrConf := server.NbrConfMap[nbrKey]
 	var lsa_pkt []byte
 	flood := false
 
@@ -855,7 +841,7 @@ func (server *OSPFServer) generateLsaUpdUnicast(req ospfLSAReq, nbrKey NbrConfKe
 	}
 }
 
-func (server *OSPFServer) lsaReqPacketDiscardCheck(nbrConf NbrConf, req ospfLSAReq) bool {
+func (server *OSPFV2Server) lsaReqPacketDiscardCheck(nbrConf NbrConf, req ospfLSAReq) bool {
 	if nbrConf.OspfNbrState < config.NbrExchange {
 		server.logger.Info(fmt.Sprintln("LSAREQ: Discard .. Nbrstate (expected less than exchange)", nbrConf.OspfNbrState))
 		return true
@@ -867,7 +853,7 @@ func (server *OSPFServer) lsaReqPacketDiscardCheck(nbrConf NbrConf, req ospfLSAR
 	return false
 }
 
-func (server *OSPFServer) lsaAckPacketDiscardCheck(nbrConf NbrConf) bool {
+func (server *OSPFV2Server) lsaAckPacketDiscardCheck(nbrConf NbrConf) bool {
 	if nbrConf.OspfNbrState < config.NbrExchange {
 		server.logger.Info(fmt.Sprintln("LSAACK: Discard .. Nbrstate (expected less than exchange)", nbrConf.OspfNbrState))
 		return true
@@ -881,7 +867,7 @@ func (server *OSPFServer) lsaAckPacketDiscardCheck(nbrConf NbrConf) bool {
 
 /*@fn lsaReTxTimerCheck
  */
-func (server *OSPFServer) lsaReTxTimerCheck(nbrKey NbrConfKey) {
+func (server *OSPFV2Server) lsaReTxTimerCheck(nbrKey NbrConfKey) {
 	var lsa_re_tx_check_func func()
 	lsa_re_tx_check_func = func() {
 		server.logger.Info(fmt.Sprintln("LSARETIMER: Check for rx. Nbr ", nbrKey))
@@ -892,31 +878,35 @@ func (server *OSPFServer) lsaReTxTimerCheck(nbrKey NbrConfKey) {
 			server.logger.Info(fmt.Sprintln("LSATIMER: Send the retx packets. "))
 		}
 	}
-	_, exists := server.NeighborConfigMap[nbrKey]
+	_, exists := server.NbrConfMap[nbrKey]
 	if exists {
-		nbrConf := server.NeighborConfigMap[nbrKey]
+		nbrConf := server.NbrConfMap[nbrKey]
 		nbrConf.ospfNeighborLsaRxTimer = time.AfterFunc(RxDBDInterval, lsa_re_tx_check_func)
 		//op := NBRUPD
 		//server.sendNeighborConf(nbrKey, nbrConf, NbrMsgType(op))
 	}
 }
 
-func (server *OSPFServer) processTxLsaAck(lsa_data ospfNeighborAckTxMsg) {
+func (server *OSPFV2Server) processTxLsaAck(lsa_data NbrAckTxMsg) {
 	ack_len := len(lsa_data.lsa_headers_byte)
 	total_ack := ack_len / OSPF_LSA_ACK_SIZE
 	if total_ack < 0 {
 		server.logger.Info(fmt.Sprintln("TX ACK: malformed message. total_ack ", total_ack, " pkt_size ", ack_len))
 		return
 	}
-	nbrConf, exists := server.NeighborConfigMap[lsa_data.nbrKey]
+	nbrConf, exists := server.NbrConfMap[lsa_data.nbrKey]
 	if !exists {
 		server.logger.Warning(fmt.Sprintln("TX ACK: neighbor doesnt exist  to send ack ", lsa_data.nbrKey))
 		return
 	}
-	intf, _ := server.IntfConfMap[nbrConf.intfConfKey]
+	intf, valid := server.IntfConfMap[nbrConf.intfConfKey]
+	if !valid {
+		server.logger.Err("Nbr : Intf does not exist. No ack send", nbrConf.IntfConfKey)
+		return
+	}
 
-	dstMac, _ := ospfNeighborIPToMAC[lsa_data.nbrKey]
-	dstIp := nbrConf.OspfNbrIPAddr
+	dstMac := intf.IfMacAddr
+	dstIp := nbrConf.NbrIP
 	pkt := server.BuildLSAAckPkt(nbrConf.intfConfKey, intf, nbrConf, dstMac, dstIp,
 		ack_len, lsa_data.lsa_headers_byte)
 	// send ack over the pcap.

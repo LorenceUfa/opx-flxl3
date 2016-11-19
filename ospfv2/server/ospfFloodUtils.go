@@ -42,7 +42,7 @@ func (server *OSPFServer) selfGenLsaCheck(key LsaKey) bool {
 	return false
 }
 func (server *OSPFServer) lsaUpdDiscardCheck(nbrConf NbrConf, data []byte) bool {
-	if nbrConf.OspfNbrState < config.NbrExchange {
+	if nbrConf.OspfNbrState < NbrExchange {
 		server.logger.Info(fmt.Sprintln("LSAUPD: Discard .. Nbrstate (expected less than exchange)", nbrConf.OspfNbrState))
 		return true
 	}

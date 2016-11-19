@@ -52,6 +52,7 @@ type NbrConf struct {
 	NbrReqList       []*ospfLSAHeader
 	NbrDBSummaryList []*ospfLSAHeader
 	NbrRetxList      []*ospfLSAHeader
+	NbrReqListIndex  int
 }
 
 const (
@@ -116,6 +117,20 @@ type NbrDbdMsg struct {
 type NbrLsaReqMsg struct {
 	lsa_slice []ospfLSAReq
 	nbrKey    NbrConfKey
+}
+
+type NbrLsaAckMsg struct {
+	lsa_headers []ospfLSAHeader
+	nbrKey      NbrConfKey
+}
+
+/* ACK message uses the LSA header byte
+  received from LSA UPD packet. Therefore
+new message type to tx message is added
+*/
+type NbrAckTxMsg struct {
+	lsa_headers_byte []byte
+	nbrKey           NbrConfKey
 }
 
 //Lsa header

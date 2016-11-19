@@ -72,6 +72,7 @@ type OSPFV2Server struct {
 
 	NbrConfData    NbrStruct
 	LsdbData       LsdbStruct
+	FloodData      FloodStruct
 	SPFData        SPFStruct
 	RoutingTblData RoutingTblStruct
 	SummaryLsDb    map[LsdbKey]SummaryLsaMap
@@ -132,6 +133,7 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
 	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
+	server.MessagingChData.NbrFSMToFloodChData.LsaFlood = make(chan RecvdLsaPkt)
 	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
 	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
 }

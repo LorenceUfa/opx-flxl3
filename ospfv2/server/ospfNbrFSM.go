@@ -47,21 +47,35 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 		case lsaReqData := <-server.NbrConfData.neighborLSAReqEventCh:
 			nbr, exists := server.NbrConfigMap[nbrLSAReqPkt.nbrKey]
 			if exists && nbr.State >= config.NbrExchange {
-				server.DecodeLSAReq(lsaReqData)
+				server.ProcessLsaReq(lsaReqData)
 			}
 
 		case lsaData := <-server.NbrConfData.neighborLSAUpdEventCh:
 			nbr, exists := server.NbrConfigMap[nbrLSAUpdPkt.nbrKey]
 
 			if exists && nbr.State >= config.NbrExchange {
-				server.DecodeLSAUpd(lsaData)
+				server.ProcessLsaUpd(lsaData)
 			}
 
 			//Intf state change
-
-			//Nbr dead
+			/*
+				case
+				   nbrList , exist := server.NbrCOnfData.IntfToNbrMap[intfKey]
+				   if !exist {
+						server.logger.Info("Nbr : Intf down . No nbrs on this interface ", intfKey)
+						break
+					}
+					for _, nbr := range nbrList {
+						server.ProcessNbrDead(nbr)
+					}
+			*/
 
 			//NbrFsmCtrlCh
+			/*
+				case
+				server.logger.Debug("Nbr : FSM exist ")
+				return
+			*/
 		}
 	}
 }
@@ -346,7 +360,7 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConf, nbrDbPkt NbrDbdDa
 		}
 		if !nbrDbPkt.mbit && last_exchange {
 			nbrState = NbrLoading
-			nbrConf.ospfNbrLsaReqIndex = server.BuildAndSendLSAReq(nbrKey, nbrConf)
+			nbrConf.NbrReqListIndex = server.BuildAndSendLSAReq(nbrKey, nbrConf)
 			server.logger.Debug(fmt.Sprintln("DBD: Loading , nbr ", nbrKey.NbrIP))
 		}
 	}
@@ -408,7 +422,7 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	server.logger.Debug("Nbr: Nbr full event ", nbrKey)
 }
 
-func (server *OSPFV2Server) ProcessNbrDead(nbrKey *NbrConfKey) {
+func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 	var nbr_entry_dead_func func()
 	nbrConf, _ := server.NbrConfMap[nbrKey]
 	nbr_entry_dead_func = func() {
@@ -420,12 +434,23 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey *NbrConfKey) {
 
 		_, exists := server.NbrConfMap[nbrConfKey]
 		if exists {
-			nbrConf := server.NbrConfMap[nbrConfKey]
-			nbrConf.State = NbrDown
-			nbrConf.InactivityTimer = time.Now()
-			flags := NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE
-			server.ProcessNbrUpdate(nbrConf, flags)
-			//should I delete or update neighbor here.
+			//update interface to neighbor map
+			nbrList, valid := server.NbrConfData.IntfToNbrMap[nbrConfKey.IntfKey]
+			if valid {
+				for i, nbrKey := range nbrList {
+					if nbrKey.NbrIdentity == nbrConfKey.NbrIdentity {
+						nbrList = append(nbrList[:i], nbrList[i+1:]...)
+						break
+					}
+				}
+				server.NbrConfData.IntfToNbrMap[nbrConfKey.IntfKey] = nbrList
+				server.logger.Debug("Nbr : Int to nbr list updated ", nbrList)
+			}
+			//send signal for network LSA generation
+
+			//delete neighbor from map
+			delete(server.NbrConfMap, nbrConfKey)
+			server.logger.Info("Nbr: Deleted ", nbrConfKey)
 		}
 	} // end of afterFunc callback
 	_, exists := server.NbrConfMap[nbrConfKey]
