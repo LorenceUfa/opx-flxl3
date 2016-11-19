@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"ribd"
 	"ribdInt"
+	"sync"
 )
 
 var route ribd.IPv4Route
@@ -35,6 +36,7 @@ var v6route ribd.IPv6Route
 var ipv4RouteList []ribd.IPv4Route
 var ipv6RouteList []ribd.IPv6Route
 var reachabilityTestList []string
+var Wg sync.WaitGroup
 
 func GetTotalRouteCount(client *ribd.RIBDServicesClient) {
 	fmt.Println("GetTotalRouteCount")

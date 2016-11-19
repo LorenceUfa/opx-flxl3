@@ -184,6 +184,11 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) error {
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
+	lsdbSlice := LsdbSliceStruct{
+		LsdbKey: lsdbKey,
+		LsaKey:  lsaKey,
+	}
+	server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	return nil
 }
 
@@ -246,6 +251,11 @@ func (server *OSPFV2Server) processRecvdRouterLSA(msg RecvdLsaMsg) error {
 			return nil
 		}
 		lsdbEnt.RouterLsaMap[msg.LsaKey] = lsa
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: msg.LsdbKey,
+			LsaKey:  msg.LsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		delete(lsdbEnt.RouterLsaMap, msg.LsaKey)
 	}

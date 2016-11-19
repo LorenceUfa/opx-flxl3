@@ -47,6 +47,8 @@ const (
 	GET_BULK_OSPFV2_INTF_STATE
 	GET_OSPFV2_NBR_STATE
 	GET_BULK_OSPFV2_NBR_STATE
+	GET_OSPFV2_LSDB_STATE
+	GET_BULK_OSPFV2_LSDB_STATE
 )
 
 type ServerRequest struct {
@@ -171,5 +173,22 @@ type GetOspfv2NbrStateOutArgs struct {
 
 type GetBulkOspfv2NbrStateOutArgs struct {
 	BulkInfo *objects.Ospfv2NbrStateGetInfo
+	Err      error
+}
+
+type GetOspfv2LsdbStateInArgs struct {
+	LSType   uint8
+	LSId     uint32
+	AreaId   uint32
+	AdvRtrId uint32
+}
+
+type GetOspfv2LsdbStateOutArgs struct {
+	Obj *objects.Ospfv2LsdbState
+	Err error
+}
+
+type GetBulkOspfv2LsdbStateOutArgs struct {
+	BulkInfo *objects.Ospfv2LsdbStateGetInfo
 	Err      error
 }

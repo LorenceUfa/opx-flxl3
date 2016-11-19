@@ -94,6 +94,11 @@ func (server *OSPFV2Server) processRecvdASExternalLSA(msg RecvdLsaMsg) error {
 			return nil
 		}
 		lsdbEnt.ASExternalLsaMap[msg.LsaKey] = lsa
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: msg.LsdbKey,
+			LsaKey:  msg.LsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		delete(lsdbEnt.ASExternalLsaMap, msg.LsaKey)
 	}
