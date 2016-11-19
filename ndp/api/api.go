@@ -157,3 +157,22 @@ func SendRefreshByNeighborIp(ipAddr string) {
 		NbrIp: ipAddr,
 	}
 }
+
+func SendVirtualIpNotification(IfIndex, ParentIfIndex int32, IpAddr, MacAddr, IfName, msgType string) {
+	ndpApi.server.VirtualIpCh <- &config.VirtualIpInfo{
+		IfIndex:       IfIndex,
+		ParentIfIndex: ParentIfIndex,
+		IpAddr:        IpAddr,
+		MacAddr:       MacAddr,
+		IfName:        IfName,
+		MsgType:       msgType,
+	}
+}
+
+func SendVirtualIpStateMsg(IfIndex int32, IpAddr, msgType string) {
+	ndpApi.server.VirtualIpCh <- &config.VirtualIpInfo{
+		IfIndex: IfIndex,
+		IpAddr:  IpAddr,
+		MsgType: msgType,
+	}
+}

@@ -729,11 +729,11 @@ func (server *OSPFV2Server) DeleteRoute(rKey RoutingTblEntryKey) {
 		server.logger.Info("No route installed for rKey:", rKey, "hence, not deleting it")
 		return
 	}
-	destNetIp := convertUint32ToDotNotation(rKey.DestId)     //String :1
-	networkMask := convertUint32ToDotNotation(rKey.AddrMask) //String : 2
-	routeType := "OSPF"                                      //3 : String
+	destNetIp := convertUint32ToDotNotation(rKey.DestId)
+	networkMask := convertUint32ToDotNotation(rKey.AddrMask)
+	routeType := "OSPF"
 	for key, _ := range oldEnt.RoutingTblEnt.NextHops {
-		nextHopIp := convertUint32ToDotNotation(key.NextHopIP) //String : 4
+		nextHopIp := convertUint32ToDotNotation(key.NextHopIP)
 		server.logger.Info("Deleting Route: destNetIp:", destNetIp, "networkMask:", networkMask, "nextHopIp:", nextHopIp, "routeType:", routeType)
 		cfg := ribd.IPv4Route{
 			DestinationNw: destNetIp,
@@ -752,19 +752,15 @@ func (server *OSPFV2Server) DeleteRoute(rKey RoutingTblEntryKey) {
 		}
 
 		ret, err := server.ribdComm.ribdClient.ClientHdl.DeleteIPv4Route(&cfg)
-		//destNetIp, networkMask, routeType, nextHopIp)
 		if err != nil {
 			server.logger.Err("Error Deleting Route:", err)
 		}
 		server.logger.Info("Return Value for RIB DeleteV4Route call: ", ret)
-		/*
-		   err = server.DelIPv4RoutesState(rKey)
-		   if err != nil {
-		           server.logger.Info(fmt.Sprintln("DB: Failed to delete route from db. route , err ", rKey, err))
-		   }
-		*/
-
 	}
+	msg := RouteDelMsg{
+		RTblKey: rKey,
+	}
+	server.SendRouteDelMsgToDBClnt(msg)
 }
 
 func (server *OSPFV2Server) InstallRoute(rKey RoutingTblEntryKey) {
@@ -805,20 +801,12 @@ func (server *OSPFV2Server) InstallRoute(rKey RoutingTblEntryKey) {
 			server.logger.Err("Error Installing Route:", err, ret)
 			continue
 		}
-		/*
-		   server.logger.Info("Return Value for RIB CreateV4Route call: ", ret)
-		   msg := DbRouteMsg{
-		           entry: rKey,
-		           op:    true,
-		   }
-		   server.DbRouteOp <- msg
-
-		   if err != nil {
-		           server.logger.Info(fmt.Sprintln("DB: Failed to add route to db. route , err ", rKey, err))
-		   }
-		*/
-
 	}
+	msg := RouteAddMsg{
+		RTblKey:   rKey,
+		RTblEntry: newEnt,
+	}
+	server.SendRouteAddMsgToDBClnt(msg)
 }
 
 func (server *OSPFV2Server) ConsolidatingRoutingTbl() {
@@ -943,5 +931,9 @@ func (server *OSPFV2Server) FlushRoutingTbl() {
 			   }
 			*/
 		}
+		msg := RouteDelMsg{
+			RTblKey: rKey,
+		}
+		server.SendRouteDelMsgToDBClnt(msg)
 	}
 }

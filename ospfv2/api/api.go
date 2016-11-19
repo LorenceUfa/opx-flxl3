@@ -264,15 +264,39 @@ func GetBulkOspfv2IntfState(fromIdx, count int) (*objects.Ospfv2IntfStateGetInfo
 	}
 }
 
-/*
 func GetOspfv2LsdbState(lsType uint8, lsId, areaId, advRtrId uint32) (*objects.Ospfv2LsdbState, error) {
-	return nil, nil
+	svr.ReqChan <- &server.ServerRequest{
+		Op: server.GET_OSPFV2_LSDB_STATE,
+		Data: interface{}(&server.GetOspfv2LsdbStateInArgs{
+			LSType:   lsType,
+			LSId:     lsId,
+			AreaId:   areaId,
+			AdvRtrId: advRtrId,
+		}),
+	}
+	ret := <-svr.ReplyChan
+	if retObj, ok := ret.(*server.GetOspfv2LsdbStateOutArgs); ok {
+		return retObj.Obj, retObj.Err
+	} else {
+		return nil, errors.New("Error: Invalid response received from server during GetOspfv2LsdbState")
+	}
 }
 
 func GetBulkOspfv2LsdbState(fromIdx, count int) (*objects.Ospfv2LsdbStateGetInfo, error) {
-	return nil, nil
+	svr.ReqChan <- &server.ServerRequest{
+		Op: server.GET_BULK_OSPFV2_LSDB_STATE,
+		Data: interface{}(&server.GetBulkInArgs{
+			FromIdx: fromIdx,
+			Count:   count,
+		}),
+	}
+	ret := <-svr.ReplyChan
+	if retObj, ok := ret.(*server.GetBulkOspfv2LsdbStateOutArgs); ok {
+		return retObj.BulkInfo, retObj.Err
+	} else {
+		return nil, errors.New("Error: Invalid response received from server during GetBulkOspfv2LsdbState")
+	}
 }
-*/
 
 func GetOspfv2NbrState(ipAddr, addrLessIfIdx uint32) (*objects.Ospfv2NbrState, error) {
 	svr.ReqChan <- &server.ServerRequest{

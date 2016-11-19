@@ -25,6 +25,7 @@ package server
 
 import (
 	"l3/arp/clientMgr"
+	ndpClient "l3/ndp/lib"
 	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"os"
@@ -38,8 +39,10 @@ type VrrpServer struct {
 	// All System Related Information
 	SwitchPlugin       asicdClient.AsicdClientIntf
 	ArpClient          arpClient.ArpdClientIntf
+	NdpClient          ndpClient.NdpdClientIntf
 	dmnBase            *dmnBase.FSBaseDmn
 	GlobalConfig       *common.GlobalConfig
+	globalState        common.GlobalState
 	V4                 map[int32]*V4Intf
 	V6                 map[int32]*V6Intf
 	Intf               map[KeyInfo]VrrpInterface // key is struct IntfRef, VRID, Version which is KeyInfo
@@ -51,6 +54,8 @@ type VrrpServer struct {
 	GblCfgCh           chan *common.GlobalConfig
 	L3IntfNotifyCh     chan *common.BaseIpInfo
 	VirtualIpCh        chan *common.VirtualIpInfo // used for updating virtual ip state in hardware/linux
+	UpdateTxCh         chan struct{}
+	UpdateRxCh         chan struct{}
 }
 
 type VrrpTxChannelInfo struct {
@@ -85,15 +90,19 @@ func (svr *VrrpServer) EventListener() {
 			if ok {
 				svr.UpdateVirtualIntf(vipUpdateInfo)
 			}
+		case _, ok := <-svr.UpdateRxCh:
+			if ok {
+				svr.updateRxCount()
+			}
+		case _, ok := <-svr.UpdateTxCh:
+			if ok {
+				svr.updateTxCount()
+			}
 		}
 	}
 }
 
 func (svr *VrrpServer) GetSystemInfo() {
-	// Get ports information
-	svr.GetPorts()
-	// Get vlans information
-	svr.GetVlans()
 	// Get IP Information
 	svr.GetIPIntfs()
 }
@@ -109,6 +118,8 @@ func (svr *VrrpServer) InitGlobalDS() {
 	svr.CfgCh = make(chan *common.IntfCfg, VRRP_INTF_CONFIG_CH_SIZE)
 	svr.L3IntfNotifyCh = make(chan *common.BaseIpInfo)
 	svr.VirtualIpCh = make(chan *common.VirtualIpInfo)
+	svr.UpdateTxCh = make(chan struct{})
+	svr.UpdateRxCh = make(chan struct{})
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {
@@ -143,11 +154,13 @@ func (svr *VrrpServer) VrrpStartServer() {
 	go svr.EventListener()
 }
 
-func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, arpClient arpClient.ArpdClientIntf, dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
+func VrrpNewServer(sPlugin asicdClient.AsicdClientIntf, arpClient arpClient.ArpdClientIntf, ndpClient ndpClient.NdpdClientIntf,
+	dmnBase *dmnBase.FSBaseDmn) *VrrpServer {
 	vrrpServer := &VrrpServer{}
 	vrrpServer.SwitchPlugin = sPlugin
 	vrrpServer.dmnBase = dmnBase
 	vrrpServer.ArpClient = arpClient
+	vrrpServer.NdpClient = ndpClient
 	return vrrpServer
 }
 

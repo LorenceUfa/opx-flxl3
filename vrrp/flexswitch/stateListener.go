@@ -69,6 +69,21 @@ func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state common.State) 
 	return entry
 }
 
+func (h *ConfigHandler) convertVrrpGlobalStateEntryToThriftEntry(state *common.GlobalState) *vrrpd.VrrpGlobalState {
+	entry := vrrpd.NewVrrpGlobalState()
+	entry.Vrf = state.Vrf
+	if state.Status {
+		entry.Status = "Enable"
+	} else {
+		entry.Status = "Disable"
+	}
+	entry.V4Intfs = state.V4Intfs
+	entry.V6Intfs = state.V6Intfs
+	entry.TotalRxFrames = state.TotalRxFrames
+	entry.TotalTxFrames = state.TotalTxFrames
+	return entry
+}
+
 func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIdx vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpV4IntfStateGetInfo, error) {
 	debug.Logger.Debug("Get bulk request for vrrp v4 intf states")
 	nextIdx, currCount, vrrpEntries := api.GetAllV4IntfStates(int(fromIdx), int(count))
@@ -121,4 +136,21 @@ func (h *ConfigHandler) GetVrrpV6IntfState(intfRef string, vrId int32) (*vrrpd.V
 		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
 	}
 	return h.convertVrrpV6IntfEntryToThriftEntry(*entry), nil
+}
+
+func (h *ConfigHandler) GetBulkVrrpGlobalState(fromIdx vrrpd.Int, count vrrpd.Int) (*vrrpd.VrrpGlobalStateGetInfo, error) {
+	bulkInfo := vrrpd.NewVrrpGlobalStateGetInfo()
+	bulkInfo.EndIdx = vrrpd.Int(0)
+	bulkInfo.Count = vrrpd.Int(1)
+	bulkInfo.More = false
+	bulkInfo.VrrpGlobalStateList = make([]*vrrpd.VrrpGlobalState, 1)
+	gblEntry, _ := api.GetVrrpGlobalStateInfo("default")
+	bulkInfo.VrrpGlobalStateList[0] = h.convertVrrpGlobalStateEntryToThriftEntry(gblEntry)
+
+	return bulkInfo, nil
+}
+
+func (h *ConfigHandler) GetVrrpGlobalState(vrf string) (*vrrpd.VrrpGlobalState, error) {
+	gblEntry, _ := api.GetVrrpGlobalStateInfo(vrf)
+	return h.convertVrrpGlobalStateEntryToThriftEntry(gblEntry), nil
 }

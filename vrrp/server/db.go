@@ -28,6 +28,7 @@ import (
 	"l3/vrrp/debug"
 	"models/objects"
 	"strings"
+	"syscall"
 )
 
 func (svr *VrrpServer) readVrrpGblCfg() {
@@ -73,9 +74,16 @@ func (svr *VrrpServer) readVrrpV4IntfCfg() {
 			AdvertisementInterval: cfg.AdvertisementInterval,
 			PreemptMode:           cfg.PreemptMode,
 			AcceptMode:            cfg.AcceptMode,
-			AdminState:            cfg.AdminState,
-			Version:               common.VERSION2,
 			Operation:             common.CREATE,
+			IpType:                syscall.AF_INET,
+		}
+		if cfg.AdminState == common.STATE_UP {
+			v4Cfg.AdminState = true
+		}
+		if cfg.Version == common.VERSION2_STR {
+			v4Cfg.Version = common.VERSION2
+		} else if cfg.Version == common.VERSION3_STR {
+			v4Cfg.Version = common.VERSION3
 		}
 		svr.HandleVrrpIntfConfig(v4Cfg)
 	}
@@ -101,9 +109,12 @@ func (svr *VrrpServer) readVrrpV6IntfCfg() {
 			AdvertisementInterval: cfg.AdvertisementInterval,
 			PreemptMode:           cfg.PreemptMode,
 			AcceptMode:            cfg.AcceptMode,
-			AdminState:            cfg.AdminState,
 			Version:               common.VERSION3,
 			Operation:             common.CREATE,
+			IpType:                syscall.AF_INET6,
+		}
+		if cfg.AdminState == common.STATE_UP {
+			v6Cfg.AdminState = true
 		}
 		svr.HandleVrrpIntfConfig(v6Cfg)
 	}

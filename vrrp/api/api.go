@@ -94,3 +94,7 @@ func GetAllV6IntfStates(from, count int) (n int, c int, result []common.State) {
 func GetVrrpIntfEntry(intfRef string, vrid int32, version uint8) *common.State {
 	return vrrpApi.server.GetEntry(intfRef, vrid, version)
 }
+
+func GetVrrpGlobalStateInfo(vrf string) (*common.GlobalState, error) {
+	return vrrpApi.server.GetGlobalState(vrf), nil
+}

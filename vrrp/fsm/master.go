@@ -78,7 +78,7 @@ func (f *FSM) stopMasterDownTimer() {
 }
 
 func (f *FSM) master(decodeInfo *DecodedInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *decodeInfo)
+	//debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *decodeInfo)
 	pktInfo := decodeInfo.PktInfo
 	hdr := pktInfo.Hdr
 	/* // @TODO:
