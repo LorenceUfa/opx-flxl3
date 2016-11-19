@@ -156,7 +156,7 @@ func (server *OSPFV2Server) EncodeLSAReqPkt(intfKey IntfConfKey, ent IntfConf,
 		ver:      OSPF_VERSION_2,
 		pktType:  uint8(LSRequestType),
 		pktlen:   0,
-		routerId: server.ospfGlobalConf.RouterId,
+		routerId: server.globalData.RouterId,
 		areaId:   ent.IfAreaId,
 		chksum:   0,
 		authType: ent.IfAuthType,
@@ -313,7 +313,7 @@ func (server *OSPFV2Server) BuildLsaUpdPkt(intfKey IntfConfKey, ent IntfConf,
 		ver:      OSPF_VERSION_2,
 		pktType:  uint8(LSUpdateType),
 		pktlen:   0,
-		routerId: server.ospfGlobalConf.RouterId,
+		routerId: server.globalData.RouterId,
 		areaId:   ent.IfAreaId,
 		chksum:   0,
 		authType: ent.IfAuthType,
@@ -373,6 +373,10 @@ func (server *OSPFV2Server) BuildLsaUpdPkt(intfKey IntfConfKey, ent IntfConf,
 
 }
 
+/*
+Packet from Rx thread is processed here
+in rx thread context
+*/
 func (server *OSPFV2Server) ProcessRxLsaUpdPkt(data []byte, ospfHdrMd *OspfHdrMetadata,
 	ipHdrMd *IpHdrMetadata, key IntfConfKey) error {
 
@@ -497,25 +501,34 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 		self_gen := false
 		self_gen = server.selfGenLsaCheck(*lsa_key)
 		if self_gen {
+			//send message to lsdb for self gen LSA
+			selfGenLsaMsg := RecvdSelfLsaMsg{
+				LsaKey:  *lsa_key,
+				LsdbKey: lsdbKey,
+			}
+			selfGenLsaMsg.LsaData = make([]byte, end_index+i)
+			copy(selfGenLsaMsg.LsaData, msg.data[index:end_index])
+			server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh <- selfGenLsaMsg
 			server.logger.Info(fmt.Sprintln("LSAUPD: discard . Received self generated. ", lsa_key))
 
 		}
 
 		if !discard && !self_gen && op == FloodLsa {
 			server.logger.Info(fmt.Sprintln("LSAUPD: add to lsdb lsid ", lsid, " router_id ", router_id, " lstype ", lsa_header.LSType))
-			lsdb_msg.MsgType = LsdbAdd
+			lsdb_msg.MsgType = LSA_ADD
 			lsdb_msg.LsaKey = *lsa_key
 			server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh <- lsdb_msg
 
 		}
 
-		flood_pkt := RecvdLsaPkt{
-			NbrKey: msg.nbrKey,
+		flood_pkt := NbrToFloodMsg{
+			NbrKey:   msg.nbrKey,
+			Msg_Type: LSA_FLOOD_ALL,
 		}
 		flood_pkt.LsaPkt = make([]byte, end_index-index)
 		copy(flood_pkt.LsaPkt, lsdb_msg.LsaData)
 		if lsop != LSASUMMARYFLOOD && !self_gen { // for ABR summary lsa is flooded after LSDB/SPF changes are done.
-			server.MessagingChData.NbrFSMToFloodChData.LsaFlood <- flood_pkt
+			server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh <- flood_pkt
 		}
 
 		/* send ACK */
@@ -532,7 +545,7 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 }
 
 func (server *OSPFV2Server) selfGenLsaCheck(key LsaKey) bool {
-	rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
+	rtr_id := binary.BigEndian.Uint32(server.globalData.RouterId)
 	if key.AdvRouter == rtr_id {
 		return true
 	}
@@ -585,7 +598,7 @@ func (server *OSPFV2Server) BuildLSAAckPkt(intfKey IntfConfKey, ent IntfConf,
 		ver:      OSPF_VERSION_2,
 		pktType:  uint8(LSAckType),
 		pktlen:   0,
-		routerId: server.ospfGlobalConf.RouterId,
+		routerId: server.globalData.RouterId,
 		areaId:   ent.IfAreaId,
 		chksum:   0,
 		authType: ent.IfAuthType,
@@ -772,6 +785,9 @@ func (server *OSPFV2Server) ProcessLsaReq(msg NbrLsaReqMsg) {
 	} // end of exists
 }
 
+/*
+In response to the LSA request below API generates message
+for flooding which sends unicast LSA update packet */
 func (server *OSPFV2Server) generateLsaUpdUnicast(req ospfLSAReq, nbrKey NbrConfKey, areaid uint32) {
 	lsa_key := NewLsaKey()
 	nbrConf := server.NbrConfMap[nbrKey]
@@ -827,23 +843,19 @@ func (server *OSPFV2Server) generateLsaUpdUnicast(req ospfLSAReq, nbrKey NbrConf
 		checksumOffset := uint16(14)
 		checkSum := computeFletcherChecksum(lsa_pkt[2:], checksumOffset)
 		binary.BigEndian.PutUint16(lsa_pkt[16:18], checkSum)
-		flood_pkt := ospfFloodMsg{
-			nbrKey:  nbrKey,
-			intfKey: nbrConf.intfConfKey,
-			areaId:  areaid,
-			lsType:  uint8(req.ls_type),
-			linkid:  req.link_state_id,
-			lsOp:    LSAINTF,
-		}
-		flood_pkt.pkt = make([]byte, len(lsa_pkt))
-		copy(flood_pkt.pkt, lsa_pkt)
-		server.ospfNbrLsaUpdSendCh <- flood_pkt
+		flood_msg := NbrToFloodMsg
+		flood_msg.MsgType = LSA_FLOOD_INTF
+		flood_msg.NbrKey = nbrKey
+		flood_msg.LsaPkt = make([]byte, len(lsa_pkt))
+		copy(flood_msg, lsa_pkt)
+
+		server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh <- flood_pkt
 	}
 }
 
 func (server *OSPFV2Server) lsaReqPacketDiscardCheck(nbrConf NbrConf, req ospfLSAReq) bool {
-	if nbrConf.OspfNbrState < config.NbrExchange {
-		server.logger.Info(fmt.Sprintln("LSAREQ: Discard .. Nbrstate (expected less than exchange)", nbrConf.OspfNbrState))
+	if nbrConf.State < NbrExchange {
+		server.logger.Info(fmt.Sprintln("LSAREQ: Discard .. Nbrstate (expected less than exchange)", nbrConf.State))
 		return true
 	}
 	/* TODO
@@ -854,8 +866,8 @@ func (server *OSPFV2Server) lsaReqPacketDiscardCheck(nbrConf NbrConf, req ospfLS
 }
 
 func (server *OSPFV2Server) lsaAckPacketDiscardCheck(nbrConf NbrConf) bool {
-	if nbrConf.OspfNbrState < config.NbrExchange {
-		server.logger.Info(fmt.Sprintln("LSAACK: Discard .. Nbrstate (expected less than exchange)", nbrConf.OspfNbrState))
+	if nbrConf.State < NbrExchange {
+		server.logger.Info(fmt.Sprintln("LSAACK: Discard .. Nbrstate (expected less than exchange)", nbrConf.State))
 		return true
 	}
 	/* TODO

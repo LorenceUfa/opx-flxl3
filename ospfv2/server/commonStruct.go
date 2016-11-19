@@ -119,8 +119,10 @@ type NbrDownMsg struct {
 type RecvdLsaMsgType uint8
 
 const (
-	LSA_ADD RecvdLsaMsgType = 0
-	LSA_DEL RecvdLsaMsgType = 1
+	LSA_ADD        RecvdLsaMsgType = 0
+	LSA_DEL        RecvdLsaMsgType = 1
+	LSA_FLOOD_ALL  RecvdLsaMsgType = 2
+	LSA_FLOOD_INTF RecvdLsaMsgType = 3
 )
 
 type RecvdLsaMsg struct {
@@ -155,9 +157,10 @@ type LsdbToFloodLSAMsg struct {
 	LsaData interface{}
 }
 
-type RecvdLsaPkt struct {
-	LsaPkt []byte
-	NbrKey NbrConfKey
+type NbrToFloodMsg struct {
+	MsgType RecvdLsaMsgType
+	LsaPkt  []byte
+	NbrKey  NbrConfKey
 }
 
 type IntfToNbrFSMChStruct struct {
@@ -181,7 +184,7 @@ type NbrFSMToLsdbChStruct struct {
 }
 
 type NbrFSMToFloodChStruct struct {
-	LsaFlood chan RecvdLsaPkt
+	LsaFloodCh chan NbrToFloodMsg
 }
 type LsdbToFloodChStruct struct {
 	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
