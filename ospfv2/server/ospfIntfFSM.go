@@ -42,6 +42,8 @@ func (server *OSPFV2Server) InitOspfIntfFSM(intfConfKey IntfConfKey) {
 	} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
 		ent.FSMState = objects.INTF_FSM_STATE_P2P
 	}
+	ent.NumOfStateChange++
+	ent.TimeOfStateChange = time.Now().String()
 	ent.NbrMap = make(map[NbrConfKey]NbrData)
 	ent.BDRIpAddr = 0
 	ent.DRIpAddr = 0
@@ -54,6 +56,8 @@ func (server *OSPFV2Server) DeinitOspfIntfFSM(intfConfKey IntfConfKey) {
 	ent, _ := server.IntfConfMap[intfConfKey]
 	ent.NbrMap = nil
 	ent.FSMState = objects.INTF_FSM_STATE_DOWN
+	ent.NumOfStateChange++
+	ent.TimeOfStateChange = time.Now().String()
 	if ent.Type == objects.INTF_TYPE_BROADCAST {
 		ent.WaitTimer.Stop()
 		ent.WaitTimer = nil
@@ -133,6 +137,8 @@ func (server *OSPFV2Server) StopIntfFSM(key IntfConfKey) {
 		}
 	} else {
 		ent.FSMState = objects.INTF_FSM_STATE_DOWN
+		ent.NumOfStateChange++
+		ent.TimeOfStateChange = time.Now().String()
 		server.IntfConfMap[key] = ent
 		server.SendMsgToGenerateRouterLSA(ent.AreaId)
 	}
@@ -165,6 +171,8 @@ func (server *OSPFV2Server) StartIntfFSM(key IntfConfKey) {
 		}
 	} else {
 		ent.FSMState = objects.INTF_FSM_STATE_LOOPBACK
+		ent.NumOfStateChange++
+		ent.TimeOfStateChange = time.Now().String()
 		server.IntfConfMap[key] = ent
 		server.SendMsgToGenerateRouterLSA(ent.AreaId)
 	}
@@ -529,6 +537,10 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 			newState = objects.INTF_FSM_STATE_OTHER_DR
 		}
 		ent.FSMState = newState
+		if oldState != newState {
+			ent.NumOfStateChange++
+			ent.TimeOfStateChange = time.Now().String()
+		}
 		server.IntfConfMap[key] = ent
 	}
 

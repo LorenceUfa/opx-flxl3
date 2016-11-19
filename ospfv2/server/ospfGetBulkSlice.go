@@ -20,48 +20,25 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
+
 package server
 
 import (
-	"fmt"
-	"l3/ndp/debug"
-	"net"
-	"strings"
+	"time"
 )
 
-func createNeighborKey(mac, ip, intfName string) string {
-	return mac + "_" + ip + "_" + intfName
+func (server *OSPFV2Server) InitGetBulkSliceRefresh() {
+	server.GetBulkData.SliceRefreshCh = make(chan bool)
+	server.GetBulkData.SliceRefreshDoneCh = make(chan bool)
+	server.GetBulkData.SliceRefreshDuration = time.Duration(10) * time.Minute
 }
 
-func splitNeighborKey(nbrKey string) []string {
-	return strings.Split(nbrKey, "_")
-}
-
-func isLinkLocal(ipAddr string) bool {
-	ip, _, err := net.ParseCIDR(ipAddr)
-	if err != nil {
-		ip = net.ParseIP(ipAddr)
+func (server *OSPFV2Server) GetBulkSliceRefresh() {
+	refreshGetBulkSliceFunc := func() {
+		server.GetBulkData.SliceRefreshCh <- true
+		server.logger.Info("Slice Refresh is in progress")
+		<-server.GetBulkData.SliceRefreshDoneCh
+		server.GetBulkData.SliceRefreshTimer.Reset(server.GetBulkData.SliceRefreshDuration)
 	}
-	return ip.IsLinkLocalUnicast() && (ip.To4() == nil)
-}
-
-func baseFilter(macAddr string) (filter string) {
-	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC)
-	debug.Logger.Info("new filter is:", filter)
-	return filter
-}
-
-func getNewFilter(macAddr string) (filter string) {
-	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC, macAddr)
-	debug.Logger.Info("new filter is:", filter)
-	return filter
-}
-
-func (svr *NDPServer) IsIPv6Addr(ipAddr string) bool {
-	ip, _, _ := net.ParseCIDR(ipAddr)
-	if ip.To4() == nil {
-		return true
-	}
-
-	return false
+	server.GetBulkData.SliceRefreshTimer = time.AfterFunc(server.GetBulkData.SliceRefreshDuration, refreshGetBulkSliceFunc)
 }

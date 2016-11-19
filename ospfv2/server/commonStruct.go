@@ -30,6 +30,21 @@ import (
 	"time"
 )
 
+type LsdbSliceStruct struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+}
+
+type GetBulkStruct struct {
+	IntfConfSlice        []IntfConfKey
+	AreaConfSlice        []uint32
+	LsdbSlice            []LsdbSliceStruct
+	SliceRefreshCh       chan bool
+	SliceRefreshDoneCh   chan bool
+	SliceRefreshTimer    *time.Timer
+	SliceRefreshDuration time.Duration
+}
+
 type NbrData struct {
 	TwoWayStatus bool
 	RtrPrio      uint8
@@ -156,11 +171,18 @@ type LsdbToFloodLSAMsg struct {
 	LsaKey  LsaKey
 	LsaData interface{}
 }
-
 type NbrToFloodMsg struct {
 	MsgType RecvdLsaMsgType
 	LsaPkt  []byte
 	NbrKey  NbrConfKey
+}
+type RouteAddMsg struct {
+	RTblKey   RoutingTblEntryKey
+	RTblEntry GlobalRoutingTblEntry
+}
+
+type RouteDelMsg struct {
+	RTblKey RoutingTblEntryKey
 }
 
 type IntfToNbrFSMChStruct struct {
@@ -198,13 +220,29 @@ type SPFToLsdbChStruct struct {
 	DoneSPF chan bool
 }
 
+type ServerToLsdbChStruct struct {
+	RefreshLsdbSliceCh chan bool
+}
+
+type LsdbToServerChStruct struct {
+	RefreshLsdbSliceDoneCh chan bool
+}
+
+type RouteTblToDBClntChStruct struct {
+	RouteAddMsgCh chan RouteAddMsg
+	RouteDelMsgCh chan RouteDelMsg
+}
+
 type MessagingChStruct struct {
-	IntfToNbrFSMChData  IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
-	NbrToIntfFSMChData  NbrToIntfFSMChStruct
-	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
-	NbrFSMToFloodChData NbrFSMToFloodChStruct
-	LsdbToFloodChData   LsdbToFloodChStruct
-	LsdbToSPFChData     LsdbToSPFChStruct
-	SPFToLsdbChData     SPFToLsdbChStruct
+	IntfToNbrFSMChData     IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
+	NbrToIntfFSMChData     NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData     NbrFSMToLsdbChStruct
+	NbrFSMToFloodChData    NbrFSMToFloodChStruct
+	LsdbToFloodChData      LsdbToFloodChStruct
+	LsdbToSPFChData        LsdbToSPFChStruct
+	SPFToLsdbChData        SPFToLsdbChStruct
+	ServerToLsdbChData     ServerToLsdbChStruct
+	LsdbToServerChData     LsdbToServerChStruct
+	RouteTblToDBClntChData RouteTblToDBClntChStruct
 }

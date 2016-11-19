@@ -81,10 +81,11 @@ func (svr *NDPServer) InitGlobalDS() {
 	svr.SwitchMacMapEntries = make(map[string]struct{}, NDP_SERVER_MAP_INITIAL_CAP)
 	svr.L3Port = make(map[int32]Interface, NDP_SERVER_MAP_INITIAL_CAP)
 	svr.VlanInfo = make(map[int32]config.VlanInfo, NDP_SERVER_MAP_INITIAL_CAP)
+	svr.virtualIp = make(map[int32]*config.VirtualIpInfo, NDP_SERVER_MAP_INITIAL_CAP)
 	svr.VlanIfIdxVlanIdMap = make(map[string]int32, NDP_SERVER_MAP_INITIAL_CAP)
 	svr.NeighborInfo = make(map[string]config.NeighborConfig, NDP_SERVER_MAP_INITIAL_CAP)
 	svr.L3IfIntfRefToIfIndex = make(map[string]int32, NDP_SERVER_MAP_INITIAL_CAP)
-	svr.PhyPortToL3PortMap = make(map[int32]L3Info) //make(map[int32]int32)
+	svr.PhyPortToL3PortMap = make(map[int32]L3Info)
 	svr.Dot1QToVlanIfIndex = make(map[int32]int32)
 	svr.IpIntfCh = make(chan *config.IPIntfNotification, NDP_SERVER_ASICD_NOTIFICATION_CH_SIZE)
 	svr.VlanCh = make(chan *config.VlanNotification)
@@ -92,6 +93,7 @@ func (svr *NDPServer) InitGlobalDS() {
 	svr.RxPktCh = make(chan *RxPktInfo, NDP_SERVER_INITIAL_CHANNEL_SIZE)
 	svr.PktDataCh = make(chan config.PacketData, NDP_SERVER_INITIAL_CHANNEL_SIZE)
 	svr.ActionCh = make(chan *config.ActionData)
+	svr.VirtualIpCh = make(chan *config.VirtualIpInfo)
 	svr.SnapShotLen = 1024
 	svr.Promiscuous = false
 	svr.Timeout = 1 * time.Second
@@ -129,6 +131,9 @@ func (svr *NDPServer) InitSystem() {
 
 	// Get IP Information
 	svr.GetIPIntf()
+
+	// Get Virtual IP Information
+	svr.getVirtualIpIntf()
 
 	// Check status of IP Interface and then start RX/TX for that ip interface
 	for _, ipIntf := range svr.L3Port {
@@ -207,6 +212,10 @@ func (svr *NDPServer) EventsListener() {
 				continue
 			}
 			svr.HandleAction(actionData)
+		case vipInfo, ok := <-svr.VirtualIpCh:
+			if ok {
+				svr.HandleVirtualIpNotification(vipInfo)
+			}
 		}
 	}
 }

@@ -30,6 +30,7 @@ import (
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -93,6 +94,7 @@ type FSM struct {
 	PktInfo             *packet.PacketInfo         // fsm will use this packet infor for decode/encode
 	ifIndex             int32                      // My own ifIndex
 	ipAddr              string                     // My own ip address
+	ipType              int                        // indicates whether fsm is for v4 or v6
 	VirtualMACAddress   string                     // VRRP MAC aka VMAC
 	State               uint8                      // current state in which fsm is running
 	previousState       uint8                      // previous state in which fsm was running
@@ -105,27 +107,35 @@ type FSM struct {
 	pktCh               chan *PktChannelInfo       // received vrrp packet are pushed on this channel for fsm
 	IntfEventCh         chan *IntfEvent            // channel used by VrrpInterface to communicate and update in config or ip interface state
 	vipCh               chan *common.VirtualIpInfo // this will be used to bring up/down virtual ip interface
+	rxCh                chan struct{}              // inform server to update global rx count
+	txCh                chan struct{}              // inform server to update global tx count
 	running             bool
+	empty               struct{}
 }
 
 /************************************************************************************************************
 					* FSM EXPOSED API's *
 *************************************************************************************************************/
 
-func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo) *FSM {
+func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo, rxCh chan struct{}, txCh chan struct{}) *FSM {
 	debug.Logger.Info(FSM_PREFIX, "Initializing fsm for vrrp interface:", *cfg, "and base l3 interface is:", *l3Info)
 	f := FSM{}
 	f.Config = cfg
 	f.stateInfo = &common.State{}
 	f.ipAddr = l3Info.IpAddr
 	f.ifIndex = l3Info.IfIndex
-	f.VirtualMACAddress = createVirtualMac(cfg.VRID)
+	f.ipType = l3Info.IpType
+	f.createVirtualMac()
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
 	f.previousState = VRRP_UNINITIALIZE_STATE
+	f.rxCh = rxCh
+	f.txCh = txCh
+	var empty struct{}
+	f.empty = empty
 	return &f
 }
 
@@ -205,14 +215,19 @@ func (f *FSM) GetStateInfo(info *common.State) {
 					* FSM PRIVATE API's *
 *************************************************************************************************************/
 
-func createVirtualMac(vrid int32) (vmac string) {
-	if vrid < 10 {
-		vmac = packet.VRRP_IEEE_MAC_ADDR + "0" + strconv.Itoa(int(vrid))
-
-	} else {
-		vmac = packet.VRRP_IEEE_MAC_ADDR + strconv.Itoa(int(vrid))
+func (f *FSM) createVirtualMac() {
+	if f.ipType == syscall.AF_INET {
+		f.VirtualMACAddress = VERSION2_IEEE_MAC_ADDR_PREFIX
+	} else if f.ipType == syscall.AF_INET6 {
+		f.VirtualMACAddress = VERSION3_IEEE_MAC_ADDR_PREFIX
 	}
-	return vmac
+	vridStr := strconv.FormatInt(int64(f.Config.VRID), 16)
+	if len(vridStr) == 1 {
+		f.VirtualMACAddress += "0" + vridStr
+	} else {
+		f.VirtualMACAddress += vridStr
+	}
+	debug.Logger.Debug("Vmac created for interface:", f.Config.IntfRef, "is:", f.VirtualMACAddress)
 }
 
 func getStateName(state uint8) (rv string) {
@@ -233,6 +248,7 @@ func (f *FSM) updateRxStInfo(pktInfo *packet.PacketInfo) {
 	f.stateInfo.AdverRx++
 	f.stateInfo.LastAdverRx = time.Now().String()
 	f.stateInfo.CurrentFsmState = getStateName(f.State)
+	f.rxCh <- f.empty
 }
 
 func (f *FSM) updateTxStInfo() {
@@ -240,6 +256,7 @@ func (f *FSM) updateTxStInfo() {
 	f.stateInfo.AdverTx++
 	f.stateInfo.LastAdverTx = time.Now().String()
 	f.stateInfo.CurrentFsmState = getStateName(f.State)
+	f.txCh <- f.empty
 }
 
 func (f *FSM) receivePkt() {
@@ -270,7 +287,7 @@ func (f *FSM) initPktListener() (err error) {
 			return err
 		}
 		filter := VRRP2_BPF_FILTER
-		if f.Config.Version == common.VERSION3 {
+		if f.Config.IpType == syscall.AF_INET6 {
 			filter = VRRP3_BPF_FILTER
 		}
 		err = f.pHandle.SetBPFFilter(filter)
@@ -294,7 +311,7 @@ func (f *FSM) deInitPktListener() {
 }
 
 func (f *FSM) processRcvdPkt(pktCh *PktChannelInfo) {
-	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.Version)
+	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.IpType)
 	if pktInfo == nil {
 		debug.Logger.Err("Decoding Vrrp Header Failed")
 		return
@@ -333,6 +350,7 @@ func (f *FSM) getPacketInfo() *packet.PacketInfo {
 		Priority:     uint8(f.Config.Priority), //VRRP_IGNORE_PRIORITY,
 		AdvertiseInt: uint16(f.Config.AdvertisementInterval),
 		VirutalMac:   f.VirtualMACAddress,
+		IpType:       f.Config.IpType,
 	}
 	if f.Config.VirtualIPAddr == "" {
 		// If no virtual ip then use interface/router ip address as virtual ip
@@ -375,7 +393,7 @@ func (f *FSM) initialize() {
 }
 
 func (f *FSM) handleDecodedPkt(decodeInfo *DecodedInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "Processing Decoded Packet")
+	//debug.Logger.Debug(FSM_PREFIX, "Processing Decoded Packet")
 	switch f.State {
 	case VRRP_INITIALIZE_STATE:
 		f.initialize()
@@ -450,6 +468,7 @@ func (f *FSM) updateVirtualIP(enable bool) {
 		MacAddr: f.VirtualMACAddress,
 		Enable:  enable,
 		Version: f.Config.Version,
+		IpType:  f.Config.IpType,
 	}
 }
 
@@ -462,19 +481,21 @@ const (
 )
 
 const (
-	VRRP_MASTER_PRIORITY         = 255
-	VRRP_IGNORE_PRIORITY         = 65535
-	VRRP_MASTER_DOWN_PRIORITY    = 0
-	VRRP_INITIALIZE_STATE_STRING = "Initialize"
-	VRRP_BACKUP_STATE_STRING     = "Backup"
-	VRRP_MASTER_STATE_STRING     = "Master"
-	VRRP_SNAPSHOT_LEN            = 1024
-	VRRP_PROMISCOUS_MODE         = false
-	VRRP_TIMEOUT                 = 1 // in seconds
-	VRRP2_BPF_FILTER             = "ip host " + packet.VRRP_V4_GROUP_IP
-	VRRP3_BPF_FILTER             = "ip host " + packet.VRRP_V6_GROUP_IP
-	VRRP_MAC_MASK                = "ff:ff:ff:ff:ff:ff"
-	FSM_PREFIX                   = "FSM ------> "
+	VRRP_MASTER_PRIORITY          = 255
+	VRRP_IGNORE_PRIORITY          = 65535
+	VRRP_MASTER_DOWN_PRIORITY     = 0
+	VRRP_INITIALIZE_STATE_STRING  = "Initialize"
+	VRRP_BACKUP_STATE_STRING      = "Backup"
+	VRRP_MASTER_STATE_STRING      = "Master"
+	VRRP_SNAPSHOT_LEN             = 1024
+	VRRP_PROMISCOUS_MODE          = false
+	VRRP_TIMEOUT                  = 1 // in seconds
+	VRRP2_BPF_FILTER              = "ip host " + packet.VRRP_V4_GROUP_IP
+	VRRP3_BPF_FILTER              = "ip host " + packet.VRRP_V6_GROUP_IP
+	VRRP_MAC_MASK                 = "ff:ff:ff:ff:ff:ff"
+	FSM_PREFIX                    = "FSM ------> "
+	VERSION2_IEEE_MAC_ADDR_PREFIX = "00-00-5E-00-01-"
+	VERSION3_IEEE_MAC_ADDR_PREFIX = "00-00-5E-00-02-"
 )
 
 const (

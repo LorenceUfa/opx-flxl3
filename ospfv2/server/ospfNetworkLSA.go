@@ -112,6 +112,11 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Network LSA (areaId, lsaEnt, lsaKey)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
+	lsdbSlice := LsdbSliceStruct{
+		LsdbKey: lsdbKey,
+		LsaKey:  lsaKey,
+	}
+	server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	return nil
 }
 
@@ -189,6 +194,11 @@ func (server *OSPFV2Server) processRecvdNetworkLSA(msg RecvdLsaMsg) error {
 			return nil
 		}
 		lsdbEnt.NetworkLsaMap[msg.LsaKey] = lsa
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: msg.LsdbKey,
+			LsaKey:  msg.LsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		delete(lsdbEnt.NetworkLsaMap, msg.LsaKey)
 	}
