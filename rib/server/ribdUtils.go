@@ -29,7 +29,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 	"net"
 	"ribd"
 	"ribdInt"
@@ -91,8 +91,8 @@ func InitPublisher(pub_str string) (pub *nanomsg.PubSocket) {
 }
 
 func BuildPublisherMap() {
-	RIBD_PUB = InitPublisher(ribdCommonDefs.PUB_SOCKET_ADDR)
-	RIBD_POLICY_PUB = InitPublisher(ribdCommonDefs.PUB_SOCKET_POLICY_ADDR)
+	RIBD_PUB = InitPublisher(defs.PUB_SOCKET_ADDR)
+	RIBD_POLICY_PUB = InitPublisher(defs.PUB_SOCKET_POLICY_ADDR)
 	for k, _ := range RouteProtocolTypeMapDB {
 		logger.Info("Building publisher map for protocol ", k)
 		if k == "CONNECTED" || k == "STATIC" {
@@ -109,24 +109,24 @@ func BuildPublisherMap() {
 	}
 	PublisherInfoMap["EBGP"] = PublisherInfoMap["BGP"]
 	PublisherInfoMap["IBGP"] = PublisherInfoMap["BGP"]
-	PublisherInfoMap["BFD"] = PublisherMapInfo{ribdCommonDefs.PUB_SOCKET_BFDD_ADDR, InitPublisher(ribdCommonDefs.PUB_SOCKET_BFDD_ADDR)}
-	PublisherInfoMap["VXLAN"] = PublisherMapInfo{ribdCommonDefs.PUB_SOCKET_VXLAND_ADDR, InitPublisher(ribdCommonDefs.PUB_SOCKET_VXLAND_ADDR)}
+	PublisherInfoMap["BFD"] = PublisherMapInfo{defs.PUB_SOCKET_BFDD_ADDR, InitPublisher(defs.PUB_SOCKET_BFDD_ADDR)}
+	PublisherInfoMap["VXLAN"] = PublisherMapInfo{defs.PUB_SOCKET_VXLAND_ADDR, InitPublisher(defs.PUB_SOCKET_VXLAND_ADDR)}
 }
 func BuildRouteProtocolTypeMapDB() {
-	RouteProtocolTypeMapDB["CONNECTED"] = ribdCommonDefs.CONNECTED
-	RouteProtocolTypeMapDB["EBGP"] = ribdCommonDefs.EBGP
-	RouteProtocolTypeMapDB["IBGP"] = ribdCommonDefs.IBGP
-	RouteProtocolTypeMapDB["BGP"] = ribdCommonDefs.BGP
-	RouteProtocolTypeMapDB["OSPF"] = ribdCommonDefs.OSPF
-	RouteProtocolTypeMapDB["STATIC"] = ribdCommonDefs.STATIC
+	RouteProtocolTypeMapDB["CONNECTED"] = defs.CONNECTED
+	RouteProtocolTypeMapDB["EBGP"] = defs.EBGP
+	RouteProtocolTypeMapDB["IBGP"] = defs.IBGP
+	RouteProtocolTypeMapDB["BGP"] = defs.BGP
+	RouteProtocolTypeMapDB["OSPF"] = defs.OSPF
+	RouteProtocolTypeMapDB["STATIC"] = defs.STATIC
 
 	//reverse
-	ReverseRouteProtoTypeMapDB[ribdCommonDefs.CONNECTED] = "CONNECTED"
-	ReverseRouteProtoTypeMapDB[ribdCommonDefs.IBGP] = "IBGP"
-	ReverseRouteProtoTypeMapDB[ribdCommonDefs.EBGP] = "EBGP"
-	ReverseRouteProtoTypeMapDB[ribdCommonDefs.BGP] = "BGP"
-	ReverseRouteProtoTypeMapDB[ribdCommonDefs.STATIC] = "STATIC"
-	ReverseRouteProtoTypeMapDB[ribdCommonDefs.OSPF] = "OSPF"
+	ReverseRouteProtoTypeMapDB[defs.CONNECTED] = "CONNECTED"
+	ReverseRouteProtoTypeMapDB[defs.IBGP] = "IBGP"
+	ReverseRouteProtoTypeMapDB[defs.EBGP] = "EBGP"
+	ReverseRouteProtoTypeMapDB[defs.BGP] = "BGP"
+	ReverseRouteProtoTypeMapDB[defs.STATIC] = "STATIC"
+	ReverseRouteProtoTypeMapDB[defs.OSPF] = "OSPF"
 }
 func BuildProtocolAdminDistanceMapDB() {
 	ProtocolAdminDistanceMapDB["CONNECTED"] = RouteDistanceConfig{defaultDistance: 0, configuredDistance: -1}
@@ -279,7 +279,7 @@ func BuildRouteParamsFromribdIPv4Route(cfg *ribd.IPv4Route, createType int, dele
 	}
 	nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[0].NextHopIntRef)
 	params := RouteParams{destNetIp: cfg.DestinationNw,
-		ipType:         ribdCommonDefs.IPv4,
+		ipType:         defs.IPv4,
 		networkMask:    cfg.NetworkMask,
 		nextHopIp:      nextHopIp,
 		nextHopIfIndex: ribd.Int(nextHopIntRef),
@@ -300,7 +300,7 @@ func BuildRouteParamsFromribdIPv6Route(cfg *ribd.IPv6Route, createType int, dele
 	}
 	nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[0].NextHopIntRef)
 	params := RouteParams{destNetIp: cfg.DestinationNw,
-		ipType:         ribdCommonDefs.IPv6,
+		ipType:         defs.IPv6,
 		networkMask:    cfg.NetworkMask,
 		nextHopIp:      nextHopIp,
 		nextHopIfIndex: ribd.Int(nextHopIntRef),
@@ -321,7 +321,7 @@ func BuildPolicyRouteFromribdIPv4Route(cfg *ribd.IPv4Route) (policyRoute ribdInt
 	}
 	nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[0].NextHopIntRef)
 	policyRoute = ribdInt.Routes{Ipaddr: cfg.DestinationNw,
-		IPAddrType: ribdInt.Int(ribdCommonDefs.IPv4),
+		IPAddrType: ribdInt.Int(defs.IPv4),
 		Mask:       cfg.NetworkMask,
 		NextHopIp:  nextHopIp,
 		IfIndex:    ribdInt.Int(nextHopIntRef), //cfg.NextHopInfp[0].NextHopIntRef,
@@ -339,7 +339,7 @@ func BuildPolicyRouteFromribdIPv6Route(cfg *ribd.IPv6Route) (policyRoute ribdInt
 	}
 	nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[0].NextHopIntRef)
 	policyRoute = ribdInt.Routes{Ipaddr: cfg.DestinationNw,
-		IPAddrType: ribdInt.Int(ribdCommonDefs.IPv6),
+		IPAddrType: ribdInt.Int(defs.IPv6),
 		Mask:       cfg.NetworkMask,
 		NextHopIp:  nextHopIp,
 		IfIndex:    ribdInt.Int(nextHopIntRef), //cfg.NextHopInfp[0].NextHopIntRef,
@@ -349,7 +349,7 @@ func BuildPolicyRouteFromribdIPv6Route(cfg *ribd.IPv6Route) (policyRoute ribdInt
 	}
 	return policyRoute
 }
-func findRouteWithNextHop(routeInfoList []RouteInfoRecord, nextHopIpType ribdCommonDefs.IPType, nextHopIP string, nextHopIfIndex ribd.Int) (found bool, routeInfoRecord RouteInfoRecord, index int) {
+func findRouteWithNextHop(routeInfoList []RouteInfoRecord, nextHopIpType defs.IPType, nextHopIP string, nextHopIfIndex ribd.Int) (found bool, routeInfoRecord RouteInfoRecord, index int) {
 	//logger.Info("findRouteWithNextHop ", nextHopIP, " and type:", nextHopIpType, " and ifIndex:", nextHopIfIndex)
 	index = -1
 	for i := 0; i < len(routeInfoList); i++ {
@@ -374,7 +374,7 @@ func findRouteWithNextHop(routeInfoList []RouteInfoRecord, nextHopIpType ribdCom
 	}
 	return found, routeInfoRecord, index
 }
-func newNextHop(ipType ribdCommonDefs.IPType, ip string, nextHopIfIndex ribd.Int, routeInfoList []RouteInfoRecord) (isNewNextHop bool) {
+func newNextHop(ipType defs.IPType, ip string, nextHopIfIndex ribd.Int, routeInfoList []RouteInfoRecord) (isNewNextHop bool) {
 	//logger.Info("newNextHop")
 	isNewNextHop = true
 	for i := 0; i < len(routeInfoList); i++ {
@@ -483,7 +483,7 @@ func deleteRoutePolicyStateAll(route ribdInt.Routes) {
 		return
 	}
 
-	routeInfoRecordListItem := RouteInfoMapGet(ribdCommonDefs.IPType(route.IPAddrType), destNet)
+	routeInfoRecordListItem := RouteInfoMapGet(defs.IPType(route.IPAddrType), destNet)
 	if routeInfoRecordListItem == nil {
 		logger.Info(" entry not found for prefix %v", destNet)
 		return
@@ -491,7 +491,7 @@ func deleteRoutePolicyStateAll(route ribdInt.Routes) {
 	routeInfoRecordList := routeInfoRecordListItem.(RouteInfoRecordList)
 	routeInfoRecordList.policyHitCounter = ribd.Int(route.PolicyHitCounter)
 	routeInfoRecordList.policyList = nil //append(routeInfoRecordList.policyList[:0])
-	RouteInfoMapSet(ribdCommonDefs.IPType(route.IPAddrType), destNet, routeInfoRecordList)
+	RouteInfoMapSet(defs.IPType(route.IPAddrType), destNet, routeInfoRecordList)
 	return
 }
 func addRoutePolicyState(route ribdInt.Routes, policy string, policyStmt string) {
@@ -501,7 +501,7 @@ func addRoutePolicyState(route ribdInt.Routes, policy string, policyStmt string)
 		return
 	}
 
-	routeInfoRecordListItem := RouteInfoMapGet(ribdCommonDefs.IPType(route.IPAddrType), destNet)
+	routeInfoRecordListItem := RouteInfoMapGet(defs.IPType(route.IPAddrType), destNet)
 	if routeInfoRecordListItem == nil {
 		logger.Info("Unexpected - entry not found for prefix ", destNet)
 		return
@@ -531,16 +531,16 @@ func addRoutePolicyState(route ribdInt.Routes, policy string, policyStmt string)
 		policyStmtList = append(policyStmtList,policyStmt)
 	    routeInfoRecordList.policyList[policy] = policyStmtList*/
 	routeInfoRecordList.policyList = append(routeInfoRecordList.policyList, policy)
-	RouteInfoMapSet(ribdCommonDefs.IPType(route.IPAddrType), destNet, routeInfoRecordList)
+	RouteInfoMapSet(defs.IPType(route.IPAddrType), destNet, routeInfoRecordList)
 	//logger.Debug("Adding to DBRouteCh from addRoutePolicyState")
 	RouteServiceHandler.DBRouteCh <- RIBdServerConfig{
 		OrigConfigObject: RouteDBInfo{routeInfoRecordList.routeInfoProtocolMap[routeInfoRecordList.selectedRouteProtocol][0], routeInfoRecordList},
-		Op:               "add",
+		Op:               defs.Add,
 	}
 	//RouteServiceHandler.WriteIPv4RouteStateEntryToDB(RouteDBInfo{routeInfoRecordList.routeInfoProtocolMap[routeInfoRecordList.selectedRouteProtocol][0], routeInfoRecordList})
 	return
 }
-func deleteRoutePolicyState(ipType ribdCommonDefs.IPType, ipPrefix patriciaDB.Prefix, policyName string) {
+func deleteRoutePolicyState(ipType defs.IPType, ipPrefix patriciaDB.Prefix, policyName string) {
 	//logger.Info("deleteRoutePolicyState")
 	found := false
 	idx := 0
@@ -574,7 +574,7 @@ func deleteRoutePolicyState(ipType ribdCommonDefs.IPType, ipPrefix patriciaDB.Pr
 	//logger.Debug("Adding to DBRouteCh from deleteRoutePolicyState")
 	RouteServiceHandler.DBRouteCh <- RIBdServerConfig{
 		OrigConfigObject: RouteDBInfo{routeInfoRecordList.routeInfoProtocolMap[routeInfoRecordList.selectedRouteProtocol][0], routeInfoRecordList},
-		Op:               "add",
+		Op:               defs.Add,
 	}
 }
 
@@ -588,7 +588,7 @@ func updateRoutePolicyState(route ribdInt.Routes, op int, policy string, policyS
 }
 func UpdateRedistributeTargetMap(evt int, protocol string, route ribdInt.Routes) {
 	//logger.Info("UpdateRedistributeTargetMap")
-	if evt == ribdCommonDefs.NOTIFY_ROUTE_CREATED {
+	if evt == defs.NOTIFY_ROUTE_CREATED {
 		redistributeMapInfo := RedistributeRouteMap[protocol]
 		if redistributeMapInfo == nil {
 			redistributeMapInfo = make([]RedistributeRouteInfo, 0)
@@ -596,7 +596,7 @@ func UpdateRedistributeTargetMap(evt int, protocol string, route ribdInt.Routes)
 		redistributeRouteInfo := RedistributeRouteInfo{route: route}
 		redistributeMapInfo = append(redistributeMapInfo, redistributeRouteInfo)
 		RedistributeRouteMap[protocol] = redistributeMapInfo
-	} else if evt == ribdCommonDefs.NOTIFY_ROUTE_DELETED {
+	} else if evt == defs.NOTIFY_ROUTE_DELETED {
 		redistributeMapInfo := RedistributeRouteMap[protocol]
 		if redistributeMapInfo != nil {
 			found := false
@@ -621,18 +621,18 @@ func UpdateRedistributeTargetMap(evt int, protocol string, route ribdInt.Routes)
 }
 func RedistributionNotificationSend(PUB *nanomsg.PubSocket, route ribdInt.Routes, evt int, targetProtocol string) {
 	//logger.Info("RedistributionNotificationSend")
-	msgBuf := ribdCommonDefs.RoutelistInfo{RouteInfo: route}
+	msgBuf := defs.RoutelistInfo{RouteInfo: route}
 	msgbufbytes, err := json.Marshal(msgBuf)
-	msg := ribdCommonDefs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		logger.Err("Error in marshalling Json")
 		return
 	}
 	var evtStr string
-	if evt == ribdCommonDefs.NOTIFY_ROUTE_CREATED {
+	if evt == defs.NOTIFY_ROUTE_CREATED {
 		evtStr = " NOTIFY_ROUTE_CREATED "
-	} else if evt == ribdCommonDefs.NOTIFY_ROUTE_DELETED {
+	} else if evt == defs.NOTIFY_ROUTE_DELETED {
 		evtStr = " NOTIFY_ROUTE_DELETED "
 	}
 	eventInfo := "Redistribute "
@@ -650,9 +650,9 @@ func RouteReachabilityStatusNotificationSend(targetProtocol string, info RouteRe
 		logger.Info("Publisher not found for protocol ", targetProtocol)
 		return
 	}
-	evt := ribdCommonDefs.NOTIFY_ROUTE_REACHABILITY_STATUS_UPDATE
+	evt := defs.NOTIFY_ROUTE_REACHABILITY_STATUS_UPDATE
 	PUB := publisherInfo.pub_socket
-	msgInfo := ribdCommonDefs.RouteReachabilityStatusMsgInfo{}
+	msgInfo := defs.RouteReachabilityStatusMsgInfo{}
 	msgInfo.Network = info.destNet
 	if info.status == "Up" || info.status == "Updated" {
 		msgInfo.IsReachable = true
@@ -660,7 +660,7 @@ func RouteReachabilityStatusNotificationSend(targetProtocol string, info RouteRe
 	msgInfo.NextHopIntf = info.nextHopIntf
 	msgBuf := msgInfo
 	msgbufbytes, err := json.Marshal(msgBuf)
-	msg := ribdCommonDefs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		logger.Err("Error in marshalling Json")
