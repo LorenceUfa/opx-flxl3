@@ -24,6 +24,8 @@
 package server
 
 import (
+	"errors"
+	"l3/ospfv2/objects"
 	"time"
 )
 
@@ -197,6 +199,9 @@ func (server *OSPFV2Server) ProcessLsdb() {
 		//TODO: Handle AS External
 		case <-server.LsdbData.LsdbAgingTicker.C:
 			server.processLsdbAgingTicker()
+		case <-server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh:
+			server.RefreshLsdbSlice()
+			server.SendMsgFromLsdbToServerForRefreshDone()
 		}
 	}
 }
@@ -215,4 +220,202 @@ func (server *OSPFV2Server) CalcSPFAndRoutingTbl() {
 		//Summary LSA
 		server.installSummaryLsa()
 	}
+}
+
+func (server *OSPFV2Server) RefreshLsdbSlice() {
+	server.GetBulkData.LsdbSlice = server.GetBulkData.LsdbSlice[:len(server.GetBulkData.LsdbSlice)-1]
+	server.GetBulkData.LsdbSlice = nil
+	for lsdbKey, lsDbEnt := range server.LsdbData.AreaLsdb {
+		for lsaKey, _ := range lsDbEnt.RouterLsaMap {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: lsdbKey,
+				LsaKey:  lsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+		}
+		for lsaKey, _ := range lsDbEnt.NetworkLsaMap {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: lsdbKey,
+				LsaKey:  lsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+		}
+		for lsaKey, _ := range lsDbEnt.Summary3LsaMap {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: lsdbKey,
+				LsaKey:  lsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+		}
+		for lsaKey, _ := range lsDbEnt.Summary4LsaMap {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: lsdbKey,
+				LsaKey:  lsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+		}
+		for lsaKey, _ := range lsDbEnt.ASExternalLsaMap {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: lsdbKey,
+				LsaKey:  lsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+		}
+	}
+}
+
+func (server *OSPFV2Server) getLsdbState(lsaType uint8, lsId, areaId, advRtrId uint32) (*objects.Ospfv2LsdbState, error) {
+	var retObj objects.Ospfv2LsdbState
+	server.logger.Info("Lsdb Get for ", lsaType, lsId, areaId, advRtrId)
+	lsdbKey := LsdbKey{
+		AreaId: areaId,
+	}
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
+	if !exist {
+		return nil, errors.New("No such area exist")
+	}
+	lsaKey := LsaKey{
+		LSType:    lsaType,
+		LSId:      lsId,
+		AdvRouter: advRtrId,
+	}
+	var lsaMd LsaMetadata
+	var lsaEnc []byte
+	switch lsaType {
+	case RouterLSA:
+		lsaEnt, exist := lsdbEnt.RouterLsaMap[lsaKey]
+		if !exist {
+			return nil, errors.New("No such LSA exist")
+		}
+		lsaMd = lsaEnt.LsaMd
+		lsaEnc = encodeRouterLsa(lsaEnt, lsaKey)
+	case NetworkLSA:
+		lsaEnt, exist := lsdbEnt.NetworkLsaMap[lsaKey]
+		if !exist {
+			return nil, errors.New("No such LSA exist")
+		}
+		lsaMd = lsaEnt.LsaMd
+		lsaEnc = encodeNetworkLsa(lsaEnt, lsaKey)
+	case Summary3LSA:
+		lsaEnt, exist := lsdbEnt.Summary3LsaMap[lsaKey]
+		if !exist {
+			return nil, errors.New("No such LSA exist")
+		}
+		lsaMd = lsaEnt.LsaMd
+		lsaEnc = encodeSummaryLsa(lsaEnt, lsaKey)
+	case Summary4LSA:
+		lsaEnt, exist := lsdbEnt.Summary4LsaMap[lsaKey]
+		if !exist {
+			return nil, errors.New("No such LSA exist")
+		}
+		lsaMd = lsaEnt.LsaMd
+		lsaEnc = encodeSummaryLsa(lsaEnt, lsaKey)
+	case ASExternalLSA:
+		lsaEnt, exist := lsdbEnt.ASExternalLsaMap[lsaKey]
+		if !exist {
+			return nil, errors.New("No such LSA exist")
+		}
+		lsaMd = lsaEnt.LsaMd
+		lsaEnc = encodeASExternalLsa(lsaEnt, lsaKey)
+	default:
+		return nil, errors.New("Invalid LSType")
+	}
+	retObj.LSType = lsaType
+	retObj.LSId = lsId
+	retObj.AdvRouterId = advRtrId
+	retObj.AreaId = areaId
+	retObj.SequenceNum = uint32(lsaMd.LSSequenceNum)
+	retObj.Age = lsaMd.LSAge
+	retObj.Checksum = lsaMd.LSChecksum
+	retObj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
+	return &retObj, nil
+}
+
+func (server *OSPFV2Server) getBulkLsdbState(fromIdx, cnt int) (*objects.Ospfv2LsdbStateGetInfo, error) {
+	var retObj objects.Ospfv2LsdbStateGetInfo
+	count := 0
+	idx := fromIdx
+	sliceLen := len(server.GetBulkData.LsdbSlice)
+	if fromIdx >= sliceLen {
+		return nil, errors.New("Invalid Range")
+	}
+	for count < cnt {
+		if idx == sliceLen {
+			break
+		}
+		lsdbSlice := server.GetBulkData.LsdbSlice[idx]
+		lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbSlice.LsdbKey]
+		if !exist {
+			idx++
+			continue
+		}
+		var lsaMd LsaMetadata
+		var lsaEnc []byte
+		switch lsdbSlice.LsaKey.LSType {
+		case RouterLSA:
+			lsaEnt, exist := lsdbEnt.RouterLsaMap[lsdbSlice.LsaKey]
+			if !exist {
+				idx++
+				continue
+			}
+			lsaMd = lsaEnt.LsaMd
+			lsaEnc = encodeRouterLsa(lsaEnt, lsdbSlice.LsaKey)
+		case NetworkLSA:
+			lsaEnt, exist := lsdbEnt.NetworkLsaMap[lsdbSlice.LsaKey]
+			if !exist {
+				idx++
+				continue
+			}
+			lsaMd = lsaEnt.LsaMd
+			lsaEnc = encodeNetworkLsa(lsaEnt, lsdbSlice.LsaKey)
+		case Summary3LSA:
+			lsaEnt, exist := lsdbEnt.Summary3LsaMap[lsdbSlice.LsaKey]
+			if !exist {
+				idx++
+				continue
+			}
+			lsaMd = lsaEnt.LsaMd
+			lsaEnc = encodeSummaryLsa(lsaEnt, lsdbSlice.LsaKey)
+		case Summary4LSA:
+			lsaEnt, exist := lsdbEnt.Summary4LsaMap[lsdbSlice.LsaKey]
+			if !exist {
+				idx++
+				continue
+			}
+			lsaMd = lsaEnt.LsaMd
+			lsaEnc = encodeSummaryLsa(lsaEnt, lsdbSlice.LsaKey)
+		case ASExternalLSA:
+			lsaEnt, exist := lsdbEnt.ASExternalLsaMap[lsdbSlice.LsaKey]
+			if !exist {
+				idx++
+				continue
+			}
+			lsaMd = lsaEnt.LsaMd
+			lsaEnc = encodeASExternalLsa(lsaEnt, lsdbSlice.LsaKey)
+		default:
+			idx++
+			continue
+		}
+		var obj objects.Ospfv2LsdbState
+		obj.LSType = lsdbSlice.LsaKey.LSType
+		obj.LSId = lsdbSlice.LsaKey.LSId
+		obj.AdvRouterId = lsdbSlice.LsaKey.AdvRouter
+		obj.AreaId = lsdbSlice.LsdbKey.AreaId
+		obj.SequenceNum = uint32(lsaMd.LSSequenceNum)
+		obj.Age = lsaMd.LSAge
+		obj.Checksum = lsaMd.LSChecksum
+		obj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
+		retObj.List = append(retObj.List, &obj)
+		count++
+		idx++
+	}
+	retObj.EndIdx = idx
+	if retObj.EndIdx == sliceLen {
+		retObj.More = false
+		retObj.Count = 0
+	} else {
+		retObj.More = true
+		retObj.Count = sliceLen - retObj.EndIdx + 1
+	}
+	return &retObj, nil
 }

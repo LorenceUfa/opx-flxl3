@@ -219,3 +219,33 @@ func (server *OSPFV2Server) initAsicdForRxMulticastPkt() (err error) {
 	}
 	return nil
 }
+
+func (server *OSPFV2Server) deinitAsicdForRxMulticastPkt() (err error) {
+	// All SPF Router
+	allSPFRtrMacConf := asicdInt.RsvdProtocolMacConfig{
+		MacAddr:     ALLSPFROUTERMAC,
+		MacAddrMask: MASKMAC,
+	}
+	if server.asicdComm.asicdClient.ClientHdl == nil {
+		server.logger.Err("Null asicd client handle")
+		return nil
+	}
+	ret, err := server.asicdComm.asicdClient.ClientHdl.DisablePacketReception(&allSPFRtrMacConf)
+	if !ret {
+		server.logger.Info("Deleting reserved mac failed", ALLSPFROUTERMAC)
+		return err
+	}
+
+	// All D Router
+	allDRtrMacConf := asicdInt.RsvdProtocolMacConfig{
+		MacAddr:     ALLDROUTERMAC,
+		MacAddrMask: MASKMAC,
+	}
+
+	ret, err = server.asicdComm.asicdClient.ClientHdl.DisablePacketReception(&allDRtrMacConf)
+	if !ret {
+		server.logger.Info("Deleting reserved mac failed", ALLDROUTERMAC)
+		return err
+	}
+	return nil
+}

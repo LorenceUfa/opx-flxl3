@@ -94,17 +94,19 @@ func convertFromRPCFmtOspfv2Area(config *ospfv2d.Ospfv2Area) (*objects.Ospfv2Are
 func convertToRPCFmtOspfv2AreaState(obj *objects.Ospfv2AreaState) *ospfv2d.Ospfv2AreaState {
 	areaId := convertUint32ToDotNotation(obj.AreaId)
 	return &ospfv2d.Ospfv2AreaState{
-		AreaId:           areaId,
-		NumSpfRuns:       int32(obj.NumSpfRuns),
-		NumBdrRtr:        int32(obj.NumBdrRtr),
-		NumAsBdrRtr:      int32(obj.NumAsBdrRtr),
-		NumRouterLsa:     int32(obj.NumRouterLsa),
-		NumNetworkLsa:    int32(obj.NumNetworkLsa),
-		NumSummary3Lsa:   int32(obj.NumSummary3Lsa),
-		NumSummary4Lsa:   int32(obj.NumSummary4Lsa),
-		NumASExternalLsa: int32(obj.NumASExternalLsa),
-		NumIntfs:         int32(obj.NumIntfs),
-		NumNbrs:          int32(obj.NumNbrs),
+		AreaId: areaId,
+		//NumSpfRuns:       int32(obj.NumSpfRuns),
+		//NumBdrRtr:        int32(obj.NumBdrRtr),
+		//NumAsBdrRtr:      int32(obj.NumAsBdrRtr),
+		NumOfRouterLSA:     int32(obj.NumOfRouterLSA),
+		NumOfNetworkLSA:    int32(obj.NumOfNetworkLSA),
+		NumOfSummary3LSA:   int32(obj.NumOfSummary3LSA),
+		NumOfSummary4LSA:   int32(obj.NumOfSummary4LSA),
+		NumOfASExternalLSA: int32(obj.NumOfASExternalLSA),
+		NumOfIntfs:         int32(obj.NumOfIntfs),
+		NumOfNbrs:          int32(obj.NumOfNbrs),
+		NumOfLSA:           int32(obj.NumOfLSA),
+		NumOfRoutes:        int32(obj.NumOfRoutes),
 	}
 }
 
@@ -137,8 +139,18 @@ func convertFromRPCFmtOspfv2Global(config *ospfv2d.Ospfv2Global) (*objects.Ospfv
 
 func convertToRPCFmtOspfv2GlobalState(obj *objects.Ospfv2GlobalState) *ospfv2d.Ospfv2GlobalState {
 	return &ospfv2d.Ospfv2GlobalState{
-		Vrf:              "Default",
-		AreaBdrRtrStatus: obj.AreaBdrRtrStatus,
+		Vrf:                "Default",
+		AreaBdrRtrStatus:   obj.AreaBdrRtrStatus,
+		NumOfAreas:         int32(obj.NumOfAreas),
+		NumOfIntfs:         int32(obj.NumOfIntfs),
+		NumOfNbrs:          int32(obj.NumOfNbrs),
+		NumOfLSA:           int32(obj.NumOfLSA),
+		NumOfRouterLSA:     int32(obj.NumOfRouterLSA),
+		NumOfNetworkLSA:    int32(obj.NumOfNetworkLSA),
+		NumOfSummary3LSA:   int32(obj.NumOfSummary3LSA),
+		NumOfSummary4LSA:   int32(obj.NumOfSummary4LSA),
+		NumOfASExternalLSA: int32(obj.NumOfASExternalLSA),
+		NumOfRoutes:        int32(obj.NumOfRoutes),
 	}
 }
 
@@ -215,7 +227,18 @@ func convertToRPCFmtOspfv2IntfState(obj *objects.Ospfv2IntfState) *ospfv2d.Ospfv
 		DesignatedRouterId:       designatedRouterId,
 		BackupDesignatedRouter:   backupDesignatedRouter,
 		BackupDesignatedRouterId: backupDesignatedRouterId,
-		NumNbrs:                  int32(obj.NumNbrs),
+		NumOfRouterLSA:           int32(obj.NumOfRouterLSA),
+		NumOfNetworkLSA:          int32(obj.NumOfNetworkLSA),
+		NumOfSummary3LSA:         int32(obj.NumOfSummary3LSA),
+		NumOfSummary4LSA:         int32(obj.NumOfSummary4LSA),
+		NumOfASExternalLSA:       int32(obj.NumOfASExternalLSA),
+		NumOfLSA:                 int32(obj.NumOfLSA),
+		NumOfNbrs:                int32(obj.NumOfNbrs),
+		NumOfRoutes:              int32(obj.NumOfRoutes),
+		Mtu:                      int32(obj.Mtu),
+		Cost:                     int32(obj.Cost),
+		NumOfStateChange:         int32(obj.NumOfStateChange),
+		TimeOfStateChange:        obj.TimeOfStateChange,
 	}
 }
 
@@ -239,7 +262,6 @@ func convertFromRPCFmtLSType(LSType string) (uint8, error) {
 	return lsType, nil
 }
 
-/*
 func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv2LsdbState {
 	var lsType string
 	switch obj.LSType {
@@ -268,7 +290,6 @@ func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv
 		Advertisement: obj.Advertisement,
 	}
 }
-*/
 
 func convertToRPCFmtOspfv2NbrState(obj *objects.Ospfv2NbrState) *ospfv2d.Ospfv2NbrState {
 	ipAddr := convertUint32ToDotNotation(obj.IpAddr)

@@ -67,6 +67,14 @@ func NewRPCServer(rpcAddr string, logger logging.LoggerIntf, dbHdl dbutils.DBInt
 }
 
 func (rpcHdl *rpcServiceHandler) restoreConfigFromDB() (bool, error) {
-	// TODO
-	return true, nil
+	ok, err := rpcHdl.restoreOspfv2GlobalConfFromDB()
+	if !ok {
+		return ok, err
+	}
+	ok, err = rpcHdl.restoreOspfv2AreaConfFromDB()
+	if !ok {
+		return ok, err
+	}
+	ok, err = rpcHdl.restoreOspfv2IntfConfFromDB()
+	return ok, err
 }
