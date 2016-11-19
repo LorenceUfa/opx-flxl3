@@ -29,6 +29,7 @@ import (
 	"l3/ndp/debug"
 	"ndpd"
 	"strconv"
+	"utils/netUtils"
 )
 
 func (h *ConfigHandler) CreateNDPGlobal(config *ndpd.NDPGlobal) (bool, error) {
@@ -159,4 +160,13 @@ func (h *ConfigHandler) GetIPV6AdjState(intfRef string) (*ndpd.IPV6AdjState, err
 		return nil, errors.New("No Neighbor Found for Port " + intfRef)
 	}
 	return h.convertIPV6AdjStateEntryToThriftEntry(*ndpEntry), nil
+}
+
+func (h *ConfigHandler) DeleteNdpEntry(ipAddr string) error {
+	if netUtils.IsIpv6LinkLocal(ipAddr) {
+		debug.Logger.Err("DeletiNdpEntry doesn't support deleting link local ip:", ipAddr)
+		return nil
+	}
+	api.SendDeleteByNeighborIp(ipAddr)
+	return nil
 }

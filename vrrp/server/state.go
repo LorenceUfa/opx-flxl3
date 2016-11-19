@@ -95,3 +95,10 @@ func (svr *VrrpServer) GetEntry(intfRef string, vrid int32, version uint8) *comm
 	key := KeyInfo{intfRef, vrid, version}
 	return svr.populateState(key)
 }
+
+func (svr *VrrpServer) GetGlobalState(vrf string) *common.GlobalState {
+	if svr.globalState.Vrf != vrf {
+		return new(common.GlobalState)
+	}
+	return &svr.globalState
+}

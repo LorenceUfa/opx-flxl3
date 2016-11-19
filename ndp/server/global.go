@@ -58,62 +58,38 @@ type PhyPort struct {
 }
 
 type NDPServer struct {
-	NdpConfig                                // base config
-	dmnBase      *dmnBase.FSBaseDmn          // base Daemon
-	SwitchPlugin asicdClient.AsicdClientIntf // asicd plugin
-
-	// System Ports information, key is IntfRef
-	L2Port              map[int32]PhyPort                //config.PortInfo        // key is l2 ifIndex
-	L3Port              map[int32]Interface              // key is l3 ifIndex
-	VlanInfo            map[int32]config.VlanInfo        // key is vlanIfIndex
-	VlanIfIdxVlanIdMap  map[string]int32                 // reverse map for vlanName ----> vlanId, used during ipv6 neig create
-	SwitchMacMapEntries map[string]struct{}              // cache entry for all mac addresses on a switch
-	NeighborInfo        map[string]config.NeighborConfig // neighbor created by NDP used for STATE
-	neighborKey         []string                         // keys for all neighbor entries is stored here for GET calls
-	PhyPortToL3PortMap  map[int32]L3Info                 // reverse map for l2IfIndex ----> l3IfIndex, used during vlan RX Pcap
-	Dot1QToVlanIfIndex  map[int32]int32                  // reverse map of vlanId (aka dot1q tag) to l3IfIndex for vlan
-
-	//Configuration Channels
-	GlobalCfg chan NdpConfig
-	// Lock for reading/writing NeighorInfo
-	// We need this lock because getbulk/getentry is not requested on the main entry point channel, rather it's a
-	// direct call to server. So to avoid updating the Neighbor Runtime Info during read
-	// it's better to use lock
-	NeigborEntryLock *sync.RWMutex
-
-	//IPV6 Create/Delete State Up/Down Notification Channel
-	IpIntfCh chan *config.IPIntfNotification
-	// Vlan Create/Delete/Update Notification Channel
-	VlanCh chan *config.VlanNotification
-	// Mac Move Notification Channel
-	MacMoveCh chan *config.MacMoveNotification
-	//Received Pkt Channel
-	RxPktCh chan *RxPktInfo
-	//Package packet informs server over PktDataCh saying that send this packet..
-	PktDataCh chan config.PacketData
-	//Action Channel for NDP
-	ActionCh chan *config.ActionData
-
+	NdpConfig                                              // base config
+	dmnBase               *dmnBase.FSBaseDmn               // base Daemon
+	SwitchPlugin          asicdClient.AsicdClientIntf      // asicd plugin
+	L2Port                map[int32]PhyPort                // key is l2 ifIndex
+	L3Port                map[int32]Interface              // key is l3 ifIndex
+	VlanInfo              map[int32]config.VlanInfo        // key is vlanIfIndex
+	virtualIp             map[int32]*config.VirtualIpInfo  // key is virtual ip ifIndex
+	VlanIfIdxVlanIdMap    map[string]int32                 // reverse map for vlanName ----> vlanId, used during ipv6 neig create
+	SwitchMacMapEntries   map[string]struct{}              // cache entry for all mac addresses on a switch
+	NeighborInfo          map[string]config.NeighborConfig // neighbor created by NDP used for STATE
+	neighborKey           []string                         // keys for all neighbor entries is stored here for GET calls
+	PhyPortToL3PortMap    map[int32]L3Info                 // reverse map for l2IfIndex ----> l3IfIndex, used during vlan RX Pcap
+	Dot1QToVlanIfIndex    map[int32]int32                  // reverse map of vlanId (aka dot1q tag) to l3IfIndex for vlan
+	GlobalCfg             chan NdpConfig                   // Configuration Channels
+	NeigborEntryLock      *sync.RWMutex                    // Lock for reading/writing NeighorInfo
+	IpIntfCh              chan *config.IPIntfNotification  // IPV6 Create/Delete State Up/Down Notification Channel
+	VlanCh                chan *config.VlanNotification    // Vlan Create/Delete/Update Notification Channel
+	MacMoveCh             chan *config.MacMoveNotification // Mac Move Notification Channel
+	RxPktCh               chan *RxPktInfo                  // Received Pkt Channel
+	PktDataCh             chan config.PacketData           // Package packet informs server over PktDataCh saying that send this packet..
+	ActionCh              chan *config.ActionData          // Action Channel for NDP
+	VirtualIpCh           chan *config.VirtualIpInfo       // Virtual Ip Channel used for virtual interface notification from asicd
+	Packet                *packet.Packet                   // Neighbor Cache Information
+	SwitchMac             string                           // @HACK: Need to find better way of getting Switch Mac Address
+	notifyChan            chan<- []byte                    // Notification Channel for Publisher
+	counter               PktCounter                       // counter for packets send and received
 	ndpL3IntfStateSlice   []int32
 	ndpUpL3IntfStateSlice []int32
 	L3IfIntfRefToIfIndex  map[string]int32
-
-	//Pcap Default config values
-	SnapShotLen int32
-	Promiscuous bool
-	Timeout     time.Duration
-
-	// Neighbor Cache Information
-	Packet *packet.Packet
-
-	// @HACK: Need to find better way of getting Switch Mac Address
-	SwitchMac string
-
-	// Notification Channel for Publisher
-	notifyChan chan<- []byte
-
-	// counter for packets send and received
-	counter PktCounter
+	SnapShotLen           int32
+	Promiscuous           bool
+	Timeout               time.Duration
 }
 
 const (

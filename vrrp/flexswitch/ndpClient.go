@@ -20,48 +20,28 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-package server
+
+package flexswitch
 
 import (
-	"fmt"
-	"l3/ndp/debug"
-	"net"
-	"strings"
+	"l3/ndp/lib"
+	"l3/ndp/lib/flexswitch"
+	"sync"
+	"utils/commonDefs"
 )
 
-func createNeighborKey(mac, ip, intfName string) string {
-	return mac + "_" + ip + "_" + intfName
+// this is for notification messages
+var ndpClientInst *flexswitch.NdpdClientStruct = nil
+var ndpOnce sync.Once
+
+func GetNdpInst() *flexswitch.NdpdClientStruct {
+	ndpOnce.Do(func() {
+		ndpClientInst = &flexswitch.NdpdClientStruct{}
+	})
+	return ndpClientInst
 }
 
-func splitNeighborKey(nbrKey string) []string {
-	return strings.Split(nbrKey, "_")
-}
-
-func isLinkLocal(ipAddr string) bool {
-	ip, _, err := net.ParseCIDR(ipAddr)
-	if err != nil {
-		ip = net.ParseIP(ipAddr)
-	}
-	return ip.IsLinkLocalUnicast() && (ip.To4() == nil)
-}
-
-func baseFilter(macAddr string) (filter string) {
-	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC)
-	debug.Logger.Info("new filter is:", filter)
-	return filter
-}
-
-func getNewFilter(macAddr string) (filter string) {
-	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC, macAddr)
-	debug.Logger.Info("new filter is:", filter)
-	return filter
-}
-
-func (svr *NDPServer) IsIPv6Addr(ipAddr string) bool {
-	ip, _, _ := net.ParseCIDR(ipAddr)
-	if ip.To4() == nil {
-		return true
-	}
-
-	return false
+// this is initializing the NBMgr for ndp client
+func InitNdpInst(plugin, paramsDir string, clntList []commonDefs.ClientJson, ndpHdl flexswitch.NdpdClientStruct) lib.NdpdClientIntf {
+	return lib.NewNdpClient(plugin, paramsDir, clntList, ndpHdl)
 }
