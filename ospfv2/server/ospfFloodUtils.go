@@ -34,22 +34,22 @@ import (
 	//"time"
 )
 
-func (server *OSPFServer) selfGenLsaCheck(key LsaKey) bool {
-	rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
+func (server *OSPFV2Server) selfGenLsaCheck(key LsaKey) bool {
+	rtr_id := server.globalData.RouterId
 	if key.AdvRouter == rtr_id {
 		return true
 	}
 	return false
 }
-func (server *OSPFServer) lsaUpdDiscardCheck(nbrConf NbrConf, data []byte) bool {
-	if nbrConf.OspfNbrState < NbrExchange {
-		server.logger.Info(fmt.Sprintln("LSAUPD: Discard .. Nbrstate (expected less than exchange)", nbrConf.OspfNbrState))
+func (server *OSPFV2Server) lsaUpdDiscardCheck(nbrConf NbrConf, data []byte) bool {
+	if nbrConf.State < NbrExchange {
+		server.logger.Info(fmt.Sprintln("LSAUPD: Discard .. Nbrstate (expected less than exchange)", nbrConf.State))
 		return true
 	}
 
 	return false
 }
-func (server *OSPFServer) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist int) bool {
+func (server *OSPFV2Server) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist int) bool {
 
 	send_ack := true
 	/*
@@ -62,22 +62,22 @@ func (server *OSPFServer) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist i
 	       the LSA and examine the next LSA (if any) listed in the Link
 	   State Update packet.
 	*/
-	data := ospfIntfToNbrMap[intf]
-	for _, nbrKey := range data.nbrList {
-		nbr := server.NeighborConfigMap[nbrKey]
-		if nbr.OspfNbrState == config.NbrExchange || nbr.OspfNbrState == config.NbrLoading {
+	data := server.NbrConfData.IntfToNbrMap[intf]
+	for _, nbrKey := range data {
+		nbr := server.NbrConfMap[nbrKey]
+		if nbr.State == NbrExchange || nbr.State == NbrLoading {
 			continue
 		} else {
 			send_ack = false
 		}
 	}
-	if send_ack && exist == LsdbEntryNotFound && lsa_max_age {
+	if send_ack && exist == 0 && lsa_max_age {
 		return true
 	}
 	return false
 }
 
-func (server *OSPFServer) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.IntfKey, lsa_max_age, exist)
@@ -102,7 +102,7 @@ func (server *OSPFServer) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, 
 	return discard, op
 }
 
-func (server *OSPFServer) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, dnlsa NetworkLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, dnlsa NetworkLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.IntfKey, lsa_max_age, exist)
@@ -122,18 +122,18 @@ func (server *OSPFServer) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, 
 		}
 	}
 	//if i am DR and receive nw LSA from neighbor discard it.
-	rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
-	if intf.IfDRtrId == rtr_id {
-		nbrIp := convertAreaOrRouterIdUint32(nbr.OspfNbrIPAddr.String())
+	rtr_id := server.globalData.RouterId
+	if intf.DRtrId == rtr_id {
+		nbrIp := nbr.NbrIP
 		if lsaKey.LSId == nbrIp {
-			server.logger.Info(fmt.Sprintln("DISCARD: I am dr. received nw LSA from nbr . LSA id ", nbr.OspfNbrIPAddr))
+			server.logger.Info(fmt.Sprintln("DISCARD: I am dr. received nw LSA from nbr . LSA id ", nbr.NbrIP))
 			discard = true
 			op = LsdbNoAction
 		}
 	}
 	return discard, op
 }
-func (server *OSPFServer) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.IntfKey, lsa_max_age, exist)
@@ -156,7 +156,7 @@ func (server *OSPFServer) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLs
 	return discard, op
 }
 
-func (server *OSPFServer) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa ASExternalLsa, nbr NbrConf, intf IntfConf, areaid []byte, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa ASExternalLsa, nbr NbrConf, intf IntfConf, areaid []byte, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	// TODO Reject this lsa if area is configured as stub area.
@@ -189,7 +189,7 @@ func validateChecksum(data []byte) bool {
 	return true
 }
 
-func (server *OSPFServer) validateLsaIsNew(rlsamd LsaMetadata, dlsamd LsaMetadata) bool {
+func (server *OSPFV2Server) validateLsaIsNew(rlsamd LsaMetadata, dlsamd LsaMetadata) bool {
 	if rlsamd.LSSequenceNum > dlsamd.LSSequenceNum {
 		server.logger.Info(fmt.Sprintln("LSA: received lsseq num > db seq num. "))
 		return true

@@ -24,32 +24,21 @@
 package server
 
 import (
+	"fmt"
 	"l3/ospfv2/objects"
+	"time"
 )
-
-/* LSA lists */
-func newNbrReqData() *NbrReqData {
-	return &ospfLSAHeader{}
-}
-
-func newNbrDbSummaryData() *NbrDbSummaryData {
-	return &ospfLsaHeader{}
-}
-
-func newNbrRetxData() *NbrRetxData {
-	return &ospfLSAHeader{}
-}
 
 func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) NbrDbdMsg {
 	dbdNbrMsg := NbrDbdMsg{
-		nbrKey:     key,
+		nbrConfKey: key,
 		nbrDbdData: dbd_data,
 	}
 	return dbdNbrMsg
 }
 
-func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags int32) {
-	valid, nbrE := server.NbrConfMap[nbrKey]
+func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags int) {
+	nbrE, valid := server.NbrConfMap[nbrKey]
 	if !valid {
 		server.logger.Err("Nbr : Nbr conf does not exist . Not updated ", nbrKey)
 		return
@@ -80,14 +69,14 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 func (server *OSPFV2Server) UpdateIntfToNbrMap(nbrKey NbrConfKey) {
 	var newList []NbrConfKey
 	nbrConf := server.NbrConfMap[nbrKey]
-	nbrMdata, exists := IntfToNbrMap[nbrConf.IntfKey]
+	nbrMdata, exists := server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey]
 	if !exists {
 		newList = []NbrConfKey{}
 	} else {
-		newList = IntfToNbrMap[nbrConf.IntfKey]
+		newList = server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey]
 	}
 	newList = append(newList, nbrKey)
-	IntfToNbrMap[nbrConf.IntfKey] = newList
+	server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey] = newList
 	server.logger.Debug("Nbr : Intf to nbr list updated ", newList)
 }
 
@@ -122,54 +111,6 @@ func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf
 	}
 
 	return false
-}
-
-func (server *OSPFServer) CheckNeighborFullEvent(nbrKey NeighborConfKey) {
-	nbrConf, exists := server.NeighborConfigMap[nbrKey]
-	nbrFull := true
-	if exists {
-		reqlist := ospfNeighborRequest_list[nbrKey]
-		if reqlist != nil {
-			for _, ent := range reqlist {
-				if ent.valid == true {
-					nbrFull = false
-				}
-			}
-		}
-		if !nbrFull {
-			return
-		}
-		nbrConfMsg := ospfNeighborConfMsg{
-			ospfNbrConfKey: nbrKey,
-			ospfNbrEntry: OspfNeighborEntry{
-				OspfNbrRtrId:           nbrConf.OspfNbrRtrId,
-				OspfNbrIPAddr:          nbrConf.OspfNbrIPAddr,
-				OspfRtrPrio:            nbrConf.OspfRtrPrio,
-				intfConfKey:            nbrConf.intfConfKey,
-				OspfNbrOptions:         0,
-				OspfNbrState:           config.NbrFull,
-				isStateUpdate:          true,
-				OspfNbrInactivityTimer: time.Now(),
-				OspfNbrDeadTimer:       nbrConf.OspfNbrDeadTimer,
-				isSeqNumUpdate:         false,
-				isMasterUpdate:         false,
-				nbrEvent:               nbrConf.nbrEvent,
-			},
-			nbrMsgType: NBRUPD,
-		}
-		server.neighborConfCh <- nbrConfMsg
-		server.logger.Info(fmt.Sprintln("NBREVENT: Nbr FULL ", nbrKey.IPAddr))
-	}
-}
-
-func (server *OSPFServer) UpdateNeighborList(nbrKey NeighborConfKey) {
-	nbrConf, exists := server.NeighborConfigMap[nbrKey]
-	if exists {
-		if nbrConf.OspfNbrState == config.NbrFull {
-			return
-		}
-		server.CheckNeighborFullEvent(nbrKey)
-	}
 }
 
 func calculateMaxLsaHeaders() (max_headers uint8) {

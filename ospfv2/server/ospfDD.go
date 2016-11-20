@@ -29,6 +29,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"l3/ospf/config"
+	"l3/ospfv2/objects"
 	"net"
 )
 
@@ -232,11 +233,11 @@ func encodeDatabaseDescriptionData(dd_data NbrDbdData) []byte {
 }
 
 func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdData) {
-	intfKey := nbrConf.IntfConfKey
+	intfKey := nbrConf.IntfKey
 	ent, exist := server.IntfConfMap[intfKey]
 	if !exist {
 		server.logger.Err("Nbr : failed to send db packet ", intfKey)
-		return nil
+		return
 	}
 	dstMAC := ent.IfMacAddr
 
@@ -244,10 +245,10 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 		Ver:      OSPF_VERSION_2,
 		PktType:  uint8(DBDescriptionType),
 		Pktlen:   0,
-		RouterId: server.ospfGlobalConf.RouterId,
-		AreaId:   ent.IfAreaId,
+		RouterId: server.globalData.RouterId,
+		AreaId:   ent.AreaId,
 		Chksum:   0,
-		AuthType: ent.IfAuthType,
+		AuthType: ent.AuthType,
 	}
 
 	ospfPktlen := OSPF_HEADER_SIZE
@@ -265,19 +266,18 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 	//server.logger.Info(fmt.Sprintln("OSPF DBD:", ospf))
 	csum := computeCheckSum(ospf)
 	binary.BigEndian.PutUint16(ospf[12:14], csum)
-	copy(ospf[16:24], ent.IfAuthKey)
+	copy(ospf[16:24], ent.AuthKey)
 
 	var DstIP net.IP
 	var DstMAC net.HardwareAddr
 
 	ipPktlen := IP_HEADER_MIN_LEN + ospfHdr.pktlen
-	SrcIP := ent.IfIpAddr
-
-	if ent.IfType == config.NumberedP2P {
+	SrcIP := ent.IpAddr
+	if ent.FSMState == objects.INTF_FSM_STATE_P2P {
 		DstIP = net.ParseIP(config.AllSPFRouters)
 		DstMAC, _ = net.ParseMAC(config.McastMAC)
 	} else {
-		DstIP = nbrConf.OspfNbrIPAddr
+		DstIP = net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
 		DstMAC = dstMAC
 	}
 
@@ -359,8 +359,7 @@ func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 	dbd_mdata.mbit = mbit
 	dbd_mdata.msbit = msbit
 
-	server.logger.Debug(fmt.Sprintln("DBD: MTU ", ifMtu))
-	dbd_mdata.interface_mtu = intfConf.Mtu
+	dbd_mdata.interface_mtu = uint16(intfConf.Mtu)
 	dbd_mdata.options = options
 	dbd_mdata.dd_sequence_number = seq
 
@@ -371,11 +370,11 @@ func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 		dbd_mdata.lsa_headers = []ospfLSAHeader{}
 		var index uint8
 
-		db_list, exist := nbrConf.NbrDBSummaryList[nbrKey]
+		db_list := nbrConf.NbrDBSummaryList
 		server.logger.Debug(fmt.Sprintln("DBD: db_list ", db_list))
-		if exist {
+		if len(db_list) == 0 {
 			for index = 0; index < uint8(len(db_list)); index++ {
-				dbd_mdata.lsa_headers = append(dbd_mdata.lsa_headers, db_list[index])
+				dbd_mdata.lsa_headers = append(dbd_mdata.lsa_headers, *db_list[index])
 				lsa_count_att++
 				lsa_count_done++
 			}
@@ -386,7 +385,7 @@ func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 		}
 	}
 
-	server.logger.Debug(fmt.Sprintln("DBDSEND: nbr state ", nbrCon.OspfNbrState,
+	server.logger.Debug(fmt.Sprintln("DBDSEND: nbr state ", nbrConf.State,
 		" imms ", dbd_mdata.ibit, dbd_mdata.mbit, dbd_mdata.msbit,
 		" seq num ", seq, "options ", dbd_mdata.options, " headers_list ", dbd_mdata.lsa_headers))
 
@@ -405,21 +404,21 @@ func (server *OSPFV2Server) calculateDBLsaAttach(nbrKey NbrConfKey, nbrConf NbrC
 	lsa_attach = 0
 
 	max_lsa_headers := calculateMaxLsaHeaders()
-	db_list := nbrConf.NbrDBSummaryList[nbrKey]
+	db_list := nbrConf.NbrDBSummaryList
 	slice_len := len(db_list)
 	server.logger.Info(fmt.Sprintln("DBD: slice_len ", slice_len, "max_lsa_header ", max_lsa_headers,
-		"nbrConf.lsa_index ", nbrConf.ospfNbrLsaIndex))
-	if slice_len == int(nbrConf.ospfNbrLsaIndex) {
+		"nbrConf.lsa_index ", nbrConf.NbrLsaIndex))
+	if slice_len == int(nbrConf.NbrLsaIndex) {
 		return
 	}
-	if max_lsa_headers > (uint8(slice_len) - uint8(nbrConf.ospfNbrLsaIndex)) {
-		lsa_attach = uint8(slice_len) - uint8(nbrConf.ospfNbrLsaIndex)
+	if max_lsa_headers > (uint8(slice_len) - uint8(nbrConf.NbrLsaIndex)) {
+		lsa_attach = uint8(slice_len) - uint8(nbrConf.NbrLsaIndex)
 	} else {
 		lsa_attach = max_lsa_headers
 	}
-	if (nbrConf.ospfNbrLsaIndex + lsa_attach) >= uint8(slice_len) {
+	if (uint8(nbrConf.NbrLsaIndex) + lsa_attach) >= uint8(slice_len) {
 		// the last slice in the list being sent
-		server.logger.Info(fmt.Sprintln("DBD:  Send the last dd packet with nbr/state ", nbrKey.IPAddr, nbrConf.OspfNbrState))
+		server.logger.Info(fmt.Sprintln("DBD:  Send the last dd packet with nbr/state ", nbrKey.NbrIdentity, nbrConf.State))
 		last_exchange = true
 	}
 	return last_exchange, 0

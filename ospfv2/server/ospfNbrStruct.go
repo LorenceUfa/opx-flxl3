@@ -24,16 +24,13 @@
 package server
 
 import (
-	"encoding/binary"
-	"fmt"
-	"l3/ospf/config"
 	"time"
 )
 
 type NbrConf struct {
 	IntfKey         IntfConfKey
-	State           int
-	InactivityTimer int32
+	State           NbrState
+	InactivityTimer time.Time
 	RtrId           uint32
 	isMaster        bool
 	DDSequenceNum   uint32
@@ -48,6 +45,7 @@ type NbrConf struct {
 	NbrDeadTimer    *time.Timer
 	Nbrflags        int32 //flags showing fields to update from nbrstruct
 	NbrLastDbd      map[NbrConfKey]NbrDbdData
+	NbrLsaIndex     int
 	//Nbr lists
 	NbrReqList       []*ospfLSAHeader
 	NbrDBSummaryList []*ospfLSAHeader
@@ -56,7 +54,7 @@ type NbrConf struct {
 }
 
 const (
-	INTF_MTU_MIN              int = 1500
+	INTF_OPTIONS                  = 66
 	NBR_FLAG_STATE            int = 0x00000001
 	NBR_FLAG_INACTIVITY_TIMER int = 0x00000002
 	NBR_FLAG_IS_MASTER        int = 0x00000004
@@ -65,10 +63,11 @@ const (
 	NBR_FLAG_IP               int = 0x00000012
 	NBR_FLAG_PRIORITY         int = 0x00000014
 	NBR_FLAF_IP               int = 0x00000018
-	NBR_FLAG_OPTIONS          int = 0x00000020
+	NBR_FLAG_OPTION           int = 0x00000020
 	NBR_FLAG_DR               int = 0x00000022
 	NBR_FLAG_BDR              int = 0x00000024
 	NBR_FLAG_DEAD_DURATION    int = 0x00000026
+	NBR_FLAG_DEAD_TIMER       int = 0x00000028
 )
 
 //Nbr states
@@ -149,7 +148,7 @@ type NbrStruct struct {
 	neighborDBDEventCh    chan NbrDbdMsg
 	neighborLSAReqEventCh chan NbrLsaReqMsg
 	neighborLSAUpdEventCh chan NbrLsaUpdMsg
-	neighborLSAACKEventCh chan NbrLsaAckMsg
+	nbrLsaAckEventCh      chan NbrLsaAckMsg
 	IntfToNbrMap          map[IntfConfKey][]NbrConfKey
 	nbrFSMCtrlCh          chan bool
 }
@@ -159,6 +158,6 @@ func (server *OSPFV2Server) initNbrStruct() {
 	server.NbrConfData.neighborDBDEventCh = make(chan NbrDbdMsg)
 	server.NbrConfDataneighborLSAUpdEventCh = make(chan NbrLsaUpdMsg)
 	server.NbrConfData.neighborLSAReqEventCh = make(chan NbrLsaReqMsg)
-	server.NbrConfData.neighborLSAACKEventCh = make(chan NbrLsaAckMsg)
+	server.NbrConfData.nbrLsaAckEventCh = make(chan NbrLsaAckMsg)
 	server.logger.Debug("Nbr: InitNbrStruct done ")
 }

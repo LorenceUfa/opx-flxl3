@@ -24,10 +24,10 @@
 package server
 
 import (
-	"encoding/binary"
-	"fmt"
-	"l3/ospf/config"
-	"net"
+//"encoding/binary"
+//"fmt"
+//"l3/ospf/config"
+//"net"
 )
 
 const (
@@ -49,7 +49,5 @@ type ospfFloodMsg struct {
 }
 
 type FloodStruct struct {
-	FloodCtrlCh    chan bool
-	FloodNbrFullCh chan FloodMsg
-	FloodMsg       FloodMsg
+	FloodCtrlCh chan bool
 }

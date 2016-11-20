@@ -41,11 +41,11 @@ func (server *OSPFV2Server) StartFlooding() {
 		case lsdbToFloodData := <-server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh:
 			server.logger.Debug("Flood: received self originated lsa.")
 
-		case nbrToFloodData := <-server.MessagingChData.NbrFSMToFloodChData.LsaFlood:
+		case nbrToFloodData := <-server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh:
 			server.logger.Debug("Flood: Received flood message from nbr ", nbrToFloodData.NbrKey)
 		case stop := <-server.FloodData.FloodCtrlCh:
 			server.logger.Debug("Flood: Stopping flood channel.")
-			exit
+			return
 		}
 	}
 }
@@ -64,10 +64,10 @@ func (server *OSPFV2Server) SendSelfOrigLSA(areaId uint32, intfKey IntfConfKey) 
 	ospfLsaPkt := newospfNeighborLSAUpdPkt()
 	var lsaEncPkt []byte
 	LsaEnc := []byte{}
-	server.logger.Info(fmt.Sprintln("Flood: Start flooding as Nbr is in full state intf ", intConf.IfIpAddr,
+	server.logger.Info(fmt.Sprintln("Flood: Start flooding as Nbr is in full state intf ", intConf.IpAddr,
 		" areaid ", areaId))
 
-	selfOrigLsaEnt, exist := server.AreaSelfOrigLsa[lsdbKey]
+	selfOrigLsaEnt, exist := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
 	if !exist {
 		return nil
 	}
@@ -86,16 +86,16 @@ func (server *OSPFV2Server) SendSelfOrigLSA(areaId uint32, intfKey IntfConfKey) 
 				binary.BigEndian.PutUint16(LsaEnc[16:18], checkSum)
 				pktLen = len(LsaEnc)
 				binary.BigEndian.PutUint16(LsaEnc[18:20], uint16(pktLen))
-				lsaid := convertUint32ToIPv4(key.LSId)
+				lsaid := key.LSId
 				server.logger.Info(fmt.Sprintln("Flood: router  LSA = ", lsaid))
 				ospfLsaPkt.lsa = append(ospfLsaPkt.lsa, LsaEnc...)
 				ospfLsaPkt.no_lsas++
 				total_len += pktLen
 
 			case NetworkLSA:
-				rtr_id := binary.BigEndian.Uint32(server.ospfGlobalConf.RouterId)
-				server.logger.Info(fmt.Sprintln("Flood: intfRouterid ", intConf.IfDRtrId, " globalrtrId ", rtr_id))
-				if intConf.IfDRtrId == rtr_id {
+				rtr_id := server.globalData.RouterId
+				server.logger.Info(fmt.Sprintln("Flood: intfRouterid ", intConf.DRIpAddr, " globalrtrId ", rtr_id))
+				if intConf.DRtrId == rtr_id {
 					server.logger.Info(fmt.Sprintln("Flood: I am DR. Send Nw LSA."))
 					entry, _ := server.getNetworkLsaFromLsdb(areaId, key)
 
@@ -120,7 +120,7 @@ func (server *OSPFV2Server) SendSelfOrigLSA(areaId uint32, intfKey IntfConfKey) 
 				binary.BigEndian.PutUint16(LsaEnc[16:18], checkSum)
 				pktLen = len(LsaEnc)
 				binary.BigEndian.PutUint16(LsaEnc[18:20], uint16(pktLen))
-				lsaid := convertUint32ToIPv4(key.LSId)
+				lsaid := key.LSId
 				server.logger.Info(fmt.Sprintln("Flood: summary  LSA = ", lsaid))
 				ospfLsaPkt.lsa = append(ospfLsaPkt.lsa, LsaEnc...)
 				ospfLsaPkt.no_lsas++
@@ -166,7 +166,7 @@ func (server *OSPFV2Server) processFloodMsg(lsa_data ospfFloodMsg) {
 		server.logger.Info(fmt.Sprintln("FLOOD: Flood request received from interface key ",
 			lsa_data.intfKey, " nbr ", lsa_data.nbrKey))
 		for key, intf := range server.IntfConfMap {
-			ifAreaId := convertIPv4ToUint32(intf.IfAreaId)
+			ifAreaId := intf.AreaId
 			flood_lsa := server.interfaceFloodCheck(key)
 			if !flood_lsa || ifAreaId != lsa_data.areaId {
 				continue // dont flood if no nbr is full for this interface
@@ -179,25 +179,25 @@ func (server *OSPFV2Server) processFloodMsg(lsa_data ospfFloodMsg) {
 			pkt := server.BuildLsaUpdPkt(key, intf,
 				dstMac, dstIp, lsa_pkt_len, lsa_upd_pkt)
 			server.SendOspfPkt(key, pkt)
-			server.logger.Info(fmt.Sprintln("FLOOD: Nbr FULL intf ", intf.IfIpAddr))
+			server.logger.Info(fmt.Sprintln("FLOOD: Nbr FULL intf ", intf.IpAddr))
 		}
 
 	case LSASELFLOOD: //Flood received LSA on selective interfaces.
-		nbrConf := server.NeighborConfigMap[lsa_data.nbrKey]
+		nbrConf := server.NbrConfMap[lsa_data.nbrKey]
 		rxIntf := server.IntfConfMap[nbrConf.intfConfKey]
-		lsid := convertUint32ToIPv4(lsa_data.linkid)
+		lsid := lsa_data.linkid
 		server.logger.Info(fmt.Sprintln("LSASELFLOOD: Received lsid ", lsid, " lstype ", lsa_data.lsType))
 		var lsaEncPkt []byte
 		for key, intf := range server.IntfConfMap {
-			areaid := convertIPv4ToUint32(intf.IfAreaId)
-			if intf.IfIpAddr.Equal(rxIntf.IfIpAddr) || lsa_data.areaId != areaid {
-				server.logger.Info(fmt.Sprintln("LSASELFLOOD:Dont flood on rx intf ", rxIntf.IfIpAddr))
+			areaid := intf.AreaId
+			if intf.IpAddr == rxIntf.IpAddr || lsa_data.areaId != areaid {
+				server.logger.Info(fmt.Sprintln("LSASELFLOOD:Dont flood on rx intf ", rxIntf.IpAddr))
 				continue // dont flood the LSA on the interface it is received.
 			}
 			send := server.nbrFloodCheck(lsa_data.nbrKey, key, intf, lsa_data.lsType)
 			if send {
 				if lsa_data.pkt != nil {
-					server.logger.Info(fmt.Sprintln("LSASELFLOOD: Unicast LSA interface ", intf.IfIpAddr, " lsid ", lsid, " lstype ", lsa_data.lsType))
+					server.logger.Info(fmt.Sprintln("LSASELFLOOD: Unicast LSA interface ", intf.IpAddr, " lsid ", lsid, " lstype ", lsa_data.lsType))
 					lsas_enc := make([]byte, 4)
 					var no_lsa uint32
 					no_lsa = 1
@@ -212,7 +212,7 @@ func (server *OSPFV2Server) processFloodMsg(lsa_data ospfFloodMsg) {
 			}
 		}
 	case LSAINTF: //send the LSA on specific interface for reply to the LSAREQ
-		nbrConf, exists := server.NeighborConfigMap[lsa_data.nbrKey]
+		nbrConf, exists := server.NbrConfMap[lsa_data.nbrKey]
 		if !exists {
 			server.logger.Info(fmt.Sprintln("Flood: LSAINTF Neighbor doesnt exist . Dont flood.", lsa_data.nbrKey))
 			return
@@ -229,7 +229,7 @@ func (server *OSPFV2Server) processFloodMsg(lsa_data ospfFloodMsg) {
 			lsa_pkt_len := len(lsaEncPkt)
 			pkt := server.BuildLsaUpdPkt(nbrConf.intfConfKey, intConf,
 				dstMac, dstIp, lsa_pkt_len, lsaEncPkt)
-			server.logger.Info(fmt.Sprintln("LSAINTF: Send  LSA to interface ", intConf.IfIpAddr,
+			server.logger.Info(fmt.Sprintln("LSAINTF: Send  LSA to interface ", intConf.IpAddr,
 				" lsid ", lsid, " lstype ", lsa_data.lsType))
 			server.SendOspfPkt(nbrConf.intfConfKey, pkt)
 
@@ -239,7 +239,7 @@ func (server *OSPFV2Server) processFloodMsg(lsa_data ospfFloodMsg) {
 		server.logger.Info(fmt.Sprintln("FLOOD: Flood for interface event ",
 			lsa_data.intfKey))
 		for key, intf := range server.IntfConfMap {
-			ifAreaId := convertIPv4ToUint32(intf.IfAreaId)
+			ifAreaId := convertIPv4ToUint32(intf.AreaId)
 			flood_lsa := server.interfaceFloodCheck(key)
 			if !flood_lsa || ifAreaId != lsa_data.areaId {
 				continue
@@ -315,6 +315,8 @@ func (server *OSPFV2Server) SendRouterLsa(areaId uint32, intfKey IntfConfKey,
 /*@fn constructAndSendLsaAgeFlood
 Flood LSAs which reached max age.
 */
+
+/*
 func (server *OSPFV2Server) constructAndSendLsaAgeFlood() {
 	dstMac := net.HardwareAddr{0x01, 0x00, 0x5e, 0x00, 0x00, 0x05}
 	dstIp := net.IP{224, 0, 0, 5}
@@ -351,26 +353,25 @@ func (server *OSPFV2Server) constructAndSendLsaAgeFlood() {
 	lsasWithHeader = append(lsasWithHeader, lsas_enc...)
 	lsasWithHeader = append(lsasWithHeader, lsaEncPkt...)
 
-	/* flood on all eligible interfaces */
 	for key, intConf := range server.IntfConfMap {
-		server.logger.Info(fmt.Sprintln("FLUSH: Send flush message ", intConf.IfIpAddr))
+		server.logger.Info(fmt.Sprintln("FLUSH: Send flush message ", intConf.IpAddr))
 		pkt := server.BuildLsaUpdPkt(key, intConf,
 			dstMac, dstIp, lsa_pkt_len, lsasWithHeader)
 		server.SendOspfPkt(key, pkt)
 	}
 
 }
-
+*/
 /* @fn interfaceFloodCheck
 Check if we need to flood the LSA on the interface
 */
 func (server *OSPFV2Server) nbrFloodCheck(nbrKey NbrConfKey, key IntfConfKey, intf IntfConf, lsType uint8) bool {
 	/* Check neighbor state */
 	flood_check := true
-	nbrConf := server.NeighborConfigMap[nbrKey]
-	//rtrid := convertIPv4ToUint32(server.ospfGlobalConf.RouterId)
+	nbrConf := server.NbrConfMap[nbrKey]
+	//rtrid := convertIPv4ToUint32(server.globalData.RouterId)
 	if nbrConf.intfConfKey == key && nbrConf.isDRBDR && lsType != Summary3LSA && lsType != Summary4LSA {
-		server.logger.Info(fmt.Sprintln("IF FLOOD: Nbr is DR/BDR.   flood on this interface . nbr - ", nbrKey.IPAddr, nbrConf.OspfNbrIPAddr))
+		server.logger.Info(fmt.Sprintln("IF FLOOD: Nbr is DR/BDR.   flood on this interface . nbr - ", nbrKey.NbrIdentity, nbrConf.OspfNbrIPAddr))
 		return false
 	}
 	flood_check = server.interfaceFloodCheck(key)
@@ -379,7 +380,7 @@ func (server *OSPFV2Server) nbrFloodCheck(nbrKey NbrConfKey, key IntfConfKey, in
 
 func (server *OSPFV2Server) interfaceFloodCheck(key IntfConfKey) bool {
 	flood_check := false
-	nbrData, exist := ospfIntfToNbrMap[key]
+	nbrData, exist := server.NbrConfData.IntfToNbrMap[key]
 	if !exist {
 		server.logger.Info(fmt.Sprintln("FLOOD: Intf to nbr map doesnt exist.Dont flood."))
 		return false
@@ -387,7 +388,7 @@ func (server *OSPFV2Server) interfaceFloodCheck(key IntfConfKey) bool {
 	if nbrData.nbrList != nil {
 		for index := range nbrData.nbrList {
 			nbrId := nbrData.nbrList[index]
-			nbrConf := server.NeighborConfigMap[nbrId]
+			nbrConf := server.NbrConfMap[nbrId]
 			if nbrConf.OspfNbrState < config.NbrExchange {
 				server.logger.Info(fmt.Sprintln("FLOOD: Nbr < exchange . ", nbrConf.OspfNbrIPAddr))
 				flood_check = false
@@ -398,7 +399,7 @@ func (server *OSPFV2Server) interfaceFloodCheck(key IntfConfKey) bool {
 			   add LSA to the adjacency list of neighbor with FULL state.*/
 		}
 	} else {
-		server.logger.Info(fmt.Sprintln("FLOOD: nbr list is null for interface ", key.IPAddr))
+		server.logger.Info(fmt.Sprintln("FLOOD: nbr list is null for interface ", key.IpAddr))
 	}
 	return flood_check
 }
@@ -419,8 +420,8 @@ func (server *OSPFV2Server) processSummaryLSAFlood(areaId uint32, lsaKey LsaKey)
 	binary.BigEndian.PutUint32(lsas_enc, no_lsas)
 	lsaEncPkt = append(lsaEncPkt, lsas_enc...)
 	lsaEncPkt = append(lsaEncPkt, LsaEnc...)
-	lsid := convertUint32ToIPv4(lsaKey.LSId)
-	adv_router := convertUint32ToIPv4(lsaKey.AdvRouter)
+	lsid := lsaKey.LSId
+	adv_router := lsaKey.AdvRouter
 	server.logger.Info(fmt.Sprintln("SUMMARY: Send for flooding ",
 		areaId, " adv_router ", adv_router, " lsid ",
 		lsid))
@@ -453,14 +454,14 @@ func (server *OSPFV2Server) floodSummaryLsa(pkt []byte, areaid uint32) {
 		if !ok {
 			continue
 		}
-		ifArea := convertIPv4ToUint32(intf.IfAreaId)
+		ifArea := convertIPv4ToUint32(intf.AreaId)
 		//isStub := server.isStubArea(areaid)
 		if ifArea == areaid {
 			// flood to your own area
 			nbrMdata, ok := ospfIntfToNbrMap[key]
 			if ok && len(nbrMdata.nbrList) > 0 {
 				send_pkt := server.BuildLsaUpdPkt(key, intf, dstMac, dstIp, len(pkt), pkt)
-				server.logger.Info(fmt.Sprintln("SUMMARY: Send  LSA to interface ", intf.IfIpAddr, " area ", intf.IfAreaId))
+				server.logger.Info(fmt.Sprintln("SUMMARY: Send  LSA to interface ", intf.IpAddr, " area ", intf.AreaId))
 				server.SendOspfPkt(key, send_pkt)
 			}
 
@@ -476,7 +477,7 @@ func (server *OSPFV2Server) floodSummaryLsa(pkt []byte, areaid uint32) {
 func (server *OSPFV2Server) processAsExternalLSAFlood(lsakey LsaKey) {
 	areaId := convertAreaOrRouterIdUint32("0.0.0.0")
 	for ent, _ := range server.AreaConfMap {
-		areaId = convertAreaOrRouterIdUint32(string(ent.AreaId))
+		areaId = ent
 	}
 	var lsaEncPkt []byte
 	LsaEnc := []byte{}
@@ -514,16 +515,15 @@ func (server *OSPFV2Server) floodASExternalLsa(pkt []byte) {
 		if !ok {
 			continue
 		}
-		areaId := config.AreaId(convertIPInByteToString(intf.IfAreaId))
-		isStub := server.isStubArea(areaId)
+		isStub, err := server.isStubArea(intf.AreaId)
 		if isStub {
-			server.logger.Info(fmt.Sprintln("ASBR: Dont flood AS external as area is stub ", areaId))
+			server.logger.Info(fmt.Sprintln("ASBR: Dont flood AS external as area is stub ", intf.AreaId))
 			continue
 		}
-		nbrMdata, ok := ospfIntfToNbrMap[key]
+		nbrMdata, ok := server.NbrConfData.IntfToNbrMap[key]
 		if ok && len(nbrMdata.nbrList) > 0 {
 			send_pkt := server.BuildLsaUpdPkt(key, intf, dstMac, dstIp, len(pkt), pkt)
-			server.logger.Info(fmt.Sprintln("ASBR: Send  LSA to interface ", intf.IfIpAddr))
+			server.logger.Info(fmt.Sprintln("ASBR: Send  LSA to interface ", intf.IpAddr))
 			server.SendOspfPkt(key, send_pkt)
 		}
 	}

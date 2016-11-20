@@ -283,7 +283,7 @@ func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDb
 		select {
 		case msg := <-recvPktData.OspfRecvLsaAndDbdPktCh:
 			if ent.Type == objects.INTF_TYPE_POINT2POINT {
-				nbrIdentity = msg.ospfHdrMd.RouterId
+				nbrIdentity = recvPktData.ospfHdrMd.RouterId
 			} else {
 				nbrIdentity = msg.ipHdrMd.SrcIP
 			}
@@ -295,13 +295,25 @@ func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDb
 
 			switch msg.OspfHdrMd.PktType {
 			case DBDescriptionType:
-				err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
+				err := server.ProcessRxDbdPkt(data, msg.ospfHdrMd, msg.ipHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			case LSRequestType:
-				err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
+				err := server.ProcessRxLSAReqPkt(data, msg.ospfHdrMd, msg.ipHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			case LSUpdateType:
-				//err = server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, key)
+				err := server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			case LSAckType:
-				//err = server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, key)
+				err := server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			default:
 				server.logger.Err("Invalid Packet type")
 			}
