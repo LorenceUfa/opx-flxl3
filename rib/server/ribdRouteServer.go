@@ -25,7 +25,7 @@
 package server
 
 import (
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 	"ribd"
 	"strconv"
 )
@@ -176,9 +176,9 @@ func UpdateV6ProtocolRouteMap(protocol string, op string, value string, ecmp boo
 	info.totalcount = totalcount
 	ProtocolRouteMap[protocol] = info
 }
-func UpdateProtocolRouteMap(protocol string, op string, ipType ribdCommonDefs.IPType, value string, ecmp bool) {
+func UpdateProtocolRouteMap(protocol string, op string, ipType defs.IPType, value string, ecmp bool) {
 	//logger.Debug("UpdateProtocolRouteMap,protocol:", protocol, " iptype:", ipType)
-	if ipType == ribdCommonDefs.IPv4 {
+	if ipType == defs.IPv4 {
 		UpdateV4ProtocolRouteMap(protocol, op, value, ecmp)
 	} else {
 		UpdateV6ProtocolRouteMap(protocol, op, value, ecmp)
@@ -302,14 +302,14 @@ func UpdateV6InterfaceRouteMap(intfref string, op string, value string, ecmp boo
 	info.totalcount = totalcount
 	InterfaceRouteMap[intfref] = info
 }
-func UpdateInterfaceRouteMap(intf int, op string, ipType ribdCommonDefs.IPType, value string, ecmp bool) {
+func UpdateInterfaceRouteMap(intf int, op string, ipType defs.IPType, value string, ecmp bool) {
 	intfref := strconv.Itoa(int(intf))
 	intfEntry, ok := IntfIdNameMap[int32(intf)]
 	if ok {
 		//logger.Debug("Map foud for ifndex : ", routeInfoList[sel].nextHopIfIndex, "Name = ", intfEntry.name)
 		intfref = intfEntry.name
 	}
-	if ipType == ribdCommonDefs.IPv4 {
+	if ipType == defs.IPv4 {
 		UpdateV4InterfaceRouteMap(intfref, op, value, ecmp)
 	} else {
 		UpdateV6InterfaceRouteMap(intfref, op, value, ecmp)
@@ -323,35 +323,35 @@ func (ribdServiceHandler *RIBDServer) StartRouteProcessServer() {
 		select {
 		case routeConf := <-ribdServiceHandler.RouteConfCh:
 			//logger.Debug(fmt.Sprintln("received message on RouteConfCh channel, op: ", routeConf.Op)
-			if routeConf.Op == "add" {
+			if routeConf.Op == defs.Add {
 				ribdServiceHandler.ProcessV4RouteCreateConfig(routeConf.OrigConfigObject.(*ribd.IPv4Route), FIBAndRIB, ribd.Int(len(destNetSlice)))
-			} else if routeConf.Op == "addFIBOnly" {
+			} else if routeConf.Op == defs.AddFIBOnly {
 				ribdServiceHandler.ProcessV4RouteCreateConfig(routeConf.OrigConfigObject.(*ribd.IPv4Route), FIBOnly, routeConf.AdditionalParams.(ribd.Int))
-			} else if routeConf.Op == "addBulk" {
+			} else if routeConf.Op == defs.AddBulk {
 				ribdServiceHandler.ProcessBulkRouteCreateConfig(routeConf.OrigBulkRouteConfigObject) //.([]*ribd.IPv4Route))
-			} else if routeConf.Op == "del" {
+			} else if routeConf.Op == defs.Del {
 				ribdServiceHandler.ProcessV4RouteDeleteConfig(routeConf.OrigConfigObject.(*ribd.IPv4Route), FIBAndRIB)
-			} else if routeConf.Op == "delFIBOnly" {
+			} else if routeConf.Op == defs.DelFIBOnly {
 				ribdServiceHandler.ProcessV4RouteDeleteConfig(routeConf.OrigConfigObject.(*ribd.IPv4Route), FIBOnly)
-			} else if routeConf.Op == "update" {
+			} else if routeConf.Op == defs.Update {
 				if routeConf.PatchOp == nil || len(routeConf.PatchOp) == 0 {
 					ribdServiceHandler.Processv4RouteUpdateConfig(routeConf.OrigConfigObject.(*ribd.IPv4Route), routeConf.NewConfigObject.(*ribd.IPv4Route), routeConf.AttrSet)
 				} else {
 					ribdServiceHandler.Processv4RoutePatchUpdateConfig(routeConf.OrigConfigObject.(*ribd.IPv4Route), routeConf.NewConfigObject.(*ribd.IPv4Route), routeConf.PatchOp)
 				}
-			} else if routeConf.Op == "addv6" {
+			} else if routeConf.Op == defs.Addv6 {
 				//create ipv6 route
 				ribdServiceHandler.ProcessV6RouteCreateConfig(routeConf.OrigConfigObject.(*ribd.IPv6Route), FIBAndRIB, ribd.Int(len(destNetSlice)))
-			} else if routeConf.Op == "addv6FIBOnly" {
+			} else if routeConf.Op == defs.Addv6FIBOnly {
 				//create ipv6 route
 				ribdServiceHandler.ProcessV6RouteCreateConfig(routeConf.OrigConfigObject.(*ribd.IPv6Route), FIBOnly, routeConf.AdditionalParams.(ribd.Int))
-			} else if routeConf.Op == "delv6" {
+			} else if routeConf.Op == defs.Delv6 {
 				//delete ipv6 route
 				ribdServiceHandler.ProcessV6RouteDeleteConfig(routeConf.OrigConfigObject.(*ribd.IPv6Route), FIBAndRIB)
-			} else if routeConf.Op == "delv6FIBOnly" {
+			} else if routeConf.Op == defs.Delv6FIBOnly {
 				//delete ipv6 route
 				ribdServiceHandler.ProcessV6RouteDeleteConfig(routeConf.OrigConfigObject.(*ribd.IPv6Route), FIBOnly)
-			} else if routeConf.Op == "updatev6" {
+			} else if routeConf.Op == defs.Updatev6 {
 				//update ipv6 route
 				if routeConf.PatchOp == nil || len(routeConf.PatchOp) == 0 {
 					ribdServiceHandler.Processv6RouteUpdateConfig(routeConf.OrigConfigObject.(*ribd.IPv6Route), routeConf.NewConfigObject.(*ribd.IPv6Route), routeConf.AttrSet)
