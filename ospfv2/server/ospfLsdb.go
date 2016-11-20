@@ -368,6 +368,8 @@ func (server *OSPFV2Server) getLsdbState(lsaType uint8, lsId, areaId, advRtrId u
 	retObj.SequenceNum = uint32(lsaMd.LSSequenceNum)
 	retObj.Age = lsaMd.LSAge
 	retObj.Checksum = lsaMd.LSChecksum
+	retObj.Options = lsaMd.Options
+	retObj.Length = lsaMd.LSLen
 	retObj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
 	return &retObj, nil
 }
@@ -445,6 +447,8 @@ func (server *OSPFV2Server) getBulkLsdbState(fromIdx, cnt int) (*objects.Ospfv2L
 		obj.SequenceNum = uint32(lsaMd.LSSequenceNum)
 		obj.Age = lsaMd.LSAge
 		obj.Checksum = lsaMd.LSChecksum
+		obj.Options = lsaMd.Options
+		obj.Length = lsaMd.LSLen
 		obj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
 		retObj.List = append(retObj.List, &obj)
 		count++

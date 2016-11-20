@@ -287,6 +287,8 @@ func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv
 		SequenceNum:   int32(obj.SequenceNum),
 		Age:           int16(obj.Age),
 		Checksum:      int16(obj.Checksum),
+		Options:       int8(obj.Options),
+		Length:        int16(obj.Length),
 		Advertisement: obj.Advertisement,
 	}
 }

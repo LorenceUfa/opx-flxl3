@@ -248,6 +248,8 @@ type Ospfv2LsdbState struct {
 	SequenceNum   uint32
 	Age           uint16
 	Checksum      uint16
+	Options       uint8
+	Length        uint16
 	Advertisement string
 }
 
