@@ -27,6 +27,7 @@ package server
 import (
 	"asicd/asicdCommonDefs"
 	"encoding/json"
+	defs "l3/rib/ribdCommonDefs"
 	//"fmt"
 	"github.com/op/go-nanomsg"
 	"net"
@@ -104,7 +105,7 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv4IntfCreateEvent(msg asicdCommon
 
 	ribdServiceHandler.RouteConfCh <- RIBdServerConfig{
 		OrigConfigObject: &cfg,
-		Op:               "add",
+		Op:               defs.Add,
 	}
 }
 func (ribdServiceHandler *RIBDServer) ProcessIPv6IntfCreateEvent(msg asicdCommonDefs.IPv6IntfNotifyMsg) {
@@ -133,7 +134,7 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv6IntfCreateEvent(msg asicdCommon
 
 	ribdServiceHandler.RouteConfCh <- RIBdServerConfig{
 		OrigConfigObject: &cfg,
-		Op:               "addv6",
+		Op:               defs.Addv6,
 	}
 }
 func (ribdServiceHandler *RIBDServer) ProcessIPv4IntfDeleteEvent(msg asicdCommonDefs.IPv4IntfNotifyMsg) {
@@ -161,7 +162,7 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv4IntfDeleteEvent(msg asicdCommon
 	cfg.NextHop = append(cfg.NextHop, &nextHop)
 	ribdServiceHandler.RouteConfCh <- RIBdServerConfig{
 		OrigConfigObject: &cfg,
-		Op:               "del",
+		Op:               defs.Del,
 	}
 
 }
@@ -190,7 +191,7 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv6IntfDeleteEvent(msg asicdCommon
 	cfg.NextHop = append(cfg.NextHop, &nextHop)
 	ribdServiceHandler.RouteConfCh <- RIBdServerConfig{
 		OrigConfigObject: &cfg,
-		Op:               "delv6",
+		Op:               defs.Delv6,
 	}
 }
 func (ribdServiceHandler *RIBDServer) ProcessAsicdEvents(sub *nanomsg.SubSocket) {

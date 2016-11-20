@@ -26,6 +26,7 @@ package rpc
 
 import (
 	"errors"
+	defs "l3/rib/ribdCommonDefs"
 	"l3/rib/server"
 	"ribd"
 	//"utils/policy"
@@ -35,7 +36,7 @@ func (m RIBDServicesHandler) CreatePolicyPrefixSet(cfg *ribd.PolicyPrefixSet) (v
 	logger.Debug("CreatePolicyPrefixSet: ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "addPolicyPrefixSet",
+		Op:               defs.AddPolicyPrefixSet,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -57,7 +58,7 @@ func (m RIBDServicesHandler) UpdatePolicyPrefixSet(origconfig *ribd.PolicyPrefix
 		NewConfigObject:  newconfig,
 		AttrSet:          attrset,
 		PatchOp:          op,
-		Op:               "updatePolicyPrefixSet",
+		Op:               defs.UpdatePolicyPrefixSet,
 	}
 	return val, err
 }
@@ -65,7 +66,7 @@ func (m RIBDServicesHandler) DeletePolicyPrefixSet(cfg *ribd.PolicyPrefixSet) (v
 	logger.Debug("DeletePolicyPrefixSet: ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "delPolicyPrefixSet",
+		Op:               defs.DelPolicyPrefixSet,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -87,7 +88,7 @@ func (m RIBDServicesHandler) CreatePolicyCondition(cfg *ribd.PolicyCondition) (v
 	logger.Debug("CreatePolicyConditioncfg: ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "addPolicyCondition",
+		Op:               defs.AddPolicyCondition,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -99,7 +100,7 @@ func (m RIBDServicesHandler) DeletePolicyCondition(cfg *ribd.PolicyCondition) (v
 	logger.Debug("DeletePolicyConditionConfig: ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "delPolicyCondition",
+		Op:               defs.DelPolicyCondition,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -123,7 +124,7 @@ func (m RIBDServicesHandler) UpdatePolicyCondition(origconfig *ribd.PolicyCondit
 		NewConfigObject:  newconfig,
 		AttrSet:          attrset,
 		PatchOp:          op,
-		Op:               "updatePolicyCondition",
+		Op:               defs.UpdatePolicyCondition,
 	}
 	return true, err
 }

@@ -35,6 +35,42 @@ const (
 	IPv6
 )
 
+type OpType int
+
+const (
+	NoOp OpType = iota
+	Add
+	AddBulk
+	Del
+	Update
+	Addv6
+	Delv6
+	Updatev6
+	Get
+	AddFIBOnly
+	DelFIBOnly
+	Addv6FIBOnly
+	Delv6FIBOnly
+	AsicdFetchv4
+	AsicdFetchv6
+	DBFetch
+	AddPolicyCondition
+	DelPolicyCondition
+	UpdatePolicyCondition
+	AddPolicyAction
+	DelPolicyAction
+	UpdatePolicyAction
+	AddPolicyStmt
+	DelPolicyStmt
+	UpdatePolicyStmt
+	AddPolicyPrefixSet
+	DelPolicyPrefixSet
+	UpdatePolicyPrefixSet
+	AddPolicyDefinition
+	DelPolicyDefinition
+	UpdatePolicyDefinition
+	ApplyPolicy
+)
 const (
 	CONNECTED                               = 0
 	STATIC                                  = 1

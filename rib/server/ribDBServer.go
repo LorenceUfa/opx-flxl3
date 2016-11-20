@@ -27,7 +27,7 @@ package server
 import (
 	"errors"
 	"fmt"
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 	"models/objects"
 	"net"
 	"ribd"
@@ -314,7 +314,7 @@ func (m RIBDServer) ReadAndUpdateRoutesFromDB() {
 				}
 				m.RouteConfCh <- RIBdServerConfig{
 					OrigConfigObject: obj,
-					Op:               "add",
+					Op:               defs.Add,
 				}
 				ip := net.ParseIP(obj.DestinationNw)
 				if ip == nil {
@@ -393,7 +393,7 @@ func (m RIBDServer) ReadAndUpdatev6RoutesFromDB() {
 				}
 				m.RouteConfCh <- RIBdServerConfig{
 					OrigConfigObject: obj,
-					Op:               "addv6",
+					Op:               defs.Addv6,
 				}
 				ip := net.ParseIP(obj.DestinationNw)
 				if ip == nil {
@@ -431,12 +431,12 @@ func (ribdServiceHandler *RIBDServer) StartDBServer() {
 	for {
 		select {
 		case info := <-ribdServiceHandler.DBRouteCh:
-			if info.Op == "add" {
+			if info.Op == defs.Add {
 				dbInfo := info.OrigConfigObject.(RouteDBInfo)
 				logger.Debug("DBServer add for route:", dbInfo.entry)
 				entry := dbInfo.entry
-				if entry.ipType == ribdCommonDefs.IPv6 {
-					info.Op = "addv6"
+				if entry.ipType == defs.IPv6 {
+					info.Op = defs.Addv6
 				}
 				/*				routeList := dbInfo.routeList
 								routeInfoList := routeList.routeInfoProtocolMap[routeList.selectedRouteProtocol]
@@ -449,25 +449,25 @@ func (ribdServiceHandler *RIBDServer) StartDBServer() {
 										}
 									}
 								}*/
-			} else if info.Op == "del" {
+			} else if info.Op == defs.Del {
 				//logger.Debug("del case")
 				dbInfo := info.OrigConfigObject.(RouteDBInfo)
 				entry := dbInfo.entry
 				//logger.Debug("del case iptype = ", entry.ipType)
-				if entry.ipType == ribdCommonDefs.IPv6 {
-					info.Op = "delv6"
+				if entry.ipType == defs.IPv6 {
+					info.Op = defs.Delv6
 				}
 			}
 			//logger.Info(" received message on DBRouteCh, op:", info.Op)
-			if info.Op == "add" {
+			if info.Op == defs.Add {
 				ribdServiceHandler.WriteIPv4RouteStateEntryToDB(info.OrigConfigObject.(RouteDBInfo))
-			} else if info.Op == "addv6" {
+			} else if info.Op == defs.Addv6 {
 				ribdServiceHandler.WriteIPv6RouteStateEntryToDB(info.OrigConfigObject.(RouteDBInfo))
-			} else if info.Op == "del" {
+			} else if info.Op == defs.Del {
 				ribdServiceHandler.DelIPv4RouteStateEntryFromDB(info.OrigConfigObject.(RouteDBInfo))
-			} else if info.Op == "delv6" {
+			} else if info.Op == defs.Delv6 {
 				ribdServiceHandler.DelIPv6RouteStateEntryFromDB(info.OrigConfigObject.(RouteDBInfo))
-			} else if info.Op == "fetch" {
+			} else if info.Op == defs.DBFetch {
 				ribdServiceHandler.ReadAndUpdateRoutesFromDB()
 				ribdServiceHandler.ReadAndUpdatev6RoutesFromDB()
 				logger.Info("Signalling dbread to be true")
@@ -534,7 +534,6 @@ func (ribdServiceHandler *RIBDServer) StartDBServer() {
 					dbRouteReqs = nil
 					//logger.Info("else case  - cleared counters")
 				}
-
 			} else { //if dbRouteinfo.Op == "fetch" {
 				//logger.Info(fmt.Sprintln("fetch case, dbReqCount:", dbReqCount))
 				ribdServiceHandler.ReadAndUpdateRoutesFromDB()
