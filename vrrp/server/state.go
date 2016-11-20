@@ -91,8 +91,8 @@ func (svr *VrrpServer) GetV6Intfs(idx, cnt int) (int, int, []common.State) {
 	return nextIdx, count, result
 }
 
-func (svr *VrrpServer) GetEntry(intfRef string, vrid int32, version uint8) *common.State {
-	key := KeyInfo{intfRef, vrid, version}
+func (svr *VrrpServer) GetEntry(key KeyInfo) *common.State {
+	//key := KeyInfo{intfRef, vrid, ipType}
 	return svr.populateState(key)
 }
 

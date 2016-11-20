@@ -997,17 +997,23 @@ func (svr *NDPServer) resetFilters(virEntry *config.VirtualIpInfo) {
 func (svr *NDPServer) HandleVirtualIpNotification(vipInfo *config.VirtualIpInfo) {
 	switch vipInfo.MsgType {
 	case config.VIRTUAL_CREATE:
-		virEntry := svr.virtualIp[vipInfo.IfIndex]
-		virEntry.IfIndex = vipInfo.IfIndex
-		virEntry.ParentIfIndex = vipInfo.ParentIfIndex
-		virEntry.IpAddr = vipInfo.IpAddr
-		virEntry.MacAddr = vipInfo.MacAddr
-		virEntry.IfName = vipInfo.IfName
-		svr.virtualIp[vipInfo.IfIndex] = virEntry
-		debug.Logger.Info("Added Virtual Ip Information to Runtime info:", *virEntry)
+		_, exists := svr.virtualIp[vipInfo.IfIndex]
+		if !exists {
+			virEntry := &config.VirtualIpInfo{}
+			virEntry.IfIndex = vipInfo.IfIndex
+			virEntry.ParentIfIndex = vipInfo.ParentIfIndex
+			virEntry.IpAddr = vipInfo.IpAddr
+			virEntry.MacAddr = vipInfo.MacAddr
+			virEntry.IfName = vipInfo.IfName
+			svr.virtualIp[vipInfo.IfIndex] = virEntry
+			debug.Logger.Info("Added Virtual Ip Information to Runtime info:", *virEntry)
+		}
 
 	case config.VIRTUAL_DELETE:
-		_, exists := svr.virtualIp[vipInfo.IfIndex]
+		virEntry, exists := svr.virtualIp[vipInfo.IfIndex]
+		if virEntry != nil {
+			virEntry = nil
+		}
 		if exists {
 			delete(svr.virtualIp, vipInfo.IfIndex)
 		}

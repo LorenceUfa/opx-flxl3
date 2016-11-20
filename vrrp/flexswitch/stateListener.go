@@ -29,6 +29,7 @@ import (
 	"l3/vrrp/api"
 	"l3/vrrp/common"
 	"l3/vrrp/debug"
+	"syscall"
 	"vrrpd"
 )
 
@@ -104,7 +105,7 @@ func (h *ConfigHandler) GetBulkVrrpV4IntfState(fromIdx vrrpd.Int, count vrrpd.In
 }
 
 func (h *ConfigHandler) GetVrrpV4IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV4IntfState, error) {
-	entry := api.GetVrrpIntfEntry(intfRef, vrId, common.VERSION2)
+	entry := api.GetVrrpIntfEntry(intfRef, vrId, syscall.AF_INET)
 	if entry == nil {
 		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
 	}
@@ -131,7 +132,7 @@ func (h *ConfigHandler) GetBulkVrrpV6IntfState(fromIdx vrrpd.Int, count vrrpd.In
 }
 
 func (h *ConfigHandler) GetVrrpV6IntfState(intfRef string, vrId int32) (*vrrpd.VrrpV6IntfState, error) {
-	entry := api.GetVrrpIntfEntry(intfRef, vrId, common.VERSION3)
+	entry := api.GetVrrpIntfEntry(intfRef, vrId, syscall.AF_INET6)
 	if entry == nil {
 		return nil, errors.New(fmt.Sprintln("No vrrp interface configurea for intfRef:", intfRef, "vrid:", vrId))
 	}

@@ -89,12 +89,12 @@ func (svr *VrrpServer) GetIPIntfs() {
 	svr.getIPv6Intfs()
 }
 
-func constructIntfKey(intfRef string, vrid int32, version uint8) KeyInfo {
-	return KeyInfo{intfRef, vrid, version}
+func constructIntfKey(intfRef string, vrid int32, ipType int) KeyInfo {
+	return KeyInfo{intfRef, vrid, ipType}
 }
 
 func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	if _, exists := svr.Intf[key]; exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
@@ -114,7 +114,7 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 }
 
 func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface doesn't exists for key:", key, "config:", cfg,
@@ -127,7 +127,7 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
 }
 
 func (svr *VrrpServer) ValidateDeleteConfig(cfg *common.IntfCfg) (bool, error) {
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	if _, exists := svr.Intf[key]; !exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface was not created for config:", cfg))
 	}
@@ -228,7 +228,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
  */
 func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received vrrp interface create common:", *cfg)
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if exists {
 		debug.Logger.Err("During Create we should not have any entry in the DB")
@@ -281,7 +281,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 
 func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received interface update config:", *cfg)
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
 		debug.Logger.Err("Cannot perform update as no interface found in db for key:", key)
@@ -293,7 +293,7 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 
 func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received vrrp interface create config:", *cfg)
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
 		// this should never happen as Validate should have taken care of this

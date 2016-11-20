@@ -48,6 +48,7 @@ func (intf *V4Intf) Update(obj *common.BaseIpInfo) {
 }
 
 func (intf *V4Intf) DeInit(obj *common.BaseIpInfo) {
+	intf.Vrrpkey = nil
 }
 
 func (intf *V4Intf) GetObjFromDb(l3Info *common.BaseIpInfo) {
