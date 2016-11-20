@@ -118,7 +118,9 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 	server.AreaConfMap[newCfg.AreaId] = newAreaEnt
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
 	if newAreaEnt.AdminState == true {
-		server.InitAreaLsdb(newCfg.AreaId)
+		server.SendMsgToLsdbToInitAreaLsdb(newCfg.AreaId)
+		<-server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh
+		//server.InitAreaLsdb(newCfg.AreaId)
 		server.StartAreaRxTxPkt(newCfg.AreaId)
 		server.StartAreaIntfFSM(newCfg.AreaId)
 	}
@@ -144,7 +146,9 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
 	if cfg.AdminState == true {
-		server.InitAreaLsdb(cfg.AreaId)
+		//server.InitAreaLsdb(cfg.AreaId)
+		server.SendMsgToLsdbToInitAreaLsdb(cfg.AreaId)
+		<-server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh
 		// TODO: Probably we don't need below 2 calls as
 		// we cannot create an interface if corresponding area
 		// doesnot exist

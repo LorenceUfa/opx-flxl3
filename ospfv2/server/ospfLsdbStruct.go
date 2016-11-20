@@ -66,9 +66,16 @@ type LsdbCtrlChStruct struct {
 	LsdbAreaCtrlReplyCh chan uint32
 }
 
+type RouteInfo struct {
+	NwAddr  uint32
+	Netmask uint32
+	Metric  uint32
+}
+
 type LsdbStruct struct {
 	AreaLsdb        map[LsdbKey]LSDatabase
 	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
 	LsdbCtrlChData  LsdbCtrlChStruct
 	LsdbAgingTicker *time.Ticker
+	ExtRouteInfoMap map[RouteInfo]bool
 }
