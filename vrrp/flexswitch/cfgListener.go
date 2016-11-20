@@ -152,6 +152,9 @@ func (h *ConfigHandler) DeleteVrrpV4Intf(cfg *vrrpd.VrrpV4Intf) (r bool, err err
 
 func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err error) {
 	debug.Logger.Info("Thrift request received for creating vrrp v6 interface cfg for:", *cfg)
+	if !strings.Contains(cfg.Address, common.NETMASK_DELIMITER) {
+		cfg.Address += common.NETMASK_DELIMITER + common.SLASH_64
+	}
 	v6Cfg := &common.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,
@@ -174,6 +177,9 @@ func (h *ConfigHandler) CreateVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err err
 
 func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig *vrrpd.VrrpV6Intf, attrset []bool, op []*vrrpd.PatchOpInfo) (r bool, err error) {
 	debug.Logger.Info("Thrift request received for updating vrrp v6 interface config for:", *origconfig, "to new:", *newconfig)
+	if !strings.Contains(newconfig.Address, common.NETMASK_DELIMITER) {
+		newconfig.Address += common.NETMASK_DELIMITER + common.SLASH_64
+	}
 	v6Cfg := &common.IntfCfg{
 		IntfRef:               newconfig.IntfRef,
 		VRID:                  newconfig.VRID,
@@ -196,6 +202,9 @@ func (h *ConfigHandler) UpdateVrrpV6Intf(origconfig *vrrpd.VrrpV6Intf, newconfig
 
 func (h *ConfigHandler) DeleteVrrpV6Intf(cfg *vrrpd.VrrpV6Intf) (r bool, err error) {
 	debug.Logger.Info("Thrift request received for deleting vrrp v6 interface cfg for:", *cfg)
+	if !strings.Contains(cfg.Address, common.NETMASK_DELIMITER) {
+		cfg.Address += common.NETMASK_DELIMITER + common.SLASH_64
+	}
 	v6Cfg := &common.IntfCfg{
 		IntfRef:               cfg.IntfRef,
 		VRID:                  cfg.VRID,

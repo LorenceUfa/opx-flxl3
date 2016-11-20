@@ -101,6 +101,9 @@ func (svr *VrrpServer) readVrrpV6IntfCfg() {
 	debug.Logger.Info("Vrrp V4 Intf Objects reterived from DB are", objList)
 	for _, obj := range objList {
 		cfg := obj.(objects.VrrpV6Intf)
+		if !strings.Contains(cfg.Address, common.NETMASK_DELIMITER) {
+			cfg.Address += common.NETMASK_DELIMITER + common.SLASH_64
+		}
 		v6Cfg := &common.IntfCfg{
 			IntfRef:               cfg.IntfRef,
 			VRID:                  cfg.VRID,

@@ -107,14 +107,8 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 	_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
 
 	if !v4exists && !v6exists {
-		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:",
-			cfg.IntfRef))
+		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:", cfg.IntfRef))
 	}
-
-	if netUtils.IsIpv6LinkLocal(cfg.VirtualIPAddr) && cfg.IpType == syscall.AF_INET6 {
-		return false, errors.New(fmt.Sprintln("Cannot use link local ip for vrrp address:", cfg.IntfRef, cfg.VRID, cfg.VirtualIPAddr))
-	}
-
 	debug.Logger.Info("Validation of create config:", *cfg, "is success")
 	return true, nil
 }
@@ -128,9 +122,6 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
 	}
 	if intf.Config.VRID != cfg.VRID {
 		return false, errors.New("Updating VRID is not allowed")
-	}
-	if netUtils.IsIpv6LinkLocal(cfg.VirtualIPAddr) && cfg.IpType == syscall.AF_INET6 {
-		return false, errors.New(fmt.Sprintln("Cannot use link local ip for updating vrrp address:", cfg.IntfRef, cfg.VRID, cfg.VirtualIPAddr))
 	}
 	return true, nil
 }
