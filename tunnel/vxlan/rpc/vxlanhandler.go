@@ -119,7 +119,8 @@ func (v *VXLANDServiceHandler) StopCfgServerLoop() {
 		// See thrift code changes
 		//err := v.Thriftserver.Stop()
 		//v.running = False
-		v.logger.Info("Stopping Cfg Server loop", err)
+		//v.logger.Info("Stopping Cfg Server loop", err)
+		v.logger.Info("Stopping Cfg Server loop")
 	}
 }
 
@@ -129,7 +130,7 @@ func (v *VXLANDServiceHandler) StartCfgServerLoop() {
 		v.logger.Info("Starting Cfg Server loop")
 		// Not going to do anything as we don't want to edit thrift code at this time.
 		// See thrift code changes
-		v.running = True
+		v.running = true
 		err := v.Thriftserver.Serve()
 		v.logger.Info("Cfg Server loop stopped", err)
 	}
