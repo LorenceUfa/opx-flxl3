@@ -156,13 +156,16 @@ func (svr *NDPServer) getVirtualIpIntf() {
 	}
 	for _, ipInfo := range ipsInfo {
 		if ipInfo.Type == commonDefs.SUB_INTF_VIRTUAL_TYPE {
-			virEntry := svr.virtualIp[ipInfo.IfIndex]
+			virEntry := &config.VirtualIpInfo{}
 			virEntry.IfIndex = ipInfo.IfIndex
 			virEntry.ParentIfIndex = ipInfo.ParentIfIndex
 			virEntry.IpAddr = ipInfo.IpAddr
 			virEntry.MacAddr = ipInfo.MacAddr
 			virEntry.IfName = ipInfo.IfName
 			svr.virtualIp[ipInfo.IfIndex] = virEntry
+			if ipInfo.OperState == config.STATE_UP {
+				svr.updateFilters(virEntry)
+			}
 		}
 	}
 }
