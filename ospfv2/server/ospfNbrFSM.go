@@ -44,6 +44,9 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 			server.logger.Debug("Nbr : Received hello event. ", nbrData.NbrIP)
 			server.ProcessNbrHello(nbrData)
 			//DBD received
+		case msg := <-server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh:
+			server.logger.Info("Network DR Change Msg", msg)
+			//TODO
 		case dbdData := <-server.NbrConfData.neighborDBDEventCh:
 			server.logger.Debug("Nbr: Received dbd event ", dbdData)
 			server.ProcessNbrDbdMsg(dbdData)

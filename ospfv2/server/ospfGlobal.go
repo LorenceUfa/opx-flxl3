@@ -123,21 +123,27 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Init Routing Tbl
 		// Start SPF
 		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
 
 		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
 		// Init LSDB Data Structure
 		// Start LSDB
 		server.StartLsdbRoutine()
+		server.logger.Info("Successfully started Lsdb Routine")
 		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
 
 		// Init Rx
 		// Init Tx
 		// Start Rx
 		server.StartAllRxTxPkt()
+		server.logger.Info("Successfully started All Rx Tx Packet")
 
 		// Init Ospf Intf FSM
 		//Start All Interface FSM
 		server.StartAllIntfFSM()
+		server.logger.Info("Successfully started All Intf FSM")
 	}
 
 	return true, nil
