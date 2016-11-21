@@ -84,6 +84,162 @@ func (m RIBDServicesHandler) GetPolicyPrefixSetState(name string) (state *ribd.P
 	return state, err
 }
 
+func (m RIBDServicesHandler) CreatePolicyASPathSet(cfg *ribd.PolicyASPathSet) (val bool, err error) {
+	logger.Debug("CreatePolicyASPathSet: ", cfg.Name)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: cfg,
+		Op:               defs.AddPolicyASPathSet,
+	}
+	err = <-m.server.PolicyConfDone
+	if err == nil {
+		val = true
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) UpdatePolicyASPathSet(origconfig *ribd.PolicyASPathSet, newconfig *ribd.PolicyASPathSet, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
+	if op == nil || len(op) == 0 {
+		//update op
+		logger.Info("Update op for policy ASPath set definition")
+
+	} else {
+		//patch op
+		logger.Info("patch op:", op, " for policy ASPath set definition")
+	}
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: origconfig,
+		NewConfigObject:  newconfig,
+		AttrSet:          attrset,
+		PatchOp:          op,
+		Op:               defs.UpdatePolicyASPathSet,
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) DeletePolicyASPathSet(cfg *ribd.PolicyASPathSet) (val bool, err error) {
+	logger.Debug("DeletePolicyASPathSet: ", cfg.Name)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: cfg,
+		Op:               defs.DelPolicyASPathSet,
+	}
+	err = <-m.server.PolicyConfDone
+	if err == nil {
+		val = true
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) GetBulkPolicyASPathSetState(fromIndex ribd.Int, count ribd.Int) (state *ribd.PolicyASPathSetStateGetInfo, err error) {
+	logger.Debug("GetBulkPolicyASPathSetState")
+	ret, err := m.server.GetBulkPolicyASPathSetState(fromIndex, count, m.server.GlobalPolicyEngineDB)
+	return ret, err
+}
+func (m RIBDServicesHandler) GetPolicyASPathSetState(name string) (state *ribd.PolicyASPathSetState, err error) {
+	state = ribd.NewPolicyASPathSetState()
+	return state, err
+}
+
+func (m RIBDServicesHandler) CreatePolicyCommunitySet(cfg *ribd.PolicyCommunitySet) (val bool, err error) {
+	logger.Debug("CreatePolicyCommunitySet: ", cfg.Name)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: cfg,
+		Op:               defs.AddPolicyCommunitySet,
+	}
+	err = <-m.server.PolicyConfDone
+	if err == nil {
+		val = true
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) UpdatePolicyCommunitySet(origconfig *ribd.PolicyCommunitySet, newconfig *ribd.PolicyCommunitySet, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
+	if op == nil || len(op) == 0 {
+		//update op
+		logger.Info("Update op for policy Community set definition")
+
+	} else {
+		//patch op
+		logger.Info("patch op:", op, " for policy community set definition")
+	}
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: origconfig,
+		NewConfigObject:  newconfig,
+		AttrSet:          attrset,
+		PatchOp:          op,
+		Op:               defs.UpdatePolicyCommunitySet,
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) DeletePolicyCommunitySet(cfg *ribd.PolicyCommunitySet) (val bool, err error) {
+	logger.Debug("DeletePolicyCommunitySet: ", cfg.Name)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: cfg,
+		Op:               defs.DelPolicyCommunitySet,
+	}
+	err = <-m.server.PolicyConfDone
+	if err == nil {
+		val = true
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) GetBulkPolicyCommunitySetState(fromIndex ribd.Int, count ribd.Int) (state *ribd.PolicyCommunitySetStateGetInfo, err error) {
+	logger.Debug("GetBulkPolicyCommunitySetState")
+	ret, err := m.server.GetBulkPolicyCommunitySetState(fromIndex, count, m.server.GlobalPolicyEngineDB)
+	return ret, err
+}
+func (m RIBDServicesHandler) GetPolicyCommunitySetState(name string) (state *ribd.PolicyCommunitySetState, err error) {
+	state = ribd.NewPolicyCommunitySetState()
+	return state, err
+}
+
+func (m RIBDServicesHandler) CreatePolicyExtendedCommunitySet(cfg *ribd.PolicyExtendedCommunitySet) (val bool, err error) {
+	logger.Debug("CreatePolicyExtendedCommunitySet: ", cfg.Name)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: cfg,
+		Op:               defs.AddPolicyExtendedCommunitySet,
+	}
+	err = <-m.server.PolicyConfDone
+	if err == nil {
+		val = true
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) UpdatePolicyExtendedCommunitySet(origconfig *ribd.PolicyExtendedCommunitySet, newconfig *ribd.PolicyExtendedCommunitySet, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
+	if op == nil || len(op) == 0 {
+		//update op
+		logger.Info("Update op for policy Extended Community set definition")
+
+	} else {
+		//patch op
+		logger.Info("patch op:", op, " for policy Extended community set definition")
+	}
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: origconfig,
+		NewConfigObject:  newconfig,
+		AttrSet:          attrset,
+		PatchOp:          op,
+		Op:               defs.UpdatePolicyExtendedCommunitySet,
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) DeletePolicyExtendedCommunitySet(cfg *ribd.PolicyExtendedCommunitySet) (val bool, err error) {
+	logger.Debug("DeletePolicyExtendedCommunitySet: ", cfg.Name)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		OrigConfigObject: cfg,
+		Op:               defs.DelPolicyExtendedCommunitySet,
+	}
+	err = <-m.server.PolicyConfDone
+	if err == nil {
+		val = true
+	}
+	return val, err
+}
+func (m RIBDServicesHandler) GetBulkPolicyExtendedCommunitySetState(fromIndex ribd.Int, count ribd.Int) (state *ribd.PolicyExtendedCommunitySetStateGetInfo, err error) {
+	logger.Debug("GetBulkPolicyExtendedCommunitySetState")
+	ret, err := m.server.GetBulkPolicyExtendedCommunitySetState(fromIndex, count, m.server.GlobalPolicyEngineDB)
+	return ret, err
+}
+func (m RIBDServicesHandler) GetPolicyExtendedCommunitySetState(name string) (state *ribd.PolicyExtendedCommunitySetState, err error) {
+	state = ribd.NewPolicyExtendedCommunitySetState()
+	return state, err
+}
+
 func (m RIBDServicesHandler) CreatePolicyCondition(cfg *ribd.PolicyCondition) (val bool, err error) {
 	logger.Debug("CreatePolicyConditioncfg: ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
