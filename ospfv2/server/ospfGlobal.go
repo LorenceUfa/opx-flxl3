@@ -124,12 +124,10 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Start SPF
 		server.StartSPF()
 
-		// TODO: Start Flooding
 		server.StartFlooding()
 		// Init LSDB Data Structure
 		// Start LSDB
 		server.StartLsdbRoutine()
-		// TODO: Start Nbr FSM
 		server.StartNbrFSM()
 
 		// Init Rx
@@ -163,8 +161,9 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 			return false, err
 		}
 		server.StartSPF()
+		server.StartFlooding()
 		server.StartLsdbRoutine()
-		//TODO: Start NBR FSM
+		server.StartNbrFSM()
 		server.StartAllRxTxPkt()
 		server.StartAllIntfFSM()
 	}

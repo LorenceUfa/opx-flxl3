@@ -219,7 +219,9 @@ func (server *OSPFV2Server) ProcessLsdb(initDoneCh chan bool) {
 			if err != nil {
 				continue
 			}
+			server.logger.Info("Successfully Generated Router LSA")
 			server.CalcSPFAndRoutingTbl()
+			server.logger.Info("Successfully Calculated SPF")
 		case msg := <-server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh:
 			server.logger.Info("Update self originated Network LSA", msg)
 			err := server.processUpdateSelfNetworkLSA(msg)
@@ -264,6 +266,9 @@ func (server *OSPFV2Server) CalcSPFAndRoutingTbl() {
 }
 
 func (server *OSPFV2Server) RefreshLsdbSlice() {
+	if len(server.GetBulkData.LsdbSlice) == 0 {
+		return
+	}
 	server.GetBulkData.LsdbSlice = server.GetBulkData.LsdbSlice[:len(server.GetBulkData.LsdbSlice)-1]
 	server.GetBulkData.LsdbSlice = nil
 	for lsdbKey, lsDbEnt := range server.LsdbData.AreaLsdb {
