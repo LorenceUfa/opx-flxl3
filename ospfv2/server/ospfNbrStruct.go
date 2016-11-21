@@ -28,24 +28,26 @@ import (
 )
 
 type NbrConf struct {
-	IntfKey         IntfConfKey
-	State           NbrState
-	InactivityTimer time.Time
-	RtrId           uint32
-	isMaster        bool
-	DDSequenceNum   uint32
-	Mtu             uint32
-	NbrRtrId        uint32
-	NbrPriority     int32
-	NbrIP           uint32
-	NbrOption       uint32
-	NbrDR           uint32 //mentioned by rfc.
-	NbrBdr          uint32 //needed by rfc. not sure why we need it.
-	NbrDeadDuration int
-	NbrDeadTimer    *time.Timer
-	Nbrflags        int32 //flags showing fields to update from nbrstruct
-	NbrLastDbd      map[NbrConfKey]NbrDbdData
-	NbrLsaIndex     int
+	IntfKey             IntfConfKey
+	State               NbrState
+	InactivityTimer     time.Time
+	RtrId               uint32
+	isMaster            bool
+	DDSequenceNum       uint32
+	Mtu                 uint32
+	NbrRtrId            uint32
+	NbrPriority         int32
+	NbrIP               uint32
+	NbrOption           uint32
+	NbrDR               uint32 //mentioned by rfc.
+	NbrBdr              uint32 //needed by rfc. not sure why we need it.
+	NbrDeadDuration     int
+	NbrDeadTimer        *time.Timer
+	NbrDeadTimeDuration time.Duration
+	NbrLsaRxTimer       *time.Timer
+	Nbrflags            int32 //flags showing fields to update from nbrstruct
+	NbrLastDbd          NbrDbdData
+	NbrLsaIndex         int
 	//Nbr lists
 	NbrReqList       []*ospfLSAHeader
 	NbrDBSummaryList []*ospfLSAHeader
@@ -55,6 +57,7 @@ type NbrConf struct {
 
 const (
 	INTF_OPTIONS                  = 66
+	NBR_DBD_RTX_INTERVAL          = 5
 	NBR_FLAG_STATE            int = 0x00000001
 	NBR_FLAG_INACTIVITY_TIMER int = 0x00000002
 	NBR_FLAG_IS_MASTER        int = 0x00000004
@@ -68,6 +71,7 @@ const (
 	NBR_FLAG_BDR              int = 0x00000024
 	NBR_FLAG_DEAD_DURATION    int = 0x00000026
 	NBR_FLAG_DEAD_TIMER       int = 0x00000028
+	NBR_FLAG_REQ_LIST         int = 0x00000030
 )
 
 //Nbr states
@@ -156,7 +160,7 @@ type NbrStruct struct {
 func (server *OSPFV2Server) initNbrStruct() {
 	server.NbrConfData.IntfToNbrMap = make(map[IntfConfKey][]NbrConfKey)
 	server.NbrConfData.neighborDBDEventCh = make(chan NbrDbdMsg)
-	server.NbrConfDataneighborLSAUpdEventCh = make(chan NbrLsaUpdMsg)
+	server.NbrConfData.neighborLSAUpdEventCh = make(chan NbrLsaUpdMsg)
 	server.NbrConfData.neighborLSAReqEventCh = make(chan NbrLsaReqMsg)
 	server.NbrConfData.nbrLsaAckEventCh = make(chan NbrLsaAckMsg)
 	server.logger.Debug("Nbr: InitNbrStruct done ")

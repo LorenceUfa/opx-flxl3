@@ -44,8 +44,8 @@ type ospfFloodMsg struct {
 	lsType  uint8
 	linkid  uint32
 	lsaKey  LsaKey
-	lsOp    uint8  // indicates whether to flood on all interfaces or selective ones.
-	pkt     []byte //LSA flood packet received from another neighbor
+	lsOp    RecvdLsaMsgType // indicates whether to flood on all interfaces or selective ones.
+	pkt     []byte          //LSA flood packet received from another neighbor
 }
 
 type FloodStruct struct {

@@ -136,7 +136,7 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
 	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
-	server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh = make(chan RecvdLsaPkt)
+	server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh = make(chan NbrToFloodMsg)
 	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
 	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
 	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh = make(chan bool)

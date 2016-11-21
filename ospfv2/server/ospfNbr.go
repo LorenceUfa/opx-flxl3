@@ -26,7 +26,6 @@ package server
 import (
 	"fmt"
 	"l3/ospfv2/objects"
-	"time"
 )
 
 func newDbdMsg(key NbrConfKey, dbd_data NbrDbdData) NbrDbdMsg {
@@ -47,7 +46,6 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 		nbrE.State = conf.State
 	}
 	if flags&NBR_FLAG_DEAD_TIMER == NBR_FLAG_DEAD_TIMER {
-		nbrE.NbrDeadTimer = time.Now()
 		server.logger.Debug("Nbr : Nbr inactivity reset ", nbrKey)
 	}
 	if flags&NBR_FLAG_SEQ_NUMBER == NBR_FLAG_SEQ_NUMBER {
@@ -69,7 +67,7 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 func (server *OSPFV2Server) UpdateIntfToNbrMap(nbrKey NbrConfKey) {
 	var newList []NbrConfKey
 	nbrConf := server.NbrConfMap[nbrKey]
-	nbrMdata, exists := server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey]
+	_, exists := server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey]
 	if !exists {
 		newList = []NbrConfKey{}
 	} else {
@@ -113,15 +111,28 @@ func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf
 	return false
 }
 
+func (server *OSPFV2Server) verifyDuplicatePacket(nbrConf NbrConf, nbrDbPkt NbrDbdData) (isDup bool) {
+	if nbrConf.isMaster {
+		if nbrDbPkt.dd_sequence_number+1 == nbrConf.DDSequenceNum {
+			isDup = true
+			server.logger.Info(fmt.Sprintln("NBREVENT: Duplicate packet Dont do anything. dbdseq ",
+				nbrDbPkt.dd_sequence_number, " nbrseq ", nbrConf.DDSequenceNum))
+			return
+		}
+	}
+	isDup = false
+	return
+}
+
 func calculateMaxLsaHeaders() (max_headers uint8) {
 	rem := INTF_MTU_MIN - (OSPF_DBD_MIN_SIZE + OSPF_HEADER_SIZE)
 	max_headers = uint8(rem / OSPF_LSA_HEADER_SIZE)
 	return max_headers
 }
 
-func calculateMaxLsaReq() (max_req uint8) {
+func calculateMaxLsaReq() (max_req int) {
 	rem := INTF_MTU_MIN - OSPF_HEADER_SIZE
-	max_req = uint8(rem / OSPF_LSA_REQ_SIZE)
+	max_req = rem / OSPF_LSA_REQ_SIZE
 	return max_req
 }
 

@@ -275,7 +275,7 @@ func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDb
 	ent, valid := server.IntfConfMap[recvPktData.IntfConfKey]
 	if !valid {
 		server.logger.Err("Intf : RecvLsaAndDbdPkt interface entry does not exist ",
-			recvPktData.IntfConfKe)
+			recvPktData.IntfConfKey)
 		return
 	}
 
@@ -283,34 +283,34 @@ func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDb
 		select {
 		case msg := <-recvPktData.OspfRecvLsaAndDbdPktCh:
 			if ent.Type == objects.INTF_TYPE_POINT2POINT {
-				nbrIdentity = recvPktData.ospfHdrMd.RouterId
+				nbrIdentity = msg.OspfHdrMd.RouterId
 			} else {
-				nbrIdentity = msg.ipHdrMd.SrcIP
+				nbrIdentity = msg.IpHdrMd.SrcIP
 			}
 
 			nbrKey := NbrConfKey{
 				NbrIdentity:         nbrIdentity,
-				NbrAddressLessIfIdx: key.IntfIdx,
+				NbrAddressLessIfIdx: recvPktData.IntfConfKey.IntfIdx,
 			}
 
 			switch msg.OspfHdrMd.PktType {
 			case DBDescriptionType:
-				err := server.ProcessRxDbdPkt(data, msg.ospfHdrMd, msg.ipHdrMd, nbrKey)
+				err := server.ProcessRxDbdPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
 				if err != nil {
 					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
 				}
 			case LSRequestType:
-				err := server.ProcessRxLSAReqPkt(data, msg.ospfHdrMd, msg.ipHdrMd, nbrKey)
+				err := server.ProcessRxLSAReqPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
 				if err != nil {
 					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
 				}
 			case LSUpdateType:
-				err := server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
+				err := server.ProcessRxLsaUpdPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
 				if err != nil {
 					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
 				}
 			case LSAckType:
-				err := server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, nbrKey)
+				err := server.ProcessRxLSAAckPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
 				if err != nil {
 					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
 				}

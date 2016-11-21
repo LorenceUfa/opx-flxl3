@@ -29,19 +29,26 @@ import (
 
 func (server *OSPFV2Server) SendNbrFullMsg(nbrKey NbrConfKey) {
 	server.logger.Info("Nbr: Send nbr full msg to flooding. ")
-	msgCh, exist := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[intfConfKey]
+	nbrConf, valid := server.NbrConfMap[nbrKey]
+	if !valid {
+		server.logger.Err("Nbr does not exist . No message sent ", nbrKey)
+		return
+	}
+
+	_, exist := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[nbrConf.IntfKey]
 	if !exist {
 		server.logger.Err("NbrDownMsgCh is out of sync")
 		return
 	}
-	intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+	intfConfEnt, exist := server.IntfConfMap[nbrConf.IntfKey]
 	if !exist {
 		server.logger.Err("IntfConfMap is out of sync")
 		return
 	}
 	if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-		msgCh <- msg
+		//	msgCh <- msg
 		return
 	}
-	server.logger.Err("Interface FSM is down, so can't send NbrDownMsg", msg, intfConfKey)
+
+	server.logger.Err("Interface FSM is down, so can't send NbrDownMsg", nbrConf.IntfKey)
 }

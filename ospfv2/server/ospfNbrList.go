@@ -54,16 +54,14 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 	db_list := []*ospfLSAHeader{}
 	for lsaKey, _ := range router_lsdb {
 		// check if lsa instance is marked true
-		db_summary := []ospfLSAHeader{}
-		drlsa, ret := server.LsdbData.getRouterLsaFromLsdb(areaId, lsaKey)
+		drlsa, ret := server.getRouterLsaFromLsdb(areaId, lsaKey)
 		if ret == LsdbEntryNotFound {
 			continue
 		}
-		db_summary.lsa_headers = getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
+		db_summary := getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
 			RouterLSA, lsaKey.LSId, lsaKey.AdvRouter,
 			uint32(drlsa.LsaMd.LSSequenceNum), drlsa.LsaMd.LSChecksum,
 			drlsa.LsaMd.LSLen)
-		db_summary.valid = true
 		/* add entry to the db summary list  */
 		db_list = append(db_list, db_summary)
 		//lsid := convertUint32ToIPv4(lsaKey.LSId)
@@ -72,17 +70,15 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 
 	for networkKey, _ := range network_lsa {
 		// check if lsa instance is marked true
-		db_summary := []ospfLSAHeader{}
 		//if nbrMdata.isDR {
-		dnlsa, ret := server.LsdbData.getNetworkLsaFromLsdb(areaId, networkKey)
+		dnlsa, ret := server.getNetworkLsaFromLsdb(areaId, networkKey)
 		if ret == LsdbEntryNotFound {
 			continue
 		}
-		db_summary.lsa_headers = getLsaHeaderFromLsa(dnlsa.LsaMd.LSAge, dnlsa.LsaMd.Options,
+		db_summary := getLsaHeaderFromLsa(dnlsa.LsaMd.LSAge, dnlsa.LsaMd.Options,
 			NetworkLSA, networkKey.LSId, networkKey.AdvRouter,
 			uint32(dnlsa.LsaMd.LSSequenceNum), dnlsa.LsaMd.LSChecksum,
 			dnlsa.LsaMd.LSLen)
-		db_summary.valid = true
 		/* add entry to the db summary list  */
 		db_list = append(db_list, db_summary)
 
@@ -90,7 +86,7 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 
 	/*   attach summary list */
 
-	summary3_list := server.LsdbData.generateDbsummary3LsaList(areaId)
+	summary3_list := server.generateDbsummary3LsaList(areaId)
 	if summary3_list != nil {
 		db_list = append(db_list, summary3_list...)
 	}
@@ -105,9 +101,9 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 		db_list = append(db_list, asExternal_list...)
 	}
 
-	for lsa := range db_list {
-		rtr_id := convertUint32ToIPv4(db_list[lsa].lsa_headers.adv_router_id)
-		server.logger.Info(fmt.Sprintln(lsa, ": ", rtr_id, " lsatype ", db_list[lsa].lsa_headers.ls_type))
+	for _, lsa := range db_list {
+		rtr_id := convertUint32ToDotNotation(lsa.adv_router_id)
+		server.logger.Info(fmt.Sprintln(lsa, ": ", rtr_id, " lsatype ", lsa.ls_type))
 	}
 	nbrConf.NbrDBSummaryList = db_list
 }
@@ -116,7 +112,7 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 This function generates As external list if the router is ASBR
 */
 func (server *OSPFV2Server) generateDbasExternalList(self_areaId uint32) []*ospfLSAHeader {
-	if !server.ospfGlobalConf.AreaBdrRtrStatus {
+	if !server.globalData.AreaBdrRtrStatus {
 		return nil // dont add self gen LSA if I am not ASBR
 	}
 	db_list := []*ospfLSAHeader{}
@@ -133,19 +129,17 @@ func (server *OSPFV2Server) generateDbasExternalList(self_areaId uint32) []*ospf
 
 	for lsaKey, _ := range as_lsdb {
 		// check if lsa instance is marked true
-		db_as := []ospfLSAHeader{}
-		drlsa, ret := server.LsdbData.getASExternalLsaFromLsdb(self_areaId, lsaKey)
+		drlsa, ret := server.getASExternalLsaFromLsdb(self_areaId, lsaKey)
 		if ret == LsdbEntryNotFound {
 			continue
 		}
-		db_as.lsa_headers = getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
+		db_as := getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
 			ASExternalLSA, lsaKey.LSId, lsaKey.AdvRouter,
 			uint32(drlsa.LsaMd.LSSequenceNum), drlsa.LsaMd.LSChecksum,
 			drlsa.LsaMd.LSLen)
-		db_as.valid = true
 		/* add entry to the db summary list  */
 		db_list = append(db_list, db_as)
-		lsid := convertUint32ToIPv4(lsaKey.LSId)
+		lsid := convertUint32ToDotNotation(lsaKey.LSId)
 		server.logger.Info(fmt.Sprintln("negotiation: db_list AS ext append router lsid  ", lsid))
 	}
 	return db_list
@@ -161,34 +155,33 @@ func (server *OSPFV2Server) generateDbsummary3LsaList(self_areaId uint32) []*osp
 		AreaId: self_areaId,
 	}
 
-	area_lsa, exist := server.LsdbData.AreaLsdb[lsdbKey]
+	_, exist := server.LsdbData.AreaLsdb[lsdbKey]
 	if !exist {
 		server.logger.Err(fmt.Sprintln("negotiation: Summary LSA 3 doesnt exist"))
 		return nil
 	}
-	summary_lsdb := area_lsa.Summary3LsaMap
-	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	//summary_lsdb := area_lsa.Summary3LsaMap
+	//selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
 
-	for lsaKey, _ := range summary_lsdb {
-		_, exist := selfOrigLsaEnt[lsaKey]
-		if exist && !server.ospfGlobalConf.isABR {
-			continue // dont add self gen LSA if I am not ABR
+	/*
+		for lsaKey, _ := range summary_lsdb {
+			_, exist := selfOrigLsaEnt[lsaKey]
+			if exist && !server.globalData.AreaBdrRtrStatus {
+				continue
+			}
+			drlsa, ret := server.LsdbData.getSummaryLsaFromLsdb(self_areaId, lsaKey)
+			if ret == LsdbEntryNotFound {
+				continue
+			}
+			lsa_header := getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
+				Summary3LSA, lsaKey.LSId, lsaKey.AdvRouter,
+				uint32(drlsa.LsaMd.LSSequenceNum), drlsa.LsaMd.LSChecksum,
+				drlsa.LsaMd.LSLen)
+			db_list = append(db_list, lsa_header)
+			lsid := lsaKey.LSId
+			server.logger.Info(fmt.Sprintln("negotiation: db_list summary 3 append router lsid  ", lsid))
 		}
-		// check if lsa instance is marked true
-		db_summary := []*ospfLSAHeader{}
-		drlsa, ret := server.LsdbData.getSummaryLsaFromLsdb(self_areaId, lsaKey)
-		if ret == LsdbEntryNotFound {
-			continue
-		}
-		lsa_header := getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
-			Summary3LSA, lsaKey.LSId, lsaKey.AdvRouter,
-			uint32(drlsa.LsaMd.LSSequenceNum), drlsa.LsaMd.LSChecksum,
-			drlsa.LsaMd.LSLen)
-		/* add entry to the db summary list  */
-		db_summary = append(db_summary, lsa_header)
-		lsid := lsaKey.LSId
-		server.logger.Info(fmt.Sprintln("negotiation: db_list summary 3 append router lsid  ", lsid))
-	}
+	*/
 	return db_list
 }
 
@@ -202,34 +195,31 @@ func (server *OSPFV2Server) generateDbsummary4LsaList(self_areaId uint32) []*osp
 		AreaId: self_areaId,
 	}
 
-	area_lsa, exist := server.LsdbData.AreaLsdb[lsdbKey]
+	_, exist := server.LsdbData.AreaLsdb[lsdbKey]
 	if !exist {
 		server.logger.Err(fmt.Sprintln("negotiation: Summary LSA 4 doesnt exist"))
 		return nil
 	}
-	summary_lsdb := area_lsa.Summary4LsaMap
-	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
-
-	for lsaKey, _ := range summary_lsdb {
-		_, exist := selfOrigLsaEnt[lsaKey]
-		if exist && !server.ospfGlobalConf.isABR {
-			continue // dont add self gen LSA if I am not ABR
-		}
-		// check if lsa instance is marked true
-		db_summary := []ospfLSAHeader{}
-		drlsa, ret := server.LsdbData.getSummaryLsaFromLsdb(self_areaId, lsaKey)
-		if ret == LsdbEntryNotFound {
-			continue
-		}
-		lsa_header := getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
-			Summary4LSA, lsaKey.LSId, lsaKey.AdvRouter,
-			uint32(drlsa.LsaMd.LSSequenceNum), drlsa.LsaMd.LSChecksum,
-			drlsa.LsaMd.LSLen)
-		/* add entry to the db summary list  */
-		db_list = append(db_list, lsa_header)
-		lsid := lsaKey.LSId
-		server.logger.Info(fmt.Sprintln("negotiation: db_list summary 4 append router lsid  ", lsid))
-	}
+	//summary_lsdb := area_lsa.Summary4LsaMap
+	//selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	/*
+		for lsaKey, _ := range summary_lsdb {
+			_, exist := selfOrigLsaEnt[lsaKey]
+			if exist && !server.globalData.AreaBdrRtrStatus {
+				continue
+			}
+			drlsa, ret := server.LsdbData.getSummaryLsaFromLsdb(self_areaId, lsaKey)
+			if ret == LsdbEntryNotFound {
+				continue
+			}
+			lsa_header := getLsaHeaderFromLsa(drlsa.LsaMd.LSAge, drlsa.LsaMd.Options,
+				Summary4LSA, lsaKey.LSId, lsaKey.AdvRouter,
+				uint32(drlsa.LsaMd.LSSequenceNum), drlsa.LsaMd.LSChecksum,
+				drlsa.LsaMd.LSLen)
+			db_list = append(db_list, lsa_header)
+			lsid := lsaKey.LSId
+			server.logger.Info(fmt.Sprintln("negotiation: db_list summary 4 append router lsid  ", lsid))
+		} */
 	return db_list
 }
 
@@ -238,7 +228,7 @@ func (server *OSPFV2Server) generateRequestList(nbrKey NbrConfKey, nbrConf NbrCo
 	headers_len := len(nbrDbPkt.lsa_headers)
 	server.logger.Info(fmt.Sprintln("REQ_LIST: Received lsa headers for nbr ", nbrKey,
 		" no of header ", headers_len))
-	req_list := NbrReqList[nbrKey]
+	req_list := nbrConf.NbrReqList
 	for i := 0; i < headers_len; i++ {
 		var lsaheader ospfLSAHeader
 		lsaheader = nbrDbPkt.lsa_headers[i]
@@ -248,7 +238,7 @@ func (server *OSPFV2Server) generateRequestList(nbrKey NbrConfKey, nbrConf NbrCo
 			req = append(req, lsaheader)
 		}
 	}
-	NbrReqList[nbrKey] = req_list
+	nbrConf.NbrReqList = req_list
 	server.logger.Info(fmt.Sprintln("REQ_LIST: updated req_list for nbr ",
 		nbrKey, " req_list ", req_list))
 }
@@ -293,7 +283,7 @@ func (server *OSPFV2Server) lsaAddCheck(lsaheader ospfLSAHeader,
 	case ASExternalLSA:
 		alsa := NewASExternalLsa()
 		dalsa, ret := server.getASExternalLsaFromLsdb(areaId, *lsa_key)
-		discard, _ = server.sanityCheckASExternalLsa(*alsa, dalsa, nbr, intf, intf.AreaId, ret, lsa_max_age)
+		discard, _ = server.sanityCheckASExternalLsa(*alsa, dalsa, nbr, intf, ret, lsa_max_age)
 
 	}
 	if discard {

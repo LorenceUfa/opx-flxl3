@@ -79,7 +79,7 @@ func newospfLSAHeader() *ospfLSAHeader {
 	return &ospfLSAHeader{}
 }
 
-func DecodeDatabaseDescriptionData(data []byte, dbd_data *NbrDbdData, pktlen uint16) {
+func DecodeDatabaseDescriptionData(data []byte, dbd_data *NbrDbdData, Pktlen uint16) {
 	dbd_data.interface_mtu = binary.BigEndian.Uint16(data[0:2])
 	dbd_data.options = data[2]
 	dbd_data.dd_sequence_number = binary.BigEndian.Uint32(data[4:8])
@@ -95,9 +95,9 @@ func DecodeDatabaseDescriptionData(data []byte, dbd_data *NbrDbdData, pktlen uin
 	if dbd_data.ibit == false {
 		// negotiation is done. Check if we have LSA headers
 
-		headers_len := pktlen - (OSPF_DBD_MIN_SIZE + OSPF_HEADER_SIZE)
-		fmt.Println("DBD: Received headers_len ", headers_len, " pktLen", pktlen, " data len ", len(data))
-		if headers_len >= 20 && headers_len < pktlen {
+		headers_len := Pktlen - (OSPF_DBD_MIN_SIZE + OSPF_HEADER_SIZE)
+		fmt.Println("DBD: Received headers_len ", headers_len, " PktLen", Pktlen, " data len ", len(data))
+		if headers_len >= 20 && headers_len < Pktlen {
 			fmt.Println("DBD: LSA headers length ", headers_len)
 			num_headers := int(headers_len / 20)
 			fmt.Println("DBD: Received ", num_headers, " LSA headers.")
@@ -255,7 +255,7 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 	lsa_header_size := OSPF_LSA_HEADER_SIZE * len(dbdData.lsa_headers)
 	ospfPktlen = ospfPktlen + OSPF_DBD_MIN_SIZE + lsa_header_size
 
-	ospfHdr.pktlen = uint16(ospfPktlen)
+	ospfHdr.Pktlen = uint16(ospfPktlen)
 
 	ospfEncHdr := encodeOspfHdr(ospfHdr)
 	//server.logger.Info(fmt.Sprintln("ospfEncHdr:", ospfEncHdr))
@@ -266,21 +266,17 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 	//server.logger.Info(fmt.Sprintln("OSPF DBD:", ospf))
 	csum := computeCheckSum(ospf)
 	binary.BigEndian.PutUint16(ospf[12:14], csum)
-	copy(ospf[16:24], ent.AuthKey)
+	binary.BigEndian.PutUint64(ospf[16:24], ent.AuthKey)
 
 	var DstIP net.IP
-	var DstMAC net.HardwareAddr
 
-	ipPktlen := IP_HEADER_MIN_LEN + ospfHdr.pktlen
-	SrcIP := ent.IpAddr
+	ipPktlen := IP_HEADER_MIN_LEN + ospfHdr.Pktlen
 	if ent.FSMState == objects.INTF_FSM_STATE_P2P {
 		DstIP = net.ParseIP(config.AllSPFRouters)
-		DstMAC, _ = net.ParseMAC(config.McastMAC)
 	} else {
 		DstIP = net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
-		DstMAC = dstMAC
 	}
-
+	SrcIp := net.ParseIP(convertUint32ToDotNotation(ent.IpAddr))
 	ipLayer := layers.IPv4{
 		Version:  uint8(4),
 		IHL:      uint8(IP_HEADER_MIN_LEN),
@@ -288,7 +284,7 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 		Length:   uint16(ipPktlen),
 		TTL:      uint8(1),
 		Protocol: layers.IPProtocol(OSPF_PROTO_ID),
-		SrcIP:    SrcIP,
+		SrcIP:    SrcIp,
 		DstIP:    DstIP,
 	}
 
@@ -316,14 +312,14 @@ func (server *OSPFV2Server) ProcessRxDbdPkt(data []byte, ospfHdrMd *OspfHdrMetad
 	ospfdbd_data := NewOspfDatabaseDescriptionData()
 	ospfdbd_data.lsa_headers = []ospfLSAHeader{}
 	//routerId := convertIPv4ToUint32(ospfHdrMd.routerId)
-	pktlen := ospfHdrMd.Pktlen
+	Pktlen := ospfHdrMd.Pktlen
 
-	if pktlen < OSPF_DBD_MIN_SIZE+OSPF_HEADER_SIZE {
-		server.logger.Warning(fmt.Sprintln("DBD WARNING: Packet < min DBD length. pktlen ", pktlen,
+	if Pktlen < OSPF_DBD_MIN_SIZE+OSPF_HEADER_SIZE {
+		server.logger.Warning(fmt.Sprintln("DBD WARNING: Packet < min DBD length. Pktlen ", Pktlen,
 			" min_dbd_len ", OSPF_DBD_MIN_SIZE+OSPF_HEADER_SIZE))
 	}
 
-	DecodeDatabaseDescriptionData(data, ospfdbd_data, pktlen)
+	DecodeDatabaseDescriptionData(data, ospfdbd_data, Pktlen)
 	//ipaddr := convertIPInByteToString(ipHdrMd.srcIP)
 
 	dbdNbrMsg := NbrDbdMsg{
@@ -389,7 +385,7 @@ func (server *OSPFV2Server) ConstructDbdMdata(nbrKey NbrConfKey,
 		" imms ", dbd_mdata.ibit, dbd_mdata.mbit, dbd_mdata.msbit,
 		" seq num ", seq, "options ", dbd_mdata.options, " headers_list ", dbd_mdata.lsa_headers))
 
-	data := newDbdMsg(nbrKey, dbd_mdata)
+	//	data := newDbdMsg(nbrKey, dbd_mdata)
 	// send the data
 	return dbd_mdata, last_exchange
 }

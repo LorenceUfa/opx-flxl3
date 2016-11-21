@@ -24,7 +24,6 @@
 package server
 
 import (
-	"encoding/binary"
 	"fmt"
 	//"github.com/google/gopacket"
 	//"github.com/google/gopacket/layers"
@@ -49,7 +48,7 @@ func (server *OSPFV2Server) lsaUpdDiscardCheck(nbrConf NbrConf, data []byte) boo
 
 	return false
 }
-func (server *OSPFV2Server) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist int) bool {
+func (server *OSPFV2Server) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist bool) bool {
 
 	send_ack := true
 	/*
@@ -71,13 +70,13 @@ func (server *OSPFV2Server) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist
 			send_ack = false
 		}
 	}
-	if send_ack && exist == 0 && lsa_max_age {
+	if send_ack && !exist && lsa_max_age {
 		return true
 	}
 	return false
 }
 
-func (server *OSPFV2Server) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, nbr NbrConf, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.IntfKey, lsa_max_age, exist)
@@ -101,8 +100,7 @@ func (server *OSPFV2Server) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa
 
 	return discard, op
 }
-
-func (server *OSPFV2Server) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, dnlsa NetworkLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, dnlsa NetworkLsa, nbr NbrConf, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.IntfKey, lsa_max_age, exist)
@@ -133,7 +131,7 @@ func (server *OSPFV2Server) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa
 	}
 	return discard, op
 }
-func (server *OSPFV2Server) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLsa, nbr NbrConf, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLsa, nbr NbrConf, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.IntfKey, lsa_max_age, exist)
@@ -156,7 +154,7 @@ func (server *OSPFV2Server) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa Summary
 	return discard, op
 }
 
-func (server *OSPFV2Server) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa ASExternalLsa, nbr NbrConf, intf IntfConf, areaid []byte, exist int, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFV2Server) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa ASExternalLsa, nbr NbrConf, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	// TODO Reject this lsa if area is configured as stub area.
@@ -180,7 +178,6 @@ func (server *OSPFV2Server) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa A
 }
 
 func validateChecksum(data []byte) bool {
-
 	csum := computeFletcherChecksum(data[2:], FLETCHER_CHECKSUM_VALIDATE)
 	if csum != 0 {
 		//server.logger.Err("LSAUPD: Invalid Router LSA Checksum")
