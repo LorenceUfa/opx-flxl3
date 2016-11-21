@@ -42,6 +42,9 @@ func (server *OSPFV2Server) DeinitFlooding() {
 
 func (server *OSPFV2Server) StartFlooding() {
 	server.InitFlooding()
+	go server.ProcessFlooding()
+}
+func (server *OSPFV2Server) ProcessFlooding() {
 	for {
 		select {
 		case lsdbToFloodArray := <-server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh:
