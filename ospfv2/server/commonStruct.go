@@ -163,7 +163,7 @@ const (
 type UpdateSelfNetworkLSAMsg struct {
 	Op      LsaOp
 	IntfKey IntfConfKey
-	NbrList []uint32
+	NbrList []NbrConfKey
 }
 
 type LsdbToFloodLSAMsg struct {
@@ -175,6 +175,7 @@ type NbrToFloodMsg struct {
 	MsgType RecvdLsaMsgType
 	LsaPkt  []byte
 	NbrKey  NbrConfKey
+	LsaType uint8
 }
 type RouteAddMsg struct {
 	RTblKey   RoutingTblEntryKey

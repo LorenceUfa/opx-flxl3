@@ -151,7 +151,6 @@ func (server *OSPFV2Server) initMessagingChData() {
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
 	server.initMessagingChData()
-	server.initNbrStruct()
 	server.initAsicdComm()
 	server.initRibdComm()
 	server.ConnectToServers()

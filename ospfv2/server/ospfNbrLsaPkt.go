@@ -227,7 +227,8 @@ func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf
 
 	reqlist := nbrConf.NbrReqList
 	if len(reqlist) < 1 {
-		server.logger.Warning("Nbr : Req list is nill. No request will be made ", nbrId)
+		server.logger.Warning("Nbr : Req list is nill. Nbr is full. ", nbrId)
+		server.ProcessNbrFull(nbrId)
 	}
 	req_list_items := len(reqlist) - nbrConf.NbrReqListIndex
 	max_req := calculateMaxLsaReq()
@@ -511,6 +512,7 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 		flood_pkt := NbrToFloodMsg{
 			NbrKey:  msg.nbrKey,
 			MsgType: LSA_FLOOD_ALL,
+			LsaType: lsa_header.LSType,
 		}
 		flood_pkt.LsaPkt = make([]byte, end_index-index)
 		copy(flood_pkt.LsaPkt, lsdb_msg.LsaData.([]byte))
@@ -529,6 +531,7 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 		//server.UpdateNbrList(msg.nbrKey)
 
 	}
+	server.BuildAndSendLSAReq(msg.nbrKey, nbr)
 
 	//TODO check for nbr full
 }
@@ -808,6 +811,7 @@ func (server *OSPFV2Server) generateLsaUpdUnicast(req ospfLSAReq, nbrKey NbrConf
 		flood_msg := NbrToFloodMsg{}
 		flood_msg.MsgType = LSA_FLOOD_INTF
 		flood_msg.NbrKey = nbrKey
+		flood_msg.LsaType = lsa_key.LSType
 		flood_msg.LsaPkt = make([]byte, len(lsa_pkt))
 		copy(flood_msg.LsaPkt, lsa_pkt)
 
