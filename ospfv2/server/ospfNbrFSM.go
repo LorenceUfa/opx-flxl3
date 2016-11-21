@@ -29,10 +29,14 @@ import (
 	"time"
 )
 
-/* Handle neighbor events
- */
 func (server *OSPFV2Server) StartNbrFSM() {
 	server.InitNbrStruct()
+	go server.ProcessNbrFSM()
+}
+
+/* Handle neighbor events
+ */
+func (server *OSPFV2Server) ProcessNbrFSM() {
 	for {
 		select {
 		//Hello packet recieved.
