@@ -33,6 +33,7 @@ func (server *OSPFV2Server) InitLsdbData() {
 	server.LsdbData.AreaLsdb = make(map[LsdbKey]LSDatabase)
 	server.LsdbData.AreaSelfOrigLsa = make(map[LsdbKey]SelfOrigLsa)
 	server.LsdbData.LsdbAgingTicker = nil
+	server.LsdbData.ExtRouteInfoMap = make(map[RouteInfo]bool)
 }
 
 func (server *OSPFV2Server) DeinitLsdb() {
@@ -45,6 +46,15 @@ func (server *OSPFV2Server) DeinitLsdb() {
 	}
 	server.LsdbData.AreaLsdb = nil
 	server.LsdbData.AreaSelfOrigLsa = nil
+	server.LsdbData.ExtRouteInfoMap = nil
+}
+
+func (server *OSPFV2Server) GetExtRouteInfo() {
+	routeInfoList := server.getBulkRoutesFromRibd()
+	for _, route := range routeInfoList {
+		server.LsdbData.ExtRouteInfoMap[*route] = true
+		server.generateASExternalLSA(*route)
+	}
 }
 
 func (server *OSPFV2Server) InitAreaLsdb(areaId uint32) {
@@ -97,7 +107,9 @@ func (server *OSPFV2Server) StartLsdbRoutine() {
 	server.LsdbData.LsdbCtrlChData.LsdbGblCtrlReplyCh = make(chan bool)
 	server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlCh = make(chan uint32)
 	server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh = make(chan uint32)
-	go server.ProcessLsdb()
+	initDoneCh := make(chan bool)
+	go server.ProcessLsdb(initDoneCh)
+	<-initDoneCh
 }
 
 func (server *OSPFV2Server) StopLsdbRoutine() {
@@ -159,9 +171,32 @@ func (server *OSPFV2Server) processRecvdSelfLSA(msg RecvdSelfLsaMsg) error {
 	return nil
 }
 
-func (server *OSPFV2Server) ProcessLsdb() {
+func (server *OSPFV2Server) ProcessRouteInfoData(msg RouteInfoDataUpdateMsg) {
+	if msg.MsgType == ROUTE_INFO_ADD {
+		for _, routeInfo := range msg.RouteInfoList {
+			server.LsdbData.ExtRouteInfoMap[routeInfo] = true
+			server.generateASExternalLSA(routeInfo)
+		}
+	} else if msg.MsgType == ROUTE_INFO_DEL {
+		for _, routeInfo := range msg.RouteInfoList {
+			delete(server.LsdbData.ExtRouteInfoMap, routeInfo)
+			server.flushASExternalLSA(routeInfo)
+		}
+	} else {
+		server.logger.Err("Invalid MsgType for RouteInfoDataUpdateMsg")
+	}
+}
+
+func (server *OSPFV2Server) ProcessLsdb(initDoneCh chan bool) {
 	server.InitLsdbData()
+	for areaId, areaEnt := range server.AreaConfMap {
+		if areaEnt.AdminState == true {
+			server.InitAreaLsdb(areaId)
+		}
+	}
+	server.GetExtRouteInfo()
 	server.LsdbData.LsdbAgingTicker = time.NewTicker(LsaAgingTimeGranularity)
+	initDoneCh <- true
 	for {
 		select {
 		case _ = <-server.LsdbData.LsdbCtrlChData.LsdbGblCtrlCh:
@@ -174,6 +209,10 @@ func (server *OSPFV2Server) ProcessLsdb() {
 			server.DeinitAreaLsdb(areaId)
 			server.CalcSPFAndRoutingTbl()
 			server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh <- areaId
+		case areaId := <-server.MessagingChData.ServerToLsdbChData.InitAreaLsdbCh:
+			server.InitAreaLsdb(areaId)
+			server.SendMsgFromLsdbToServerForInitAreaLsdbDone()
+			server.GenerateAllASExternalLSA(areaId)
 		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:
 			server.logger.Info("Generate self originated Router LSA", msg)
 			err := server.GenerateRouterLSA(msg)
@@ -196,7 +235,9 @@ func (server *OSPFV2Server) ProcessLsdb() {
 			server.logger.Info("Recvd Self LSA", msg)
 			server.processRecvdSelfLSA(msg)
 			server.CalcSPFAndRoutingTbl()
-		//TODO: Handle AS External
+		case msg := <-server.MessagingChData.ServerToLsdbChData.RouteInfoDataUpdateCh:
+			//TODO: Handle AS External
+			server.ProcessRouteInfoData(msg)
 		case <-server.LsdbData.LsdbAgingTicker.C:
 			server.processLsdbAgingTicker()
 		case <-server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh:
@@ -327,6 +368,8 @@ func (server *OSPFV2Server) getLsdbState(lsaType uint8, lsId, areaId, advRtrId u
 	retObj.SequenceNum = uint32(lsaMd.LSSequenceNum)
 	retObj.Age = lsaMd.LSAge
 	retObj.Checksum = lsaMd.LSChecksum
+	retObj.Options = lsaMd.Options
+	retObj.Length = lsaMd.LSLen
 	retObj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
 	return &retObj, nil
 }
@@ -404,6 +447,8 @@ func (server *OSPFV2Server) getBulkLsdbState(fromIdx, cnt int) (*objects.Ospfv2L
 		obj.SequenceNum = uint32(lsaMd.LSSequenceNum)
 		obj.Age = lsaMd.LSAge
 		obj.Checksum = lsaMd.LSChecksum
+		obj.Options = lsaMd.Options
+		obj.Length = lsaMd.LSLen
 		obj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
 		retObj.List = append(retObj.List, &obj)
 		count++

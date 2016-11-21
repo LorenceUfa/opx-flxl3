@@ -179,6 +179,18 @@ type RouteDelMsg struct {
 	RTblKey RoutingTblEntryKey
 }
 
+type RouteInfoUpdateMsgType uint8
+
+const (
+	ROUTE_INFO_ADD RouteInfoUpdateMsgType = 0
+	ROUTE_INFO_DEL RouteInfoUpdateMsgType = 1
+)
+
+type RouteInfoDataUpdateMsg struct {
+	MsgType       RouteInfoUpdateMsgType
+	RouteInfoList []RouteInfo
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
@@ -212,11 +224,14 @@ type SPFToLsdbChStruct struct {
 }
 
 type ServerToLsdbChStruct struct {
-	RefreshLsdbSliceCh chan bool
+	RefreshLsdbSliceCh    chan bool
+	RouteInfoDataUpdateCh chan RouteInfoDataUpdateMsg
+	InitAreaLsdbCh        chan uint32
 }
 
 type LsdbToServerChStruct struct {
 	RefreshLsdbSliceDoneCh chan bool
+	InitAreaLsdbDoneCh     chan bool
 }
 
 type RouteTblToDBClntChStruct struct {

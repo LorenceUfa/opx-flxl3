@@ -29,3 +29,13 @@ func (server *OSPFV2Server) SendMsgToLsdbToRefreshSlice() {
 	server.logger.Info("Sending msg To Refresh Lsdb Slice :")
 	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh <- true
 }
+
+func (server *OSPFV2Server) SendMsgToLsdbToInitAreaLsdb(areaId uint32) {
+	server.logger.Info("Sending msg to Init Area Lsdb:", areaId)
+	server.MessagingChData.ServerToLsdbChData.InitAreaLsdbCh <- areaId
+}
+
+func (server *OSPFV2Server) SendMsgToLsdbToUpdateRouteInfo(msg RouteInfoDataUpdateMsg) {
+	server.logger.Info("Sending msg to Lsdb for Updating RouteInfo:", msg)
+	server.MessagingChData.ServerToLsdbChData.RouteInfoDataUpdateCh <- msg
+}

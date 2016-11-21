@@ -153,15 +153,19 @@ func (server *OSPFV2Server) processRecvdSummaryLSA(msg RecvdLsaMsg) error {
 			return nil
 		}
 		if msg.LsaKey.LSType == Summary3LSA {
+			_, exist = lsdbEnt.Summary3LsaMap[msg.LsaKey]
 			lsdbEnt.Summary3LsaMap[msg.LsaKey] = lsa
 		} else {
+			_, exist = lsdbEnt.Summary3LsaMap[msg.LsaKey]
 			lsdbEnt.Summary4LsaMap[msg.LsaKey] = lsa
 		}
-		lsdbSlice := LsdbSliceStruct{
-			LsdbKey: msg.LsdbKey,
-			LsaKey:  msg.LsaKey,
+		if !exist {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: msg.LsdbKey,
+				LsaKey:  msg.LsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 		}
-		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		if msg.LsaKey.LSType == Summary3LSA {
 			delete(lsdbEnt.Summary3LsaMap, msg.LsaKey)

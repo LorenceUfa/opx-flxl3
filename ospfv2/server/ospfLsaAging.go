@@ -45,7 +45,7 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigRouterLsa(lsdbKey LsdbKey, lsa
 		msg := GenerateRouterLSAMsg{
 			AreaId: lsdbKey.AreaId,
 		}
-		server.GenerateRouterLSA(msg)
+		server.reGenerateRouterLSA(msg)
 		return true
 	}
 	return false
@@ -124,6 +124,18 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigASExternalLsa(lsdbKey LsdbKey,
 		}
 	}
 	//TODO: If Age=LSRefreshTime Regenerate
+	if lsa.LsaMd.LSAge == LS_REFRESH_TIME {
+		routeInfo := RouteInfo{
+			NwAddr:  lsaKey.LSId,
+			Netmask: lsa.Netmask,
+			Metric:  lsa.Metric,
+		}
+		_, exist := server.LsdbData.ExtRouteInfoMap[routeInfo]
+		if exist {
+			server.reGenerateASExternalLSAForGivenArea(routeInfo, lsdbKey.AreaId)
+			return true
+		}
+	}
 	return false
 }
 

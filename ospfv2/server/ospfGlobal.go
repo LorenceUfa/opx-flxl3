@@ -137,9 +137,6 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Init Ospf Intf FSM
 		//Start All Interface FSM
 		server.StartAllIntfFSM()
-
-		//TODO
-		//Start Ribd Updates if ASBdrRtrStatus = true
 	}
 
 	return true, nil
@@ -167,9 +164,6 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 		//TODO: Start NBR FSM
 		server.StartAllRxTxPkt()
 		server.StartAllIntfFSM()
-		if server.globalData.ASBdrRtrStatus == true {
-			//TODO: Start Ribd Updates
-		}
 	}
 	return true, nil
 }
