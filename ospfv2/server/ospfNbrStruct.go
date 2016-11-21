@@ -155,13 +155,29 @@ type NbrStruct struct {
 	nbrLsaAckEventCh      chan NbrLsaAckMsg
 	IntfToNbrMap          map[IntfConfKey][]NbrConfKey
 	nbrFSMCtrlCh          chan bool
+	nbrFSMCtrlReplyCh     chan bool
 }
 
-func (server *OSPFV2Server) initNbrStruct() {
+func (server *OSPFV2Server) InitNbrStruct() {
+	server.NbrConfMap = make(map[NbrConfKey]NbrConf)
 	server.NbrConfData.IntfToNbrMap = make(map[IntfConfKey][]NbrConfKey)
 	server.NbrConfData.neighborDBDEventCh = make(chan NbrDbdMsg)
 	server.NbrConfData.neighborLSAUpdEventCh = make(chan NbrLsaUpdMsg)
 	server.NbrConfData.neighborLSAReqEventCh = make(chan NbrLsaReqMsg)
 	server.NbrConfData.nbrLsaAckEventCh = make(chan NbrLsaAckMsg)
+	server.NbrConfData.nbrFSMCtrlCh = make(chan bool)
+	server.NbrConfData.nbrFSMCtrlReplyCh = make(chan bool)
 	server.logger.Debug("Nbr: InitNbrStruct done ")
+}
+
+func (server *OSPFV2Server) DeinitNbrStruct() {
+
+	for _, nbr := range server.NbrConfMap {
+		nbr.NbrReqList = nil
+		nbr.NbrDBSummaryList = nil
+		nbr.NbrRetxList = nil
+		nbr.NbrDeadTimer = nil
+		nbr.NbrLsaRxTimer = nil
+	}
+	server.NbrConfMap = nil
 }

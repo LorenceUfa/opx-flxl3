@@ -29,6 +29,11 @@ import (
 	"time"
 )
 
+func (server *OSPFV2Server) StartNbrFSM() {
+	server.InitNbrStruct()
+	go server.ProcessNbrFSM()
+}
+
 /* Handle neighbor events
  */
 func (server *OSPFV2Server) ProcessNbrFSM() {
@@ -74,13 +79,39 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 			*/
 
 			//NbrFsmCtrlCh
-			/*
-				case
-				server.logger.Debug("Nbr : FSM exist ")
-				return
-			*/
+		case _ = <-server.NbrConfData.nbrFSMCtrlCh:
+			server.logger.Debug("Nbr : FSM stopping.. ")
+			server.DeinitNbrStruct()
+			server.NbrConfData.nbrFSMCtrlReplyCh <- true
+			return
 		}
 	}
+}
+
+func (server *OSPFV2Server) StopNbrFSM() {
+	server.NbrConfData.nbrFSMCtrlCh <- true
+	cnt := 0
+	for {
+		select {
+		case _ = <-server.NbrConfData.nbrFSMCtrlReplyCh:
+			server.logger.Info("Successfully Stopped Nbr FSM")
+			server.NbrConfData.IntfToNbrMap = nil
+			server.NbrConfData.neighborDBDEventCh = nil
+			server.NbrConfData.neighborLSAUpdEventCh = nil
+			server.NbrConfData.neighborLSAReqEventCh = nil
+			server.NbrConfData.nbrLsaAckEventCh = nil
+
+			return
+		default:
+			time.Sleep(time.Duration(10) * time.Millisecond)
+			cnt = cnt + 1
+			if cnt == 100 {
+				server.logger.Err("Unable to stop the  Neighbor FSM")
+				return
+			}
+		}
+	}
+
 }
 
 /**** handle neighbor states ***/
@@ -399,6 +430,13 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	flags := NBR_FLAG_STATE
 	server.UpdateNbrConf(nbrKey, nbrConf, flags)
 	server.logger.Debug("Nbr: Nbr full event ", nbrKey)
+	msg := UpdateSelfNetworkLSAMsg{
+		Op:      GENERATE,
+		IntfKey: nbrConf.IntfKey,
+		NbrList: server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey],
+	}
+
+	server.SendMsgFromNbrToLsdb(msg)
 }
 
 func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {

@@ -948,8 +948,12 @@ func (server *OSPFV2Server) SPFRoutine() {
 		select {
 		case msg := <-server.MessagingChData.LsdbToSPFChData.StartSPF:
 			server.logger.Info("Recevd SPF Calculation Notification for:", msg)
-			server.SPFCalculation()
-			server.SendMsgForSpfDone()
+			server.NbrConfData.IntfToNbrMap = nil
+			server.NbrConfData.neighborDBDEventCh = nil
+			server.NbrConfData.neighborLSAUpdEventCh = nil
+			server.NbrConfData.neighborLSAReqEventCh = nil
+			server.NbrConfData.nbrLsaAckEventCh = nil
+
 		case <-server.SPFData.SPFGblCtrlCh:
 			server.FlushRoutingTbl()
 			server.DeinitRoutingTbl()

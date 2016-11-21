@@ -76,6 +76,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		//Deinit Tx Pkt
 		server.StopAllRxTxPkt()
 		// TODO: Stop Nbr FSM
+		server.StopNbrFSM()
 
 		// Deinit LSDB Data Structure
 		// Stop LSDB
@@ -83,6 +84,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 		//TODO: Stop Flooding
 
+		server.StopFlooding()
 		// Flush all the routes
 		// Deinit Routing Tbl
 		// Deinit SPF Structures
@@ -122,12 +124,11 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Start SPF
 		server.StartSPF()
 
-		// TODO: Start Flooding
-
+		server.StartFlooding()
 		// Init LSDB Data Structure
 		// Start LSDB
 		server.StartLsdbRoutine()
-		// TODO: Start Nbr FSM
+		server.StartNbrFSM()
 
 		// Init Rx
 		// Init Tx
@@ -160,8 +161,9 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 			return false, err
 		}
 		server.StartSPF()
+		server.StartFlooding()
 		server.StartLsdbRoutine()
-		//TODO: Start NBR FSM
+		server.StartNbrFSM()
 		server.StartAllRxTxPkt()
 		server.StartAllIntfFSM()
 	}

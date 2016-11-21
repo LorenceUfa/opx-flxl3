@@ -310,6 +310,9 @@ func (server *OSPFV2Server) GetAreaConfForGivenArea(areaId uint32) (AreaConf, er
 }
 
 func (server *OSPFV2Server) RefreshAreaConfSlice() {
+	if len(server.GetBulkData.AreaConfSlice) == 0 {
+		return
+	}
 	server.GetBulkData.AreaConfSlice = server.GetBulkData.AreaConfSlice[:len(server.GetBulkData.AreaConfSlice)-1]
 	server.GetBulkData.AreaConfSlice = nil
 	for areaId, _ := range server.AreaConfMap {

@@ -183,6 +183,7 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) error {
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
+	server.logger.Info("Calling CreateAndSendMsgFromLsdbToFloodLsa():", lsdbKey.AreaId, lsaKey, lsaEnt)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
 	if !exist {
 		lsdbSlice := LsdbSliceStruct{
