@@ -35,6 +35,19 @@ import (
 	"time"
 )
 
+func (server *OSPFV2Server) SendHelloPkt(key IntfConfKey) {
+	ospfHelloPkt := server.BuildHelloPkt(key)
+	if ospfHelloPkt == nil {
+		server.logger.Err("Unable to send the ospf Hello pkt")
+		return
+	}
+	err := server.SendOspfPkt(key, ospfHelloPkt)
+	if err != nil {
+		server.logger.Err("Unable to send the ospf Hello pkt")
+	}
+	return
+}
+
 func (server *OSPFV2Server) BuildHelloPkt(key IntfConfKey) []byte {
 	ent, exist := server.IntfConfMap[key]
 	if !exist {
@@ -210,8 +223,7 @@ func (server *OSPFV2Server) processOspfHelloNbr(ethHdrMd *EthHdrMetadata, ipHdrM
 	}
 
 	nbrKey := NbrConfKey{
-		NbrIdentity:         nbrIdentity,
-		NbrAddressLessIfIdx: key.IntfIdx,
+		NbrIdentity: nbrIdentity,
 	}
 	nbrEntry, exist := ent.NbrMap[nbrKey]
 	if !exist {

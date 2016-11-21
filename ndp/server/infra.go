@@ -26,9 +26,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"l3/ndp/config"
 	"l3/ndp/debug"
 	"net"
@@ -150,6 +147,29 @@ func (svr *NDPServer) GetIPIntf() {
 	return
 }
 
+func (svr *NDPServer) getVirtualIpIntf() {
+	debug.Logger.Info("Get Virtual IPv6 Interface List")
+	ipsInfo, err := svr.SwitchPlugin.GetAllSubIPv6IntfState()
+	if err != nil {
+		debug.Logger.Err("Failed to get any virtual ipv6 interfaces from system, ERROR:", err)
+		return
+	}
+	for _, ipInfo := range ipsInfo {
+		if ipInfo.Type == commonDefs.SUB_INTF_VIRTUAL_TYPE {
+			virEntry := &config.VirtualIpInfo{}
+			virEntry.IfIndex = ipInfo.IfIndex
+			virEntry.ParentIfIndex = ipInfo.ParentIfIndex
+			virEntry.IpAddr = ipInfo.IpAddr
+			virEntry.MacAddr = ipInfo.MacAddr
+			virEntry.IfName = ipInfo.IfName
+			svr.virtualIp[ipInfo.IfIndex] = virEntry
+			if ipInfo.OperState == config.STATE_UP {
+				svr.updateFilters(virEntry)
+			}
+		}
+	}
+}
+
 func (svr *NDPServer) GetIfType(ifIndex int32) int {
 	debug.Logger.Info("get ifType for ifIndex:", ifIndex)
 	if _, ok := svr.L2Port[ifIndex]; ok {
@@ -231,7 +251,7 @@ func (svr *NDPServer) updateStateNeighborInfo(nbrKey, ipAddr string, ifIndex, vl
  *		        a) It will update ndp server neighbor info cache with the latest information
  */
 func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32, learnedIntf string) {
-	debug.Logger.Debug("Calling create ipv6 neighgor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
+	debug.Logger.Debug("Calling create ipv6 neighbor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
 		"vlanId:", nbrInfo.VlanId, "ifIndex:", hwIfIndex, "interface:", learnedIntf)
 	if net.ParseIP(nbrInfo.IpAddr).IsLinkLocalUnicast() == false {
 		_, err := svr.SwitchPlugin.CreateIPv6Neighbor(nbrInfo.IpAddr, nbrInfo.MacAddr, nbrInfo.VlanId, hwIfIndex)
@@ -281,24 +301,6 @@ func (svr *NDPServer) DeleteNeighborInfo(deleteEntries []string, ifIndex int32) 
 		svr.deleteNeighbor(nbrKey, ifIndex)
 	}
 }
-
-/*
-func (svr *NDPServer) UpdateNeighborInfo(nbrInfo *config.NeighborConfig, oldNbrEntry config.NeighborConfig) {
-	//svr.SendIPv6DeleteNotification(oldNbrEntry.IpAddr, oldNbrEntry.IfIndex)
-	debug.Logger.Debug("Calling update ipv6 neighgor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
-		nbrInfo.VlanId, nbrInfo.IfIndex)
-	if net.ParseIP(nbrInfo.IpAddr).IsLinkLocalUnicast() == false {
-		_, err := svr.SwitchPlugin.UpdateIPv6Neighbor(nbrInfo.IpAddr, nbrInfo.MacAddr, nbrInfo.VlanId, nbrInfo.IfIndex)
-		if err != nil {
-			debug.Logger.Err("update ipv6 global neigbor failed for", nbrInfo, "error is", err)
-			// do not enter that neighbor in our neigbor map
-			return
-		}
-	}
-	//svr.SendIPv6CreateNotification(nbrInfo.IpAddr, nbrInfo.IfIndex)
-	svr.updateNeighborInfo(nbrInfo)
-}
-*/
 
 /*  API: will handle IPv6 notifications received from switch/asicd
  *      Msg types
@@ -630,63 +632,6 @@ func (svr *NDPServer) updateL2Operstate(ifIndex int32, state string) {
 }
 
 /*
- * internal api for creating pcap handler for l2 untagged/tagged physical port for RX
- */
-func (l2Port *PhyPort) createPortPcap(pktCh chan *RxPktInfo, name string) (err error) {
-	if l2Port.RX == nil {
-		debug.Logger.Debug("creating l2 rx pcap for", name, l2Port.Info.IfIndex)
-		l2Port.RX, err = pcap.OpenLive(name, NDP_PCAP_SNAPSHOTlEN, NDP_PCAP_PROMISCUOUS, NDP_PCAP_TIMEOUT)
-		if err != nil {
-			debug.Logger.Err("Creating Pcap Handler failed for l2 interface:", name, "Error:", err)
-			return err
-		}
-		err = l2Port.RX.SetBPFFilter(NDP_PCAP_FILTER)
-		if err != nil {
-			debug.Logger.Err("Creating BPF Filter failed Error", err)
-			l2Port.RX = nil
-			return err
-		}
-		debug.Logger.Info("Created l2 Pcap handler for port:", name, "now start receiving NdpPkts")
-		go l2Port.L2ReceiveNdpPkts(pktCh)
-	}
-	return nil
-}
-
-/*
- * internal api for creating pcap handler for l2 physical port for RX
- */
-func (l2Port *PhyPort) deletePcap() {
-	if l2Port.RX != nil {
-		l2Port.RX.Close()
-		l2Port.RX = nil
-	}
-}
-
-/*
- * Receive Ndp Packet and push it on the pktCh
- */
-func (intf *PhyPort) L2ReceiveNdpPkts(pktCh chan *RxPktInfo) error {
-	if intf.RX == nil {
-		debug.Logger.Err("pcap handler for port:", intf.Info.Name, "is not valid. ABORT!!!!")
-		return errors.New(fmt.Sprintln("pcap handler for port:", intf.Info.Name, "is not valid. ABORT!!!!"))
-	}
-	src := gopacket.NewPacketSource(intf.RX, layers.LayerTypeEthernet)
-	in := src.Packets()
-	for {
-		select {
-		case pkt, ok := <-in:
-			if ok {
-				pktCh <- &RxPktInfo{pkt, intf.Info.IfIndex}
-			} else {
-				debug.Logger.Debug("L2 Pcap closed as in is invalid exiting go routine for port:", intf.Info.Name)
-				return nil
-			}
-		}
-	}
-	return nil
-}
-
-/*
  *  Creating Pcap handlers for l2 port which are marked as tag/untag for l3 vlan port and are in UP state
  *  only l3 CreatePcap should update l2Port.L3 information
  */
@@ -889,23 +834,28 @@ func (svr *NDPServer) ActionRefreshByIntf(intfRef string) {
  *  Utility Action function to delete ndp entries by Neighbor Ip Address
  */
 func (svr *NDPServer) ActionDeleteByNbrIp(ipAddr string) {
+	debug.Logger.Info("performing delete action by ip address for ipAddr:", ipAddr)
 	var nbrKey string
 	found := false
 	for _, nbrKey = range svr.neighborKey {
+		debug.Logger.Debug("neighbor key in server neighbor keys:", nbrKey)
 		splitString := splitNeighborKey(nbrKey)
 		if splitString[1] == ipAddr {
 			found = true
+			break
 		}
 	}
 	if !found {
 		debug.Logger.Err("Delete Action by Ip Address:", ipAddr, "as no such neighbor is learned")
 		return
 	}
+	debug.Logger.Debug("entry found in neighbor keys:", nbrKey)
 	nbrEntry, exists := svr.NeighborInfo[nbrKey]
 	if !exists {
 		debug.Logger.Err("Delete Action by Ip Address:", ipAddr, "as no such neighbor is learned")
 		return
 	}
+	debug.Logger.Debug("nbr entry found in NeighborInfo", nbrEntry)
 	l3IfIndex := nbrEntry.IfIndex
 	// if valid vlan then get l3 ifIndex from PhyPortToL3PortMap
 	if nbrEntry.VlanId != config.INTERNAL_VLAN {
@@ -918,19 +868,22 @@ func (svr *NDPServer) ActionDeleteByNbrIp(ipAddr string) {
 		}
 		l3IfIndex = l3Info.IfIndex
 	}
-
+	debug.Logger.Debug("l3Ifindex where the neighbor entry was learned:", l3IfIndex)
 	l3Port, exists := svr.L3Port[l3IfIndex]
 	if !exists {
 		debug.Logger.Err("Delete Action by Ip Address:", ipAddr, "as no L3 Port found where this neighbor is learned")
 		return
 	}
 	deleteEntries, err := l3Port.DeleteNeighbor(nbrEntry)
-	if err == nil {
+	if err != nil {
+		debug.Logger.Info("Server Action Delete by NbrIp:", ipAddr, "L3 Port:", l3Port.IntfRef,
+			"Neighbors:", deleteEntries, "failed")
+	} else {
 		debug.Logger.Info("Server Action Delete by NbrIp:", ipAddr, "L3 Port:", l3Port.IntfRef,
 			"Neighbors:", deleteEntries)
 		svr.deleteNeighbor(deleteEntries[0], l3Port.IfIndex)
+		debug.Logger.Debug("delete action by ipAddr performed successfully")
 	}
-
 	svr.L3Port[l3IfIndex] = l3Port
 }
 
@@ -975,4 +928,116 @@ func (svr *NDPServer) ActionRefreshByNbrIp(ipAddr string) {
 	}
 	l3Port.SendNS(svr.SwitchMac, nbrEntry.MacAddr, nbrEntry.IpAddr, false /*isFastProbe*/)
 	svr.L3Port[l3IfIndex] = l3Port
+}
+
+func (svr *NDPServer) updateVlanMemberFilters(vlan config.VlanInfo, macAddr string) {
+	for pIfIndex, _ := range vlan.TagPortsMap {
+		l2Port, exists := svr.L2Port[pIfIndex]
+		if exists {
+			l2Port.updateFilter(macAddr)
+			svr.L2Port[pIfIndex] = l2Port
+		}
+	}
+	for pIfIndex, _ := range vlan.UntagPortsMap {
+		l2Port, exists := svr.L2Port[pIfIndex]
+		if exists {
+			l2Port.updateFilter(macAddr)
+			svr.L2Port[pIfIndex] = l2Port
+		}
+	}
+}
+
+func (svr *NDPServer) resetVlanMemberFilters(vlan config.VlanInfo) {
+	for pIfIndex, _ := range vlan.TagPortsMap {
+		l2Port, exists := svr.L2Port[pIfIndex]
+		if exists {
+			l2Port.resetFilter()
+			svr.L2Port[pIfIndex] = l2Port
+		}
+	}
+	for pIfIndex, _ := range vlan.UntagPortsMap {
+		l2Port, exists := svr.L2Port[pIfIndex]
+		if exists {
+			l2Port.resetFilter()
+			svr.L2Port[pIfIndex] = l2Port
+		}
+	}
+}
+
+func (svr *NDPServer) updateFilters(virEntry *config.VirtualIpInfo) {
+	l3Port, exists := svr.L3Port[virEntry.ParentIfIndex]
+	if !exists {
+		debug.Logger.Err("Should have never happened how can a virtual interface exists without an l3Port for:", *virEntry)
+		return
+	}
+	switch l3Port.IfType {
+	case commonDefs.IfTypePort:
+		l3Port.updateFilter(virEntry.MacAddr)
+		svr.L3Port[virEntry.ParentIfIndex] = l3Port
+	case commonDefs.IfTypeVlan:
+		vlan, exists := svr.VlanInfo[virEntry.ParentIfIndex]
+		if !exists {
+			debug.Logger.Err("Should have never happened how can a virtual interface exists without an l3Port for:", *virEntry)
+			return
+		}
+		svr.updateVlanMemberFilters(vlan, virEntry.MacAddr)
+	}
+}
+
+func (svr *NDPServer) resetFilters(virEntry *config.VirtualIpInfo) {
+	l3Port, exists := svr.L3Port[virEntry.ParentIfIndex]
+	if !exists {
+		debug.Logger.Err("Should have never happened how can a virtual interface exists without an l3Port for:", *virEntry)
+		return
+	}
+	switch l3Port.IfType {
+	case commonDefs.IfTypePort:
+		l3Port.resetFilter()
+		svr.L3Port[virEntry.ParentIfIndex] = l3Port
+	case commonDefs.IfTypeVlan:
+		vlan, exists := svr.VlanInfo[virEntry.ParentIfIndex]
+		if !exists {
+			debug.Logger.Err("Should have never happened how can a virtual interface exists without an l3Port for:", *virEntry)
+			return
+		}
+		svr.resetVlanMemberFilters(vlan)
+	}
+
+}
+
+func (svr *NDPServer) HandleVirtualIpNotification(vipInfo *config.VirtualIpInfo) {
+	switch vipInfo.MsgType {
+	case config.VIRTUAL_CREATE:
+		_, exists := svr.virtualIp[vipInfo.IfIndex]
+		if !exists {
+			virEntry := &config.VirtualIpInfo{}
+			virEntry.IfIndex = vipInfo.IfIndex
+			virEntry.ParentIfIndex = vipInfo.ParentIfIndex
+			virEntry.IpAddr = vipInfo.IpAddr
+			virEntry.MacAddr = vipInfo.MacAddr
+			virEntry.IfName = vipInfo.IfName
+			svr.virtualIp[vipInfo.IfIndex] = virEntry
+			debug.Logger.Info("Added Virtual Ip Information to Runtime info:", *virEntry)
+		}
+
+	case config.VIRTUAL_DELETE:
+		virEntry, exists := svr.virtualIp[vipInfo.IfIndex]
+		if virEntry != nil {
+			virEntry = nil
+		}
+		if exists {
+			delete(svr.virtualIp, vipInfo.IfIndex)
+		}
+	case config.STATE_UP:
+		virEntry, exists := svr.virtualIp[vipInfo.IfIndex]
+		if exists {
+			svr.updateFilters(virEntry)
+		}
+
+	case config.STATE_DOWN:
+		virEntry, exists := svr.virtualIp[vipInfo.IfIndex]
+		if exists {
+			svr.resetFilters(virEntry)
+		}
+	}
 }

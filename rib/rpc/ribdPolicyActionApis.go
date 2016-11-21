@@ -25,6 +25,7 @@
 package rpc
 
 import (
+	defs "l3/rib/ribdCommonDefs"
 	"l3/rib/server"
 	"ribdInt"
 )
@@ -33,7 +34,7 @@ func (m RIBDServicesHandler) CreatePolicyAction(cfg *ribdInt.PolicyAction) (val 
 	logger.Info("CreatePolicyAction")
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "addPolicyAction",
+		Op:               defs.AddPolicyAction,
 	}
 	return true, err
 }
@@ -42,7 +43,7 @@ func (m RIBDServicesHandler) DeletePolicyAction(cfg *ribdInt.PolicyAction) (val 
 	logger.Info("CreatePolicyAction")
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "delPolicyAction",
+		Op:               defs.DelPolicyAction,
 	}
 	return true, err
 }

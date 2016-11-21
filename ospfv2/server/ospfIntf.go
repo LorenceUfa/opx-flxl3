@@ -25,7 +25,7 @@ package server
 
 import (
 	"errors"
-	//"fmt"
+	"fmt"
 	"l3/ospfv2/objects"
 	"net"
 	"time"
@@ -39,7 +39,7 @@ type IntfConfKey struct {
 type IntfConf struct {
 	AdminState      bool
 	AreaId          uint32
-	Type            uint8
+	Type            uint8 //Broadcast, P2P
 	RtrPriority     uint8
 	TransitDelay    uint16
 	RetransInterval uint16
@@ -57,6 +57,8 @@ type IntfConf struct {
 
 	OperState           bool
 	FSMState            uint8
+	NumOfStateChange    uint32
+	TimeOfStateChange   string
 	FSMCtrlCh           chan bool
 	FSMCtrlReplyCh      chan bool
 	HelloIntervalTicker *time.Ticker
@@ -73,6 +75,7 @@ type IntfConf struct {
 	IfName    string
 	IpAddr    uint32
 	IfMacAddr net.HardwareAddr
+	IfType    uint32 //Loopback/Vlan/Lag/Port
 	Netmask   uint32
 	txHdl     IntfTxHandle
 	rxHdl     IntfRxHandle
@@ -135,6 +138,10 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		server.logger.Err("Ospf Interface configuration doesnot exist")
 		return false, errors.New("Ospf Interface configuration doesnot exist")
 	}
+	if intfConfEnt.AdminState == true {
+		server.StopIntfFSM(intfConfKey)
+		server.StopIntfRxTxPkt(intfConfKey)
+	}
 	oldIntfConfEnt := intfConfEnt
 	mask := getOspfv2IntfUpdateMask(attrset)
 	if mask&objects.OSPFV2_INTF_UPDATE_ADMIN_STATE == objects.OSPFV2_INTF_UPDATE_ADMIN_STATE {
@@ -169,16 +176,6 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	if mask&objects.OSPFV2_INTF_UPDATE_METRIC_VALUE == objects.OSPFV2_INTF_UPDATE_METRIC_VALUE {
 		intfConfEnt.Cost = uint32(newCfg.MetricValue)
 	}
-	if oldIntfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-		//Stop Tx and Rx and Interface FSM
-		nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
-		if len(nbrKeyList) > 0 {
-			//Declare all nbrs dead
-			server.SendDeleteNbrsMsg(nbrKeyList)
-		}
-		//Send Message to generate Router LSA oldIntfConfEnt.AreaId
-		server.SendMsgToGenerateRouterLSA(oldIntfConfEnt.AreaId)
-	}
 	areaEnt, _ := server.AreaConfMap[oldIntfConfEnt.AreaId]
 	delete(areaEnt.IntfMap, intfConfKey)
 	server.AreaConfMap[oldIntfConfEnt.AreaId] = areaEnt
@@ -190,18 +187,9 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	areaEnt.IntfMap[intfConfKey] = true
 	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
 
-	if intfConfEnt.AdminState == true &&
-		server.globalData.AdminState == true &&
-		areaEnt.AdminState == true &&
-		intfConfEnt.OperState == true {
-		//StartSendAndRecvPkts : Start Tx and Rx and IntfFSM
-		err := server.StartSendAndRecvPkts(intfConfKey)
-		if err != nil {
-			server.logger.Err("Error starting send and recv pkt and Intf FSM", err)
-			return false, err
-		}
-		//Send Message to generate Router LSA
-		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+	if intfConfEnt.AdminState == true {
+		server.StartIntfRxTxPkt(intfConfKey)
+		server.StartIntfFSM(intfConfKey)
 	}
 	return true, nil
 }
@@ -236,6 +224,7 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		intfConfEnt.IfMacAddr = ipEnt.MacAddr
 		intfConfEnt.Netmask = ipEnt.NetMask
 		intfConfEnt.IpAddr = ipEnt.IpAddr
+		intfConfEnt.IfType = ipEnt.IfType
 	}
 	intfConfEnt.AdminState = cfg.AdminState
 	areaEnt, exist := server.AreaConfMap[cfg.AreaId]
@@ -252,23 +241,22 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	intfConfEnt.RtrDeadInterval = cfg.RtrDeadInterval
 	intfConfEnt.Cost = uint32(cfg.MetricValue)
 
-	intfConfEnt.DRIpAddr = 0
-	intfConfEnt.DRtrId = 0
-	intfConfEnt.BDRIpAddr = 0
-	intfConfEnt.BDRtrId = 0
+	//intfConfEnt.DRIpAddr = 0
+	//intfConfEnt.DRtrId = 0
+	//intfConfEnt.BDRIpAddr = 0
+	//intfConfEnt.BDRtrId = 0
 	intfConfEnt.AuthKey = 0
 
-	intfConfEnt.FSMState = objects.INTF_FSM_STATE_UNKNOWN
+	intfConfEnt.FSMState = objects.INTF_FSM_STATE_DOWN
 
-	intfConfEnt.FSMCtrlCh = make(chan bool)
-	intfConfEnt.FSMCtrlReplyCh = make(chan bool)
-	intfConfEnt.HelloIntervalTicker = nil
-	intfConfEnt.WaitTimer = nil
+	//intfConfEnt.FSMCtrlCh = make(chan bool)
+	//intfConfEnt.FSMCtrlReplyCh = make(chan bool)
+	//intfConfEnt.HelloIntervalTicker = nil
+	//intfConfEnt.WaitTimer = nil
 
-	intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
-	intfConfEnt.NbrCreateCh = make(chan NbrCreateMsg)
-	intfConfEnt.NbrChangeCh = make(chan NbrChangeMsg)
-	//intfConfEnt.NbrStateChangeCh = make(chan NbrStateChangeMsg)
+	//intfConfEnt.BackupSeenCh = make(chan BackupSeenMsg)
+	//intfConfEnt.NbrCreateCh = make(chan NbrCreateMsg)
+	//intfConfEnt.NbrChangeCh = make(chan NbrChangeMsg)
 
 	intfConfEnt.LsaCount = 0
 	server.IntfConfMap[intfConfKey] = intfConfEnt
@@ -276,24 +264,12 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	areaEnt.IntfMap[intfConfKey] = true
 	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[intfConfKey] = make(chan NbrDownMsg)
 	server.AreaConfMap[cfg.AreaId] = areaEnt
-	if server.globalData.AdminState == true &&
-		cfg.AdminState == true &&
-		areaEnt.AdminState == true &&
-		intfConfEnt.OperState == true {
-		server.logger.Info("StartSendAndRecvPkts : Start Tx and Rx and IntfFSM")
-		err := server.StartSendAndRecvPkts(intfConfKey)
-		if err != nil {
-			return false, err
-		}
-		// Send Message to generate Router LSA
-		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
-	} else {
-		intfConfEnt, _ := server.IntfConfMap[intfConfKey]
-		intfConfEnt.FSMState = objects.INTF_FSM_STATE_DOWN
-		server.IntfConfMap[intfConfKey] = intfConfEnt
-
+	if intfConfEnt.AdminState == true {
+		server.StartIntfRxTxPkt(intfConfKey)
+		server.StartIntfFSM(intfConfKey)
 	}
-
+	//Adding Interface Conf Key To Slice
+	server.GetBulkData.IntfConfSlice = append(server.GetBulkData.IntfConfSlice, intfConfKey)
 	return true, nil
 }
 
@@ -310,16 +286,9 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	}
 
 	server.logger.Info("Intf Conf Ent", intfConfEnt)
-
-	if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-		//Stop Tx and Rx and IntfFSM
-		nbrKeyList := server.StopSendAndRecvPkts(intfConfKey)
-		if len(nbrKeyList) > 0 {
-			//Declare all nbrs dead
-			server.SendDeleteNbrsMsg(nbrKeyList)
-		}
-		//Send Message to generate Router LSA
-		server.SendMsgToGenerateRouterLSA(intfConfEnt.AreaId)
+	if intfConfEnt.AdminState == true {
+		server.StopIntfFSM(intfConfKey)
+		server.StopIntfRxTxPkt(intfConfKey)
 	}
 
 	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
@@ -333,11 +302,128 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 func (server *OSPFV2Server) getIntfState(ipAddr, addressLessIfIdx uint32) (*objects.Ospfv2IntfState, error) {
 	var retObj objects.Ospfv2IntfState
 	server.logger.Info("ipAddr:", ipAddr, "addressLessIfIdx:", addressLessIfIdx, server.IntfConfMap)
+	intfKey := IntfConfKey{
+		IpAddr:  ipAddr,
+		IntfIdx: addressLessIfIdx,
+	}
+	intfEnt, exist := server.IntfConfMap[intfKey]
+	if !exist {
+		server.logger.Err("Get Intf State: Interface does not exist", intfKey)
+		return nil, errors.New("Interface does not exist")
+	}
+	retObj.IpAddress = ipAddr
+	retObj.AddressLessIfIdx = addressLessIfIdx
+	retObj.State = intfEnt.FSMState
+	retObj.DesignatedRouterId = intfEnt.DRtrId
+	retObj.BackupDesignatedRouterId = intfEnt.BDRtrId
+	retObj.DesignatedRouter = intfEnt.DRIpAddr
+	retObj.BackupDesignatedRouter = intfEnt.BDRIpAddr
+	retObj.NumOfNbrs = uint32(len(intfEnt.NbrMap))
+	retObj.Mtu = intfEnt.Mtu
+	retObj.Cost = intfEnt.Cost
+	lsdbKey := LsdbKey{
+		AreaId: intfEnt.AreaId,
+	}
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
+	if exist {
+		retObj.NumOfRouterLSA = uint32(len(lsdbEnt.RouterLsaMap))
+		retObj.NumOfNetworkLSA = uint32(len(lsdbEnt.NetworkLsaMap))
+		retObj.NumOfSummary3LSA = uint32(len(lsdbEnt.Summary3LsaMap))
+		retObj.NumOfSummary4LSA = uint32(len(lsdbEnt.Summary4LsaMap))
+		retObj.NumOfASExternalLSA = uint32(len(lsdbEnt.ASExternalLsaMap))
+		retObj.NumOfLSA = retObj.NumOfRouterLSA + retObj.NumOfNetworkLSA +
+			retObj.NumOfSummary3LSA + retObj.NumOfSummary4LSA +
+			retObj.NumOfASExternalLSA
+	}
+	//TODO: NumOfRoutes
+	retObj.NumOfStateChange = intfEnt.NumOfStateChange
+	retObj.TimeOfStateChange = intfEnt.TimeOfStateChange
 	return &retObj, nil
 }
 
 func (server *OSPFV2Server) getBulkIntfState(fromIdx, cnt int) (*objects.Ospfv2IntfStateGetInfo, error) {
 	var retObj objects.Ospfv2IntfStateGetInfo
 	server.logger.Info(server.IntfConfMap)
+	//numIntfConf := len(server.IntfConfMap)
+	count := 0
+	idx := fromIdx
+	sliceLen := len(server.GetBulkData.IntfConfSlice)
+	if fromIdx >= sliceLen {
+		return nil, errors.New("Invalid Range")
+	}
+	for count < cnt {
+		if idx == sliceLen {
+			break
+		}
+		intfKey := server.GetBulkData.IntfConfSlice[idx]
+		intfEnt, exist := server.IntfConfMap[intfKey]
+		if !exist {
+			idx++
+			continue
+		}
+		var obj objects.Ospfv2IntfState
+		obj.IpAddress = intfKey.IpAddr
+		obj.AddressLessIfIdx = intfKey.IntfIdx
+		obj.State = intfEnt.FSMState
+		obj.DesignatedRouterId = intfEnt.DRtrId
+		obj.BackupDesignatedRouterId = intfEnt.BDRtrId
+		obj.DesignatedRouter = intfEnt.DRIpAddr
+		obj.BackupDesignatedRouter = intfEnt.BDRIpAddr
+		obj.NumOfNbrs = uint32(len(intfEnt.NbrMap))
+		obj.Mtu = intfEnt.Mtu
+		obj.Cost = intfEnt.Cost
+		lsdbKey := LsdbKey{
+			AreaId: intfEnt.AreaId,
+		}
+		lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
+		if exist {
+			obj.NumOfRouterLSA = uint32(len(lsdbEnt.RouterLsaMap))
+			obj.NumOfNetworkLSA = uint32(len(lsdbEnt.NetworkLsaMap))
+			obj.NumOfSummary3LSA = uint32(len(lsdbEnt.Summary3LsaMap))
+			obj.NumOfSummary4LSA = uint32(len(lsdbEnt.Summary4LsaMap))
+			obj.NumOfASExternalLSA = uint32(len(lsdbEnt.ASExternalLsaMap))
+			obj.NumOfLSA = obj.NumOfRouterLSA + obj.NumOfNetworkLSA +
+				obj.NumOfSummary3LSA + obj.NumOfSummary4LSA +
+				obj.NumOfASExternalLSA
+		}
+		//TODO: NumOfRoutes
+		obj.NumOfStateChange = intfEnt.NumOfStateChange
+		obj.TimeOfStateChange = intfEnt.TimeOfStateChange
+		retObj.List = append(retObj.List, &obj)
+		count++
+		idx++
+	}
+
+	retObj.EndIdx = idx
+	if retObj.EndIdx == sliceLen {
+		retObj.More = false
+		retObj.Count = 0
+	} else {
+		retObj.More = true
+		retObj.Count = sliceLen - retObj.EndIdx + 1
+	}
 	return &retObj, nil
+}
+
+func (server *OSPFV2Server) GetIntfConfForGivenIntfKey(intfConfKey IntfConfKey) (IntfConf, error) {
+	intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+	if !exist {
+		return intfConfEnt, errors.New(fmt.Sprintln("Error: Unable to get interface config for", intfConfKey))
+	}
+	return intfConfEnt, nil
+}
+
+func (server *OSPFV2Server) GetIntfNbrList(intfEnt IntfConf) (nbrList []NbrConfKey) {
+	for nbrKey, _ := range intfEnt.NbrMap {
+		nbrList = append(nbrList, nbrKey)
+	}
+	return nbrList
+}
+
+func (server *OSPFV2Server) RefreshIntfConfSlice() {
+	server.GetBulkData.IntfConfSlice = server.GetBulkData.IntfConfSlice[:len(server.GetBulkData.AreaConfSlice)-1]
+	server.GetBulkData.IntfConfSlice = nil
+	for intfKey, _ := range server.IntfConfMap {
+		server.GetBulkData.IntfConfSlice = append(server.GetBulkData.IntfConfSlice, intfKey)
+	}
 }

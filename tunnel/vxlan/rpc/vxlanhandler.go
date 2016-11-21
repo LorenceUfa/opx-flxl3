@@ -52,6 +52,7 @@ type VXLANDServiceHandler struct {
 	server       *server.VXLANServer
 	logger       *logging.Writer
 	Thriftserver *thrift.TSimpleServer
+	running      bool
 }
 
 // look up the various other daemons based on c string
@@ -114,16 +115,22 @@ func (v *VXLANDServiceHandler) CreateThriftServer() {
 // StopThriftServer for purposes of stopping vxlan config from coming from confd
 func (v *VXLANDServiceHandler) StopCfgServerLoop() {
 	if v.Thriftserver != nil {
-		err := v.Thriftserver.Stop()
-		v.logger.Info("Stopping Cfg Server loop", err)
-
+		// Not going to do anything as we don't want to edit thrift code at this time.
+		// See thrift code changes
+		//err := v.Thriftserver.Stop()
+		//v.running = False
+		//v.logger.Info("Stopping Cfg Server loop", err)
+		v.logger.Info("Stopping Cfg Server loop")
 	}
 }
 
 // Enable listening of server config
 func (v *VXLANDServiceHandler) StartCfgServerLoop() {
-	if v.Thriftserver != nil {
+	if v.Thriftserver != nil && !v.running {
 		v.logger.Info("Starting Cfg Server loop")
+		// Not going to do anything as we don't want to edit thrift code at this time.
+		// See thrift code changes
+		v.running = true
 		err := v.Thriftserver.Serve()
 		v.logger.Info("Cfg Server loop stopped", err)
 	}
@@ -542,7 +549,8 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 			var v2 *vxlan.VtepDbEntry
 			for currIndex2 := vxland.Int(currIndex); vxlan.GetVtepDbListEntry(int32(currIndex2), &v2); currIndex2++ {
 
-				if v2.VtepConfigName == v.VtepConfigName &&
+				if v2 != nil &&
+					v2.VtepConfigName == v.VtepConfigName &&
 					v2.Vni == v.Vni {
 					foundIndex = false
 					for _, idx := range indexListAdded {

@@ -24,10 +24,14 @@
 package routeThriftTest
 
 import (
+	"errors"
 	"fmt"
+	"github.com/garyburd/redigo/redis"
+	"models/objects"
 	"ribd"
 	"ribdInt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -95,6 +99,7 @@ func v4Add(client *ribd.RIBDServicesClient, nextHopIpStr string, maxCount int64)
 	}
 	//elapsed := time.Since(start)
 	//	fmt.Println(" ## Elapsed time is ", elapsed)
+	Wg.Done()
 	return nil
 }
 func v4Del(client *ribd.RIBDServicesClient, nextHopIpStr string) (err error) {
@@ -156,6 +161,7 @@ func v4Del(client *ribd.RIBDServicesClient, nextHopIpStr string) (err error) {
 	}
 	//elapsed := time.Since(start)
 	//	fmt.Println(" ## Elapsed time is ", elapsed)
+	Wg.Done()
 	return nil
 }
 func handleBulkClient(client *ribd.RIBDServicesClient, maxCount int64) (err error) {
@@ -255,4 +261,63 @@ func ScaleV4Add(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string, number
 
 func ScaleV4Del(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string) {
 	v4Del(ribdClient, nextHopIpStr)
+}
+func EcmpScalev4Add(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string, number int64) {
+	fmt.Println("EcmpScalev4Add(", nextHopIpStr, ", ", number, ")")
+	go v4Add(ribdClient, nextHopIpStr, number)
+
+}
+
+func EcmpScalev4Del(ribdClient *ribd.RIBDServicesClient, nextHopIpStr string) {
+	fmt.Println("EcmpScalev4Del(", nextHopIpStr, ")")
+	go v4Del(ribdClient, nextHopIpStr)
+
+}
+func GetBulkV4RoutesFromDb(ribdClient *ribd.RIBDServicesClient, startIndex int64, count int64, dbHdl redis.Conn) (err error, objCount int64, nextMarker int64, moreExist bool, objList []objects.ConfigObj) {
+	var obj objects.IPv4RouteState
+	keyStr := "IPv4RouteState#*"
+	cursor := startIndex
+	current_count := 0
+	moreExist = true
+	overallTime := time.Now()
+	for {
+		scantime := time.Now()
+		val, err := redis.Values(dbHdl.Do("SCAN", cursor, "MATCH", keyStr, "COUNT", (int(count) - current_count)))
+		fmt.Println("scantime:", time.Since(scantime))
+		if err != nil || len(val) != 2 {
+			fmt.Println("err after scan command:", err)
+			return errors.New(fmt.Sprintln("Failed to get all object keys from db", obj, err)), 0, int64(0), false, nil
+		}
+		val0 := string(val[0].([]uint8))
+		tmpcursor, _ := strconv.Atoi(val0) //the first key returned is the next cursor mark, if it is zero, then no more keys
+		cursor = int64(tmpcursor)
+		if cursor == 0 {
+			moreExist = false
+		}
+		keys := val[1].([]interface{})
+		for idx := 0; idx < len(keys); idx++ {
+			key := string(keys[idx].([]uint8))
+			keyType, err := redis.String(dbHdl.Do("Type", key))
+			if err != nil {
+				return errors.New(fmt.Sprintln("Error getting keyType", err)), 0, int64(0), false, nil
+			}
+			if keyType != "hash" {
+				continue
+			}
+			if strings.HasSuffix(key, "Default") {
+				continue
+			}
+			object, err := obj.GetObjectFromDb(key, dbHdl)
+			if err != nil {
+				return errors.New(fmt.Sprintln("Failed to get object from db", obj, err)), 0, int64(0), false, nil
+			}
+			objList = append(objList, object)
+			current_count++
+		}
+		if moreExist == false || current_count >= int(count) {
+			break
+		}
+	}
+	fmt.Println("Over all time:", time.Since(overallTime), " len(objList):", len(objList))
+	return nil, int64(len(objList)), int64(cursor), moreExist, objList
 }

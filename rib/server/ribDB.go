@@ -25,6 +25,7 @@
 package server
 
 import (
+	defs "l3/rib/ribdCommonDefs"
 	"models/objects"
 	"ribd"
 	"utils/dbutils"
@@ -32,7 +33,7 @@ import (
 
 func (ribdServiceHandler *RIBDServer) UpdateRoutesFromDB() (err error) {
 	logger.Debug("UpdateRoutesFromDB")
-	ribdServiceHandler.DBRouteCh <- RIBdServerConfig{Op: "fetch"}
+	ribdServiceHandler.DBRouteCh <- RIBdServerConfig{Op: defs.DBFetch}
 	/*	dbHdl := ribdServiceHandler.DbHdl
 		if dbHdl != nil {
 			var dbObjCfg objects.IPv4Route
@@ -71,7 +72,7 @@ func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyPrefixSetsFromDB(dbHdl *
 				objects.ConvertribdPolicyPrefixSetObjToThrift(&dbObj, obj)
 				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
 					OrigConfigObject: obj,
-					Op:               "addPolicyPrefixSet",
+					Op:               defs.AddPolicyPrefixSet,
 				}
 				err = <-ribdServiceHandler.PolicyConfDone
 			}
@@ -94,7 +95,7 @@ func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyConditionsFromDB(dbHdl *
 				objects.ConvertribdPolicyConditionObjToThrift(&dbObj, obj)
 				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
 					OrigConfigObject: obj,
-					Op:               "addPolicyCondition",
+					Op:               defs.AddPolicyCondition,
 				}
 				err = <-ribdServiceHandler.PolicyConfDone
 			}
@@ -116,7 +117,7 @@ func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyStmtsFromDB(dbHdl *dbuti
 				objects.ConvertribdPolicyStmtObjToThrift(&dbObj, obj)
 				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
 					OrigConfigObject: obj,
-					Op:               "addPolicyStmt",
+					Op:               defs.AddPolicyStmt,
 				}
 				err = <-ribdServiceHandler.PolicyConfDone
 			}
@@ -138,7 +139,7 @@ func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyFromDB(dbHdl *dbutils.DB
 				objects.ConvertribdPolicyDefinitionObjToThrift(&dbObj, obj)
 				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
 					OrigConfigObject: obj,
-					Op:               "addPolicyDefinition",
+					Op:               defs.AddPolicyDefinition,
 				}
 				err = <-ribdServiceHandler.PolicyConfDone
 			}

@@ -74,7 +74,7 @@ type OspfNeighborEntry struct {
 	OspfNbrState           config.NbrState
 	isStateUpdate          bool
 	OspfNbrInactivityTimer time.Time
-	OspfNbrDeadTimer       time.Duration
+	NbrDeadTimeDuration    time.Duration
 	NbrDeadTimer           *time.Timer
 	isDRBDR                bool
 	ospfNbrSeqNum          uint32

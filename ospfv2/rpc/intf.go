@@ -27,8 +27,33 @@ import (
 	"errors"
 	"fmt"
 	"l3/ospfv2/api"
+	"models/objects"
 	"ospfv2d"
 )
+
+func (rpcHdl *rpcServiceHandler) restoreOspfv2IntfConfFromDB() (bool, error) {
+	rpcHdl.logger.Info("Restoring Ospfv2 Intf Config From DB")
+	var ospfv2Intf objects.Ospfv2Intf
+
+	ospfIntfList, err := rpcHdl.dbHdl.GetAllObjFromDb(ospfv2Intf)
+	if err != nil {
+		return false, errors.New("Failed to retireve Ospfv2Intf object info from DB")
+	}
+	for idx := 0; idx < len(ospfIntfList); idx++ {
+		dbObj := ospfIntfList[idx].(objects.Ospfv2Intf)
+		obj := new(ospfv2d.Ospfv2Intf)
+		objects.Convertospfv2dOspfv2IntfObjToThrift(&dbObj, obj)
+		convObj, err := convertFromRPCFmtOspfv2Intf(obj)
+		if err != nil {
+			return false, err
+		}
+		ok, err := api.CreateOspfv2Intf(convObj)
+		if !ok {
+			return ok, err
+		}
+	}
+	return true, nil
+}
 
 func (rpcHdl *rpcServiceHandler) CreateOspfv2Intf(config *ospfv2d.Ospfv2Intf) (bool, error) {
 	cfg, err := convertFromRPCFmtOspfv2Intf(config)

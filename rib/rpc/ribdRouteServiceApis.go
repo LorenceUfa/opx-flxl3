@@ -26,6 +26,7 @@ package rpc
 
 import (
 	"errors"
+	defs "l3/rib/ribdCommonDefs"
 	"l3/rib/server"
 	"models/objects"
 	"ribd"
@@ -46,7 +47,7 @@ func (m RIBDServicesHandler) CreateIPv4Route(cfg *ribd.IPv4Route) (val bool, err
 	}
 	m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "add",
+		Op:               defs.Add,
 	}
 	return true, nil
 }
@@ -59,7 +60,7 @@ func (m RIBDServicesHandler) OnewayCreateIPv4Route(cfg *ribd.IPv4Route) (err err
 	m.CreateIPv4Route(cfg)
 	/*m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "add",
+		Op:               defs.Add,
 	}*/
 	return err
 }
@@ -75,7 +76,7 @@ func (m RIBDServicesHandler) CreateIPv6Route(cfg *ribd.IPv6Route) (val bool, err
 	}
 	m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "addv6",
+		Op:               defs.Addv6,
 	}
 	return true, nil
 }
@@ -96,7 +97,7 @@ func (m RIBDServicesHandler) OnewayCreateBulkIPv4Route(cfg []*ribdInt.IPv4RouteC
 	logger.Info("OnewayCreateBulkIPv4Route for ", len(cfg), " routes")
 	m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigBulkRouteConfigObject: cfg,
-		Op: "addBulk",
+		Op: defs.AddBulk,
 	}
 	/*for i := 0; i < len(cfg); i++ {
 		newCfg := ribd.IPv4Route{
@@ -132,7 +133,7 @@ func (m RIBDServicesHandler) DeleteIPv4Route(cfg *ribd.IPv4Route) (val bool, err
 	}
 	m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "del",
+		Op:               defs.Del,
 	}
 	return true, nil
 }
@@ -161,7 +162,7 @@ func (m RIBDServicesHandler) DeleteIPv6Route(cfg *ribd.IPv6Route) (val bool, err
 	}
 	m.server.RouteConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "delv6",
+		Op:               defs.Delv6,
 	}
 	return true, nil
 }
@@ -200,7 +201,7 @@ func (m RIBDServicesHandler) UpdateIPv4Route(origconfig *ribd.IPv4Route, newconf
 		OrigConfigObject: origconfig,
 		NewConfigObject:  newconfig,
 		AttrSet:          attrset,
-		Op:               "update",
+		Op:               defs.Update,
 		PatchOp:          op,
 	}
 
@@ -244,7 +245,7 @@ func (m RIBDServicesHandler) UpdateIPv6Route(origconfig *ribd.IPv6Route, newconf
 		OrigConfigObject: origconfig,
 		NewConfigObject:  newconfig,
 		AttrSet:          attrset,
-		Op:               "updatev6",
+		Op:               defs.Updatev6,
 		PatchOp:          op,
 	}
 

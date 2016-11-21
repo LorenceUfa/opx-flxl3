@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"github.com/garyburd/redigo/redis"
 	"l3/rib/test/testthrift"
 	"l3/rib/testutils"
 	"os"
 	"strconv"
+	//"time"
 )
 
 func main() {
@@ -17,6 +19,12 @@ func main() {
 
 	routeThriftTest.Createv4RouteList()
 	routeThriftTest.Createv6RouteList()
+	conn, err := redis.Dial("tcp", ":6379")
+	if err != nil {
+		fmt.Println("Failed to dial out to Redis server")
+		return
+	}
+	defer conn.Close()
 
 	route_ops := os.Args[1:]
 	fmt.Println("op:", route_ops)
@@ -74,9 +82,73 @@ func main() {
 			nextHopIpStr := route_ops[i+1]
 			fmt.Println("Scale test for deleting v6 routes with nextHopIpStr", nextHopIpStr)
 			routeThriftTest.ScaleV6Del(ribdClient, nextHopIpStr)
+		case "ECMPScalev4Add":
+			if (i + 2) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main ECMPScalev4Add <num of nextHops> <num of scale routes>")
+				break
+			}
+			ecmpCount, _ := strconv.Atoi(route_ops[i+1])
+			routeThriftTest.Wg.Add(ecmpCount)
+			scaleCount, _ := strconv.Atoi(route_ops[i+2])
+			fmt.Println("Scale test for adding ", ecmpCount, " -way ", scaleCount, " number of v4 routes")
+			count := 1
+			for {
+				nextHopIpStr := "40.1." + strconv.Itoa(count) + ".2"
+				fmt.Println("Adding ", scaleCount, " routes with nextHop:", nextHopIpStr)
+				ribdClientNew := testutils.GetRIBdClient()
+				if ribdClientNew == nil {
+					fmt.Println("RIBd client New nil")
+					return
+				}
+
+				routeThriftTest.EcmpScalev4Add(ribdClientNew, nextHopIpStr, int64(scaleCount))
+				if count == ecmpCount {
+					break
+				}
+				count++
+			}
+			routeThriftTest.Wg.Wait()
+			//time.Sleep(time.Second * 60)
+			//fmt.Println("After sleep")
+		case "ECMPScalev4Del":
+			if (i + 1) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main ECMPScalev4Del <num of nextHops>")
+				break
+			}
+			ecmpCount, _ := strconv.Atoi(route_ops[i+1])
+			routeThriftTest.Wg.Add(ecmpCount)
+			fmt.Println("Scale test for deleting ", ecmpCount, " -way v4 routes")
+			count := 1
+			for {
+				nextHopIpStr := "40.1." + strconv.Itoa(count) + ".2"
+				fmt.Println("Deleting routes with nextHop:", nextHopIpStr)
+				ribdClientNew := testutils.GetRIBdClient()
+				if ribdClientNew == nil {
+					fmt.Println("RIBd client New nil")
+					return
+				}
+
+				routeThriftTest.EcmpScalev4Del(ribdClientNew, nextHopIpStr)
+				if count == ecmpCount {
+					break
+				}
+				count++
+			}
+			routeThriftTest.Wg.Wait()
+			//time.Sleep(time.Second * 60)
+			//fmt.Println("After sleep")
 		case "RouteCount":
 			fmt.Println("RouteCount")
 			routeThriftTest.GetTotalRouteCount(ribdClient)
+		case "GetV4RoutesFromDB":
+			fmt.Println("GetV4RoutesFromDB")
+			if (i + 2) == len(route_ops) {
+				fmt.Println("Incorrect usage: should be ./main GetV4RoutesFromDB <startIndex> <count>")
+				break
+			}
+			start, _ := strconv.Atoi(route_ops[1])
+			count, _ := strconv.Atoi(route_ops[2])
+			routeThriftTest.GetBulkV4RoutesFromDb(ribdClient, int64(start), int64(count), conn)
 		case "LoopTest":
 			fmt.Println("LoopTest")
 			routeThriftTest.LoopTest(ribdClient)

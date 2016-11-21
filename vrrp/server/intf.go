@@ -44,12 +44,12 @@ type VrrpInterface struct {
 	Fsm    *fsm.FSM           // Vrrp fsm information
 }
 
-func (intf *VrrpInterface) InitVrrpIntf(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo) {
+func (intf *VrrpInterface) InitVrrpIntf(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo, rxCh chan struct{}, txCh chan struct{}) {
 	debug.Logger.Info("Initializing interface with config:", *cfg, "base ip interface:", *l3Info)
 	intf.Config = cfg
 	intf.L3 = l3Info
 	// Init fsm
-	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh)
+	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh, rxCh, txCh)
 }
 
 func (intf *VrrpInterface) DeInitVrrpIntf() {

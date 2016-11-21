@@ -28,11 +28,13 @@ import (
 )
 
 const (
-	STATE_UP      = "UP"
-	STATE_DOWN    = "DOWN"
-	CONFIG_CREATE = "CREATE"
-	CONFIG_DELETE = "DELETE"
-	CONFIG_UPDATE = "UPDATE"
+	STATE_UP       = "UP"
+	STATE_DOWN     = "DOWN"
+	CONFIG_CREATE  = "CREATE"
+	CONFIG_DELETE  = "DELETE"
+	CONFIG_UPDATE  = "UPDATE"
+	VIRTUAL_CREATE = "virtual_ip_create"
+	VIRTUAL_DELETE = "virtual_ip_delete"
 
 	L2_NOTIFICATION    = "UNKNOWN_IP"
 	L2_TAG_TYPE        = "tag"
@@ -153,4 +155,13 @@ type ActionData struct {
 	Type    int
 	NbrIp   string
 	IntfRef string
+}
+
+type VirtualIpInfo struct {
+	IfIndex       int32
+	ParentIfIndex int32
+	IpAddr        string
+	MacAddr       string
+	IfName        string
+	MsgType       string
 }

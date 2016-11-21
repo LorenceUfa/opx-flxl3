@@ -24,7 +24,9 @@ package packet
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/google/gopacket/layers"
+	"l3/ndp/debug"
 	"net"
 )
 
@@ -84,10 +86,13 @@ func DecodeOptionLayer(payload []byte) *NDOption {
 	return ndOpt
 }
 
-func (nd *NDInfo) DecodeNDInfo(payload []byte) {
+func (nd *NDInfo) DecodeNDInfo(typeByte, payload []byte) {
 	if nd.TargetAddress == nil {
 		nd.TargetAddress = make(net.IP, IPV6_ADDRESS_BYTES, IPV6_ADDRESS_BYTES)
 	}
+	debug.Logger.Debug(fmt.Sprintf("typeByte is 0x%x, 0x%x, 0x%x, 0x%x", typeByte[0], typeByte[1], typeByte[2], typeByte[3]))
+	nd.ReservedFlags = typeByte[0] // taking Router:Solicited:Override flags from the message
+	debug.Logger.Debug(fmt.Sprintf("reserved flags are 0x%x", nd.ReservedFlags))
 	copy(nd.TargetAddress, payload[0:IPV6_ADDRESS_BYTES])
 	if len(payload) > IPV6_ADDRESS_BYTES {
 		//decode option layer also

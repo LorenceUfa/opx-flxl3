@@ -24,7 +24,7 @@
 package server
 
 import (
-	"sync"
+	"time"
 )
 
 type LsdbKey struct {
@@ -60,23 +60,22 @@ type LSDatabase struct {
 type SelfOrigLsa map[LsaKey]bool
 
 type LsdbCtrlChStruct struct {
-	LsdbCtrlCh      chan bool
-	LsdbCtrlReplyCh chan bool
+	LsdbGblCtrlCh       chan bool
+	LsdbGblCtrlReplyCh  chan bool
+	LsdbAreaCtrlCh      chan uint32
+	LsdbAreaCtrlReplyCh chan uint32
+}
+
+type RouteInfo struct {
+	NwAddr  uint32
+	Netmask uint32
+	Metric  uint32
 }
 
 type LsdbStruct struct {
 	AreaLsdb        map[LsdbKey]LSDatabase
 	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
 	LsdbCtrlChData  LsdbCtrlChStruct
-	AgedLsaData     AgedLsaStruct
-}
-
-type AgedLsaKey struct {
-	LsdbKey LsdbKey
-	LsaKey  LsaKey
-}
-
-type AgedLsaStruct struct {
-	AgedLsaMap      map[AgedLsaKey]bool // Value False:Not Yet FLooded, True means Flooded
-	AgedLsaMapMutex sync.Mutex
+	LsdbAgingTicker *time.Ticker
+	ExtRouteInfoMap map[RouteInfo]bool
 }

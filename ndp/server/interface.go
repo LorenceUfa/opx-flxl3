@@ -39,6 +39,7 @@ import (
 
 const (
 	NDP_PCAP_FILTER                              = "(ip6[6] == 0x3a) and (ip6[40] >= 133 && ip6[40] <= 136)"
+	NDP_ETHER_SRC                                = " and not ether src "
 	NDP_PCAP_TIMEOUT                             = 1 * time.Second
 	NDP_PCAP_SNAPSHOTlEN                         = 1024
 	NDP_PCAP_PROMISCUOUS                         = false
@@ -417,6 +418,7 @@ func (intf *Interface) FlushNeighbors() ([]string, error) {
  * flush neighbors per ip address
  */
 func (intf *Interface) FlushNeighborPerIp(nbrKey, ipAddr string) ([]string, error) {
+	debug.Logger.Debug("flushing nbr entry for ipAddr:", ipAddr, "key:", nbrKey)
 	deleteEntries := make([]string, 0)
 	nbr, exists := intf.Neighbor[nbrKey]
 	if !exists {
@@ -557,11 +559,7 @@ func (intf *Interface) RefreshAllNeighbors(mac string) {
  *   Api to delete one neighbor entry request by the action
  */
 func (intf *Interface) DeleteNeighbor(nbrEntry config.NeighborConfig) ([]string, error) {
-	nbrIp := nbrEntry.IpAddr
-	nbrMac := nbrEntry.MacAddr
-	nbrKey := nbrIp + "_" + nbrMac
-
-	return intf.FlushNeighborPerIp(nbrKey, nbrIp)
+	return intf.FlushNeighborPerIp(createNeighborKey(nbrEntry.MacAddr, nbrEntry.IpAddr, nbrEntry.Intf), nbrEntry.IpAddr)
 }
 
 /*
@@ -619,4 +617,22 @@ func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) (string, stri
 	}
 
 	return "", ""
+}
+
+func (intf *Interface) updateFilter(macAddr string) {
+	if intf.PcapBase.PcapHandle != nil {
+		err := intf.PcapBase.PcapHandle.SetBPFFilter(getNewFilter(macAddr))
+		if err != nil {
+			debug.Logger.Err("failed to update interface:", intf.IntfRef, "filter, err:", err)
+		}
+	}
+}
+
+func (intf *Interface) resetFilter() {
+	if intf.PcapBase.PcapHandle != nil {
+		err := intf.PcapBase.PcapHandle.SetBPFFilter(NDP_PCAP_FILTER)
+		if err != nil {
+			debug.Logger.Err("Reseting BPF Filter failed for interface:", intf.IntfRef, "Error", err)
+		}
+	}
 }

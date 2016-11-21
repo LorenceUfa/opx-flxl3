@@ -26,6 +26,7 @@ package rpc
 
 import (
 	"fmt"
+	defs "l3/rib/ribdCommonDefs"
 	"l3/rib/server"
 	"ribd"
 	"ribdInt"
@@ -36,7 +37,7 @@ func (m RIBDServicesHandler) CreatePolicyStmt(cfg *ribd.PolicyStmt) (val bool, e
 	logger.Debug("CreatePolicyStatement")
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "addPolicyStmt",
+		Op:               defs.AddPolicyStmt,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -49,7 +50,7 @@ func (m RIBDServicesHandler) DeletePolicyStmt(cfg *ribd.PolicyStmt) (val bool, e
 	logger.Debug(fmt.Sprintln("DeletePolicyStatement for name ", cfg.Name))
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "delPolicyStmt",
+		Op:               defs.DelPolicyStmt,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -72,7 +73,7 @@ func (m RIBDServicesHandler) UpdatePolicyStmt(origconfig *ribd.PolicyStmt, newco
 		NewConfigObject:  newconfig,
 		AttrSet:          attrset,
 		PatchOp:          op,
-		Op:               "updatePolicyStmt",
+		Op:               defs.UpdatePolicyStmt,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -97,7 +98,7 @@ func (m RIBDServicesHandler) CreatePolicyDefinition(cfg *ribd.PolicyDefinition) 
 	logger.Debug(fmt.Sprintln("CreatePolicyDefinition"))
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "addPolicyDefinition",
+		Op:               defs.AddPolicyDefinition,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -110,7 +111,7 @@ func (m RIBDServicesHandler) DeletePolicyDefinition(cfg *ribd.PolicyDefinition) 
 	logger.Debug(fmt.Sprintln("DeletePolicyDefinition for name ", cfg.Name))
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
-		Op:               "delPolicyDefinition",
+		Op:               defs.DelPolicyDefinition,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -134,7 +135,7 @@ func (m RIBDServicesHandler) UpdatePolicyDefinition(origconfig *ribd.PolicyDefin
 		NewConfigObject:  newconfig,
 		AttrSet:          attrset,
 		PatchOp:          op,
-		Op:               "updatePolicyDefinition",
+		Op:               defs.UpdatePolicyDefinition,
 	}
 	err = <-m.server.PolicyConfDone
 	if err == nil {
@@ -158,7 +159,7 @@ func (m RIBDServicesHandler) ApplyPolicy(applyList []*ribdInt.ApplyPolicyInfo, u
 	logger.Debug(fmt.Sprintln("RIB handler ApplyPolicy applyList:", applyList, " undoList:", undoList))
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		PolicyList: server.ApplyPolicyList{applyList, undoList},
-		Op:         "applyPolicy",
+		Op:         defs.ApplyPolicy,
 	}
 	err = <-m.server.PolicyConfDone
 	//m.server.PolicyApplyCh <- server.ApplyPolicyList{applyList, undoList} //source, policy, action, conditions}

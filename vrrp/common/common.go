@@ -38,6 +38,9 @@ const (
 	IP_MSG_STATE_CHANGE      = "state_change"
 	NETMASK_DELIMITER        = "/"
 	SLASH_32                 = "32"
+	SLASH_64                 = "64"
+	VERSION2_STR             = "version2"
+	VERSION3_STR             = "version3"
 )
 
 const (
@@ -85,7 +88,7 @@ type Ipv4Info struct {
 
 type Ipv6Info struct {
 	Info          BaseIpInfo
-	LinkScopeAddr string
+	GlobalScopeIp string
 }
 
 type IntfCfg struct {
@@ -100,6 +103,7 @@ type IntfCfg struct {
 	AdminState            bool
 	Version               uint8 // Information that will be used by server.. as all configs will be passed onto one channel only
 	Operation             uint8 // Information that will be used by server
+	IpType                int   // Information that will be used by server
 }
 
 type State struct {
@@ -125,4 +129,14 @@ type VirtualIpInfo struct {
 	MacAddr string
 	Enable  bool
 	Version uint8
+	IpType  int
+}
+
+type GlobalState struct {
+	Vrf           string
+	Status        bool
+	V4Intfs       int32
+	V6Intfs       int32
+	TotalRxFrames int32
+	TotalTxFrames int32
 }
