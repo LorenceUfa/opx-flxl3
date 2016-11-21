@@ -223,8 +223,7 @@ func (server *OSPFV2Server) processOspfHelloNbr(ethHdrMd *EthHdrMetadata, ipHdrM
 	}
 
 	nbrKey := NbrConfKey{
-		NbrIdentity:         nbrIdentity,
-		NbrAddressLessIfIdx: key.IntfIdx,
+		NbrIdentity: nbrIdentity,
 	}
 	nbrEntry, exist := ent.NbrMap[nbrKey]
 	if !exist {

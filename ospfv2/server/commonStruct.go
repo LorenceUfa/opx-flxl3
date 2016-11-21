@@ -134,8 +134,10 @@ type NbrDownMsg struct {
 type RecvdLsaMsgType uint8
 
 const (
-	LSA_ADD RecvdLsaMsgType = 0
-	LSA_DEL RecvdLsaMsgType = 1
+	LSA_ADD        RecvdLsaMsgType = 0
+	LSA_DEL        RecvdLsaMsgType = 1
+	LSA_FLOOD_ALL  RecvdLsaMsgType = 2
+	LSA_FLOOD_INTF RecvdLsaMsgType = 3
 )
 
 type RecvdLsaMsg struct {
@@ -169,7 +171,11 @@ type LsdbToFloodLSAMsg struct {
 	LsaKey  LsaKey
 	LsaData interface{}
 }
-
+type NbrToFloodMsg struct {
+	MsgType RecvdLsaMsgType
+	LsaPkt  []byte
+	NbrKey  NbrConfKey
+}
 type RouteAddMsg struct {
 	RTblKey   RoutingTblEntryKey
 	RTblEntry GlobalRoutingTblEntry
@@ -211,6 +217,9 @@ type NbrFSMToLsdbChStruct struct {
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
 }
 
+type NbrFSMToFloodChStruct struct {
+	LsaFloodCh chan NbrToFloodMsg
+}
 type LsdbToFloodChStruct struct {
 	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
 }
@@ -244,6 +253,7 @@ type MessagingChStruct struct {
 	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
 	NbrToIntfFSMChData     NbrToIntfFSMChStruct
 	NbrFSMToLsdbChData     NbrFSMToLsdbChStruct
+	NbrFSMToFloodChData    NbrFSMToFloodChStruct
 	LsdbToFloodChData      LsdbToFloodChStruct
 	LsdbToSPFChData        LsdbToSPFChStruct
 	SPFToLsdbChData        SPFToLsdbChStruct

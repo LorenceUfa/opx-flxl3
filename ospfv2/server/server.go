@@ -67,10 +67,13 @@ type OSPFV2Server struct {
 
 	globalData      GlobalStruct
 	IntfConfMap     map[IntfConfKey]IntfConf
+	NbrConfMap      map[NbrConfKey]NbrConf
 	AreaConfMap     map[uint32]AreaConf //Key AreaId
 	MessagingChData MessagingChStruct
 
+	NbrConfData    NbrStruct
 	LsdbData       LsdbStruct
+	FloodData      FloodStruct
 	SPFData        SPFStruct
 	RoutingTblData RoutingTblStruct
 	SummaryLsDb    map[LsdbKey]SummaryLsaMap
@@ -133,6 +136,7 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
 	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
+	server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh = make(chan NbrToFloodMsg)
 	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
 	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
 	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh = make(chan bool)
@@ -147,6 +151,7 @@ func (server *OSPFV2Server) initMessagingChData() {
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
 	server.initMessagingChData()
+	server.initNbrStruct()
 	server.initAsicdComm()
 	server.initRibdComm()
 	server.ConnectToServers()

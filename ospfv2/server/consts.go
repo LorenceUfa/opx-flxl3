@@ -105,3 +105,14 @@ const (
 	LsdbUpdate   uint8 = 2
 	LsdbNoAction uint8 = 3
 )
+
+const (
+	LSA_MAX_AGE      uint16 = 0x7fff
+	LSA_MAX_AGE_DIFF uint16 = 0x7fff
+	LSASELFLOOD             = 1 // flood for received LSA
+	LSAINTF                 = 2 // Send LSA on the interface in reply to LSAREQ
+	LSAAGE                  = 3 // flood aged LSAs.
+	LSASUMMARYFLOOD         = 4 //flood summary LSAs in different areas.
+	LSAEXTFLOOD             = 5 //flood AS External summary LSA
+	LSAROUTERFLOOD          = 6 //flood only router LSA
+)
