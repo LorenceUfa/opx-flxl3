@@ -281,3 +281,59 @@ func (server *OSPFV2Server) GenerateAllASExternalLSA(areaId uint32) {
 		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	}
 }
+
+func (server *OSPFV2Server) reGenerateASExternalLSAForGivenArea(routeInfo RouteInfo, areaId uint32) {
+	if server.globalData.ASBdrRtrStatus == false {
+		return
+	}
+
+	areaEnt, err := server.GetAreaConfForGivenArea(areaId)
+	if err != nil {
+		server.logger.Err("Error: Unable to find the areaConf for:", areaId)
+		return
+	}
+	if areaEnt.AdminState == false ||
+		areaEnt.ImportASExtern == false {
+		return
+	}
+	LSType := ASExternalLSA
+	LSId := routeInfo.NwAddr & routeInfo.Netmask
+	AdvRouter := server.globalData.RouterId
+	lsaKey := LsaKey{
+		LSType:    LSType,
+		LSId:      LSId,
+		AdvRouter: AdvRouter,
+	}
+	checksumOffset := uint16(14)
+	lsdbKey := LsdbKey{
+		AreaId: areaId,
+	}
+	lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbKey]
+	if !exist {
+		server.logger.Err("No Lsdb Exist for:", lsdbKey)
+		return
+	}
+	lsaEnt, exist := lsdbEnt.ASExternalLsaMap[lsaKey]
+	if !exist {
+		server.logger.Err("Error: Unable to find lsa hence cannot regenerate", lsaKey)
+		return
+	}
+	lsaEnt.LsaMd.LSAge = 0
+	lsaEnt.LsaMd.LSLen = uint16(OSPF_LSA_HEADER_SIZE + 16)
+	lsaEnt.BitE = true
+	lsaEnt.ExtRouteTag = 0
+	lsaEnt.FwdAddr = 0
+	lsaEnt.Metric = routeInfo.Metric
+	lsaEnt.Netmask = routeInfo.Netmask
+	lsaEnt.LsaMd.Options = EOption
+	lsaEnt.LsaMd.LSChecksum = 0
+	lsaEnt.LsaMd.LSSequenceNum = lsaEnt.LsaMd.LSSequenceNum + 1
+	lsaEnc := encodeASExternalLsa(lsaEnt, lsaKey)
+	lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+	lsdbEnt.ASExternalLsaMap[lsaKey] = lsaEnt
+	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	selfOrigLsaEnt[lsaKey] = true
+	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
+	server.CreateAndSendMsgFromLsdbToFloodLsa(areaId, lsaKey, lsaEnt)
+}
