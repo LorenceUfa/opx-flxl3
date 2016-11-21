@@ -89,12 +89,12 @@ func (svr *VrrpServer) GetIPIntfs() {
 	svr.getIPv6Intfs()
 }
 
-func constructIntfKey(intfRef string, vrid int32, version uint8) KeyInfo {
-	return KeyInfo{intfRef, vrid, version}
+func constructIntfKey(intfRef string, vrid int32, ipType int) KeyInfo {
+	return KeyInfo{intfRef, vrid, ipType}
 }
 
 func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	if _, exists := svr.Intf[key]; exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
@@ -107,20 +107,14 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 	_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
 
 	if !v4exists && !v6exists {
-		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:",
-			cfg.IntfRef))
+		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:", cfg.IntfRef))
 	}
-
-	if netUtils.IsIpv6LinkLocal(cfg.VirtualIPAddr) && cfg.IpType == syscall.AF_INET6 {
-		return false, errors.New(fmt.Sprintln("Cannot use link local ip for vrrp address:", cfg.IntfRef, cfg.VRID, cfg.VirtualIPAddr))
-	}
-
 	debug.Logger.Info("Validation of create config:", *cfg, "is success")
 	return true, nil
 }
 
 func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface doesn't exists for key:", key, "config:", cfg,
@@ -129,14 +123,11 @@ func (svr *VrrpServer) ValidateUpdateConfig(cfg *common.IntfCfg) (bool, error) {
 	if intf.Config.VRID != cfg.VRID {
 		return false, errors.New("Updating VRID is not allowed")
 	}
-	if netUtils.IsIpv6LinkLocal(cfg.VirtualIPAddr) && cfg.IpType == syscall.AF_INET6 {
-		return false, errors.New(fmt.Sprintln("Cannot use link local ip for updating vrrp address:", cfg.IntfRef, cfg.VRID, cfg.VirtualIPAddr))
-	}
 	return true, nil
 }
 
 func (svr *VrrpServer) ValidateDeleteConfig(cfg *common.IntfCfg) (bool, error) {
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	if _, exists := svr.Intf[key]; !exists {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface was not created for config:", cfg))
 	}
@@ -215,7 +206,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 		ip = ip.To4()
 		if virtualIpInfo.Enable {
 			// Call arp to delete the nextHop Entry
-			//debug.Logger.Info("Calling Arp to delete nexthop entry:", ip.String())
+			debug.Logger.Info("Calling Arp to delete nexthop entry:", ip.String())
 			svr.ArpClient.DeleteArpEntry(ip.String())
 		}
 		err := svr.SwitchPlugin.UpdateVirtualIPv4Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
@@ -226,6 +217,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 		ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
 		ip = ip.To16()
 		if virtualIpInfo.Enable {
+			debug.Logger.Info("Calling Ndp to delete nexthop entry:", ip.String())
 			svr.NdpClient.DeleteNdpEntry(ip.String())
 		}
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
@@ -237,7 +229,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
  */
 func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received vrrp interface create common:", *cfg)
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if exists {
 		debug.Logger.Err("During Create we should not have any entry in the DB")
@@ -290,7 +282,7 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 
 func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received interface update config:", *cfg)
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
 		debug.Logger.Err("Cannot perform update as no interface found in db for key:", key)
@@ -302,7 +294,7 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 
 func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
 	debug.Logger.Info("Received vrrp interface create config:", *cfg)
-	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.Version)
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
 		// this should never happen as Validate should have taken care of this
@@ -333,8 +325,10 @@ func (svr *VrrpServer) HandleProtocolMacEntry(add bool) {
 	switch add {
 	case true:
 		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_PROTOCOL_MAC, -1, 1)
+		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_V6_PROTOCOL_MAC, -1, 1)
 	case false:
 		svr.SwitchPlugin.DisablePacketReception(packet.VRRP_PROTOCOL_MAC, -1, 1)
+		svr.SwitchPlugin.EnablePacketReception(packet.VRRP_V6_PROTOCOL_MAC, -1, 1)
 	}
 }
 
@@ -439,13 +433,15 @@ func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 			}
 		case syscall.AF_INET6:
 			v6, exists := svr.V6[msg.IfIndex]
-			if !exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+			if !exists {
 				v6 = &V6Intf{}
 				v6.Init(msg)
-				svr.V6[msg.IfIndex] = v6
 				svr.V6IntfRefToIfIndex[msg.IntfRef] = msg.IfIndex
 				debug.Logger.Info("Reverse v6 ip intf to ifIndex cached for:", msg.IntfRef, "-------->", msg.IfIndex)
+			} else {
+				v6.updateIp(msg.IpAddr)
 			}
+			svr.V6[msg.IfIndex] = v6
 		}
 	case common.IP_MSG_DELETE:
 		switch msg.IpType {

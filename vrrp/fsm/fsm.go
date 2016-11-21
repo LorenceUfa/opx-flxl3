@@ -311,7 +311,7 @@ func (f *FSM) deInitPktListener() {
 }
 
 func (f *FSM) processRcvdPkt(pktCh *PktChannelInfo) {
-	pktInfo := f.PktInfo.Decode(pktCh.pkt, f.Config.IpType)
+	pktInfo := f.PktInfo.Decode(pktCh.pkt)
 	if pktInfo == nil {
 		debug.Logger.Err("Decoding Vrrp Header Failed")
 		return
@@ -491,7 +491,7 @@ const (
 	VRRP_PROMISCOUS_MODE          = false
 	VRRP_TIMEOUT                  = 1 // in seconds
 	VRRP2_BPF_FILTER              = "ip host " + packet.VRRP_V4_GROUP_IP
-	VRRP3_BPF_FILTER              = "ip host " + packet.VRRP_V6_GROUP_IP
+	VRRP3_BPF_FILTER              = "ip6 host " + packet.VRRP_V6_GROUP_IP
 	VRRP_MAC_MASK                 = "ff:ff:ff:ff:ff:ff"
 	FSM_PREFIX                    = "FSM ------> "
 	VERSION2_IEEE_MAC_ADDR_PREFIX = "00-00-5E-00-01-"

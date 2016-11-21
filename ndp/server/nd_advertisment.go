@@ -24,8 +24,28 @@ package server
 
 import (
 	"l3/ndp/config"
+	"l3/ndp/debug"
 	"l3/ndp/packet"
+	"net"
 )
+
+const (
+	ROUTER_SET    = 0x80
+	SOLICITED_SET = 0x40
+	OVERRIDE_SET  = 0x20
+)
+
+func (intf *Interface) createNANbrKey(ndInfo *packet.NDInfo) (tgtMac, nbrKey string) {
+	for _, option := range ndInfo.Options {
+		if option.Type == packet.NDOptionTypeTargetLinkLayerAddress {
+			tgtMac = net.HardwareAddr(option.Value).String()
+			nbrKey = tgtMac + "_" + ndInfo.SrcIp + "_" + ndInfo.LearnedIntfRef
+			debug.Logger.Debug("NA nbrKey created:", nbrKey)
+			break
+		}
+	}
+	return tgtMac, nbrKey
+}
 
 /*
  * When we get advertisement packet we need to update the mac address of peer and move the state to
@@ -42,23 +62,49 @@ func (intf *Interface) processNA(ndInfo *packet.NDInfo) (nbrInfo *config.Neighbo
 		// NA was generated locally or it is multicast-solicitation message
 		return nil, IGNORE
 	}
-	nbrKey := intf.createNbrKey(ndInfo)
+	var nbrKey string
+	var tgtMac string
+	if (ndInfo.ReservedFlags & OVERRIDE_SET) != 0x00 {
+		debug.Logger.Debug("override is set and hence using create na nbr key")
+		tgtMac, nbrKey = intf.createNANbrKey(ndInfo)
+	} else {
+		nbrKey = intf.createNbrKey(ndInfo)
+	}
 	if !intf.validNbrKey(nbrKey) {
 		return nil, IGNORE
 	}
 	nbr, exists := intf.Neighbor[nbrKey]
-	if exists {
-		// update existing neighbor timers and move
-		nbr.UpdateProbe()
-		nbr.RchTimer()
-		oper = UPDATE
-	} else {
-		// create new neighbor
-		nbr.InitCache(intf.reachableTime, intf.retransTime, nbrKey, intf.PktDataCh, intf.IfIndex)
-		oper = CREATE
+	if !exists {
+		return nil, IGNORE
 	}
-	nbr.State = REACHABLE
+
+	// override flag is clear
+	if ndInfo.ReservedFlags&OVERRIDE_SET == 0x00 {
+		if nbr.State == REACHABLE {
+			nbr.State = STALE
+		} else {
+			return nil, IGNORE
+		}
+	} else {
+		debug.Logger.Debug("override is set check SOLICITED_SET")
+		// if override flag is set or supplied link-layer address is the same as in cache (this is validated by nbrKey)
+		// @TODO: or no Target Link Layer Address was supplied
+		/*
+			The link-layer address in the Target Link-Layer Address option
+			MUST be inserted in the cache (if one is supplied and differs
+			from the already recorded address).
+		*/
+		if ndInfo.ReservedFlags&SOLICITED_SET != 0x0 {
+			debug.Logger.Debug("SOLICITED_SET is set mark nbr as reachable and move on")
+			nbr.State = REACHABLE
+			nbr.UpdateProbe()
+			nbr.RchTimer()
+		} else if ndInfo.ReservedFlags&SOLICITED_SET == 0x0 && tgtMac != ndInfo.SrcMac {
+			nbr.State = STALE
+		}
+	}
 	nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
+	oper = UPDATE
 	nbr.updatePktRxStateInfo()
 	intf.Neighbor[nbrKey] = nbr
 	return nbrInfo, oper

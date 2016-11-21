@@ -418,6 +418,7 @@ func (intf *Interface) FlushNeighbors() ([]string, error) {
  * flush neighbors per ip address
  */
 func (intf *Interface) FlushNeighborPerIp(nbrKey, ipAddr string) ([]string, error) {
+	debug.Logger.Debug("flushing nbr entry for ipAddr:", ipAddr, "key:", nbrKey)
 	deleteEntries := make([]string, 0)
 	nbr, exists := intf.Neighbor[nbrKey]
 	if !exists {
@@ -558,11 +559,7 @@ func (intf *Interface) RefreshAllNeighbors(mac string) {
  *   Api to delete one neighbor entry request by the action
  */
 func (intf *Interface) DeleteNeighbor(nbrEntry config.NeighborConfig) ([]string, error) {
-	nbrIp := nbrEntry.IpAddr
-	nbrMac := nbrEntry.MacAddr
-	nbrKey := nbrIp + "_" + nbrMac
-
-	return intf.FlushNeighborPerIp(nbrKey, nbrIp)
+	return intf.FlushNeighborPerIp(createNeighborKey(nbrEntry.MacAddr, nbrEntry.IpAddr, nbrEntry.Intf), nbrEntry.IpAddr)
 }
 
 /*

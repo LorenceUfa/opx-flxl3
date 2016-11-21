@@ -25,8 +25,22 @@ package server
 import (
 	"github.com/google/gopacket/layers"
 	"l3/ndp/config"
+	"l3/ndp/debug"
 	"l3/ndp/packet"
+	"net"
 )
+
+func (intf *Interface) createRANbrKey(ndInfo *packet.NDInfo) (tgtMac, nbrKey string) {
+	for _, option := range ndInfo.Options {
+		if option.Type == packet.NDOptionTypeSourceLinkLayerAddress {
+			tgtMac = net.HardwareAddr(option.Value).String()
+			nbrKey = tgtMac + "_" + ndInfo.SrcIp + "_" + ndInfo.LearnedIntfRef
+			debug.Logger.Debug("RA nbrKey created:", nbrKey)
+			break
+		}
+	}
+	return tgtMac, nbrKey
+}
 
 /*
  * When we get router advertisement packet we need to update the mac address of peer and move the state to
@@ -37,7 +51,13 @@ import (
  * fill the NDInfo and then return it back to caller
  */
 func (intf *Interface) processRA(ndInfo *packet.NDInfo) (nbrInfo *config.NeighborConfig, oper NDP_OPERATION) {
-	nbrKey := intf.createNbrKey(ndInfo)
+	var nbrKey string
+	// we need to use Option field to determine who is the original sender of this advertisement... if no
+	// options then the port itself is the sender
+	_, nbrKey = intf.createRANbrKey(ndInfo)
+	if nbrKey == "" {
+		nbrKey = intf.createNbrKey(ndInfo)
+	}
 	if !intf.validNbrKey(nbrKey) {
 		return nil, IGNORE
 	}

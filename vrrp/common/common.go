@@ -38,6 +38,7 @@ const (
 	IP_MSG_STATE_CHANGE      = "state_change"
 	NETMASK_DELIMITER        = "/"
 	SLASH_32                 = "32"
+	SLASH_64                 = "64"
 	VERSION2_STR             = "version2"
 	VERSION3_STR             = "version3"
 )
@@ -87,7 +88,7 @@ type Ipv4Info struct {
 
 type Ipv6Info struct {
 	Info          BaseIpInfo
-	LinkScopeAddr string
+	GlobalScopeIp string
 }
 
 type IntfCfg struct {

@@ -66,7 +66,7 @@ type VrrpTxChannelInfo struct {
 type KeyInfo struct {
 	IntfRef string
 	VRID    int32
-	Version uint8
+	IpType  int
 }
 
 func (svr *VrrpServer) EventListener() {
@@ -123,7 +123,21 @@ func (svr *VrrpServer) InitGlobalDS() {
 }
 
 func (svr *VrrpServer) DeAllocateMemory() {
-	// @TODO:
+	svr.V4 = nil
+	svr.V6 = nil
+	for _, intf := range svr.Intf {
+		intf.DeInitVrrpIntf()
+	}
+	svr.Intf = nil
+	svr.GlobalConfig = nil
+	svr.V4IntfRefToIfIndex = nil
+	svr.V6IntfRefToIfIndex = nil
+	svr.GblCfgCh = nil
+	svr.CfgCh = nil
+	svr.L3IntfNotifyCh = nil
+	svr.VirtualIpCh = nil
+	svr.UpdateRxCh = nil
+	svr.UpdateTxCh = nil
 }
 
 func (svr *VrrpServer) signalHandler(sigChannel <-chan os.Signal) {

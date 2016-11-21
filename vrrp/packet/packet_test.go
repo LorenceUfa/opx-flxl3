@@ -52,6 +52,14 @@ var version3Packet = []byte{
 	0x00, 0x12, 0x31, 0x01, 0x64, 0x01, 0x00, 0x64, 0xbe, 0x85, 0xac, 0x12, 0x00, 0x01, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
+
+var ipv6Packet = []byte{
+	0x33, 0x33, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x5e, 0x00, 0x02, 0x01, 0x86, 0xdd, 0x60, 0x00,
+	0x00, 0x00, 0x00, 0x18, 0x70, 0xff, 0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x1d,
+	0xfc, 0xff, 0xfe, 0xcf, 0x15, 0xfc, 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x31, 0x01, 0x64, 0x01, 0x00, 0x64, 0xd1, 0x9d, 0xfe, 0x80,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+}
 var testVrid = uint8(1)
 var testPriority = uint8(100)
 var testAdvInt = uint16(1)
@@ -60,6 +68,9 @@ var testSrcIp = "192.168.0.30"
 var testSrcIpV3 = "172.18.0.2"
 var testVip = "192.168.0.1"
 var testVipV3 = "172.18.0.1"
+var testVMacIPv6 = "00:00:5e:00:02:01"
+var testSrcIPv6 = "fe80::8a1d:fcff:fecf:15fc"
+var testVipIPv6 = "fe80::70:1:1:1"
 
 func TestInit(t *testing.T) {
 	testPktInfo = Init()
@@ -141,10 +152,41 @@ func TestEncodeV3(t *testing.T) {
 	}
 }
 
+func TestEncodeIPv6(t *testing.T) {
+	TestInit(t)
+	pktInfo := &PacketInfo{
+		Version:      common.VERSION3,
+		Vrid:         testVrid,
+		Priority:     testPriority,
+		AdvertiseInt: testAdvInt,
+		VirutalMac:   testVMacIPv6,
+		IpAddr:       testSrcIPv6,
+		Vip:          testVipIPv6,
+		IpType:       syscall.AF_INET6,
+	}
+	encodedPkt := testPktInfo.Encode(pktInfo)
+	if len(encodedPkt) != len(ipv6Packet) {
+		t.Error("mis-match in length:", len(encodedPkt), len(ipv6Packet))
+		return
+	}
+	if !bytes.Equal(encodedPkt, ipv6Packet) {
+		t.Error("Failed to encode packet for pktInfo:", *pktInfo)
+		t.Error("	testEncodePkt:", ipv6Packet)
+		t.Error("	encoded Pkt:", encodedPkt)
+		for idx, _ := range encodedPkt {
+			if encodedPkt[idx] != ipv6Packet[idx] {
+				t.Error("byte:", idx+1, "is not equal")
+				t.Error(fmt.Sprintf("encoded Byte is:0x%x but wanted byte is:0x%x", encodedPkt[idx], ipv6Packet[idx]))
+			}
+		}
+		return
+	}
+}
+
 func TestDecodeV2(t *testing.T) {
 	TestInit(t)
 	p := gopacket.NewPacket(testEncodePkt, layers.LinkTypeEthernet, gopacket.Default)
-	decodePkt := testPktInfo.Decode(p, syscall.AF_INET)
+	decodePkt := testPktInfo.Decode(p)
 	if decodePkt == nil {
 		t.Error("failed to decode packet")
 		return
@@ -177,7 +219,7 @@ func TestDecodeV2(t *testing.T) {
 func TestDecodeV3(t *testing.T) {
 	TestInit(t)
 	p := gopacket.NewPacket(version3Packet, layers.LinkTypeEthernet, gopacket.Default)
-	decodePkt := testPktInfo.Decode(p, syscall.AF_INET)
+	decodePkt := testPktInfo.Decode(p)
 	if decodePkt == nil {
 		t.Error("failed to decode packet")
 		return
@@ -200,6 +242,40 @@ func TestDecodeV3(t *testing.T) {
 		},
 	}
 	wantPktInfo.Hdr.IpAddr = append(wantPktInfo.Hdr.IpAddr, net.ParseIP(testVipV3).To4())
+	if !reflect.DeepEqual(wantPktInfo, decodePkt) {
+		t.Error("failed to decode packet")
+		t.Error("wantPktInfo header is:", *wantPktInfo.Hdr, "entire packet info:", wantPktInfo)
+		t.Error("decodePktInfo header is:", *decodePkt.Hdr, "entire packet info:", decodePkt)
+		return
+	}
+}
+
+func TestDecodeIPv6(t *testing.T) {
+	TestInit(t)
+	p := gopacket.NewPacket(ipv6Packet, layers.LinkTypeEthernet, gopacket.Default)
+	decodePkt := testPktInfo.Decode(p)
+	if decodePkt == nil {
+		t.Error("failed to decode packet")
+		return
+	}
+
+	wantPktInfo := &PacketInfo{
+		DstMac: VRRP_V6_PROTOCOL_MAC,
+		SrcMac: testVMacIPv6,
+		IpAddr: testSrcIPv6,
+		DstIp:  VRRP_V6_GROUP_IP,
+		Hdr: &Header{
+			Version:      common.VERSION3,
+			Type:         VRRP_PKT_TYPE_ADVERTISEMENT,
+			VirtualRtrId: testVrid,
+			Priority:     testPriority,
+			CountIPAddr:  1,
+			Rsvd:         0,
+			MaxAdverInt:  testAdvInt,
+			CheckSum:     uint16(53661),
+		},
+	}
+	wantPktInfo.Hdr.IpAddr = append(wantPktInfo.Hdr.IpAddr, net.ParseIP(testVipIPv6).To16())
 	if !reflect.DeepEqual(wantPktInfo, decodePkt) {
 		t.Error("failed to decode packet")
 		t.Error("wantPktInfo header is:", *wantPktInfo.Hdr, "entire packet info:", wantPktInfo)

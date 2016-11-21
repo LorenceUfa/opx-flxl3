@@ -90,7 +90,7 @@ func getIpAndICMPv6Hdr(pkt gopacket.Packet, ipv6Hdr *layers.IPv6, icmpv6Hdr *lay
 func (p *Packet) decodeNS(hdr *layers.ICMPv6, srcIP, dstIP net.IP) (*NDInfo, error) {
 	ndInfo := &NDInfo{}
 	ndInfo.PktType = layers.ICMPv6TypeNeighborSolicitation
-	ndInfo.DecodeNDInfo(hdr.LayerPayload())
+	ndInfo.DecodeNDInfo(hdr.TypeBytes, hdr.LayerPayload())
 	if ndInfo.IsTargetMulticast() {
 		return nil, errors.New(fmt.Sprintln("Targent Address specified", ndInfo.TargetAddress,
 			"is a multicast address"))
@@ -105,7 +105,7 @@ func (p *Packet) decodeNS(hdr *layers.ICMPv6, srcIP, dstIP net.IP) (*NDInfo, err
 func (p *Packet) decodeNA(hdr *layers.ICMPv6, srcIP, dstIP net.IP) (*NDInfo, error) {
 	ndInfo := &NDInfo{}
 	ndInfo.PktType = layers.ICMPv6TypeNeighborAdvertisement
-	ndInfo.DecodeNDInfo(hdr.LayerPayload())
+	ndInfo.DecodeNDInfo(hdr.TypeBytes, hdr.LayerPayload())
 	if ndInfo.IsTargetMulticast() {
 		return nil, errors.New(fmt.Sprintln("Targent Address specified", ndInfo.TargetAddress,
 			"is a multicast address"))
