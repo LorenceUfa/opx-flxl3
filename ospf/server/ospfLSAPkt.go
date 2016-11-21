@@ -554,7 +554,7 @@ func (server *OSPFServer) lsaUpdDiscardCheck(nbrConf OspfNeighborEntry, data []b
 
 	return false
 }
-func (server *OSPFServer) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist bool) bool {
+func (server *OSPFServer) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist int) bool {
 
 	send_ack := true
 	/*
@@ -576,13 +576,13 @@ func (server *OSPFServer) lsAgeCheck(intf IntfConfKey, lsa_max_age bool, exist b
 			send_ack = false
 		}
 	}
-	if send_ack && !exist && lsa_max_age {
+	if send_ack && exist == LsdbEntryNotFound && lsa_max_age {
 		return true
 	}
 	return false
 }
 
-func (server *OSPFServer) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, nbr OspfNeighborEntry, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFServer) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, nbr OspfNeighborEntry, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.intfConfKey, lsa_max_age, exist)
@@ -607,7 +607,7 @@ func (server *OSPFServer) sanityCheckRouterLsa(rlsa RouterLsa, drlsa RouterLsa, 
 	return discard, op
 }
 
-func (server *OSPFServer) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, dnlsa NetworkLsa, nbr OspfNeighborEntry, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFServer) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, dnlsa NetworkLsa, nbr OspfNeighborEntry, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.intfConfKey, lsa_max_age, exist)
@@ -639,7 +639,7 @@ func (server *OSPFServer) sanityCheckNetworkLsa(lsaKey LsaKey, nlsa NetworkLsa, 
 	return discard, op
 }
 
-func (server *OSPFServer) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLsa, nbr OspfNeighborEntry, intf IntfConf, exist bool, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFServer) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLsa, nbr OspfNeighborEntry, intf IntfConf, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	send_ack := server.lsAgeCheck(nbr.intfConfKey, lsa_max_age, exist)
@@ -662,7 +662,7 @@ func (server *OSPFServer) sanityCheckSummaryLsa(slsa SummaryLsa, dslsa SummaryLs
 	return discard, op
 }
 
-func (server *OSPFServer) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa ASExternalLsa, nbr OspfNeighborEntry, intf IntfConf, areaid []byte, exist bool, lsa_max_age bool) (discard bool, op uint8) {
+func (server *OSPFServer) sanityCheckASExternalLsa(alsa ASExternalLsa, dalsa ASExternalLsa, nbr OspfNeighborEntry, intf IntfConf, areaid []byte, exist int, lsa_max_age bool) (discard bool, op uint8) {
 	discard = false
 	op = LsdbAdd
 	// TODO Reject this lsa if area is configured as stub area.

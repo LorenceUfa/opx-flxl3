@@ -269,7 +269,8 @@ func (server *OSPFServer) processDBDEvent(nbrKey NeighborConfKey, nbrDbPkt ospfD
 					*/
 					server.logger.Debug(fmt.Sprintln("DBD:(master/Exchange) nbr_event ", nbrConf.nbrEvent, " mbit ", nbrDbPkt.mbit))
 					if nbrDbPkt.dd_sequence_number == nbrConf.ospfNbrSeqNum &&
-						nbrDbPkt.mbit {
+						(nbrConf.nbrEvent != config.NbrExchangeDone ||
+							nbrDbPkt.mbit) {
 						server.logger.Debug(fmt.Sprintln("DBD: (master/Exchange) Send next packet in the exchange  to nbr ", nbrKey.IPAddr))
 						dbd_mdata, last_exchange = server.ConstructAndSendDbdPacket(nbrKey, false, false, true,
 							nbrDbPkt.options, nbrDbPkt.dd_sequence_number+1, true, false, intfConf.IfMtu)
