@@ -93,7 +93,10 @@ func (l2Port *PhyPort) updateFilter(macAddr string) {
 		err := l2Port.RX.SetBPFFilter(getNewFilter(macAddr))
 		if err != nil {
 			debug.Logger.Err("Updating BPF Filter failed for interface:", l2Port.Info.Name, "Error", err)
+			return
 		}
+		debug.Logger.Debug("Updating BPF Filter for interface:", l2Port.Info.Name)
+
 	}
 }
 

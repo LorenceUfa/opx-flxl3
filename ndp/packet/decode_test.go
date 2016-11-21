@@ -178,6 +178,7 @@ func TestDecodeNDUsingNAPkt(t *testing.T) {
 		Dot1Q:         config.INTERNAL_VLAN,
 		TargetAddress: net.ParseIP("2149::61:123:1"),
 		PktType:       layers.ICMPv6TypeNeighborAdvertisement,
+		ReservedFlags: 224, // r,s,o
 	}
 	wantNDinfo.Options = append(wantNDinfo.Options, ndOpt)
 	if !reflect.DeepEqual(ndInfo, wantNDinfo) {

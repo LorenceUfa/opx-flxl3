@@ -24,10 +24,10 @@ package server
 
 import (
 	"github.com/google/gopacket/layers"
-	"l3/ndp/config"
+	_ "l3/ndp/config"
 	"l3/ndp/packet"
 	"net"
-	"reflect"
+	_ "reflect"
 	"testing"
 )
 
@@ -76,31 +76,34 @@ func TestProcessNAPkt(t *testing.T) {
 		t.Error("Failed to get L3 Port for ifIndex:", testIfIndex)
 		return
 	}
-	nbrInfo, oper := l3Port.processNA(ndInfo)
-	if oper != CREATE {
-		t.Error("Failed to create new neighbor entry for ndp")
+	_, oper := l3Port.processNA(ndInfo)
+	if oper == CREATE {
+		t.Error("if entry doesn't exists then NA should not have create operation")
 		return
 	}
-	wantNbrInfo := &config.NeighborConfig{
-		MacAddr: testNaSrcMac,
-		IpAddr:  testNaSrcIp,
-		Intf:    testIntfRef,
-		IfIndex: testIfIndex,
-	}
-	if !reflect.DeepEqual(wantNbrInfo, nbrInfo) {
-		t.Error("Want Neigbor Info:", *wantNbrInfo, "but received nbrInfo:", *nbrInfo)
-		return
-	}
-	nbrInfo, oper = l3Port.processNA(ndInfo)
-	if oper != UPDATE {
-		t.Error("Failed to update existing neighbor entry for ndp")
-		return
-	}
+	/*
+		@TODO: add test case for R,S,O flags
+		wantNbrInfo := &config.NeighborConfig{
+			MacAddr: testNaSrcMac,
+			IpAddr:  testNaSrcIp,
+			Intf:    testIntfRef,
+			IfIndex: testIfIndex,
+		}
+		if !reflect.DeepEqual(wantNbrInfo, nbrInfo) {
+			t.Error("Want Neigbor Info:", *wantNbrInfo, "but received nbrInfo:", *nbrInfo)
+			return
+		}
+		nbrInfo, oper = l3Port.processNA(ndInfo)
+		if oper != UPDATE {
+			t.Error("Failed to update existing neighbor entry for ndp")
+			return
+		}
 
-	if !reflect.DeepEqual(wantNbrInfo, nbrInfo) {
-		t.Error("During Update Want Neigbor Info:", *wantNbrInfo, "but received nbrInfo:", *nbrInfo)
-		return
-	}
+		if !reflect.DeepEqual(wantNbrInfo, nbrInfo) {
+			t.Error("During Update Want Neigbor Info:", *wantNbrInfo, "but received nbrInfo:", *nbrInfo)
+			return
+		}
+	*/
 }
 
 func constructInvalidNdInfoNA() *packet.NDInfo {

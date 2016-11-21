@@ -248,7 +248,7 @@ func (svr *NDPServer) updateStateNeighborInfo(nbrKey, ipAddr string, ifIndex, vl
  *		        a) It will update ndp server neighbor info cache with the latest information
  */
 func (svr *NDPServer) CreateNeighborInfo(nbrInfo *config.NeighborConfig, hwIfIndex int32, learnedIntf string) {
-	debug.Logger.Debug("Calling create ipv6 neighgor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
+	debug.Logger.Debug("Calling create ipv6 neighbor for global nbrinfo is", nbrInfo.IpAddr, nbrInfo.MacAddr,
 		"vlanId:", nbrInfo.VlanId, "ifIndex:", hwIfIndex, "interface:", learnedIntf)
 	if net.ParseIP(nbrInfo.IpAddr).IsLinkLocalUnicast() == false {
 		_, err := svr.SwitchPlugin.CreateIPv6Neighbor(nbrInfo.IpAddr, nbrInfo.MacAddr, nbrInfo.VlanId, hwIfIndex)
@@ -831,23 +831,28 @@ func (svr *NDPServer) ActionRefreshByIntf(intfRef string) {
  *  Utility Action function to delete ndp entries by Neighbor Ip Address
  */
 func (svr *NDPServer) ActionDeleteByNbrIp(ipAddr string) {
+	debug.Logger.Info("performing delete action by ip address for ipAddr:", ipAddr)
 	var nbrKey string
 	found := false
 	for _, nbrKey = range svr.neighborKey {
+		debug.Logger.Debug("neighbor key in server neighbor keys:", nbrKey)
 		splitString := splitNeighborKey(nbrKey)
 		if splitString[1] == ipAddr {
 			found = true
+			break
 		}
 	}
 	if !found {
 		debug.Logger.Err("Delete Action by Ip Address:", ipAddr, "as no such neighbor is learned")
 		return
 	}
+	debug.Logger.Debug("entry found in neighbor keys:", nbrKey)
 	nbrEntry, exists := svr.NeighborInfo[nbrKey]
 	if !exists {
 		debug.Logger.Err("Delete Action by Ip Address:", ipAddr, "as no such neighbor is learned")
 		return
 	}
+	debug.Logger.Debug("nbr entry found in NeighborInfo", nbrEntry)
 	l3IfIndex := nbrEntry.IfIndex
 	// if valid vlan then get l3 ifIndex from PhyPortToL3PortMap
 	if nbrEntry.VlanId != config.INTERNAL_VLAN {
@@ -860,19 +865,22 @@ func (svr *NDPServer) ActionDeleteByNbrIp(ipAddr string) {
 		}
 		l3IfIndex = l3Info.IfIndex
 	}
-
+	debug.Logger.Debug("l3Ifindex where the neighbor entry was learned:", l3IfIndex)
 	l3Port, exists := svr.L3Port[l3IfIndex]
 	if !exists {
 		debug.Logger.Err("Delete Action by Ip Address:", ipAddr, "as no L3 Port found where this neighbor is learned")
 		return
 	}
 	deleteEntries, err := l3Port.DeleteNeighbor(nbrEntry)
-	if err == nil {
+	if err != nil {
+		debug.Logger.Info("Server Action Delete by NbrIp:", ipAddr, "L3 Port:", l3Port.IntfRef,
+			"Neighbors:", deleteEntries, "failed")
+	} else {
 		debug.Logger.Info("Server Action Delete by NbrIp:", ipAddr, "L3 Port:", l3Port.IntfRef,
 			"Neighbors:", deleteEntries)
 		svr.deleteNeighbor(deleteEntries[0], l3Port.IfIndex)
+		debug.Logger.Debug("delete action by ipAddr performed successfully")
 	}
-
 	svr.L3Port[l3IfIndex] = l3Port
 }
 

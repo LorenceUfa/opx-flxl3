@@ -206,7 +206,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 		ip = ip.To4()
 		if virtualIpInfo.Enable {
 			// Call arp to delete the nextHop Entry
-			//debug.Logger.Info("Calling Arp to delete nexthop entry:", ip.String())
+			debug.Logger.Info("Calling Arp to delete nexthop entry:", ip.String())
 			svr.ArpClient.DeleteArpEntry(ip.String())
 		}
 		err := svr.SwitchPlugin.UpdateVirtualIPv4Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
@@ -217,6 +217,7 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 		ip, _, _ := net.ParseCIDR(virtualIpInfo.IpAddr)
 		ip = ip.To16()
 		if virtualIpInfo.Enable {
+			debug.Logger.Info("Calling Ndp to delete nexthop entry:", ip.String())
 			svr.NdpClient.DeleteNdpEntry(ip.String())
 		}
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
