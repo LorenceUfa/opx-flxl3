@@ -27,13 +27,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"ribd"
-	"ribdInt"
-	"strings"
-	"utils/patriciaDB"
 	"utils/policy"
-	"utils/policy/policyCommonDefs"
 )
 
 /*
@@ -43,7 +38,7 @@ func (m RIBDServer) ProcessPolicyExtendedCommunitySetConfigCreate(cfg *ribd.Poli
 	logger.Debug("ProcessPolicyExtendedCommunitySetConfigCreate:", cfg.Name)
 	list := make([]policy.PolicyExtendedCommunityInfo, 0)
 	for _, v := range cfg.ExtendedCommunityList {
-		list = append(list, policy.ExtendedCommunityInfo{v.ExtendedCommunityType, v.ExtendedCommunityValue})
+		list = append(list, policy.PolicyExtendedCommunityInfo{v.Type, v.Value})
 	}
 	newCfg := policy.PolicyExtendedCommunitySetConfig{Name: cfg.Name, ExtendedCommunityList: list}
 	val, err = db.CreatePolicyExtendedCommunitySet(newCfg)
@@ -86,7 +81,7 @@ func (m RIBDServer) ProcessPolicyExtendedCommunitySetConfigPatchUpdate(origCfg *
 			logger.Debug("Number of communities:", len(valueObjArr))
 			for _, val := range valueObjArr {
 				logger.Debug("ext community type - ", val.Type, " value:", val.Value)
-				newPolicyObj.ExtendedCommunityList = append(newPolicyObj.CommunityList, policy.ExtendedCommunityInfo{val.Type, val.Value})
+				newPolicyObj.ExtendedCommunityList = append(newPolicyObj.ExtendedCommunityList, policy.PolicyExtendedCommunityInfo{val.Type, val.Value})
 			}
 			switch op[idx].Op {
 			case "add":
@@ -114,4 +109,65 @@ func (m RIBDServer) ProcessPolicyExtendedCommunitySetConfigUpdate(origCfg *ribd.
 		return errors.New("Policy extended community set statement to be updated is different than the original one")
 	}
 	return err
+}
+
+func (m RIBDServer) GetBulkPolicyExtendedCommunitySetState(fromIndex ribd.Int, rcount ribd.Int, db *policy.PolicyEngineDB) (policyExtendedCommunitySets *ribd.PolicyExtendedCommunitySetStateGetInfo, err error) { //(routes []*ribd.Routes, err error) {
+	logger.Debug("GetBulkPolicyExtendedCommunitySetState")
+	PolicyExtendedCommunitySetDB := db.PolicyExtendedCommunitySetDB
+	localPolicyExtendedCommunitySetDB := *db.LocalPolicyExtendedCommunitySetDB
+	var i, validCount, toIndex ribd.Int
+	var tempNode []ribd.PolicyExtendedCommunitySetState = make([]ribd.PolicyExtendedCommunitySetState, rcount)
+	var nextNode *ribd.PolicyExtendedCommunitySetState
+	var returnNodes []*ribd.PolicyExtendedCommunitySetState
+	var returnGetInfo ribd.PolicyExtendedCommunitySetStateGetInfo
+	i = 0
+	policyExtendedCommunitySets = &returnGetInfo
+	more := true
+	if localPolicyExtendedCommunitySetDB == nil {
+		logger.Debug("localPolicyExtendedCommunitySetDB not initialized")
+		return policyExtendedCommunitySets, err
+	}
+	for ; ; i++ {
+		if i+fromIndex >= ribd.Int(len(localPolicyExtendedCommunitySetDB)) {
+			logger.Debug("All the policy Extended Community sets fetched")
+			more = false
+			break
+		}
+		if localPolicyExtendedCommunitySetDB[i+fromIndex].IsValid == false {
+			logger.Debug("Invalid policy Extended Community set")
+			continue
+		}
+		if validCount == rcount {
+			logger.Debug("Enough policy Extended Community sets fetched")
+			break
+		}
+		prefixNodeGet := PolicyExtendedCommunitySetDB.Get(localPolicyExtendedCommunitySetDB[i+fromIndex].Prefix)
+		if prefixNodeGet != nil {
+			prefixNode := prefixNodeGet.(policy.PolicyExtendedCommunitySet)
+			nextNode = &tempNode[validCount]
+			nextNode.Name = prefixNode.Name
+			nextNode.ExtendedCommunityList = make([]*ribd.PolicyExtendedCommunity, 0)
+			for _, prefix := range prefixNode.ExtendedCommunityList {
+				nextNode.ExtendedCommunityList = append(nextNode.ExtendedCommunityList, &ribd.PolicyExtendedCommunity{prefix.Type, prefix.Value})
+			}
+			if prefixNode.PolicyConditionList != nil {
+				nextNode.PolicyConditionList = make([]string, 0)
+			}
+			for idx := 0; idx < len(prefixNode.PolicyConditionList); idx++ {
+				nextNode.PolicyConditionList = append(nextNode.PolicyConditionList, prefixNode.PolicyConditionList[idx])
+			}
+			toIndex = ribd.Int(prefixNode.LocalDBSliceIdx)
+			if len(returnNodes) == 0 {
+				returnNodes = make([]*ribd.PolicyExtendedCommunitySetState, 0)
+			}
+			returnNodes = append(returnNodes, nextNode)
+			validCount++
+		}
+	}
+	policyExtendedCommunitySets.PolicyExtendedCommunitySetStateList = returnNodes
+	policyExtendedCommunitySets.StartIdx = fromIndex
+	policyExtendedCommunitySets.EndIdx = toIndex + 1
+	policyExtendedCommunitySets.More = more
+	policyExtendedCommunitySets.Count = validCount
+	return policyExtendedCommunitySets, err
 }

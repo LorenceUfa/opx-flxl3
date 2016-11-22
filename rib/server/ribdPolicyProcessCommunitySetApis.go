@@ -27,13 +27,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"ribd"
-	"ribdInt"
-	"strings"
-	"utils/patriciaDB"
 	"utils/policy"
-	"utils/policy/policyCommonDefs"
 )
 
 /*
@@ -43,7 +38,7 @@ func (m RIBDServer) ProcessPolicyCommunitySetConfigCreate(cfg *ribd.PolicyCommun
 	logger.Debug("ProcessPolicyCommunitySetConfigCreate:", cfg.Name)
 	list := make([]string, 0)
 	for _, v := range cfg.CommunityList {
-		list = append(list, v.Community)
+		list = append(list, v)
 	}
 	newCfg := policy.PolicyCommunitySetConfig{Name: cfg.Name, CommunityList: list}
 	val, err = db.CreatePolicyCommunitySet(newCfg)
@@ -77,7 +72,8 @@ func (m RIBDServer) ProcessPolicyCommunitySetConfigPatchUpdate(origCfg *ribd.Pol
 				Name: origCfg.Name,
 			}
 			newPolicyObj.CommunityList = make([]string, 0)
-			valueObjArr := []string
+			var valueObjArr []string
+			valueObjArr = make([]string, 0)
 			err = json.Unmarshal([]byte(op[idx].Value), &valueObjArr)
 			if err != nil {
 				//logger.Debug("error unmarshaling value:", err))
@@ -113,4 +109,65 @@ func (m RIBDServer) ProcessPolicyCommunitySetConfigUpdate(origCfg *ribd.PolicyCo
 		return errors.New("Policy community set statement to be updated is different than the original one")
 	}
 	return err
+}
+
+func (m RIBDServer) GetBulkPolicyCommunitySetState(fromIndex ribd.Int, rcount ribd.Int, db *policy.PolicyEngineDB) (policyCommunitySets *ribd.PolicyCommunitySetStateGetInfo, err error) { //(routes []*ribd.Routes, err error) {
+	logger.Debug("GetBulkPolicyCommunitySetState")
+	PolicyCommunitySetDB := db.PolicyCommunitySetDB
+	localPolicyCommunitySetDB := *db.LocalPolicyCommunitySetDB
+	var i, validCount, toIndex ribd.Int
+	var tempNode []ribd.PolicyCommunitySetState = make([]ribd.PolicyCommunitySetState, rcount)
+	var nextNode *ribd.PolicyCommunitySetState
+	var returnNodes []*ribd.PolicyCommunitySetState
+	var returnGetInfo ribd.PolicyCommunitySetStateGetInfo
+	i = 0
+	policyCommunitySets = &returnGetInfo
+	more := true
+	if localPolicyCommunitySetDB == nil {
+		logger.Debug("localPolicyCommunitySetDB not initialized")
+		return policyCommunitySets, err
+	}
+	for ; ; i++ {
+		if i+fromIndex >= ribd.Int(len(localPolicyCommunitySetDB)) {
+			logger.Debug("All the policy Community sets fetched")
+			more = false
+			break
+		}
+		if localPolicyCommunitySetDB[i+fromIndex].IsValid == false {
+			logger.Debug("Invalid policy Community set")
+			continue
+		}
+		if validCount == rcount {
+			logger.Debug("Enough policy Community sets fetched")
+			break
+		}
+		prefixNodeGet := PolicyCommunitySetDB.Get(localPolicyCommunitySetDB[i+fromIndex].Prefix)
+		if prefixNodeGet != nil {
+			prefixNode := prefixNodeGet.(policy.PolicyCommunitySet)
+			nextNode = &tempNode[validCount]
+			nextNode.Name = prefixNode.Name
+			nextNode.CommunityList = make([]string, 0)
+			for _, prefix := range prefixNode.CommunityList {
+				nextNode.CommunityList = append(nextNode.CommunityList, prefix)
+			}
+			if prefixNode.PolicyConditionList != nil {
+				nextNode.PolicyConditionList = make([]string, 0)
+			}
+			for idx := 0; idx < len(prefixNode.PolicyConditionList); idx++ {
+				nextNode.PolicyConditionList = append(nextNode.PolicyConditionList, prefixNode.PolicyConditionList[idx])
+			}
+			toIndex = ribd.Int(prefixNode.LocalDBSliceIdx)
+			if len(returnNodes) == 0 {
+				returnNodes = make([]*ribd.PolicyCommunitySetState, 0)
+			}
+			returnNodes = append(returnNodes, nextNode)
+			validCount++
+		}
+	}
+	policyCommunitySets.PolicyCommunitySetStateList = returnNodes
+	policyCommunitySets.StartIdx = fromIndex
+	policyCommunitySets.EndIdx = toIndex + 1
+	policyCommunitySets.More = more
+	policyCommunitySets.Count = validCount
+	return policyCommunitySets, err
 }

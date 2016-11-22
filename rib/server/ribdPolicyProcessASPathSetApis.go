@@ -27,13 +27,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"ribd"
-	"ribdInt"
-	"strings"
-	"utils/patriciaDB"
 	"utils/policy"
-	"utils/policy/policyCommonDefs"
 )
 
 /*
@@ -43,7 +38,7 @@ func (m RIBDServer) ProcessPolicyASPathSetConfigCreate(cfg *ribd.PolicyASPathSet
 	logger.Debug("ProcessPolicyASPathSetConfigCreate:", cfg.Name)
 	list := make([]string, 0)
 	for _, v := range cfg.ASPathList {
-		list = append(list, v.ASPath)
+		list = append(list, v)
 	}
 	newCfg := policy.PolicyASPathSetConfig{Name: cfg.Name, ASPathList: list}
 	val, err = db.CreatePolicyASPathSet(newCfg)
@@ -77,7 +72,7 @@ func (m RIBDServer) ProcessPolicyASPathSetConfigPatchUpdate(origCfg *ribd.Policy
 				Name: origCfg.Name,
 			}
 			newPolicyObj.ASPathList = make([]string, 0)
-			valueObjArr := []string
+			valueObjArr := []string{}
 			err = json.Unmarshal([]byte(op[idx].Value), &valueObjArr)
 			if err != nil {
 				//logger.Debug("error unmarshaling value:", err))
@@ -113,4 +108,65 @@ func (m RIBDServer) ProcessPolicyASPathSetConfigUpdate(origCfg *ribd.PolicyASPat
 		return errors.New("Policy aspath set statement to be updated is different than the original one")
 	}
 	return err
+}
+
+func (m RIBDServer) GetBulkPolicyASPathSetState(fromIndex ribd.Int, rcount ribd.Int, db *policy.PolicyEngineDB) (policyASPathSets *ribd.PolicyASPathSetStateGetInfo, err error) { //(routes []*ribd.Routes, err error) {
+	logger.Debug("GetBulkPolicyASPathSetState")
+	PolicyASPathSetDB := db.PolicyASPathSetDB
+	localPolicyASPathSetDB := *db.LocalPolicyASPathSetDB
+	var i, validCount, toIndex ribd.Int
+	var tempNode []ribd.PolicyASPathSetState = make([]ribd.PolicyASPathSetState, rcount)
+	var nextNode *ribd.PolicyASPathSetState
+	var returnNodes []*ribd.PolicyASPathSetState
+	var returnGetInfo ribd.PolicyASPathSetStateGetInfo
+	i = 0
+	policyASPathSets = &returnGetInfo
+	more := true
+	if localPolicyASPathSetDB == nil {
+		logger.Debug("localPolicyASPathSetDB not initialized")
+		return policyASPathSets, err
+	}
+	for ; ; i++ {
+		if i+fromIndex >= ribd.Int(len(localPolicyASPathSetDB)) {
+			logger.Debug("All the policy AS Path sets fetched")
+			more = false
+			break
+		}
+		if localPolicyASPathSetDB[i+fromIndex].IsValid == false {
+			logger.Debug("Invalid policy aspath set")
+			continue
+		}
+		if validCount == rcount {
+			logger.Debug("Enough policy aspath sets fetched")
+			break
+		}
+		prefixNodeGet := PolicyASPathSetDB.Get(localPolicyASPathSetDB[i+fromIndex].Prefix)
+		if prefixNodeGet != nil {
+			prefixNode := prefixNodeGet.(policy.PolicyASPathSet)
+			nextNode = &tempNode[validCount]
+			nextNode.Name = prefixNode.Name
+			nextNode.ASPathList = make([]string, 0)
+			for _, prefix := range prefixNode.ASPathList {
+				nextNode.ASPathList = append(nextNode.ASPathList, prefix)
+			}
+			if prefixNode.PolicyConditionList != nil {
+				nextNode.PolicyConditionList = make([]string, 0)
+			}
+			for idx := 0; idx < len(prefixNode.PolicyConditionList); idx++ {
+				nextNode.PolicyConditionList = append(nextNode.PolicyConditionList, prefixNode.PolicyConditionList[idx])
+			}
+			toIndex = ribd.Int(prefixNode.LocalDBSliceIdx)
+			if len(returnNodes) == 0 {
+				returnNodes = make([]*ribd.PolicyASPathSetState, 0)
+			}
+			returnNodes = append(returnNodes, nextNode)
+			validCount++
+		}
+	}
+	policyASPathSets.PolicyASPathSetStateList = returnNodes
+	policyASPathSets.StartIdx = fromIndex
+	policyASPathSets.EndIdx = toIndex + 1
+	policyASPathSets.More = more
+	policyASPathSets.Count = validCount
+	return policyASPathSets, err
 }
