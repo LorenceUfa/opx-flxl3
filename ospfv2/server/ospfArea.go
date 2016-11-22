@@ -157,6 +157,7 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	}
 	//Adding to GetBulk Slice
 	server.GetBulkData.AreaConfSlice = append(server.GetBulkData.AreaConfSlice, cfg.AreaId)
+	server.logger.Info("Successfully created ospfv2Area config")
 	return true, nil
 }
 

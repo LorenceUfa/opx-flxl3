@@ -24,6 +24,7 @@
 package server
 
 import (
+	"net"
 	"time"
 )
 
@@ -38,10 +39,10 @@ type NbrConf struct {
 	NbrRtrId            uint32
 	NbrPriority         int32
 	NbrIP               uint32
+	NbrMac              net.HardwareAddr
 	NbrOption           uint32
 	NbrDR               uint32 //mentioned by rfc.
 	NbrBdr              uint32 //needed by rfc. not sure why we need it.
-	NbrDeadDuration     int
 	NbrDeadTimer        *time.Timer
 	NbrDeadTimeDuration time.Duration
 	NbrLsaRxTimer       *time.Timer

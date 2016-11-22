@@ -233,13 +233,14 @@ func encodeDatabaseDescriptionData(dd_data NbrDbdData) []byte {
 }
 
 func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdData) {
+	server.logger.Debug("Nbr : Send the dbd packet out ")
 	intfKey := nbrConf.IntfKey
 	ent, exist := server.IntfConfMap[intfKey]
 	if !exist {
 		server.logger.Err("Nbr : failed to send db packet ", intfKey)
 		return
 	}
-	dstMAC := ent.IfMacAddr
+	dstMAC := nbrConf.NbrMac
 
 	ospfHdr := OSPFHeader{
 		Ver:      OSPF_VERSION_2,
@@ -258,12 +259,12 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 	ospfHdr.Pktlen = uint16(ospfPktlen)
 
 	ospfEncHdr := encodeOspfHdr(ospfHdr)
-	//server.logger.Info(fmt.Sprintln("ospfEncHdr:", ospfEncHdr))
+	server.logger.Debug("ospfEncHdr:", ospfEncHdr)
 	dbdDataEnc := encodeDatabaseDescriptionData(dbdData)
 	//server.logger.Info(fmt.Sprintln("DBD Pkt:", dbdDataEnc))
 
 	ospf := append(ospfEncHdr, dbdDataEnc...)
-	//server.logger.Info(fmt.Sprintln("OSPF DBD:", ospf))
+	server.logger.Debug("OSPF DBD:", ospf)
 	csum := computeCheckSum(ospf)
 	binary.BigEndian.PutUint16(ospf[12:14], csum)
 	binary.BigEndian.PutUint64(ospf[16:24], ent.AuthKey)

@@ -202,7 +202,7 @@ func (server *OSPFV2Server) ProcessLsdbToFloodMsg(msg LsdbToFloodLSAMsg) {
 			} // end of send packet
 		} // end of nbrs / intf
 	} // end of intf for
-
+	server.logger.Debug("Flood: Lsdb to flood processing done..")
 }
 
 /*@fn sendRouterLsa
