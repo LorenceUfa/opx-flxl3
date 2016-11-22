@@ -210,7 +210,9 @@ func (server *OSPFV2Server) ProcessLsdb(initDoneCh chan bool) {
 			server.CalcSPFAndRoutingTbl()
 			server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh <- areaId
 		case areaId := <-server.MessagingChData.ServerToLsdbChData.InitAreaLsdbCh:
+			server.logger.Info("InitAreaLsdb...")
 			server.InitAreaLsdb(areaId)
+			server.logger.Info("InitAreaLsdb...")
 			server.SendMsgFromLsdbToServerForInitAreaLsdbDone()
 			server.GenerateAllASExternalLSA(areaId)
 		case msg := <-server.MessagingChData.IntfFSMToLsdbChData.GenerateRouterLSACh:

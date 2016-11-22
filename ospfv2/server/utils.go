@@ -86,8 +86,7 @@ func computeCheckSum(pkt []byte) uint16 {
 }
 
 const (
-	MODX                       int    = 4102
-	FLETCHER_CHECKSUM_VALIDATE uint16 = 0xffff
+	MODX int = 4102
 )
 
 func min(x int, y int) int {
