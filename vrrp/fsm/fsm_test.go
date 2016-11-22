@@ -211,3 +211,10 @@ func TestV4VMacCreate(t *testing.T) {
 		return
 	}
 }
+
+func TestInitPktListener(t *testing.T) {
+	TestV6FsmInit(t)
+	if testFsm == nil {
+		return
+	}
+}
