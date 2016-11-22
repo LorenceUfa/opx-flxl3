@@ -164,6 +164,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	var nbrConf NbrConf
 	nbrKey := nbrData.NbrKey
 	nbrConf.NbrIP = nbrData.NbrIP
+	nbrConf.NbrMac = nbrData.NbrMAC
 	nbrConf.NbrDR = nbrData.NbrDRIpAddr
 	nbrConf.NbrBdr = nbrData.NbrBDRIpAddr
 	nbrConf.IntfKey = nbrData.IntfConfKey
