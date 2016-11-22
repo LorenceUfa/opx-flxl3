@@ -142,6 +142,7 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		server.StopIntfFSM(intfConfKey)
 		server.StopIntfRxTxPkt(intfConfKey)
 	}
+	intfConfEnt, _ = server.IntfConfMap[intfConfKey]
 	oldIntfConfEnt := intfConfEnt
 	mask := getOspfv2IntfUpdateMask(attrset)
 	if mask&objects.OSPFV2_INTF_UPDATE_ADMIN_STATE == objects.OSPFV2_INTF_UPDATE_ADMIN_STATE {
@@ -189,7 +190,9 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 
 	if intfConfEnt.AdminState == true {
 		server.StartIntfRxTxPkt(intfConfKey)
+		server.logger.Info("StartIntfRxTxPkt() successfully")
 		server.StartIntfFSM(intfConfKey)
+		server.logger.Info("Started Intf FSM successfully", intfConfKey, intfConfEnt)
 	}
 	return true, nil
 }

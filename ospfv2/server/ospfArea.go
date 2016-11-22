@@ -103,6 +103,7 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		server.FlushAreaLsdb(newCfg.AreaId)
 	}
 
+	oldAreaEnt, _ := server.AreaConfMap[newCfg.AreaId]
 	newAreaEnt := oldAreaEnt
 	mask := genOspfv2AreaUpdateMask(attrset)
 	if mask&objects.OSPFV2_AREA_UPDATE_ADMIN_STATE == objects.OSPFV2_AREA_UPDATE_ADMIN_STATE {
