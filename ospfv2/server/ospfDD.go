@@ -240,7 +240,7 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 		server.logger.Err("Nbr : failed to send db packet ", intfKey)
 		return
 	}
-	dstMAC := ent.IfMacAddr
+	dstMAC := nbrConf.NbrMac
 
 	ospfHdr := OSPFHeader{
 		Ver:      OSPF_VERSION_2,
