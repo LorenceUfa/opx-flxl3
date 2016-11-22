@@ -134,6 +134,7 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
 	f.previousState = VRRP_UNINITIALIZE_STATE
+	f.stateInfo.CurrentFsmState = getStateName(f.State)
 	f.rxCh = rxCh
 	f.txCh = txCh
 	var empty struct{}
