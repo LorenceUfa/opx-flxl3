@@ -151,9 +151,9 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error) {
 	server.logger.Info("Global configuration create")
-	if cfg.Vrf != "Default" {
-		server.logger.Err("Vrp other than Default is not supported")
-		return false, errors.New("Vrp other than Default is not supported")
+	if cfg.Vrf != "default" {
+		server.logger.Err("Vrf other than default is not supported")
+		return false, errors.New("Vrf other than default is not supported")
 	}
 	server.globalData.Vrf = cfg.Vrf
 	server.globalData.AdminState = cfg.AdminState
@@ -167,11 +167,17 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 			return false, err
 		}
 		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
 		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
 		server.StartLsdbRoutine()
+		server.logger.Info("Successfully started Lsdb Routine")
 		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
 		server.StartAllRxTxPkt()
+		server.logger.Info("Successfully started All Rx Tx Packet")
 		server.StartAllIntfFSM()
+		server.logger.Info("Successfully started All Intf FSM")
 	}
 	return true, nil
 }
@@ -215,7 +221,7 @@ func (server *OSPFV2Server) getBulkGlobalState(fromIdx, cnt int) (*objects.Ospfv
 	retObj.More = false
 	retObj.Count = 1
 	for idx := fromIdx; idx < retObj.EndIdx; idx++ {
-		obj, err := server.getGlobalState("Default")
+		obj, err := server.getGlobalState("default")
 		if err != nil {
 			server.logger.Err("Error getting the Ospfv2GlobalState for vrf=default")
 			return nil, err

@@ -125,11 +125,11 @@ func convertFromRPCFmtOspfv2Global(config *ospfv2d.Ospfv2Global) (*objects.Ospfv
 		return nil, errors.New("Invalid AdminState")
 	}
 	// Skipping VRF for now
-	if config.Vrf != "Default" {
+	if config.Vrf != "default" {
 		return nil, errors.New("Invalid Vrf")
 	}
 	return &objects.Ospfv2Global{
-		Vrf:                "Default",
+		Vrf:                "default",
 		RouterId:           routerId,
 		AdminState:         adminState,
 		ASBdrRtrStatus:     config.ASBdrRtrStatus,
@@ -139,7 +139,7 @@ func convertFromRPCFmtOspfv2Global(config *ospfv2d.Ospfv2Global) (*objects.Ospfv
 
 func convertToRPCFmtOspfv2GlobalState(obj *objects.Ospfv2GlobalState) *ospfv2d.Ospfv2GlobalState {
 	return &ospfv2d.Ospfv2GlobalState{
-		Vrf:                "Default",
+		Vrf:                "default",
 		AreaBdrRtrStatus:   obj.AreaBdrRtrStatus,
 		NumOfAreas:         int32(obj.NumOfAreas),
 		NumOfIntfs:         int32(obj.NumOfIntfs),
