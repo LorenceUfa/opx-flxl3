@@ -152,6 +152,7 @@ func (svr *VrrpServer) ValidConfiguration(cfg *common.IntfCfg) (bool, error) {
 /* Update Intf List which can be used during state
  */
 func (svr *VrrpServer) updateIntfList(key KeyInfo, ipType int, insert bool) {
+	debug.Logger.Debug("updating state object intf key list for:", key, ipType, insert)
 	switch insert {
 	case true:
 		// new vrrp configured insert the entry into lists
@@ -177,6 +178,7 @@ func (svr *VrrpServer) updateIntfList(key KeyInfo, ipType int, insert bool) {
 			}
 		}
 	}
+	debug.Logger.Debug("after updating len of v4intfs is:", len(svr.v4Intfs), "len of v6Intf is:", len(svr.v6Intfs))
 }
 
 /* During Create of Virtual Interface Enable should always be set to false... when
@@ -221,6 +223,22 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 			svr.NdpClient.DeleteNdpEntry(ip.String())
 		}
 		svr.SwitchPlugin.UpdateVirtualIPv6Intf(virtualIpInfo.IntfRef, virtualIpInfo.IpAddr, virtualIpInfo.MacAddr, virtualIpInfo.Enable)
+	}
+}
+
+/* During Delete of Virtual Interface Enable should always be set to false
+ * Input: (vrrp interface config, virtual mac)
+ */
+func (svr *VrrpServer) DeleteVirtualIntf(cfg *common.IntfCfg, vMac string) {
+	if svr.GlobalConfig.Enable == false {
+		return
+	}
+	debug.Logger.Info("Vrrp Deleting Virtual Interface for:", cfg.IntfRef, cfg.VirtualIPAddr, vMac)
+	switch cfg.IpType {
+	case syscall.AF_INET:
+		svr.SwitchPlugin.DeleteVirtualIPv4Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
+	case syscall.AF_INET6:
+		svr.SwitchPlugin.DeleteVirtualIPv6Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
 	}
 }
 
@@ -293,7 +311,7 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 }
 
 func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
-	debug.Logger.Info("Received vrrp interface create config:", *cfg)
+	debug.Logger.Info("Received vrrp interface delete config:", *cfg)
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
@@ -301,7 +319,9 @@ func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
 		debug.Logger.Err("no vrrp interface found for:", key)
 		return
 	}
+	mac := intf.GetVMac()
 	intf.DeInitVrrpIntf()
+	svr.DeleteVirtualIntf(cfg, mac)
 	delete(svr.Intf, key)
 	svr.updateIntfList(key, cfg.IpType, false /*delete*/)
 }

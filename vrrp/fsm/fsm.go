@@ -109,6 +109,7 @@ type FSM struct {
 	vipCh               chan *common.VirtualIpInfo // this will be used to bring up/down virtual ip interface
 	rxCh                chan struct{}              // inform server to update global rx count
 	txCh                chan struct{}              // inform server to update global tx count
+	exitFsmGoRoutineCh  chan struct{}              // inform fsm go routine to exit out fixing go routine mem-leak
 	running             bool
 	empty               struct{}
 }
@@ -129,6 +130,7 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
+	f.exitFsmGoRoutineCh = make(chan struct{})
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
 	f.previousState = VRRP_UNINITIALIZE_STATE
@@ -155,6 +157,7 @@ func (f *FSM) DeInitFsm() {
 	f.stateInfo = nil
 	f.pktCh = nil
 	f.IntfEventCh = nil
+	debug.Logger.Info(FSM_PREFIX, "de init for fsm done")
 }
 
 func (f *FSM) StartFsm() {
@@ -162,7 +165,6 @@ func (f *FSM) StartFsm() {
 	f.initialize()
 	debug.Logger.Debug(FSM_PREFIX, "fsm started for interface:", f.Config.IntfRef)
 	for {
-		debug.Logger.Debug(FSM_PREFIX)
 		select {
 		case pktCh, ok := <-f.pktCh:
 			if ok {
@@ -179,6 +181,11 @@ func (f *FSM) StartFsm() {
 					f.running = false
 					return
 				}
+			}
+		case _, ok := <-f.exitFsmGoRoutineCh:
+			if ok {
+				debug.Logger.Debug(FSM_PREFIX, "exiting go routine for fsm")
+				return
 			}
 		}
 	}
@@ -339,7 +346,6 @@ func (f *FSM) send(pktInfo *packet.PacketInfo) {
 			debug.Logger.Err(FSM_PREFIX, "Writing packet failed for interface:", f.Config.IntfRef)
 			return
 		}
-		f.updateTxStInfo()
 	}
 }
 
@@ -425,6 +431,7 @@ func (f *FSM) stateDownEvent() {
 		pkt := f.getPacketInfo()
 		pkt.Priority = VRRP_MASTER_DOWN_PRIORITY
 		f.send(pkt)
+		f.updateTxStInfo()
 	}
 	f.previousState = f.State
 	f.State = VRRP_INITIALIZE_STATE
@@ -439,7 +446,20 @@ func (f *FSM) stateUpEvent() {
 }
 
 func (f *FSM) exitFsm() {
-	f.stateDownEvent()
+	debug.Logger.Debug(FSM_PREFIX, "exiting fsm for:", *f.Config)
+	f.stopMasterAdverTimer()
+	if f.State == VRRP_MASTER_STATE {
+		debug.Logger.Debug(FSM_PREFIX, "sending master down to backup")
+		pkt := f.getPacketInfo()
+		pkt.Priority = VRRP_MASTER_DOWN_PRIORITY
+		f.send(pkt)
+		debug.Logger.Debug(FSM_PREFIX, "master down send out")
+	}
+	debug.Logger.Debug(FSM_PREFIX, "de init pkt listener")
+	f.deInitPktListener()
+	debug.Logger.Debug(FSM_PREFIX, "stop master down timer")
+	f.stopMasterDownTimer()
+	f.exitFsmGoRoutineCh <- f.empty
 }
 
 func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
@@ -456,7 +476,7 @@ func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
 	case TEAR_DOWN:
 		// special case...
 		debug.Logger.Info(FSM_PREFIX, "Tear down fsm for:", f.Config.IntfRef, "vrid:", f.Config.VRID)
-		f.exitFsm()
+		f.stateDownEvent()
 	}
 }
 
