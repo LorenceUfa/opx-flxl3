@@ -241,7 +241,7 @@ func (m RIBDServicesHandler) GetPolicyExtendedCommunitySetState(name string) (st
 }
 
 func (m RIBDServicesHandler) CreatePolicyCondition(cfg *ribd.PolicyCondition) (val bool, err error) {
-	logger.Debug("CreatePolicyConditioncfg: ", cfg.Name)
+	logger.Debug("CreatePolicyConditioncfg: ", cfg.Name, " cfg:", *cfg)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
 		Op:               defs.AddPolicyCondition,

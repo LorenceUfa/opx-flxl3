@@ -82,6 +82,72 @@ func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyPrefixSetsFromDB(dbHdl *
 	}
 	return err
 }
+func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyASPathSetsFromDB(dbHdl *dbutils.DBUtil) (err error) {
+	logger.Debug("UpdateGlobalPolicyASPathSetsFromDB")
+	if dbHdl != nil {
+		var dbObjCfg objects.PolicyASPathSet
+		objList, err := dbHdl.GetAllObjFromDb(dbObjCfg)
+		if err == nil {
+			for idx := 0; idx < len(objList); idx++ {
+				obj := ribd.NewPolicyASPathSet()
+				dbObj := objList[idx].(objects.PolicyASPathSet)
+				objects.ConvertribdPolicyASPathSetObjToThrift(&dbObj, obj)
+				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
+					OrigConfigObject: obj,
+					Op:               defs.AddPolicyASPathSet,
+				}
+				err = <-ribdServiceHandler.PolicyConfDone
+			}
+		} else {
+			logger.Err("DB Query failed during PolicyASPathSet query: RIBd init")
+		}
+	}
+	return err
+}
+func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyCommunitySetsFromDB(dbHdl *dbutils.DBUtil) (err error) {
+	logger.Debug("UpdateGlobalPolicyCommunitySetsFromDB")
+	if dbHdl != nil {
+		var dbObjCfg objects.PolicyCommunitySet
+		objList, err := dbHdl.GetAllObjFromDb(dbObjCfg)
+		if err == nil {
+			for idx := 0; idx < len(objList); idx++ {
+				obj := ribd.NewPolicyCommunitySet()
+				dbObj := objList[idx].(objects.PolicyCommunitySet)
+				objects.ConvertribdPolicyCommunitySetObjToThrift(&dbObj, obj)
+				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
+					OrigConfigObject: obj,
+					Op:               defs.AddPolicyCommunitySet,
+				}
+				err = <-ribdServiceHandler.PolicyConfDone
+			}
+		} else {
+			logger.Err("DB Query failed during PolicyCommunitySet query: RIBd init")
+		}
+	}
+	return err
+}
+func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyExtendedCommunitySetsFromDB(dbHdl *dbutils.DBUtil) (err error) {
+	logger.Debug("UpdateGlobalPolicyExtendedCommunitySetsFromDB")
+	if dbHdl != nil {
+		var dbObjCfg objects.PolicyExtendedCommunitySet
+		objList, err := dbHdl.GetAllObjFromDb(dbObjCfg)
+		if err == nil {
+			for idx := 0; idx < len(objList); idx++ {
+				obj := ribd.NewPolicyExtendedCommunitySet()
+				dbObj := objList[idx].(objects.PolicyExtendedCommunitySet)
+				objects.ConvertribdPolicyExtendedCommunitySetObjToThrift(&dbObj, obj)
+				ribdServiceHandler.PolicyConfCh <- RIBdServerConfig{
+					OrigConfigObject: obj,
+					Op:               defs.AddPolicyExtendedCommunitySet,
+				}
+				err = <-ribdServiceHandler.PolicyConfDone
+			}
+		} else {
+			logger.Err("DB Query failed during PolicyExtendedCommunitySet query: RIBd init")
+		}
+	}
+	return err
+}
 
 func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyConditionsFromDB(dbHdl *dbutils.DBUtil) (err error) {
 	logger.Debug("UpdateGlobalPolicyConditionsFromDB")
@@ -152,8 +218,11 @@ func (ribdServiceHandler *RIBDServer) UpdateGlobalPolicyFromDB(dbHdl *dbutils.DB
 func (ribdServiceHandler *RIBDServer) UpdatePolicyObjectsFromDB() { //(paramsDir string) (err error) {
 	logger.Debug("UpdateFromDB")
 	dbHdl := ribdServiceHandler.DbHdl
-	ribdServiceHandler.UpdateGlobalPolicyPrefixSetsFromDB(dbHdl) //paramsDir, dbHdl)
-	ribdServiceHandler.UpdateGlobalPolicyConditionsFromDB(dbHdl) //paramsDir, dbHdl)
+	ribdServiceHandler.UpdateGlobalPolicyPrefixSetsFromDB(dbHdl)            //paramsDir, dbHdl)
+	ribdServiceHandler.UpdateGlobalPolicyASPathSetsFromDB(dbHdl)            //paramsDir, dbHdl)
+	ribdServiceHandler.UpdateGlobalPolicyCommunitySetsFromDB(dbHdl)         //paramsDir, dbHdl)
+	ribdServiceHandler.UpdateGlobalPolicyExtendedCommunitySetsFromDB(dbHdl) //paramsDir, dbHdl)
+	ribdServiceHandler.UpdateGlobalPolicyConditionsFromDB(dbHdl)            //paramsDir, dbHdl)
 	ribdServiceHandler.UpdateGlobalPolicyStmtsFromDB(dbHdl)
 	ribdServiceHandler.UpdateGlobalPolicyFromDB(dbHdl)
 	return

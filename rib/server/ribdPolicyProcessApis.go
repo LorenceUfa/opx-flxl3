@@ -56,7 +56,7 @@ type Policy struct {
    Function to create policy condition in the policyEngineDB
 */
 func (m RIBDServer) ProcessPolicyConditionConfigCreate(cfg *ribd.PolicyCondition, db *policy.PolicyEngineDB) (val bool, err error) {
-	logger.Debug("ProcessPolicyConditionConfigCreate:CreatePolicyConditioncfg: ", cfg.Name)
+	logger.Debug("ProcessPolicyConditionConfigCreate:CreatePolicyConditioncfg: ", cfg.Name, " cfg:", *cfg)
 	newPolicy := policy.PolicyConditionConfig{Name: cfg.Name,
 		ConditionType:               cfg.ConditionType,
 		MatchProtocolConditionInfo:  cfg.Protocol,
@@ -67,7 +67,7 @@ func (m RIBDServer) ProcessPolicyConditionConfigCreate(cfg *ribd.PolicyCondition
 	newPolicy.MatchDstIpPrefixConditionInfo = policy.PolicyDstIpMatchPrefixSetCondition{Prefix: matchPrefix, PrefixSet: cfg.PrefixSet}
 
 	newPolicy.MatchCommunityConditionInfo = policy.PolicyMatchCommunitySetCondition{Community: cfg.Community, CommunitySet: cfg.CommunitySet}
-
+	logger.Debug("cfg.CommunitySet:", cfg.CommunitySet, " newPolicy.MatchCommunityConditionInfo:", newPolicy.MatchCommunityConditionInfo)
 	matchExtendedCommunityInfo := policy.PolicyExtendedCommunityInfo{cfg.ExtendedCommunityType, cfg.ExtendedCommunityValue}
 	newPolicy.MatchExtendedCommunityConditionInfo = policy.PolicyMatchExtendedCommunitySetCondition{ExtendedCommunity: matchExtendedCommunityInfo, ExtendedCommunitySet: cfg.ExtendedCommunitySet}
 
