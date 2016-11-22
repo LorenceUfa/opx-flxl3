@@ -23,59 +23,9 @@
 
 package server
 
-import (
-	"time"
-)
+import ()
 
-type LsdbKey struct {
-	AreaId uint32
-}
-
-const (
-	RouterLSA     uint8 = 1
-	NetworkLSA    uint8 = 2
-	Summary3LSA   uint8 = 3
-	Summary4LSA   uint8 = 4
-	ASExternalLSA uint8 = 5
-)
-
-type LsaKey struct {
-	LSType    uint8  /* LS Type */
-	LSId      uint32 /* Link State Id */
-	AdvRouter uint32 /* Avertising Router */
-}
-
-func NewLsaKey() *LsaKey {
-	return &LsaKey{}
-}
-
-type LSDatabase struct {
-	RouterLsaMap     map[LsaKey]RouterLsa
-	NetworkLsaMap    map[LsaKey]NetworkLsa
-	Summary3LsaMap   map[LsaKey]SummaryLsa
-	Summary4LsaMap   map[LsaKey]SummaryLsa
-	ASExternalLsaMap map[LsaKey]ASExternalLsa
-}
-
-type SelfOrigLsa map[LsaKey]bool
-
-type LsdbCtrlChStruct struct {
-	LsdbGblCtrlCh       chan bool
-	LsdbGblCtrlReplyCh  chan bool
-	LsdbAreaCtrlCh      chan uint32
-	LsdbAreaCtrlReplyCh chan uint32
-}
-
-type RouteInfo struct {
-	NwAddr  uint32
-	Netmask uint32
-	Metric  uint32
-}
-
-type LsdbStruct struct {
-	AreaLsdb        map[LsdbKey]LSDatabase
-	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
-	LsdbCtrlChData  LsdbCtrlChStruct
-	LsdbAgingTicker *time.Ticker
-	ExtRouteInfoMap map[RouteInfo]bool
+func (server *OSPFV2Server) SendMsgFromNbrToLsdb(msg UpdateSelfNetworkLSAMsg) {
+	server.logger.Info("Sending msg To lsdb from nbr to update network LSA  :")
+	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh <- msg
 }

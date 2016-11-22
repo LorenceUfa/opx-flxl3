@@ -134,8 +134,10 @@ type NbrDownMsg struct {
 type RecvdLsaMsgType uint8
 
 const (
-	LSA_ADD RecvdLsaMsgType = 0
-	LSA_DEL RecvdLsaMsgType = 1
+	LSA_ADD        RecvdLsaMsgType = 0
+	LSA_DEL        RecvdLsaMsgType = 1
+	LSA_FLOOD_ALL  RecvdLsaMsgType = 2
+	LSA_FLOOD_INTF RecvdLsaMsgType = 3
 )
 
 type RecvdLsaMsg struct {
@@ -161,7 +163,7 @@ const (
 type UpdateSelfNetworkLSAMsg struct {
 	Op      LsaOp
 	IntfKey IntfConfKey
-	NbrList []uint32
+	NbrList []NbrConfKey
 }
 
 type LsdbToFloodLSAMsg struct {
@@ -169,7 +171,12 @@ type LsdbToFloodLSAMsg struct {
 	LsaKey  LsaKey
 	LsaData interface{}
 }
-
+type NbrToFloodMsg struct {
+	MsgType RecvdLsaMsgType
+	LsaPkt  []byte
+	NbrKey  NbrConfKey
+	LsaType uint8
+}
 type RouteAddMsg struct {
 	RTblKey   RoutingTblEntryKey
 	RTblEntry GlobalRoutingTblEntry
@@ -177,6 +184,18 @@ type RouteAddMsg struct {
 
 type RouteDelMsg struct {
 	RTblKey RoutingTblEntryKey
+}
+
+type RouteInfoUpdateMsgType uint8
+
+const (
+	ROUTE_INFO_ADD RouteInfoUpdateMsgType = 0
+	ROUTE_INFO_DEL RouteInfoUpdateMsgType = 1
+)
+
+type RouteInfoDataUpdateMsg struct {
+	MsgType       RouteInfoUpdateMsgType
+	RouteInfoList []RouteInfo
 }
 
 type IntfToNbrFSMChStruct struct {
@@ -199,6 +218,9 @@ type NbrFSMToLsdbChStruct struct {
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
 }
 
+type NbrFSMToFloodChStruct struct {
+	LsaFloodCh chan NbrToFloodMsg
+}
 type LsdbToFloodChStruct struct {
 	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
 }
@@ -212,11 +234,14 @@ type SPFToLsdbChStruct struct {
 }
 
 type ServerToLsdbChStruct struct {
-	RefreshLsdbSliceCh chan bool
+	RefreshLsdbSliceCh    chan bool
+	RouteInfoDataUpdateCh chan RouteInfoDataUpdateMsg
+	InitAreaLsdbCh        chan uint32
 }
 
 type LsdbToServerChStruct struct {
 	RefreshLsdbSliceDoneCh chan bool
+	InitAreaLsdbDoneCh     chan bool
 }
 
 type RouteTblToDBClntChStruct struct {
@@ -229,6 +254,7 @@ type MessagingChStruct struct {
 	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
 	NbrToIntfFSMChData     NbrToIntfFSMChStruct
 	NbrFSMToLsdbChData     NbrFSMToLsdbChStruct
+	NbrFSMToFloodChData    NbrFSMToFloodChStruct
 	LsdbToFloodChData      LsdbToFloodChStruct
 	LsdbToSPFChData        LsdbToSPFChStruct
 	SPFToLsdbChData        SPFToLsdbChStruct

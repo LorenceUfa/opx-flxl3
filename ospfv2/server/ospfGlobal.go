@@ -76,6 +76,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		//Deinit Tx Pkt
 		server.StopAllRxTxPkt()
 		// TODO: Stop Nbr FSM
+		server.StopNbrFSM()
 
 		// Deinit LSDB Data Structure
 		// Stop LSDB
@@ -83,6 +84,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 		//TODO: Stop Flooding
 
+		server.StopFlooding()
 		// Flush all the routes
 		// Deinit Routing Tbl
 		// Deinit SPF Structures
@@ -121,25 +123,27 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Init Routing Tbl
 		// Start SPF
 		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
 
-		// TODO: Start Flooding
-
+		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
 		// Init LSDB Data Structure
 		// Start LSDB
 		server.StartLsdbRoutine()
-		// TODO: Start Nbr FSM
+		server.logger.Info("Successfully started Lsdb Routine")
+		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
 
 		// Init Rx
 		// Init Tx
 		// Start Rx
 		server.StartAllRxTxPkt()
+		server.logger.Info("Successfully started All Rx Tx Packet")
 
 		// Init Ospf Intf FSM
 		//Start All Interface FSM
 		server.StartAllIntfFSM()
-
-		//TODO
-		//Start Ribd Updates if ASBdrRtrStatus = true
+		server.logger.Info("Successfully started All Intf FSM")
 	}
 
 	return true, nil
@@ -163,13 +167,11 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 			return false, err
 		}
 		server.StartSPF()
+		server.StartFlooding()
 		server.StartLsdbRoutine()
-		//TODO: Start NBR FSM
+		server.StartNbrFSM()
 		server.StartAllRxTxPkt()
 		server.StartAllIntfFSM()
-		if server.globalData.ASBdrRtrStatus == true {
-			//TODO: Start Ribd Updates
-		}
 	}
 	return true, nil
 }

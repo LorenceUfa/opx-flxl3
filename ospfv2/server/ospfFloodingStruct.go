@@ -7,11 +7,11 @@
 //
 //    http://www.apache.org/licenses/LICENSE-2.0
 //
-//	 Unless required by applicable law or agreed to in writing, software
-//	 distributed under the License is distributed on an "AS IS" BASIS,
-//	 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//	 See the License for the specific language governing permissions and
-//	 limitations under the License.
+//       Unless required by applicable law or agreed to in writing, software
+//       distributed under the License is distributed on an "AS IS" BASIS,
+//       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//       See the License for the specific language governing permissions and
+//       limitations under the License.
 //
 // _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
 // |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
@@ -25,17 +25,11 @@ package server
 
 import ()
 
-func (server *OSPFV2Server) SendMsgToLsdbToRefreshSlice() {
-	server.logger.Info("Sending msg To Refresh Lsdb Slice :")
-	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh <- true
-}
+const (
+	FloodLsa uint8 = LsdbNoAction + 1
+)
 
-func (server *OSPFV2Server) SendMsgToLsdbToInitAreaLsdb(areaId uint32) {
-	server.logger.Info("Sending msg to Init Area Lsdb:", areaId)
-	server.MessagingChData.ServerToLsdbChData.InitAreaLsdbCh <- areaId
-}
-
-func (server *OSPFV2Server) SendMsgToLsdbToUpdateRouteInfo(msg RouteInfoDataUpdateMsg) {
-	server.logger.Info("Sending msg to Lsdb for Updating RouteInfo:", msg)
-	server.MessagingChData.ServerToLsdbChData.RouteInfoDataUpdateCh <- msg
+type FloodStruct struct {
+	FloodCtrlCh      chan bool
+	FloodCtrlReplyCh chan bool
 }

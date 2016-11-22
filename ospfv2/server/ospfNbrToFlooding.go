@@ -24,58 +24,31 @@
 package server
 
 import (
-	"time"
+	"l3/ospfv2/objects"
 )
 
-type LsdbKey struct {
-	AreaId uint32
-}
+func (server *OSPFV2Server) SendNbrFullMsg(nbrKey NbrConfKey) {
+	server.logger.Info("Nbr: Send nbr full msg to flooding. ")
+	nbrConf, valid := server.NbrConfMap[nbrKey]
+	if !valid {
+		server.logger.Err("Nbr does not exist . No message sent ", nbrKey)
+		return
+	}
 
-const (
-	RouterLSA     uint8 = 1
-	NetworkLSA    uint8 = 2
-	Summary3LSA   uint8 = 3
-	Summary4LSA   uint8 = 4
-	ASExternalLSA uint8 = 5
-)
+	_, exist := server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[nbrConf.IntfKey]
+	if !exist {
+		server.logger.Err("NbrDownMsgCh is out of sync")
+		return
+	}
+	intfConfEnt, exist := server.IntfConfMap[nbrConf.IntfKey]
+	if !exist {
+		server.logger.Err("IntfConfMap is out of sync")
+		return
+	}
+	if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
+		//	msgCh <- msg
+		return
+	}
 
-type LsaKey struct {
-	LSType    uint8  /* LS Type */
-	LSId      uint32 /* Link State Id */
-	AdvRouter uint32 /* Avertising Router */
-}
-
-func NewLsaKey() *LsaKey {
-	return &LsaKey{}
-}
-
-type LSDatabase struct {
-	RouterLsaMap     map[LsaKey]RouterLsa
-	NetworkLsaMap    map[LsaKey]NetworkLsa
-	Summary3LsaMap   map[LsaKey]SummaryLsa
-	Summary4LsaMap   map[LsaKey]SummaryLsa
-	ASExternalLsaMap map[LsaKey]ASExternalLsa
-}
-
-type SelfOrigLsa map[LsaKey]bool
-
-type LsdbCtrlChStruct struct {
-	LsdbGblCtrlCh       chan bool
-	LsdbGblCtrlReplyCh  chan bool
-	LsdbAreaCtrlCh      chan uint32
-	LsdbAreaCtrlReplyCh chan uint32
-}
-
-type RouteInfo struct {
-	NwAddr  uint32
-	Netmask uint32
-	Metric  uint32
-}
-
-type LsdbStruct struct {
-	AreaLsdb        map[LsdbKey]LSDatabase
-	AreaSelfOrigLsa map[LsdbKey]SelfOrigLsa
-	LsdbCtrlChData  LsdbCtrlChStruct
-	LsdbAgingTicker *time.Ticker
-	ExtRouteInfoMap map[RouteInfo]bool
+	server.logger.Err("Interface FSM is down, so can't send NbrDownMsg", nbrConf.IntfKey)
 }

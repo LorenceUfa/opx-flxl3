@@ -65,7 +65,7 @@ func (server *OSPFV2Server) flushNetworkLSA(intfKey IntfConfKey) error {
 	return nil
 }
 
-func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []uint32) error {
+func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []NbrConfKey) error {
 	var lsaKey LsaKey
 	intfConfEnt, err := server.GetIntfConfForGivenIntfKey(intfKey)
 	if err != nil {
@@ -91,7 +91,7 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	lsaEnt.AttachedRtr = nil
 	lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, server.globalData.RouterId)
 	for _, nbr := range nbrList {
-		lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, nbr)
+		lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, nbr.NbrIdentity)
 	}
 	lsaEnt.Netmask = intfConfEnt.Netmask
 	lsaEnt.LsaMd.LSAge = 0
@@ -112,11 +112,13 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Network LSA (areaId, lsaEnt, lsaKey)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
-	lsdbSlice := LsdbSliceStruct{
-		LsdbKey: lsdbKey,
-		LsaKey:  lsaKey,
+	if !exist {
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: lsdbKey,
+			LsaKey:  lsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	}
-	server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	return nil
 }
 
@@ -193,12 +195,15 @@ func (server *OSPFV2Server) processRecvdNetworkLSA(msg RecvdLsaMsg) error {
 			server.logger.Err("Unable to assert given Network lsa")
 			return nil
 		}
+		_, exist = lsdbEnt.NetworkLsaMap[msg.LsaKey]
 		lsdbEnt.NetworkLsaMap[msg.LsaKey] = lsa
-		lsdbSlice := LsdbSliceStruct{
-			LsdbKey: msg.LsdbKey,
-			LsaKey:  msg.LsaKey,
+		if !exist {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: msg.LsdbKey,
+				LsaKey:  msg.LsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 		}
-		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		delete(lsdbEnt.NetworkLsaMap, msg.LsaKey)
 	}

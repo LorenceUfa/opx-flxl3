@@ -29,3 +29,8 @@ func (server *OSPFV2Server) SendMsgFromLsdbToServerForRefreshDone() {
 	server.logger.Info("Sending msg from Lsdb To Server for refresh done :")
 	server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh <- true
 }
+
+func (server *OSPFV2Server) SendMsgFromLsdbToServerForInitAreaLsdbDone() {
+	server.logger.Info("Sending msg from Lsdb to Server for Init Area Lsdb Done:")
+	server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh <- true
+}

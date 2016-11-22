@@ -183,13 +183,84 @@ func (server *OSPFV2Server) GenerateRouterLSA(msg GenerateRouterLSAMsg) error {
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
+	server.logger.Info("Calling CreateAndSendMsgFromLsdbToFloodLsa():", lsdbKey.AreaId, lsaKey, lsaEnt)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
-	lsdbSlice := LsdbSliceStruct{
-		LsdbKey: lsdbKey,
-		LsaKey:  lsaKey,
+	if !exist {
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: lsdbKey,
+			LsaKey:  lsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	}
-	server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	return nil
+}
+
+func (server *OSPFV2Server) reGenerateRouterLSA(msg GenerateRouterLSAMsg) {
+	var lsaKey LsaKey
+	areaEnt, err := server.GetAreaConfForGivenArea(msg.AreaId)
+	if err != nil {
+		server.logger.Err("Unable to find the Area", msg.AreaId)
+		return
+	}
+	var linkDetails []LinkDetail = nil
+	linkDetails = append(linkDetails, server.GetLinkDetails(msg.AreaId, areaEnt)...)
+	numOfLinks := len(linkDetails)
+	BitE := false
+	if server.globalData.ASBdrRtrStatus == true {
+		BitE = true
+	}
+	BitB := false
+	if server.globalData.AreaBdrRtrStatus == true {
+		BitB = true
+	}
+	lsaKey = LsaKey{
+		LSType:    RouterLSA,
+		LSId:      server.globalData.RouterId,
+		AdvRouter: server.globalData.RouterId,
+	}
+	lsdbKey := LsdbKey{
+		AreaId: msg.AreaId,
+	}
+
+	lsdbEnt, lsdbExist := server.LsdbData.AreaLsdb[lsdbKey]
+	if !lsdbExist {
+		server.logger.Err("Area doesnot exist. No router LSA will be generated", lsdbKey)
+		return
+	}
+	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	lsaEnt, exist := lsdbEnt.RouterLsaMap[lsaKey]
+	if !exist {
+		server.logger.Err("No router LSA will be regenerated as it doesnot exist", lsdbKey)
+		return
+	}
+	if numOfLinks == 0 {
+		delete(lsdbEnt.RouterLsaMap, lsaKey)
+		delete(selfOrigLsaEnt, lsaKey)
+		server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
+		server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+		return
+	}
+	lsaEnt.LsaMd.LSAge = 0
+	lsaEnt.LsaMd.LSChecksum = 0
+	lsaEnt.LsaMd.LSLen = uint16(OSPF_LSA_HEADER_SIZE + 4 + (12 * numOfLinks))
+	lsaEnt.LsaMd.Options = EOption
+	lsaEnt.LsaMd.LSSequenceNum = lsaEnt.LsaMd.LSSequenceNum + 1
+	lsaEnt.BitB = BitB
+	lsaEnt.BitE = BitE
+	lsaEnt.BitV = false
+	lsaEnt.NumOfLinks = uint16(numOfLinks)
+	lsaEnt.LinkDetails = nil
+	lsaEnt.LinkDetails = append(lsaEnt.LinkDetails, linkDetails...)
+	lsaEnc := encodeRouterLsa(lsaEnt, lsaKey)
+	checksumOffset := uint16(14)
+	lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+	lsdbEnt.RouterLsaMap[lsaKey] = lsaEnt
+	selfOrigLsaEnt[lsaKey] = true
+	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
+	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
+	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
+	return
 }
 
 func (server *OSPFV2Server) processRecvdSelfRouterLSA(msg RecvdSelfLsaMsg) error {
@@ -250,12 +321,15 @@ func (server *OSPFV2Server) processRecvdRouterLSA(msg RecvdLsaMsg) error {
 			server.logger.Err("Unable to assert given router lsa")
 			return nil
 		}
+		_, exist = lsdbEnt.RouterLsaMap[msg.LsaKey]
 		lsdbEnt.RouterLsaMap[msg.LsaKey] = lsa
-		lsdbSlice := LsdbSliceStruct{
-			LsdbKey: msg.LsdbKey,
-			LsaKey:  msg.LsaKey,
+		if !exist {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: msg.LsdbKey,
+				LsaKey:  msg.LsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 		}
-		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 	} else if msg.MsgType == LSA_DEL {
 		delete(lsdbEnt.RouterLsaMap, msg.LsaKey)
 	}
