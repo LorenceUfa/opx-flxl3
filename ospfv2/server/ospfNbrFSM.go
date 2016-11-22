@@ -24,8 +24,8 @@
 package server
 
 import (
-	//	"l3/ospfv2/objects"
 	"fmt"
+	"l3/ospfv2/objects"
 	"time"
 )
 
@@ -46,7 +46,8 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 			//DBD received
 		case msg := <-server.MessagingChData.IntfToNbrFSMChData.NetworkDRChangeCh:
 			server.logger.Info("Network DR Change Msg", msg)
-			//TODO
+			server.ProcessNetworkDRChangeMsg(msg)
+
 		case dbdData := <-server.NbrConfData.neighborDBDEventCh:
 			server.logger.Debug("Nbr: Received dbd event ", dbdData)
 			server.ProcessNbrDbdMsg(dbdData)
@@ -125,13 +126,14 @@ func (server *OSPFV2Server) ProcessNbrHello(nbrData NbrHelloEventMsg) {
 			NbrAddressLessIfIdx: 0,
 		} */
 	nbrKey := nbrData.NbrKey
-	nbrConf, valid := server.NbrConfMap[nbrKey]
+	_, valid := server.NbrConfMap[nbrKey]
 	if !valid {
 		server.logger.Debug("Nbr: add new neighbor ", nbrData.NbrIP)
 		// add new neighbor
 		server.CreateNewNbr(nbrData)
 	}
-	flags := NBR_FLAG_INACTIVITY_TIMER
+	nbrConf := server.NbrConfMap[nbrKey]
+	flags := 0
 	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
 }
 
@@ -166,20 +168,25 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	nbrConf.NbrBdr = nbrData.NbrBDRIpAddr
 	nbrConf.IntfKey = nbrData.IntfConfKey
 	nbrConf.RtrId = nbrData.RouterId
-	nbrConf.NbrDeadDuration = 40
-	nbrConf.InactivityTimer = time.Now()
+	server.logger.Debug("Nbr : Added nbr dead duration ", nbrData.NbrDeadTime)
+	nbrConf.NbrDeadTimeDuration = nbrData.NbrDeadTime
 	if nbrData.TwoWayStatus {
 		nbrConf.State = NbrTwoWay
-		server.ProcessNbrFsmStart(nbrKey, nbrConf)
 		server.NbrConfMap[nbrKey] = nbrConf
 	} else {
 		nbrConf.State = NbrInit
 		server.NbrConfMap[nbrKey] = nbrConf
 	}
 	newList := []NbrConfKey{}
-	newList = append(newList, nbrKey)
+	//newList = append(newList, nbrKey)
 	server.NbrConfData.IntfToNbrMap[nbrData.IntfConfKey] = newList
 	server.ProcessNbrDead(nbrKey)
+	nbrConf, exist := server.NbrConfMap[nbrKey]
+	if !exist {
+		server.logger.Err("Nbr : Nbr conf does not exist .  Dbd will not be processed. ", nbrKey)
+		return
+	}
+	server.ProcessNbrFsmStart(nbrKey, nbrConf)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrConf) {
@@ -429,7 +436,6 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	}
 	nbrConf.State = NbrFull
 	server.UpdateIntfToNbrMap(nbrKey)
-	//TODO send message to generate networkLSA
 	flags := NBR_FLAG_STATE
 	server.UpdateNbrConf(nbrKey, nbrConf, flags)
 	server.logger.Debug("Nbr: Nbr full event ", nbrKey)
@@ -442,10 +448,34 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	server.SendMsgFromNbrToLsdb(msg)
 }
 
+func (server *OSPFV2Server) ProcessNetworkDRChangeMsg(msg NetworkDRChangeMsg) {
+	server.logger.Debug("Nbr: Received Network DR change message ")
+	var Op LsaOp
+	if msg.OldIntfFSMState == objects.INTF_FSM_STATE_DR &&
+		msg.NewIntfFSMState == objects.INTF_FSM_STATE_OTHER_DR {
+		Op = FLUSH
+	}
+	if msg.OldIntfFSMState == objects.INTF_FSM_STATE_OTHER_DR &&
+		msg.NewIntfFSMState == objects.INTF_FSM_STATE_DR {
+		Op = GENERATE
+	}
+
+	floodMsg := UpdateSelfNetworkLSAMsg{
+		Op:      Op,
+		IntfKey: msg.IntfKey,
+		NbrList: server.NbrConfData.IntfToNbrMap[msg.IntfKey],
+	}
+
+	server.SendMsgFromNbrToLsdb(floodMsg)
+
+}
+
 func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
+	server.logger.Debug("Nbr : nbr dead called")
 	var nbr_entry_dead_func func()
-	nbrConf, _ := server.NbrConfMap[nbrKey]
 	nbr_entry_dead_func = func() {
+		nbrConf, _ := server.NbrConfMap[nbrKey]
+
 		server.logger.Info(fmt.Sprintln("NBRSCAN: DEAD ", nbrKey))
 		server.logger.Info(fmt.Sprintln("DEAD: start processing nbr dead ", nbrKey))
 		server.ResetNbrData(nbrKey, nbrConf.IntfKey)
@@ -473,11 +503,11 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 			server.logger.Info("Nbr: Deleted ", nbrKey)
 		}
 	} // end of afterFunc callback
-	_, exists := server.NbrConfMap[nbrKey]
+	nbrConf, exists := server.NbrConfMap[nbrKey]
 	if exists {
-		nbrConf := server.NbrConfMap[nbrKey]
 		nbrConf.NbrDeadTimer = time.AfterFunc(nbrConf.NbrDeadTimeDuration, nbr_entry_dead_func)
 		server.NbrConfMap[nbrKey] = nbrConf
+		server.logger.Debug("Nbr : nbr dead updated ")
 	}
 
 }
@@ -490,9 +520,6 @@ func (server *OSPFV2Server) ProcessNbrUpdate(nbrKey NbrConfKey, nbrConf NbrConf,
 	}
 	if flags&NBR_FLAG_STATE == NBR_FLAG_STATE {
 		nbrConfOld.State = nbrConf.State
-	}
-	if flags&NBR_FLAG_INACTIVITY_TIMER == NBR_FLAG_INACTIVITY_TIMER {
-		nbrConfOld.InactivityTimer = nbrConf.InactivityTimer
 	}
 	if flags&NBR_FLAG_IS_MASTER == NBR_FLAG_IS_MASTER {
 		nbrConfOld.isMaster = nbrConf.isMaster
@@ -519,8 +546,9 @@ func (server *OSPFV2Server) ProcessNbrUpdate(nbrKey NbrConfKey, nbrConf NbrConf,
 	}
 
 	if flags&NBR_FLAG_DEAD_DURATION == NBR_FLAG_DEAD_DURATION {
-		nbrConfOld.NbrDeadDuration = nbrConf.NbrDeadDuration
+		nbrConfOld.NbrDeadTimeDuration = nbrConf.NbrDeadTimeDuration
 	}
+
 	nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
 	server.NbrConfMap[nbrKey] = nbrConf
 	server.logger.Debug("Nbr: Nbr conf updated ", nbrKey)
