@@ -172,3 +172,8 @@ func (m RIBDServicesHandler) UpdateApplyPolicy(applyList []*ribdInt.ApplyPolicyI
 	m.server.PolicyUpdateApplyCh <- server.ApplyPolicyList{applyList, undoList}
 	return nil
 }
+func (m RIBDServicesHandler) CreateRedistributionPolicy(cfg *ribd.RedistributionPolicy) (val bool, err error) {
+
+}
+func (m RIBDServicesHandler) UpdateRedistributionPolicy(origconfig *ribd.RedistributionPolicy, newconfig *ribd.RedistributionPolicy ,attrset []bool, op []list<PatchOpInfo> op);
+func (m RIBDServicesHandler) DeleteRedistributionPolicy(1: RedistributionPolicy config);
