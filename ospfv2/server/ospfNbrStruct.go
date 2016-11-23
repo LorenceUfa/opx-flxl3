@@ -32,7 +32,6 @@ type NbrConf struct {
 	IntfKey             IntfConfKey
 	State               NbrState
 	InactivityTimer     time.Time
-	RtrId               uint32
 	isMaster            bool
 	DDSequenceNum       uint32
 	Mtu                 uint32
