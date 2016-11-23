@@ -97,17 +97,14 @@ func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf
 	}
 
 	if nbrConf.isMaster {
-		if nbrDbPkt.dd_sequence_number != nbrConf.DDSequenceNum {
-			if nbrDbPkt.dd_sequence_number+1 == nbrConf.DDSequenceNum {
-				server.logger.Debug(fmt.Sprintln("Duplicate: This is db duplicate packet. Ignore."))
-				return false
-			}
-			server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is master but dbd packet seq no doesnt match. dbd seq ",
-				nbrDbPkt.dd_sequence_number, "nbr seq ", nbrConf.DDSequenceNum))
-			return true
+		if nbrDbPkt.dd_sequence_number == nbrConf.DDSequenceNum+1 {
+			server.logger.Debug(fmt.Sprintln("Duplicate: This is db duplicate packet. Ignore."))
+			return false
 		}
+		server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is master but dbd packet seq no doesnt match. dbd seq ",
+			nbrDbPkt.dd_sequence_number, "nbr seq ", nbrConf.DDSequenceNum))
 	} else {
-		if nbrDbPkt.dd_sequence_number != nbrConf.DDSequenceNum {
+		if nbrDbPkt.dd_sequence_number != nbrConf.DDSequenceNum+1 {
 			server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is slave but dbd packet seq no doesnt match.dbd seq ",
 				nbrDbPkt.dd_sequence_number, "nbr seq ", nbrConf.DDSequenceNum))
 			return true
