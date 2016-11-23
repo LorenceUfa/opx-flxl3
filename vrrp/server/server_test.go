@@ -20,34 +20,44 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-package lib
+
+package server
 
 import (
-	"fmt"
-	"l3/ndp/lib/flexswitch"
-	"l3/ndp/lib/mock"
+	"l3/arp/clientMgr"
+	arpFS "l3/arp/clientMgr/flexswitch"
+	ndpClient "l3/ndp/lib"
+	ndpFS "l3/ndp/lib/flexswitch"
+	"l3/vrrp/debug"
+	"log/syslog"
+	"testing"
+	asicdClnt "utils/asicdClient/mock"
 	"utils/commonDefs"
+	"utils/logging"
 )
 
-type NdpdClientIntf interface {
-	DeleteNdpEntry(ipAddr string) (err error)
-}
+var testSvr *VrrpServer
 
-func NewNdpClient(plugin, paramsFile string, clntList []commonDefs.ClientJson, ndpHdl flexswitch.NdpdClientStruct) NdpdClientIntf {
-	switch plugin {
-	case commonDefs.FLEXSWITCH_PLUGIN:
-		clntHdl := flexswitch.GetNdpdThriftClientHdl(paramsFile, clntList)
-		if clntHdl == nil {
-			fmt.Println("Unable to Connecte to Ndpd Client")
-			return nil
-		}
-		flexswitch.InitNdpdSubscriber(ndpHdl)
-		return &flexswitch.FSNdpdClient{clntHdl}
-	case commonDefs.MOCK_PLUGIN:
-		return &mockNdp.MockNdpClient{}
-	default:
-		return nil
+func TestServerInit(t *testing.T) {
+	var err error
+	logger := new(logging.Writer)
+	logger.MyComponentName = "VRRPD"
+	logger.SysLogger, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "VRRPFSMTEST")
+	if err != nil {
+		t.Error("failed to initialize syslog:", err)
+		return
+	} else {
+		logger.MyLogLevel = 9 // trace level
+		debug.SetLogger(logger)
 	}
-
-	return nil
+	testAsicdClnt := &asicdClnt.MockAsicdClientMgr{}
+	testNdpInst := ndpFS.NdpdClientStruct{}
+	testArpInst := arpFS.ArpdClientStruct{}
+	testArpClnt := arpClient.NewArpdClient(commonDefs.MOCK_PLUGIN, "", make([]commonDefs.ClientJson, 0), testArpInst)
+	testNdpClnt := ndpClient.NewNdpClient(commonDefs.MOCK_PLUGIN, "", make([]commonDefs.ClientJson, 0), testNdpInst)
+	testSvr = VrrpNewServer(testAsicdClnt, testArpClnt, testNdpClnt, nil)
+	if testSvr == nil {
+		t.Error("Initializing Vrrp Server Failed")
+		return
+	}
 }

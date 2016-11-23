@@ -90,6 +90,7 @@ func (svr *NDPServer) GetVlans() {
 	}
 	// store vlan state information like name, ifIndex, operstate
 	for _, vlanState := range vlansStateInfo {
+		debug.Logger.Info("vlan:", *vlanState)
 		entry, _ := svr.VlanInfo[vlanState.IfIndex]
 		entry.VlanId = vlanState.VlanId
 		entry.VlanIfIndex = vlanState.IfIndex
@@ -109,6 +110,7 @@ func (svr *NDPServer) GetVlans() {
 		}
 		svr.VlanInfo[vlanState.IfIndex] = entry
 		svr.VlanIfIdxVlanIdMap[vlanState.VlanName] = vlanState.VlanId
+		svr.Dot1QToVlanIfIndex[vlanState.VlanId] = vlanState.IfIndex
 	}
 	debug.Logger.Info("Done with Vlan List")
 	return
@@ -168,6 +170,7 @@ func (svr *NDPServer) getVirtualIpIntf() {
 			}
 		}
 	}
+	debug.Logger.Info("Done with virtual ipv6 interface list")
 }
 
 func (svr *NDPServer) GetIfType(ifIndex int32) int {

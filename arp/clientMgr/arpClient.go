@@ -25,6 +25,7 @@ package arpClient
 import (
 	"fmt"
 	"l3/arp/clientMgr/flexswitch"
+	"l3/arp/clientMgr/mock"
 	"utils/commonDefs"
 )
 
@@ -45,6 +46,8 @@ func NewArpdClient(plugin, paramsFile string, clntList []commonDefs.ClientJson, 
 		}
 		flexswitch.InitArpdSubscriber(arpHdl)
 		return &flexswitch.FSArpdClientMgr{clntHdl}
+	case commonDefs.MOCK_PLUGIN:
+		return &mockArp.MockArpClient{}
 	default:
 		return nil
 	}
