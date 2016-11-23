@@ -172,3 +172,19 @@ func (m RIBDServicesHandler) UpdateApplyPolicy(applyList []*ribdInt.ApplyPolicyI
 	m.server.PolicyUpdateApplyCh <- server.ApplyPolicyList{applyList, undoList}
 	return nil
 }
+func (m RIBDServicesHandler) CreateRedistributionPolicy(cfg *ribd.RedistributionPolicy) (val bool, err error) {
+
+	return true, nil
+}
+func (m RIBDServicesHandler) UpdateRedistributionPolicy(origconfig *ribd.RedistributionPolicy, newconfig *ribd.RedistributionPolicy, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
+	return true, nil
+}
+func (m RIBDServicesHandler) DeleteRedistributionPolicy(cfg *ribd.RedistributionPolicy) (val bool, err error) {
+	return true, nil
+}
+func (m RIBDServicesHandler) GetBulkRedistributionPolicyState(fromIndex ribd.Int, count ribd.Int) (info *ribd.RedistributionPolicyStateGetInfo, err error) {
+	return nil, nil
+}
+func (m RIBDServicesHandler) GetRedistributionPolicyState(Target string, Source string) (info *ribd.RedistributionPolicyState, err error) {
+	return nil, nil
+}

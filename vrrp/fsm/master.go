@@ -36,7 +36,6 @@ func (f *FSM) transitionToMaster() {
 	debug.Logger.Debug(FSM_PREFIX, "vrrp header information:", *pktInfo)
 	// (110) + Send an ADVERTISEMENT
 	f.send(pktInfo)
-	f.updateTxStInfo()
 	// Set Sub-intf state up and send out garp via linux stack
 	if f.previousState == f.State {
 		debug.Logger.Debug(FSM_PREFIX, "Enabling VirtualIp as interface:", f.Config.IntfRef, "is master now")
@@ -44,6 +43,7 @@ func (f *FSM) transitionToMaster() {
 	}
 	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
+	f.updateTxStInfo()
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
 	f.startMasterAdverTimer()
@@ -108,9 +108,8 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 		*               the local Priority and the primary IPvX Address of the
 		*	        sender is greater than the local primary IPvX Address, then:
 		 */
-		if int32(hdr.Priority) > f.Config.Priority ||
-			(int32(hdr.Priority) == f.Config.Priority &&
-				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.ipAddr)) > 0) {
+		if (int32(hdr.Priority) > f.Config.Priority) ||
+			((int32(hdr.Priority) == f.Config.Priority) && (bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.ipAddr)) > 0)) {
 			// (740) -@ Cancel Adver_Timer
 			f.stopMasterAdverTimer()
 			/*
@@ -122,6 +121,7 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 			*/
 			f.previousState = f.State
 			f.transitionToBackup(int32(hdr.MaxAdverInt))
+			f.updateRxStInfo(pktInfo)
 		} else { // new Master logic
 			// Discard Advertisement
 			return

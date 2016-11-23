@@ -75,11 +75,22 @@ func (intf *Interface) processNA(ndInfo *packet.NDInfo) (nbrInfo *config.Neighbo
 	}
 	nbr, exists := intf.Neighbor[nbrKey]
 	if !exists {
-		return nil, IGNORE
+		// not exists lets check incomplete Nbr list
+		// e.g: NA nbrKey created: d4:ae:52:e7:bb:b0_4000::105:1:1:1_fpPort48]
+		_, exists := intf.incompleteNbr[ndInfo.SrcIp]
+		if !exists {
+			return nil, IGNORE
+		}
+		// create new neighbor as the entry has moved from INCOMPLETE to reachable with the NA
+		nbr.InitCache(intf.reachableTime, intf.retransTime, nbrKey, intf.PktDataCh, intf.IfIndex)
+		intf.deleteIncompleteEntry(ndInfo.SrcIp)
+		oper = CREATE
+		nbr.State = REACHABLE
+		goto early_exit
 	}
 
 	// override flag is clear
-	if ndInfo.ReservedFlags&OVERRIDE_SET == 0x00 {
+	if ndInfo.ReservedFlags&OVERRIDE_SET == 0x00 && nbr.State != INCOMPLETE {
 		if nbr.State == REACHABLE {
 			nbr.State = STALE
 		} else {
@@ -103,8 +114,9 @@ func (intf *Interface) processNA(ndInfo *packet.NDInfo) (nbrInfo *config.Neighbo
 			nbr.State = STALE
 		}
 	}
-	nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
 	oper = UPDATE
+early_exit:
+	nbrInfo = nbr.populateNbrInfo(intf.IfIndex, intf.IntfRef)
 	nbr.updatePktRxStateInfo()
 	intf.Neighbor[nbrKey] = nbr
 	return nbrInfo, oper
