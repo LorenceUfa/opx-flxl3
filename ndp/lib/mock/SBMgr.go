@@ -20,34 +20,12 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-package lib
+package mockNdp
 
-import (
-	"fmt"
-	"l3/ndp/lib/flexswitch"
-	"l3/ndp/lib/mock"
-	"utils/commonDefs"
-)
-
-type NdpdClientIntf interface {
-	DeleteNdpEntry(ipAddr string) (err error)
+type MockNdpClient struct {
+	val int
 }
 
-func NewNdpClient(plugin, paramsFile string, clntList []commonDefs.ClientJson, ndpHdl flexswitch.NdpdClientStruct) NdpdClientIntf {
-	switch plugin {
-	case commonDefs.FLEXSWITCH_PLUGIN:
-		clntHdl := flexswitch.GetNdpdThriftClientHdl(paramsFile, clntList)
-		if clntHdl == nil {
-			fmt.Println("Unable to Connecte to Ndpd Client")
-			return nil
-		}
-		flexswitch.InitNdpdSubscriber(ndpHdl)
-		return &flexswitch.FSNdpdClient{clntHdl}
-	case commonDefs.MOCK_PLUGIN:
-		return &mockNdp.MockNdpClient{}
-	default:
-		return nil
-	}
-
+func (p *MockNdpClient) DeleteNdpEntry(ipAddr string) error {
 	return nil
 }
