@@ -95,7 +95,8 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		return false, errors.New("Cannot update, area doesnot exist")
 	}
 
-	if oldAreaEnt.AdminState == true {
+	if oldAreaEnt.AdminState == true &&
+		server.globalData.AdminState == true {
 		//This will cause Nbrs to be deleted from NbrFSM
 		server.StopAreaIntfFSM(newCfg.AreaId)
 		server.StopAreaRxTxPkt(newCfg.AreaId)
@@ -103,7 +104,7 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		server.FlushAreaLsdb(newCfg.AreaId)
 	}
 
-	oldAreaEnt, _ := server.AreaConfMap[newCfg.AreaId]
+	oldAreaEnt, _ = server.AreaConfMap[newCfg.AreaId]
 	newAreaEnt := oldAreaEnt
 	mask := genOspfv2AreaUpdateMask(attrset)
 	if mask&objects.OSPFV2_AREA_UPDATE_ADMIN_STATE == objects.OSPFV2_AREA_UPDATE_ADMIN_STATE {
@@ -118,7 +119,8 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 
 	server.AreaConfMap[newCfg.AreaId] = newAreaEnt
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
-	if newAreaEnt.AdminState == true {
+	if newAreaEnt.AdminState == true &&
+		server.globalData.AdminState == true {
 		server.SendMsgToLsdbToInitAreaLsdb(newCfg.AreaId)
 		<-server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh
 		//server.InitAreaLsdb(newCfg.AreaId)
@@ -146,7 +148,8 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 	areaEnt.AdminState = cfg.AdminState
 	server.AreaConfMap[cfg.AreaId] = areaEnt
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
-	if cfg.AdminState == true {
+	if cfg.AdminState == true &&
+		server.globalData.AdminState == true {
 		//server.InitAreaLsdb(cfg.AreaId)
 		server.SendMsgToLsdbToInitAreaLsdb(cfg.AreaId)
 		<-server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh
