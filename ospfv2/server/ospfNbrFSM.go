@@ -70,17 +70,13 @@ func (server *OSPFV2Server) ProcessNbrFSM() {
 			}
 
 			//Intf state change
-			/*
-				case
-				   nbrList , exist := server.NbrCOnfData.server.NbrConfData.IntfToNbrMap[intfKey]
-				   if !exist {
-						server.logger.Info("Nbr : Intf down . No nbrs on this interface ", intfKey)
-						break
-					}
-					for _, nbr := range nbrList {
-						server.ProcessNbrDead(nbr)
-					}
-			*/
+		case msg := <-server.MessagingChData.IntfToNbrFSMChData.DeleteNbrCh:
+			_, exist := server.NbrConfData.IntfToNbrMap[msg.IntfKey]
+			if !exist {
+				server.logger.Info("Nbr : Intf down . No nbrs on this interface ", msg.IntfKey)
+			} else {
+				server.ProcessNbrDeadFromIntf(msg.IntfKey)
+			}
 
 			//NbrFsmCtrlCh
 		case _ = <-server.NbrConfData.nbrFSMCtrlCh:
@@ -440,13 +436,30 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	flags := NBR_FLAG_STATE
 	server.UpdateNbrConf(nbrKey, nbrConf, flags)
 	server.logger.Debug("Nbr: Nbr full event ", nbrKey)
-	msg := UpdateSelfNetworkLSAMsg{
-		Op:      GENERATE,
-		IntfKey: nbrConf.IntfKey,
-		NbrList: server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey],
+	intf, valid := server.IntfConfMap[nbrConf.IntfKey]
+	if !valid {
+		server.logger.Err("Nbr : Intf does not exist. ", nbrKey)
+		return
 	}
+	if intf.DRtrId == server.globalData.RouterId {
+		server.logger.Debug("Nbr : Send message to lsdb to generate nw lsa ", nbrConf.NbrIP)
+		nbrList := []uint32{}
+		for _, nbr := range server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey] {
+			nbrC, exist := server.NbrConfMap[nbr]
+			if !exist {
+				server.logger.Info("Nbr : Generate nw lsa . nbr does not exist ", nbr)
+				continue
+			}
+			nbrList = append(nbrList, nbrC.NbrRtrId)
+		}
+		msg := UpdateSelfNetworkLSAMsg{
+			Op:      GENERATE,
+			IntfKey: nbrConf.IntfKey,
+			NbrList: nbrList,
+		}
 
-	server.SendMsgFromNbrToLsdb(msg)
+		server.SendMsgFromNbrToLsdb(msg)
+	}
 }
 
 func (server *OSPFV2Server) ProcessNetworkDRChangeMsg(msg NetworkDRChangeMsg) {
@@ -455,20 +468,79 @@ func (server *OSPFV2Server) ProcessNetworkDRChangeMsg(msg NetworkDRChangeMsg) {
 	if msg.OldIntfFSMState == objects.INTF_FSM_STATE_DR &&
 		msg.NewIntfFSMState == objects.INTF_FSM_STATE_OTHER_DR {
 		Op = FLUSH
-	}
-	if msg.OldIntfFSMState == objects.INTF_FSM_STATE_OTHER_DR &&
+	} else if msg.OldIntfFSMState == objects.INTF_FSM_STATE_OTHER_DR &&
 		msg.NewIntfFSMState == objects.INTF_FSM_STATE_DR {
 		Op = GENERATE
+	} else {
+		return
+	}
+
+	nbrList := []uint32{}
+	for _, nbr := range server.NbrConfData.IntfToNbrMap[msg.IntfKey] {
+		nbrC, exist := server.NbrConfMap[nbr]
+		if !exist {
+			server.logger.Info("Nbr : Generate nw lsa . nbr does not exist ", nbr)
+			continue
+		}
+		nbrList = append(nbrList, nbrC.NbrRtrId)
 	}
 
 	floodMsg := UpdateSelfNetworkLSAMsg{
 		Op:      Op,
 		IntfKey: msg.IntfKey,
-		NbrList: server.NbrConfData.IntfToNbrMap[msg.IntfKey],
+		NbrList: nbrList,
 	}
 
 	server.SendMsgFromNbrToLsdb(floodMsg)
 
+}
+
+func (server *OSPFV2Server) ProcessNbrDeadFromIntf(key IntfConfKey) {
+	server.logger.Debug("Nbr : intf down. Process nbr down", key)
+	nbrList, valid := server.NbrConfData.IntfToNbrMap[key]
+	if !valid {
+		server.logger.Info("Nbr : No nbr on this interface. ", key)
+		return
+	}
+
+	for _, nbr := range nbrList {
+		nbrConf, exist := server.NbrConfMap[nbr]
+		if !exist {
+			continue
+		}
+		nbrConf.NbrDeadTimer.Stop()
+		nbrConf.NbrDeadTimer = nil
+		if len(nbrConf.NbrReqList) > 0 {
+			nbrConf.NbrReqList = nbrConf.NbrReqList[:len(nbrConf.NbrReqList)-1]
+		}
+		if len(nbrConf.NbrRetxList) > 0 {
+			nbrConf.NbrRetxList = nbrConf.NbrRetxList[:len(nbrConf.NbrRetxList)-1]
+		}
+		if len(nbrConf.NbrDBSummaryList) > 0 {
+			nbrConf.NbrDBSummaryList = nbrConf.NbrDBSummaryList[:len(nbrConf.NbrDBSummaryList)-1]
+		}
+
+		nbrConf.NbrReqList = nil
+		nbrConf.NbrRetxList = nil
+		nbrConf.NbrDBSummaryList = nil
+		delete(server.NbrConfMap, nbr)
+		server.logger.Info("Nbr: Deleted", nbr)
+	}
+
+	intf, valid := server.IntfConfMap[key]
+	if !valid {
+		server.logger.Info("Nbr : intf does not exist . Dont send msg to lsdb", key)
+	} else {
+		if intf.DRtrId == server.globalData.RouterId {
+			lsdbMsg := UpdateSelfNetworkLSAMsg{
+				Op:      FLUSH,
+				IntfKey: key,
+			}
+
+			server.SendMsgFromNbrToLsdb(lsdbMsg)
+		}
+	}
+	server.logger.Debug("nbr : Intf down processing done. ")
 }
 
 func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
@@ -483,7 +555,7 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 
 		server.logger.Info(fmt.Sprintln("DEAD: end processing nbr dead ", nbrKey))
 
-		_, exists := server.NbrConfMap[nbrKey]
+		nbrConf, exists := server.NbrConfMap[nbrKey]
 		if exists {
 			//update interface to neighbor map
 			nbrList, valid := server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey]
@@ -497,8 +569,50 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 				server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey] = nbrList
 				server.logger.Debug("Nbr : Int to nbr list updated ", nbrList)
 			}
-			//send signal for network LSA generation
+			//send signal to intf fsm
+			nbrDownMsg := NbrDownMsg{
+				NbrKey: nbrKey,
+			}
+			server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[nbrConf.IntfKey] <- nbrDownMsg
+			//send message to lsdb if I am DR.
+			intf, valid := server.IntfConfMap[nbrConf.IntfKey]
+			if !valid {
+				server.logger.Info("Nbr : intf does not exist . Dont send msg to lsdb", nbrConf.IntfKey)
+			} else {
+				if intf.DRtrId == server.globalData.RouterId {
+					nbrList := []uint32{}
+					for _, nbr := range server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey] {
+						nbrC, exist := server.NbrConfMap[nbr]
+						if !exist {
+							server.logger.Info("Nbr : Generate nw lsa . nbr does not exist ", nbr)
+							continue
+						}
+						nbrList = append(nbrList, nbrC.NbrRtrId)
+					}
 
+					lsdbMsg := UpdateSelfNetworkLSAMsg{
+						Op:      GENERATE,
+						IntfKey: nbrConf.IntfKey,
+						NbrList: nbrList,
+					}
+
+					server.SendMsgFromNbrToLsdb(lsdbMsg)
+				}
+
+			}
+			if len(nbrConf.NbrReqList) > 0 {
+				nbrConf.NbrReqList = nbrConf.NbrReqList[:len(nbrConf.NbrReqList)-1]
+			}
+			if len(nbrConf.NbrRetxList) > 0 {
+				nbrConf.NbrRetxList = nbrConf.NbrRetxList[:len(nbrConf.NbrRetxList)-1]
+			}
+			if len(nbrConf.NbrDBSummaryList) > 0 {
+				nbrConf.NbrDBSummaryList = nbrConf.NbrDBSummaryList[:len(nbrConf.NbrDBSummaryList)-1]
+			}
+
+			nbrConf.NbrReqList = nil
+			nbrConf.NbrRetxList = nil
+			nbrConf.NbrDBSummaryList = nil
 			//delete neighbor from map
 			delete(server.NbrConfMap, nbrKey)
 			server.logger.Info("Nbr: Deleted ", nbrKey)
