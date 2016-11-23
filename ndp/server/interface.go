@@ -113,6 +113,7 @@ type Interface struct {
 	raTimer           *time.Timer
 	initialRASend     uint8                   // on port up we have to send 3 RA before kicking in config timer
 	Neighbor          map[string]NeighborInfo // key is NbrIp_NbrMac to handle move scenario's
+	incompleteNbr     map[string]struct{}
 	PktDataCh         chan config.PacketData
 	counter           PktCounter
 }
@@ -165,6 +166,7 @@ func (intf *Interface) commonInit(ipAddr string, pktCh chan config.PacketData, g
 	// Neighbor Init
 	intf.PktDataCh = pktCh
 	intf.Neighbor = make(map[string]NeighborInfo, 10)
+	intf.incompleteNbr = make(map[string]struct{})
 
 	// set counters to zero
 	intf.counter.Send = 0
@@ -459,6 +461,7 @@ func (intf *Interface) ProcessND(ndInfo *packet.NDInfo) (*config.NeighborConfig,
 		debug.Logger.Debug("TX channel is closed for:", intf.IntfRef, "hence ignoring incoming packet")
 		return nil, IGNORE
 	}
+	debug.Logger.Debug("processing nd info:", *ndInfo)
 	switch ndInfo.PktType {
 	case layers.ICMPv6TypeNeighborSolicitation:
 		return intf.processNS(ndInfo)

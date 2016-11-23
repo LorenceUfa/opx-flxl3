@@ -460,7 +460,9 @@ func (f *FSM) exitFsm() {
 	f.deInitPktListener()
 	debug.Logger.Debug(FSM_PREFIX, "stop master down timer")
 	f.stopMasterDownTimer()
-	f.exitFsmGoRoutineCh <- f.empty
+	if f.running {
+		f.exitFsmGoRoutineCh <- f.empty
+	}
 }
 
 func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
