@@ -168,7 +168,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	nbrConf.NbrDR = nbrData.NbrDRIpAddr
 	nbrConf.NbrBdr = nbrData.NbrBDRIpAddr
 	nbrConf.IntfKey = nbrData.IntfConfKey
-	nbrConf.RtrId = nbrData.RouterId
+	nbrConf.NbrRtrId = nbrData.RouterId
 	server.logger.Debug("Nbr : Added nbr dead duration ", nbrData.NbrDeadTime)
 	nbrConf.NbrDeadTimeDuration = nbrData.NbrDeadTime
 	if nbrData.TwoWayStatus {
@@ -237,19 +237,19 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 		   slave, and set the neighbor data structure's DD sequence
 		   number to that specified by the master.
 		*/
-		server.logger.Debug(fmt.Sprintln("NBRDBD: nbr ip ", nbrKey.NbrIdentity,
+		server.logger.Debug("NBRDBD: nbr ip ", nbrKey.NbrIdentity,
 			" my router id ", server.globalData.RouterId,
-			" nbr_seq ", nbrConf.DDSequenceNum, "dbd_seq no ", nbrDbPkt.dd_sequence_number))
+			" nbr_seq ", nbrConf.DDSequenceNum, "dbd_seq no ", nbrDbPkt.dd_sequence_number)
 		if nbrDbPkt.ibit && nbrDbPkt.mbit && nbrDbPkt.msbit &&
 			nbrConf.NbrRtrId > server.globalData.RouterId {
-			server.logger.Debug(fmt.Sprintln("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity))
+			server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
 			nbrConf.isMaster = true
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
 			nbrConf.State = NbrExchange
 		}
 		if nbrDbPkt.msbit && nbrConf.NbrRtrId > server.globalData.RouterId {
-			server.logger.Debug(fmt.Sprintln("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity))
+			server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
 			nbrConf.isMaster = true
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
@@ -267,7 +267,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 			nbrDbPkt.dd_sequence_number == nbrConf.DDSequenceNum &&
 			nbrConf.NbrRtrId < server.globalData.RouterId {
 			nbrConf.isMaster = false
-			server.logger.Debug(fmt.Sprintln("DBD:(ExStart) SLAVE = ", nbrKey.NbrIdentity, "MASTER = SELF"))
+			server.logger.Debug("DBD:(ExStart) SLAVE = ", nbrKey.NbrIdentity, "MASTER = SELF")
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
 			nbrConf.State = NbrExchange
