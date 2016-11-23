@@ -891,7 +891,7 @@ func (server *OSPFV2Server) processTxLsaAck(lsa_data NbrAckTxMsg) {
 		return
 	}
 
-	dstMac := intf.IfMacAddr
+	dstMac := nbrConf.NbrMac
 	dstIp := net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
 	pkt := server.BuildLSAAckPkt(nbrConf.IntfKey, intf, nbrConf, dstMac, dstIp,
 		ack_len, lsa_data.lsa_headers_byte)
