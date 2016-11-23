@@ -415,12 +415,15 @@ func (server *OSPFV2Server) GetIntfConfForGivenIntfKey(intfConfKey IntfConfKey) 
 	return intfConfEnt, nil
 }
 
+/*
 func (server *OSPFV2Server) GetIntfNbrList(intfEnt IntfConf) (nbrList []NbrConfKey) {
 	for nbrKey, _ := range intfEnt.NbrMap {
 		nbrList = append(nbrList, nbrKey)
 	}
 	return nbrList
 }
+
+*/
 
 func (server *OSPFV2Server) RefreshIntfConfSlice() {
 	if len(server.GetBulkData.AreaConfSlice) == 0 {

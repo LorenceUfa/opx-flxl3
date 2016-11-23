@@ -36,6 +36,7 @@ func (f *FSM) transitionToMaster() {
 	debug.Logger.Debug(FSM_PREFIX, "vrrp header information:", *pktInfo)
 	// (110) + Send an ADVERTISEMENT
 	f.send(pktInfo)
+	f.updateTxStInfo()
 	// Set Sub-intf state up and send out garp via linux stack
 	if f.previousState == f.State {
 		debug.Logger.Debug(FSM_PREFIX, "Enabling VirtualIp as interface:", f.Config.IntfRef, "is master now")
@@ -56,6 +57,7 @@ func (f *FSM) startMasterAdverTimer() {
 		SendMasterAdveristement_func = func() {
 			// Send advertisment every time interval expiration
 			f.send(f.getPacketInfo())
+			f.updateTxStInfo()
 			f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
 		}
 		debug.Logger.Debug(FSM_PREFIX, "Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
@@ -96,6 +98,7 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 		// (710) -* Send an ADVERTISEMENT
 		debug.Logger.Debug(FSM_PREFIX, "Priority in the ADVERTISEMENT is zero, then: Send an ADVERTISEMENT")
 		f.send(f.getPacketInfo())
+		f.updateTxStInfo()
 		// (715) -* Reset the Adver_Timer to Advertisement_Interval
 		f.startMasterAdverTimer()
 	} else { // (720) -+ else // priority was non-zero

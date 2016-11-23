@@ -73,6 +73,12 @@ func (server *OSPFV2Server) UpdateIntfToNbrMap(nbrKey NbrConfKey) {
 	} else {
 		newList = server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey]
 	}
+	for _, nbr := range newList {
+		if nbr.NbrAddressLessIfIdx == nbrKey.NbrAddressLessIfIdx &&
+			nbr.NbrIdentity == nbrKey.NbrIdentity {
+			return
+		}
+	}
 	newList = append(newList, nbrKey)
 	server.NbrConfData.IntfToNbrMap[nbrConf.IntfKey] = newList
 	server.logger.Debug("Nbr : Intf to nbr list updated ", newList)

@@ -33,8 +33,7 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigRouterLsa(lsdbKey LsdbKey, lsa
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeRouterLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return false
@@ -59,8 +58,7 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigNetworkLsa(lsdbKey LsdbKey, ls
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeNetworkLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return false
@@ -78,8 +76,7 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary3Lsa(lsdbKey LsdbKey, l
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeSummaryLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return false
@@ -97,8 +94,7 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigSummary4Lsa(lsdbKey LsdbKey, l
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeSummaryLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return false
@@ -116,8 +112,7 @@ func (server *OSPFV2Server) processLsdbAgeSelfOrigASExternalLsa(lsdbKey LsdbKey,
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeASExternalLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return false
@@ -189,8 +184,7 @@ func (server *OSPFV2Server) processLsdbAgeNonSelfRouterLsa(lsdbKey LsdbKey, lsaK
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeRouterLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return msg, false
@@ -214,8 +208,7 @@ func (server *OSPFV2Server) processLsdbAgeNonSelfNetworkLsa(lsdbKey LsdbKey, lsa
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeNetworkLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return msg, false
@@ -239,8 +232,7 @@ func (server *OSPFV2Server) processLsdbAgeNonSelfSummary3Lsa(lsdbKey LsdbKey, ls
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeSummaryLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return msg, false
@@ -264,8 +256,7 @@ func (server *OSPFV2Server) processLsdbAgeNonSelfSummary4Lsa(lsdbKey LsdbKey, ls
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeSummaryLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return msg, false
@@ -289,8 +280,7 @@ func (server *OSPFV2Server) processLsdbAgeNonSelfASExternalLsa(lsdbKey LsdbKey, 
 	//If Age = multiples of CheckAge compute checksum and verify if error raise an alarm
 	if (lsa.LsaMd.LSAge % CHECK_AGE) == 0 {
 		lsaEnc := encodeASExternalLsa(*lsa, lsaKey)
-		checksumOffset := uint16(14)
-		cSum := computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+		cSum := computeFletcherChecksum(lsaEnc[2:], FLETCHER_CHECKSUM_VALIDATE)
 		if cSum != 0 {
 			server.logger.Err("Some serious problem, may be memory corruption")
 			return msg, false

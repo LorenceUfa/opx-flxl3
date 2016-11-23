@@ -186,14 +186,16 @@ func (server *OSPFV2Server) ProcessLsdbToFloodMsg(msg LsdbToFloodLSAMsg) {
 					server.logger.Debug("Flood: nbr conf does not exist.Dont flood ", nbrKey)
 					continue
 				}
-				if msg.LsaData.([]byte) != nil {
+
+				lsa_data := server.getLsaByteFromLsa(msg)
+				if lsa_data != nil {
 					server.logger.Info(fmt.Sprintln("LSA_FLOOD_ALL: Unicast LSA interface ", intf.IpAddr))
 					lsas_enc := make([]byte, 4)
 					var no_lsa uint32
 					no_lsa = 1
 					binary.BigEndian.PutUint32(lsas_enc, no_lsa)
 					lsaEncPkt = append(lsaEncPkt, lsas_enc...)
-					lsaEncPkt = append(lsaEncPkt, msg.LsaData.([]byte)...)
+					lsaEncPkt = append(lsaEncPkt, lsa_data...)
 					lsa_pkt_len := len(lsaEncPkt)
 					pkt := server.BuildLsaUpdPkt(key, intf,
 						dstMac, dstIp, lsa_pkt_len, lsaEncPkt)

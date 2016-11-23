@@ -122,7 +122,7 @@ type NetworkDRChangeMsg struct {
 }
 
 type DeleteNbrMsg struct {
-	NbrKeyList []NbrConfKey //List of Nbr Identity
+	IntfKey IntfConfKey //List of Nbr Identity
 }
 
 type GenerateRouterLSAMsg struct {
@@ -163,7 +163,7 @@ const (
 type UpdateSelfNetworkLSAMsg struct {
 	Op      LsaOp
 	IntfKey IntfConfKey
-	NbrList []NbrConfKey
+	NbrList []uint32
 }
 
 type LsdbToFloodLSAMsg struct {
