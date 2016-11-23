@@ -65,7 +65,7 @@ func (server *OSPFV2Server) flushNetworkLSA(intfKey IntfConfKey) error {
 	return nil
 }
 
-func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []NbrConfKey) error {
+func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []uint32) error {
 	var lsaKey LsaKey
 	intfConfEnt, err := server.GetIntfConfForGivenIntfKey(intfKey)
 	if err != nil {
@@ -91,7 +91,7 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []Nb
 	lsaEnt.AttachedRtr = nil
 	lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, server.globalData.RouterId)
 	for _, nbr := range nbrList {
-		lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, nbr.NbrIdentity)
+		lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, nbr)
 	}
 	lsaEnt.Netmask = intfConfEnt.Netmask
 	lsaEnt.LsaMd.LSAge = 0
