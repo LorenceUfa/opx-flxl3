@@ -43,7 +43,6 @@ func (f *FSM) transitionToBackup(advInt int32) {
 	f.handleMasterDownTimer()
 	//(165) + Transition to the {Backup} state
 	f.State = VRRP_BACKUP_STATE
-	//svr.VrrpUpdateStateInfo(key, reason, VRRP_BACKUP_STATE)
 }
 
 func (f *FSM) backup(decodeInfo *DecodedInfo) {
