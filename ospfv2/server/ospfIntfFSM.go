@@ -237,8 +237,8 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 			server.processNbrDownEvent(downMsg, key, true)
 		case _ = <-ent.FSMCtrlCh:
 			//server.StopSendHelloPkt(key)
-			nbrList := server.GetIntfNbrList(ent)
-			server.SendDeleteNbrsMsg(nbrList)
+			//nbrList := server.GetIntfNbrList(ent)
+			server.SendDeleteNbrsMsg(key)
 			server.DeinitOspfIntfFSM(key)
 			server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			ent.FSMCtrlReplyCh <- false
@@ -325,8 +325,8 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 			server.processNbrDownEvent(downMsg, key, false)
 		case _ = <-ent.FSMCtrlCh:
 			//server.StopSendHelloPkt(key)
-			nbrList := server.GetIntfNbrList(ent)
-			server.SendDeleteNbrsMsg(nbrList)
+			//nbrList := server.GetIntfNbrList(ent)
+			server.SendDeleteNbrsMsg(key)
 			server.DeinitOspfIntfFSM(key)
 			server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			ent.FSMCtrlReplyCh <- false

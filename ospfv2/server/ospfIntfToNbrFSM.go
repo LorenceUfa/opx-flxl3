@@ -30,14 +30,12 @@ func (server *OSPFV2Server) SendHelloEventMsg(msg NbrHelloEventMsg) {
 	server.MessagingChData.IntfToNbrFSMChData.NbrHelloEventCh <- msg
 }
 
-func (server *OSPFV2Server) SendDeleteNbrsMsg(nbrKeyList []NbrConfKey) {
-	if len(nbrKeyList) > 0 {
-		msg := DeleteNbrMsg{
-			NbrKeyList: nbrKeyList,
-		}
-		server.logger.Info("Send message to Nbr state machine to delete nbrs", msg)
-		server.MessagingChData.IntfToNbrFSMChData.DeleteNbrCh <- msg
+func (server *OSPFV2Server) SendDeleteNbrsMsg(key IntfConfKey) {
+	msg := DeleteNbrMsg{
+		IntfKey: key,
 	}
+	server.logger.Info("Send message to Nbr state machine to delete nbrs", msg)
+	server.MessagingChData.IntfToNbrFSMChData.DeleteNbrCh <- msg
 }
 
 func (server *OSPFV2Server) SendNetworkDRChangeMsg(key IntfConfKey, oldState, newState uint8) {
