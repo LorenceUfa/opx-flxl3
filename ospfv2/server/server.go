@@ -28,6 +28,10 @@ import (
 	"errors"
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"io/ioutil"
+	"os"
+	"os/signal"
+	"runtime/debug"
+	"syscall"
 	"utils/dbutils"
 	"utils/logging"
 )
@@ -148,8 +152,24 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.RouteTblToDBClntChData.RouteDelMsgCh = make(chan RouteDelMsg, 100)
 }
 
+func (server *OSPFV2Server) SigHandler(sigChan <-chan os.Signal) {
+	server.logger.Debug("Inside sigHandler....")
+	signal := <-sigChan
+	switch signal {
+	case syscall.SIGHUP:
+		server.logger.Debug("Received SIGHUP signal")
+		debug.PrintStack()
+	default:
+		server.logger.Err("Unhandled signal : ", signal)
+	}
+}
+
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
+	sigChan := make(chan os.Signal, 1)
+	signalList := []os.Signal{syscall.SIGHUP}
+	signal.Notify(sigChan, signalList...)
+	go server.SigHandler(sigChan)
 	server.initMessagingChData()
 	server.initAsicdComm()
 	server.initRibdComm()
