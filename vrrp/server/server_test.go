@@ -191,14 +191,6 @@ var ipv4Intf = &common.BaseIpInfo{
 	IpType:    syscall.AF_INET,
 }
 
-var ipv6Intf = &common.BaseIpInfo{
-	IfIndex:   testIfIndex,
-	IntfRef:   "lo",
-	IpAddr:    "fe80::d898:ddff:fe7b:975a/64",
-	OperState: common.STATE_DOWN,
-	IpType:    syscall.AF_INET6,
-}
-
 func TestIPv4Notifications(t *testing.T) {
 	TestServerInit(t)
 	goToSleep()
@@ -243,6 +235,85 @@ func TestIPv4Notifications(t *testing.T) {
 	if len(testSvr.V4) == 1 {
 		t.Error("failed to handle ipv4 interface delete notification by deleting existing v4 entry")
 		t.Error("	    ", *testSvr.V4[testIfIndex])
+		return
+	}
+	TestServerDeInit(t)
+}
+
+var ipv6Intf = &common.BaseIpInfo{
+	IfIndex:   testIfIndex,
+	IntfRef:   "lo",
+	IpAddr:    "fe80::d898:ddff:fe7b:975a/64",
+	OperState: common.STATE_DOWN,
+	IpType:    syscall.AF_INET6,
+}
+
+func TestIPv6Notifications(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	ipIntf := ipv6Intf
+	ipIntf.MsgType = common.IP_MSG_CREATE
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V6) != 1 {
+		t.Error("failed to handle ipv6 interface create notification by create a new v6 entry")
+		t.Error("	    ", testSvr.V4)
+		return
+	}
+	ipIntf.MsgType = ""
+	v6Entry := testSvr.V6[testIfIndex]
+	if !reflect.DeepEqual(v6Entry.Cfg.Info, *ipIntf) {
+		t.Error("failed to copy base ipv6 interface")
+		t.Error("	    wantedIpInfo:", *ipIntf)
+		t.Error("	    gotIpInfo:", v6Entry.Cfg.Info)
+		return
+	}
+
+	ipIntf.MsgType = common.IP_MSG_STATE_CHANGE
+	ipIntf.OperState = common.STATE_UP
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V6) != 1 {
+		t.Error("failed to handle ipv6 interface update notification by updating v6 entry")
+		t.Error("	    ", testSvr.V6)
+		return
+	}
+	ipIntf.MsgType = ""
+	if !reflect.DeepEqual(v6Entry.Cfg.Info, *ipIntf) {
+		t.Error("failed to update ipv6 interface")
+		t.Error("	    wantedIpInfo:", *ipIntf)
+		t.Error("	    gotIpInfo:", v6Entry.Cfg.Info)
+		return
+	}
+	ipIntf.IpAddr = "3000::1/64"
+	ipIntf.MsgType = common.IP_MSG_CREATE
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V6) != 1 {
+		t.Error("failed to handle ipv6 interface update notification by updating v6 entry")
+		t.Error("	    ", testSvr.V6)
+		return
+	}
+	if v6Entry.Cfg.GlobalScopeIp != ipIntf.IpAddr {
+		t.Error("failed to update ipv6 global scope ip Addr")
+		return
+	}
+
+	ipIntf.MsgType = common.IP_MSG_DELETE
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V6) != 1 {
+		t.Error("failed to handle deleting one ipv6 address from the interface")
+		t.Error("	    ", testSvr.V6)
+		return
+	}
+	ipIntf.IpAddr = "fe80::d898:ddff:fe7b:975a/64"
+	ipIntf.MsgType = common.IP_MSG_DELETE
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V6) == 1 {
+		t.Error("failed to handle ipv6 interface delete notification by deleting existing v6 entry")
+		t.Error("	    ", *testSvr.V6[testIfIndex])
 		return
 	}
 	TestServerDeInit(t)

@@ -36,9 +36,9 @@ type V6Intf struct {
 func (intf *V6Intf) updateIp(ipAddr string) {
 	ip, _, _ := net.ParseCIDR(ipAddr)
 	if ip.IsLinkLocalUnicast() == false {
-		intf.Cfg.GlobalScopeIp = ip.String()
+		intf.Cfg.GlobalScopeIp = ipAddr //ip.String()
 	} else {
-		intf.Cfg.Info.IpAddr = ip.String()
+		intf.Cfg.Info.IpAddr = ipAddr //ip.String()
 	}
 }
 
