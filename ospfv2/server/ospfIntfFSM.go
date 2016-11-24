@@ -547,9 +547,9 @@ func (server *OSPFV2Server) ElectBDRAndDR(key IntfConfKey) {
 	if oldDRtrId != ent.DRtrId || oldDRtrIpAddr != ent.DRIpAddr {
 		server.ProcessNetworkDRChange(key, ent.AreaId, oldState, newState)
 	}
+	server.SendMsgToGenerateRouterLSA(ent.AreaId)
 }
 
 func (server *OSPFV2Server) ProcessNetworkDRChange(key IntfConfKey, areaId uint32, oldState, newState uint8) {
-	server.SendMsgToGenerateRouterLSA(areaId)
 	server.SendNetworkDRChangeMsg(key, oldState, newState)
 }
