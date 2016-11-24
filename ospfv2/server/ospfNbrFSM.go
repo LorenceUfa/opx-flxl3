@@ -165,7 +165,6 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	nbrConf.NbrBdr = nbrData.NbrBDRIpAddr
 	nbrConf.IntfKey = nbrData.IntfConfKey
 	nbrConf.NbrRtrId = nbrData.RouterId
-	server.logger.Debug("Nbr : Added nbr dead duration ", nbrData.NbrDeadTime)
 	nbrConf.NbrDeadTimeDuration = nbrData.NbrDeadTime
 	if nbrData.TwoWayStatus {
 		nbrConf.State = NbrTwoWay
@@ -184,6 +183,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 		return
 	}
 	server.ProcessNbrFsmStart(nbrKey, nbrConf)
+	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrConf) {
@@ -351,30 +351,18 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 			/* send acknowledgement DBD with I and MS bit false and mbit same as
 			   rx packet
 			    if mbit is 0 && last_exchange == true generate NbrExchangeDone*/
-			if nbrDbPkt.dd_sequence_number == nbrConf.DDSequenceNum {
-				server.logger.Debug(fmt.Sprintln("DBD: (slave/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIdentity))
-				server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
-				dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, nbrDbPkt.mbit, false,
-					nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false)
-				server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
-				nbrConf.NbrLastDbd = dbd_mdata
-				dbd_mdata.dd_sequence_number++
-			} else {
-				server.logger.Debug(fmt.Sprintln("DBD: (slave/exchange) Duplicated dbd.  . dbd_seq , nbr_seq_num ",
-					nbrDbPkt.dd_sequence_number, nbrConf.DDSequenceNum))
-				if !nbrDbPkt.msbit && !nbrDbPkt.ibit {
-					// the last exchange packet so we need not send duplicate response
-					last_exchange = true
-				}
-				// send old ACK
-				dbd_mdata = nbrConf.NbrLastDbd
-				server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
+			server.logger.Debug(fmt.Sprintln("DBD: (slave/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIdentity))
+			server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
+			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, nbrDbPkt.mbit, false,
+				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false)
+			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
+			nbrConf.NbrLastDbd = dbd_mdata
+			dbd_mdata.dd_sequence_number++
+			if !nbrDbPkt.mbit && last_exchange {
+				nbrConf.State = NbrLoading
+				nbrConf.NbrReqListIndex = server.BuildAndSendLSAReq(nbrKey, nbrConf)
+				server.logger.Debug(fmt.Sprintln("DBD: Loading , nbr ", nbrKey.NbrIdentity))
 			}
-		}
-		if !nbrDbPkt.mbit && last_exchange {
-			nbrConf.State = NbrLoading
-			nbrConf.NbrReqListIndex = server.BuildAndSendLSAReq(nbrKey, nbrConf)
-			server.logger.Debug(fmt.Sprintln("DBD: Loading , nbr ", nbrKey.NbrIdentity))
 		}
 	}
 	nbrConf.DDSequenceNum = nbrDbPkt.dd_sequence_number

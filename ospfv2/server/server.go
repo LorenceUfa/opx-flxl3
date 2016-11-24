@@ -332,12 +332,13 @@ func (server *OSPFV2Server) StartOspfv2Server() {
 		case <-server.GetBulkData.SliceRefreshCh:
 			//Refresh IntfConf Slice
 			server.RefreshIntfConfSlice()
+			//Refresh NbrConf Slice
+			server.RefreshNbrConfSlice()
 			//Refresh AreaConf Slice
 			server.RefreshAreaConfSlice()
 			//Refresh Lsdb Slice
 			server.SendMsgToLsdbToRefreshSlice()
 			<-server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh
-			//TODO: Refresh NbrConf Slice
 			server.logger.Info("Ospf GetBulk Slice Refresh in progress")
 			server.GetBulkData.SliceRefreshDoneCh <- true
 			server.logger.Info("Ospf GetBulk Slice Refresh in done")
