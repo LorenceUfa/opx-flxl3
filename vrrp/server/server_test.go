@@ -28,9 +28,12 @@ import (
 	arpFS "l3/arp/clientMgr/flexswitch"
 	ndpClient "l3/ndp/lib"
 	ndpFS "l3/ndp/lib/flexswitch"
+	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"log/syslog"
+	"reflect"
 	"testing"
+	"time"
 	asicdClnt "utils/asicdClient/mock"
 	"utils/commonDefs"
 	"utils/logging"
@@ -60,4 +63,120 @@ func TestServerInit(t *testing.T) {
 		t.Error("Initializing Vrrp Server Failed")
 		return
 	}
+	testSvr.VrrpStartServer()
+
+	if testSvr.V4 == nil || testSvr.V6 == nil || testSvr.GlobalConfig == nil {
+		t.Error("initializing vrrp server ds failed")
+		return
+	}
+}
+
+func TestServerDeInit(t *testing.T) {
+	if testSvr == nil {
+		return
+	}
+	testSvr.DeAllocateMemory()
+	if testSvr.V4 != nil {
+		t.Error("failed to de-init V4 interfaces")
+		return
+	}
+	if testSvr.V6 != nil {
+		t.Error("failed to de-init V6 interfaces")
+		return
+	}
+	if testSvr.VirtualIpCh != nil {
+		t.Error("failed to de-init VirtualIpCh")
+		return
+	}
+
+	if testSvr.dmnBase != nil {
+		t.Error("failed to de-init dmnBase")
+		return
+	}
+
+	if testSvr.UpdateTxCh != nil {
+		t.Error("failed to de-init UpdateTxCh")
+		return
+	}
+
+	if testSvr.UpdateRxCh != nil {
+		t.Error("failed to de-init UpdateRxCh")
+		return
+	}
+
+	if testSvr.L3IntfNotifyCh != nil {
+		t.Error("failed to de-init L3IntfNotifyCh")
+		return
+	}
+
+	if testSvr.Intf != nil {
+		t.Error("failed to de-init Interface information")
+		return
+	}
+
+	if testSvr.GlobalConfig != nil {
+		t.Error("failed to de-init GlobalConfig")
+		return
+	}
+
+	if testSvr.GblCfgCh != nil {
+		t.Error("failed to de-init GblCfgCh")
+		return
+	}
+
+	if testSvr.CfgCh != nil {
+		t.Error("failed to de-init CfgCh")
+		return
+	}
+	testSvr = nil
+}
+
+func goToSleep() {
+	time.Sleep(50 * time.Millisecond)
+}
+
+func TestGlobalConfig(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	gblCfg := &common.GlobalConfig{
+		Vrf:       "default",
+		Enable:    false,
+		Operation: common.CREATE,
+	}
+	testSvr.GblCfgCh <- gblCfg
+	goToSleep()
+	wantGblState := &common.GlobalState{
+		Vrf:           gblCfg.Vrf,
+		Status:        gblCfg.Enable,
+		V4Intfs:       0,
+		V6Intfs:       0,
+		TotalRxFrames: 0,
+		TotalTxFrames: 0,
+	}
+	state := testSvr.GetGlobalState(gblCfg.Vrf)
+	if !reflect.DeepEqual(state, wantGblState) {
+		t.Error("Vrrp Global State Mis-Match During Global Create")
+		t.Error("	    wantGblState:", *wantGblState)
+		t.Error("	    rcvdGblState:", *state)
+		return
+	}
+	gblCfg.Enable = true
+	testSvr.GblCfgCh <- gblCfg
+	goToSleep()
+	wantGblState = &common.GlobalState{
+		Vrf:           gblCfg.Vrf,
+		Status:        gblCfg.Enable,
+		V4Intfs:       0,
+		V6Intfs:       0,
+		TotalRxFrames: 0,
+		TotalTxFrames: 0,
+	}
+	state = testSvr.GetGlobalState(gblCfg.Vrf)
+	if !reflect.DeepEqual(state, wantGblState) {
+		t.Error("Vrrp Global State Mis-Match During Global Create")
+		t.Error("	    wantGblState:", *wantGblState)
+		t.Error("	    rcvdGblState:", *state)
+		return
+	}
+	TestServerDeInit(t)
 }
