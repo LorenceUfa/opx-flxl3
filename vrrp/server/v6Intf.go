@@ -46,6 +46,7 @@ func (intf *V6Intf) Init(obj *common.BaseIpInfo) {
 	intf.Cfg.Info.IntfRef = obj.IntfRef
 	intf.Cfg.Info.IfIndex = obj.IfIndex
 	intf.Cfg.Info.OperState = obj.OperState
+	intf.Cfg.Info.IpType = obj.IpType
 	intf.updateIp(obj.IpAddr)
 	intf.Vrrpkey = nil
 	debug.Logger.Debug("v6 ip interface initialized:", intf.Cfg)

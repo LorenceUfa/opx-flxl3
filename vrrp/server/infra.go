@@ -469,12 +469,21 @@ func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 			v4, exists := svr.V4[msg.IfIndex]
 			if exists {
 				v4.DeInit(msg)
+				delete(svr.V4, msg.IfIndex)
 			}
 		case syscall.AF_INET6:
 			// most likely we will get two delete one for linkscope and other for global-scope
 			v6, exists := svr.V6[msg.IfIndex]
-			if exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+			if exists {
 				v6.DeInit(msg)
+				if !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+					v6.Cfg.GlobalScopeIp = ""
+				} else {
+					v6.Cfg.Info.IpAddr = ""
+				}
+				if v6.Cfg.GlobalScopeIp == "" && v6.Cfg.Info.IpAddr == "" {
+					delete(svr.V6, msg.IfIndex)
+				}
 			}
 		}
 

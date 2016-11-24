@@ -32,6 +32,7 @@ import (
 	"l3/vrrp/debug"
 	"log/syslog"
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 	asicdClnt "utils/asicdClient/mock"
@@ -176,6 +177,72 @@ func TestGlobalConfig(t *testing.T) {
 		t.Error("Vrrp Global State Mis-Match During Global Create")
 		t.Error("	    wantGblState:", *wantGblState)
 		t.Error("	    rcvdGblState:", *state)
+		return
+	}
+	TestServerDeInit(t)
+}
+
+var testIfIndex = int32(100)
+var ipv4Intf = &common.BaseIpInfo{
+	IfIndex:   testIfIndex,
+	IntfRef:   "lo",
+	IpAddr:    "172.18.0.3/24",
+	OperState: common.STATE_DOWN,
+	IpType:    syscall.AF_INET,
+}
+
+var ipv6Intf = &common.BaseIpInfo{
+	IfIndex:   testIfIndex,
+	IntfRef:   "lo",
+	IpAddr:    "fe80::d898:ddff:fe7b:975a/64",
+	OperState: common.STATE_DOWN,
+	IpType:    syscall.AF_INET6,
+}
+
+func TestIPv4Notifications(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	ipIntf := ipv4Intf
+	ipIntf.MsgType = common.IP_MSG_CREATE
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V4) != 1 {
+		t.Error("failed to handle ipv4 interface create notification by create a new v4 entry")
+		t.Error("	    ", testSvr.V4)
+		return
+	}
+	ipIntf.MsgType = ""
+	v4Entry := testSvr.V4[testIfIndex]
+	if !reflect.DeepEqual(v4Entry.Cfg.Info, *ipIntf) {
+		t.Error("failed to copy base ipv4 interface")
+		t.Error("	    wantedIpInfo:", *ipIntf)
+		t.Error("	    gotIpInfo:", v4Entry.Cfg.Info)
+		return
+	}
+
+	ipIntf.MsgType = common.IP_MSG_STATE_CHANGE
+	ipIntf.OperState = common.STATE_UP
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V4) != 1 {
+		t.Error("failed to handle ipv4 interface update notification by updating v4 entry")
+		t.Error("	    ", testSvr.V4)
+		return
+	}
+	ipIntf.MsgType = ""
+	if !reflect.DeepEqual(v4Entry.Cfg.Info, *ipIntf) {
+		t.Error("failed to copy base ipv4 interface")
+		t.Error("	    wantedIpInfo:", *ipIntf)
+		t.Error("	    gotIpInfo:", v4Entry.Cfg.Info)
+		return
+	}
+
+	ipIntf.MsgType = common.IP_MSG_DELETE
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V4) == 1 {
+		t.Error("failed to handle ipv4 interface delete notification by deleting existing v4 entry")
+		t.Error("	    ", *testSvr.V4[testIfIndex])
 		return
 	}
 	TestServerDeInit(t)
