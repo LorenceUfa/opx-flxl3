@@ -72,7 +72,7 @@ func (server *OSPFV2Server) StopFlooding() {
 	for {
 		select {
 		case _ = <-server.FloodData.FloodCtrlReplyCh:
-			server.logger.Info("Successfully Stopped  flooding")
+			server.logger.Debug("Successfully Stopped  flooding")
 			return
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
@@ -170,7 +170,7 @@ func (server *OSPFV2Server) ProcessLsdbToFloodMsg(msg LsdbToFloodLSAMsg) {
 	for key, intf := range server.IntfConfMap {
 		areaid := intf.AreaId
 		if areaid != msg.AreaId {
-			server.logger.Info(fmt.Sprintln("LSA_FLOOD_ALL:Dont flood on rx intf ", intf.IpAddr))
+			server.logger.Info(fmt.Sprintln("LSA_FLOOD_SELF:Area id diff so not flooding on  ", intf.IpAddr))
 			continue // dont flood the LSA on the interface it is received.
 		}
 		nbrs, valid := server.NbrConfData.IntfToNbrMap[key]
@@ -179,7 +179,7 @@ func (server *OSPFV2Server) ProcessLsdbToFloodMsg(msg LsdbToFloodLSAMsg) {
 			continue
 		}
 		for _, nbrKey := range nbrs {
-			send := server.nbrFloodCheck(nbrKey, key, intf, msg.LsaKey.LSType)
+			send := server.selfGenLsaFloodCheck(nbrKey, key, msg.LsaKey.LSType)
 			if send {
 				_, valid := server.NbrConfMap[nbrKey]
 				if !valid {
@@ -261,6 +261,23 @@ func (server *OSPFV2Server) constructAndSendLsaAgeFlood() {
 
 }
 */
+
+/* selfGenLsaFloodCheck
+   check if we need to flood the self generated LSA on this interface.
+*/
+func (server *OSPFV2Server) selfGenLsaFloodCheck(nbrKey NbrConfKey, key IntfConfKey, lsType uint8) bool {
+	flood_check := false
+	nbrConf, valid := server.NbrConfMap[nbrKey]
+	if !valid {
+		server.logger.Info("Flood : no nbr exist. Dont flood on this interface ", key)
+		return false
+	}
+	if nbrConf.State >= NbrExchange && nbrConf.IntfKey == key {
+		flood_check = true
+	}
+	return flood_check
+}
+
 /* @fn interfaceFloodCheck
 Check if we need to flood the LSA on the interface
 */
@@ -275,7 +292,7 @@ func (server *OSPFV2Server) nbrFloodCheck(nbrKey NbrConfKey, key IntfConfKey, in
 	}
 	//rtrid := convertIPv4ToUint32(server.globalData.RouterId)
 	if nbrConf.IntfKey == key && nbrConf.NbrDR == intfConf.DRtrId && lsType != Summary3LSA && lsType != Summary4LSA {
-		server.logger.Info(fmt.Sprintln("IF FLOOD: Nbr is DR/BDR.   flood on this interface . nbr - ", nbrKey.NbrIdentity, nbrConf.NbrIP))
+		server.logger.Info(fmt.Sprintln("IF FLOOD: Nbr is DR/BDR.  Dont flood on this interface . nbr - ", nbrKey.NbrIdentity, nbrConf.NbrIP))
 		return false
 	}
 	flood_check = server.interfaceFloodCheck(key)
