@@ -24,6 +24,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"l3/ospfv2/objects"
 )
@@ -97,12 +98,12 @@ func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf
 	}
 
 	if nbrConf.isMaster {
-		if nbrDbPkt.dd_sequence_number == nbrConf.DDSequenceNum+1 {
-			server.logger.Debug(fmt.Sprintln("Duplicate: This is db duplicate packet. Ignore."))
-			return false
+		if nbrDbPkt.dd_sequence_number != nbrConf.DDSequenceNum+1 {
+			server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is master but dbd packet seq no doesnt match. dbd seq ",
+				nbrDbPkt.dd_sequence_number, "nbr seq ", nbrConf.DDSequenceNum))
+
+			return true
 		}
-		server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is master but dbd packet seq no doesnt match. dbd seq ",
-			nbrDbPkt.dd_sequence_number, "nbr seq ", nbrConf.DDSequenceNum))
 	} else {
 		if nbrDbPkt.dd_sequence_number != nbrConf.DDSequenceNum+1 {
 			server.logger.Info(fmt.Sprintln("NBREVENT:SeqNumberMismatch : Nbr is slave but dbd packet seq no doesnt match.dbd seq ",
@@ -139,12 +140,75 @@ func calculateMaxLsaReq() (max_req int) {
 	return max_req
 }
 
+/**** Get bulk APis ***/
+func (server *OSPFV2Server) RefreshNbrConfSlice() {
+	if len(server.GetBulkData.NbrConfSlice) == 0 {
+		return
+	}
+	server.GetBulkData.NbrConfSlice = server.GetBulkData.NbrConfSlice[:len(server.GetBulkData.NbrConfSlice)-1]
+	server.GetBulkData.NbrConfSlice = nil
+	for nbrKey, _ := range server.NbrConfMap {
+		server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
+	}
+}
+
 func (server *OSPFV2Server) getNbrState(ipAddr, addressLessIfIdx uint32) (*objects.Ospfv2NbrState, error) {
 	var retObj objects.Ospfv2NbrState
+
+	nbrKey := NbrConfKey{
+		NbrIdentity:         ipAddr,
+		NbrAddressLessIfIdx: addressLessIfIdx,
+	}
+	nbr, valid := server.NbrConfMap[nbrKey]
+	if !valid {
+		return nil, errors.New("Nbr does not exist ")
+	}
+	retObj.AddressLessIfIdx = addressLessIfIdx
+	retObj.IpAddr = nbr.NbrIP
+	retObj.RtrId = nbr.NbrRtrId
+	retObj.State = uint8(nbr.State)
+	retObj.Options = int32(nbr.NbrOption)
+
 	return &retObj, nil
 }
 
 func (server *OSPFV2Server) getBulkNbrState(fromIdx, cnt int) (*objects.Ospfv2NbrStateGetInfo, error) {
 	var retObj objects.Ospfv2NbrStateGetInfo
+	count := 0
+	idx := fromIdx
+	sliceLen := len(server.GetBulkData.NbrConfSlice)
+	if fromIdx >= sliceLen {
+		return nil, errors.New("Invalid Range")
+	}
+	for count < cnt {
+		if idx == sliceLen {
+			break
+		}
+		nbrKey := server.GetBulkData.NbrConfSlice[idx]
+		nbrEnt, exist := server.NbrConfMap[nbrKey]
+		if !exist {
+			idx++
+			continue
+		}
+		var obj objects.Ospfv2NbrState
+		obj.AddressLessIfIdx = nbrKey.NbrAddressLessIfIdx
+		obj.IpAddr = nbrEnt.NbrIP
+		obj.Options = int32(nbrEnt.NbrOption)
+		obj.RtrId = uint32(nbrEnt.NbrRtrId)
+		obj.State = uint8(nbrEnt.State)
+		retObj.List = append(retObj.List, &obj)
+		count++
+		idx++
+
+	}
+
+	retObj.EndIdx = idx
+	if retObj.EndIdx == sliceLen {
+		retObj.More = false
+		retObj.Count = 0
+	} else {
+		retObj.More = true
+		retObj.Count = sliceLen - retObj.EndIdx + 1
+	}
 	return &retObj, nil
 }

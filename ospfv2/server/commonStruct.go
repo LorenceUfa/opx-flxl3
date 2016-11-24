@@ -37,6 +37,7 @@ type LsdbSliceStruct struct {
 
 type GetBulkStruct struct {
 	IntfConfSlice        []IntfConfKey
+	NbrConfSlice         []NbrConfKey
 	AreaConfSlice        []uint32
 	LsdbSlice            []LsdbSliceStruct
 	SliceRefreshCh       chan bool
