@@ -218,8 +218,6 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 	var negotiationDone bool
 	isAdjacent = server.AdjacencyCheck(nbrKey)
 	if isAdjacent || nbrConf.State == NbrExchangeStart {
-		// change nbr state
-		nbrConf.State = NbrExchangeStart
 		// decide master slave relation
 		if nbrConf.NbrRtrId > server.globalData.RouterId {
 			nbrConf.isMaster = true
@@ -233,12 +231,12 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 		   slave, and set the neighbor data structure's DD sequence
 		   number to that specified by the master.
 		*/
-		server.logger.Debug("NBRDBD: nbr ip ", nbrKey.NbrIdentity,
+		server.logger.Debug("NBRDBD: nbr rtr id ", nbrConf.NbrRtrId,
 			" my router id ", server.globalData.RouterId,
 			" nbr_seq ", nbrConf.DDSequenceNum, "dbd_seq no ", nbrDbPkt.dd_sequence_number)
 		if nbrDbPkt.ibit && nbrDbPkt.mbit && nbrDbPkt.msbit &&
 			nbrConf.NbrRtrId > server.globalData.RouterId {
-			server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
+			server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrConf.NbrRtrId)
 			nbrConf.isMaster = true
 			server.logger.Debug("NBREVENT: Negotiation done..")
 			negotiationDone = true
@@ -337,8 +335,7 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 			   * if this is the last DBD for LSA description set mbit = 0
 			*/
 			server.logger.Debug(fmt.Sprintln("DBD:(master/Exchange) mbit ", nbrDbPkt.mbit))
-			if nbrDbPkt.dd_sequence_number == nbrConf.DDSequenceNum &&
-				nbrDbPkt.mbit {
+			if nbrDbPkt.mbit {
 				server.logger.Debug(fmt.Sprintln("DBD: (master/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIdentity))
 				dbd_mdata, _ := server.ConstructDbdMdata(nbrKey, false, false, true,
 					nbrDbPkt.options, nbrDbPkt.dd_sequence_number+1, true, false)

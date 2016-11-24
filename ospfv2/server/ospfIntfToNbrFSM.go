@@ -26,7 +26,7 @@ package server
 import ()
 
 func (server *OSPFV2Server) SendHelloEventMsg(msg NbrHelloEventMsg) {
-	server.logger.Info("Sending msg to Nbr State Machine", msg)
+	server.logger.Debug("Sending msg to Nbr State Machine", msg)
 	server.MessagingChData.IntfToNbrFSMChData.NbrHelloEventCh <- msg
 }
 
