@@ -196,7 +196,6 @@ func TestGetStateInfo(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	wantStateInfo := common.State{
 		IntfRef:                 testv6IntfCfg.IntfRef,
 		Vrid:                    testv6IntfCfg.VRID,

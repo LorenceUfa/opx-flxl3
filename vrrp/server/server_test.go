@@ -31,6 +31,7 @@ import (
 	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"log/syslog"
+	"net"
 	"reflect"
 	"syscall"
 	"testing"
@@ -352,7 +353,7 @@ func testDisableGlobalConfig() {
 	goToSleep()
 }
 
-func TestVrrpV4IntfConfigVersion2(t *testing.T) {
+func TestVrrpV4IntfConfig(t *testing.T) {
 	TestServerInit(t)
 	goToSleep()
 	cfg := testIntfBaseCfg
@@ -390,6 +391,36 @@ func TestVrrpV4IntfConfigVersion2(t *testing.T) {
 		return
 	}
 
+	v4State := testSvr.GetEntry(key)
+	if v4State == nil {
+		t.Error("get vrrp v4 interface by intfRef & VRID failed")
+		return
+	}
+	ip, _, _ := net.ParseCIDR(l3Intf.IpAddr)
+	wantStateInfo := common.State{
+		IntfRef:                 cfg.IntfRef,
+		Vrid:                    cfg.VRID,
+		OperState:               common.STATE_DOWN,
+		CurrentFsmState:         "Initialize",
+		AdverRx:                 0,
+		AdverTx:                 0,
+		LastAdverRx:             "",
+		LastAdverTx:             "",
+		IpAddr:                  ip.String(),
+		VirtualIp:               cfg.VirtualIPAddr,
+		VirtualRouterMACAddress: vrrpIntf.GetVMac(),
+		AdvertisementInterval:   cfg.AdvertisementInterval,
+	}
+	// hacking time stamp to be empty
+	v4State.LastAdverRx = ""
+	v4State.LastAdverTx = ""
+	if !reflect.DeepEqual(wantStateInfo, *v4State) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", v4State)
+		return
+	}
+
 	cfg.AdminState = true
 	cfg.Operation = common.UPDATE
 	testSvr.CfgCh <- &cfg
@@ -424,6 +455,39 @@ func TestVrrpV4IntfConfigVersion2(t *testing.T) {
 		t.Error("	    vrrp interface information:", testSvr.Intf)
 		return
 	}
+	wantStateInfo.OperState = common.STATE_UP
+	wantStateInfo.MasterDownTimer = 3
+	v4State = testSvr.GetEntry(key)
+	if v4State == nil {
+		t.Error("get vrrp v4 interface by intfRef & VRID failed")
+		return
+	}
+	// hacking time stamp to be empty
+	v4State.LastAdverRx = ""
+	v4State.LastAdverTx = ""
+	if !reflect.DeepEqual(wantStateInfo, *v4State) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", v4State)
+		return
+	}
+	_, _, v4Bulk := testSvr.GetV4Intfs(0, 100)
+	if len(v4Bulk) == 0 && len(v4Bulk) != 1 {
+		t.Error("failed to get bulk vrrp v4 entries")
+		return
+	}
+
+	v4Entry := v4Bulk[0]
+	// hacking time stamp to be empty
+	v4Entry.LastAdverRx = ""
+	v4Entry.LastAdverTx = ""
+	if !reflect.DeepEqual(wantStateInfo, v4Entry) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", v4Entry)
+		return
+	}
+
 	testDisableGlobalConfig()
 	if vrrpIntf.Fsm.IsRunning() {
 		t.Error("after global config disable fsm need to stop for vrrp interfaces")
@@ -443,6 +507,11 @@ func TestVrrpV4IntfConfigVersion2(t *testing.T) {
 		t.Error("	    vrrp interface information:", testSvr.Intf)
 		return
 	}
+	_, _, v4Bulk = testSvr.GetV4Intfs(0, 100)
+	if len(v4Bulk) != 0 {
+		t.Error("failed to delete v4 entry after vrrp v4 is deleted")
+		return
+	}
 	TestServerDeInit(t)
 }
 
@@ -453,6 +522,7 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 	ipIntf.MsgType = common.IP_MSG_CREATE
 	ipIntf.OperState = common.STATE_UP
 	testSvr.L3IntfNotifyCh <- ipIntf
+	ip, _, _ := net.ParseCIDR(ipIntf.IpAddr)
 	goToSleep()
 	if len(testSvr.V6) != 1 {
 		t.Error("failed to handle ipv6 interface create notification by create a new v6 entry")
@@ -514,6 +584,39 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 		t.Error("	    intf config:", *vrrpIntf.Config)
 		return
 	}
+
+	wantStateInfo := common.State{
+		IntfRef:                 cfg.IntfRef,
+		Vrid:                    cfg.VRID,
+		OperState:               common.STATE_UP,
+		CurrentFsmState:         "Initialize",
+		AdverRx:                 0,
+		AdverTx:                 0,
+		LastAdverRx:             "",
+		LastAdverTx:             "",
+		IpAddr:                  ip.String(),
+		VirtualIp:               cfg.VirtualIPAddr,
+		MasterDownTimer:         3,
+		VirtualRouterMACAddress: vrrpIntf.GetVMac(),
+		AdvertisementInterval:   cfg.AdvertisementInterval,
+	}
+	_, _, v6Bulk := testSvr.GetV6Intfs(0, 100)
+	if len(v6Bulk) == 0 && len(v6Bulk) != 1 {
+		t.Error("failed to get bulk vrrp v4 entries")
+		return
+	}
+
+	v6Entry := v6Bulk[0]
+	// hacking time stamp to be empty
+	v6Entry.LastAdverRx = ""
+	v6Entry.LastAdverTx = ""
+	if !reflect.DeepEqual(wantStateInfo, v6Entry) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", v6Entry)
+		return
+	}
+
 	cfg.Operation = common.DELETE
 	testSvr.CfgCh <- &cfg
 	goToSleep()
@@ -537,6 +640,11 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 		t.Error("Vrrp Global State Mis-Match During Global Create")
 		t.Error("	    wantGblState:", *wantGblState)
 		t.Error("	    rcvdGblState:", *state)
+		return
+	}
+	_, _, v6Bulk = testSvr.GetV6Intfs(0, 100)
+	if len(v6Bulk) != 0 {
+		t.Error("failed to delete v6 entry after vrrp v6 is deleted")
 		return
 	}
 	TestServerDeInit(t)
