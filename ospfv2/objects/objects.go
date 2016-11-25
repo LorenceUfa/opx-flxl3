@@ -299,12 +299,7 @@ type Ospfv2NbrStateGetInfo struct {
 	List   []*Ospfv2NbrState
 }
 
-type Ospfv2LsaKey struct {
-	LsType    uint8
-	LSId      uint32
-	AdvRouter uint32
-}
-
+/*
 type Ospfv2NextHop struct {
 	IntfIPAddr    uint32
 	IntfIfIdx     uint32
@@ -313,17 +308,19 @@ type Ospfv2NextHop struct {
 }
 
 type Ospfv2RouteState struct {
-	DestId          uint32
-	AddrMask        uint32
-	DestType        uint8
-	OptCapabilities int32
-	AreaId          uint32
-	PathType        uint8
-	Cost            uint32
-	Type2Cost       uint32
-	NumOfPaths      uint16
-	NextHops        []Ospfv2NextHop
-	LSOrigin        Ospfv2LsaKey
+	DestId            uint32
+	AddrMask          uint32
+	DestType          uint8
+	OptCapabilities   int32
+	AreaId            uint32
+	PathType          uint8
+	Cost              uint32
+	Type2Cost         uint32
+	NumOfPaths        uint16
+	LSOriginLSType    uint8
+	LSOriginLSId      uint32
+	LSOriginAdvRouter uint32
+	NextHops          []Ospfv2NextHop
 }
 
 type Ospfv2RouteStateGetInfo struct {
@@ -332,3 +329,4 @@ type Ospfv2RouteStateGetInfo struct {
 	More   bool
 	List   []*Ospfv2RouteState
 }
+*/

@@ -173,7 +173,22 @@ func (m RIBDServicesHandler) UpdateApplyPolicy(applyList []*ribdInt.ApplyPolicyI
 	return nil
 }
 func (m RIBDServicesHandler) CreateRedistributionPolicy(cfg *ribd.RedistributionPolicy) (val bool, err error) {
-
+	ribdConditionsList := make([]*ribdInt.ConditionInfo, 0)
+	var condition ribdInt.ConditionInfo
+	if cfg.Source != "ALL" {
+		condition = ribdInt.ConditionInfo{ConditionType: "MatchProtocol", Protocol: cfg.Source}
+	}
+	ribdConditionsList = append(ribdConditionsList, &condition)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		PolicyList: server.ApplyPolicyList{[]*ribdInt.ApplyPolicyInfo{&ribdInt.ApplyPolicyInfo{
+			Source:     cfg.Target,
+			Policy:     cfg.Policy,
+			Action:     "Redistribution",
+			Conditions: ribdConditionsList,
+		}}, nil},
+		Op: defs.ApplyPolicy,
+	}
+	err = <-m.server.PolicyConfDone
 	return true, nil
 }
 func (m RIBDServicesHandler) UpdateRedistributionPolicy(origconfig *ribd.RedistributionPolicy, newconfig *ribd.RedistributionPolicy, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
@@ -183,6 +198,7 @@ func (m RIBDServicesHandler) DeleteRedistributionPolicy(cfg *ribd.Redistribution
 	return true, nil
 }
 func (m RIBDServicesHandler) GetBulkRedistributionPolicyState(fromIndex ribd.Int, count ribd.Int) (info *ribd.RedistributionPolicyStateGetInfo, err error) {
+	logger.Debug(fmt.Sprintln("GetBulkRedistributionPolicyState"))
 	return nil, nil
 }
 func (m RIBDServicesHandler) GetRedistributionPolicyState(Target string, Source string) (info *ribd.RedistributionPolicyState, err error) {

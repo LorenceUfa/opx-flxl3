@@ -46,10 +46,34 @@ func (server *OSPFV2Server) RouteAddToDB(msg RouteAddMsg) {
 
 	obj.DestId = convertUint32ToDotNotation(msg.RTblKey.DestId)
 	obj.AddrMask = convertUint32ToDotNotation(msg.RTblKey.AddrMask)
-	obj.DestType = string(msg.RTblKey.DestType)
+	switch msg.RTblKey.DestType {
+	case Network:
+		obj.DestType = "Network"
+	case InternalRouter:
+		obj.DestType = "Internal Router"
+	case AreaBdrRouter:
+		obj.DestType = "Area Border Router"
+	case ASBdrRouter:
+		obj.DestType = "AS Border Router"
+	case ASAreaBdrRouter:
+		obj.DestType = "AS and Area Border Router"
+	default:
+		obj.DestType = "Invalid"
+	}
 	obj.OptCapabilities = int32(msg.RTblEntry.RoutingTblEnt.OptCapabilities)
 	obj.AreaId = convertUint32ToDotNotation(msg.RTblEntry.AreaId)
-	obj.PathType = string(msg.RTblEntry.RoutingTblEnt.PathType)
+	switch msg.RTblEntry.RoutingTblEnt.PathType {
+	case IntraArea:
+		obj.PathType = "Intra Area"
+	case InterArea:
+		obj.PathType = "Inter Area"
+	case Type1Ext:
+		obj.PathType = "Type1 External"
+	case Type2Ext:
+		obj.PathType = "Type2 External"
+	default:
+		obj.PathType = "Invalid"
+	}
 	obj.Cost = int32(msg.RTblEntry.RoutingTblEnt.Cost)
 	obj.Type2Cost = int32(msg.RTblEntry.RoutingTblEnt.Type2Cost)
 	obj.NumOfPaths = int16(msg.RTblEntry.RoutingTblEnt.NumOfPaths)
@@ -63,10 +87,16 @@ func (server *OSPFV2Server) RouteAddToDB(msg RouteAddMsg) {
 		obj.NextHops = append(obj.NextHops, &nh_list[idx])
 		idx++
 	}
-	obj.LSOrigin = &ospfv2d.Ospfv2LsaKey{}
-	obj.LSOrigin.LSType = int8(msg.RTblEntry.RoutingTblEnt.LSOrigin.LSType)
-	obj.LSOrigin.LSId = convertUint32ToDotNotation(msg.RTblEntry.RoutingTblEnt.LSOrigin.LSId)
-	obj.LSOrigin.AdvRouter = convertUint32ToDotNotation(msg.RTblEntry.RoutingTblEnt.LSOrigin.AdvRouter)
+	if msg.RTblEntry.RoutingTblEnt.PathType == IntraArea {
+		switch msg.RTblEntry.RoutingTblEnt.LSOrigin.LSType {
+		case RouterLSA:
+			obj.LSOriginLSType = "Router LSA"
+		case NetworkLSA:
+			obj.LSOriginLSType = "Network LSA"
+		}
+		obj.LSOriginLSId = convertUint32ToDotNotation(msg.RTblEntry.RoutingTblEnt.LSOrigin.LSId)
+		obj.LSOriginAdvRouter = convertUint32ToDotNotation(msg.RTblEntry.RoutingTblEnt.LSOrigin.AdvRouter)
+	}
 	objects.ConvertThriftToospfv2dOspfv2RouteStateObj(obj, &dbObj)
 	if server.dbHdl == nil {
 		server.logger.Err("Db Handler is nil")
@@ -83,10 +113,22 @@ func (server *OSPFV2Server) RouteDelFromDB(msg RouteDelMsg) {
 	var dbObj objects.Ospfv2RouteState
 	obj := ospfv2d.NewOspfv2RouteState()
 
-	obj.LSOrigin = &ospfv2d.Ospfv2LsaKey{}
 	obj.DestId = convertUint32ToDotNotation(msg.RTblKey.DestId)
 	obj.AddrMask = convertUint32ToDotNotation(msg.RTblKey.AddrMask)
-	obj.DestType = string(msg.RTblKey.DestType)
+	switch msg.RTblKey.DestType {
+	case Network:
+		obj.DestType = "Network"
+	case InternalRouter:
+		obj.DestType = "Internal Router"
+	case AreaBdrRouter:
+		obj.DestType = "Area Border Router"
+	case ASBdrRouter:
+		obj.DestType = "AS Border Router"
+	case ASAreaBdrRouter:
+		obj.DestType = "AS and Area Border Router"
+	default:
+		obj.DestType = "Invalid"
+	}
 
 	objects.ConvertThriftToospfv2dOspfv2RouteStateObj(obj, &dbObj)
 	if server.dbHdl == nil {

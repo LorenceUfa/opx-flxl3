@@ -163,6 +163,7 @@ func (server *OSPFV2Server) StartIntfFSM(key IntfConfKey) {
 			ent.NbrCreateCh = make(chan NbrCreateMsg)
 			ent.NbrChangeCh = make(chan NbrChangeMsg)
 			server.IntfConfMap[key] = ent
+			server.StartIntfRxTxPkt(key)
 			if ent.Type == objects.INTF_TYPE_POINT2POINT {
 				go server.StartOspfP2PIntfFSM(key)
 			} else if ent.Type == objects.INTF_TYPE_BROADCAST {
@@ -240,6 +241,7 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 			//nbrList := server.GetIntfNbrList(ent)
 			server.SendDeleteNbrsMsg(key)
 			server.DeinitOspfIntfFSM(key)
+			server.StopIntfRxTxPkt(key)
 			server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			ent.FSMCtrlReplyCh <- false
 			return
@@ -327,6 +329,7 @@ func (server *OSPFV2Server) StartOspfBroadcastIntfFSM(key IntfConfKey) {
 			//server.StopSendHelloPkt(key)
 			//nbrList := server.GetIntfNbrList(ent)
 			server.SendDeleteNbrsMsg(key)
+			server.StopIntfRxTxPkt(key)
 			server.DeinitOspfIntfFSM(key)
 			server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			ent.FSMCtrlReplyCh <- false

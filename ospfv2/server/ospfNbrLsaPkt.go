@@ -499,6 +499,7 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 			selfGenLsaMsg = RecvdSelfLsaMsg{
 				LsaKey:  *lsa_key,
 				LsdbKey: lsdbKey,
+				LsaData: lsdb_msg.LsaData,
 			}
 			server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh <- selfGenLsaMsg
 			server.logger.Info(fmt.Sprintln("LSAUPD: discard . Received self generated. ", lsa_key))
