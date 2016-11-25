@@ -445,3 +445,99 @@ func TestVrrpV4IntfConfigVersion2(t *testing.T) {
 	}
 	TestServerDeInit(t)
 }
+
+func TestVrrpV6IntfConfig(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	ipIntf := ipv6Intf
+	ipIntf.MsgType = common.IP_MSG_CREATE
+	ipIntf.OperState = common.STATE_UP
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	if len(testSvr.V6) != 1 {
+		t.Error("failed to handle ipv6 interface create notification by create a new v6 entry")
+		t.Error("	    ", testSvr.V4)
+		return
+	}
+	cfg := testIntfBaseCfg
+	cfg.AdminState = true
+	cfg.Version = common.VERSION3
+	cfg.Operation = common.CREATE
+	cfg.IpType = syscall.AF_INET6
+	_, err := testSvr.ValidConfiguration(&cfg)
+	if err != nil {
+		t.Error("vrrp configuration should not be rejected as there is l3 intf that got created")
+		return
+	}
+	testEnableGlobalConfig()
+	testSvr.CfgCh <- &cfg
+	goToSleep()
+	wantGblState := &common.GlobalState{
+		Vrf:           testSvr.GlobalConfig.Vrf,
+		Status:        testSvr.GlobalConfig.Enable,
+		V4Intfs:       0,
+		V6Intfs:       1,
+		TotalRxFrames: 0,
+		TotalTxFrames: 0,
+	}
+	state := testSvr.GetGlobalState(testSvr.GlobalConfig.Vrf)
+	if !reflect.DeepEqual(state, wantGblState) {
+		t.Error("Vrrp Global State Mis-Match after creating vrrp v6 interface")
+		t.Error("	    wantGblState:", *wantGblState)
+		t.Error("	    rcvdGblState:", *state)
+		return
+	}
+
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
+	vrrpIntf, exists := testSvr.Intf[key]
+	if !exists {
+		t.Error("failed to init fsm for vrrp v6 version configuration:", cfg)
+		t.Error("	    key used for searching vrrp interface:", key)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		return
+	}
+	if !vrrpIntf.Fsm.IsRunning() {
+		t.Error("fsm should be started as VRRP Global is enabled & admin state is True")
+		return
+	}
+
+	if !reflect.DeepEqual(cfg, *vrrpIntf.Fsm.Config) {
+		t.Error("vrrp config mis-match with fsm configuration")
+		t.Error("	    want cfg:", cfg)
+		t.Error("	    fsm config:", *vrrpIntf.Fsm.Config)
+		return
+	}
+
+	if !reflect.DeepEqual(cfg, *vrrpIntf.Config) {
+		t.Error("vrrp config mis-match with interface configuration")
+		t.Error("	    want cfg:", cfg)
+		t.Error("	    intf config:", *vrrpIntf.Config)
+		return
+	}
+	cfg.Operation = common.DELETE
+	testSvr.CfgCh <- &cfg
+	goToSleep()
+
+	if len(testSvr.Intf) != 0 {
+		t.Error("failed to delete vrrp v6 interface configuration")
+		t.Error("	    vrrp global information:", *testSvr.GlobalConfig)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		return
+	}
+	wantGblState = &common.GlobalState{
+		Vrf:           testSvr.GlobalConfig.Vrf,
+		Status:        testSvr.GlobalConfig.Enable,
+		V4Intfs:       0,
+		V6Intfs:       0,
+		TotalRxFrames: 0,
+		TotalTxFrames: 0,
+	}
+	state = testSvr.GetGlobalState(testSvr.GlobalConfig.Vrf)
+	if !reflect.DeepEqual(state, wantGblState) {
+		t.Error("Vrrp Global State Mis-Match During Global Create")
+		t.Error("	    wantGblState:", *wantGblState)
+		t.Error("	    rcvdGblState:", *state)
+		return
+	}
+	TestServerDeInit(t)
+}
