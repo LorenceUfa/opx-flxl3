@@ -318,3 +318,130 @@ func TestIPv6Notifications(t *testing.T) {
 	}
 	TestServerDeInit(t)
 }
+
+var testIntfBaseCfg = common.IntfCfg{
+	IfIndex:               testIfIndex,
+	IntfRef:               "lo",
+	VRID:                  1,
+	Priority:              101,
+	VirtualIPAddr:         "172.18.0.1/32",
+	AdvertisementInterval: 1,
+	PreemptMode:           true,
+	AcceptMode:            false,
+}
+
+func testEnableGlobalConfig() {
+	testSvr.GlobalConfig.Vrf = "default"
+	testSvr.GlobalConfig.Enable = false
+	gblCfg := &common.GlobalConfig{
+		Vrf:       "default",
+		Enable:    true,
+		Operation: common.UPDATE,
+	}
+	testSvr.GblCfgCh <- gblCfg
+	goToSleep()
+}
+
+func testDisableGlobalConfig() {
+	gblCfg := &common.GlobalConfig{
+		Vrf:       "default",
+		Enable:    false,
+		Operation: common.UPDATE,
+	}
+	testSvr.GblCfgCh <- gblCfg
+	goToSleep()
+}
+
+func TestVrrpV4IntfConfigVersion2(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	cfg := testIntfBaseCfg
+	cfg.AdminState = false
+	cfg.Version = common.VERSION2
+	cfg.Operation = common.CREATE
+	cfg.IpType = syscall.AF_INET
+	_, err := testSvr.ValidConfiguration(&cfg)
+	if err == nil {
+		t.Error("vrrp configuration should be rejected as there is no l3 intf that got created")
+		return
+	}
+	l3Intf := ipv4Intf
+	l3Intf.OperState = common.STATE_UP
+	l3Intf.MsgType = common.IP_MSG_CREATE
+	testSvr.L3IntfNotifyCh <- l3Intf
+	goToSleep()
+	if len(testSvr.V4) != 1 {
+		t.Error("failed to handle ipv4 interface create notification by create a new v4 entry")
+		t.Error("	    ", testSvr.V4)
+		return
+	}
+	testSvr.CfgCh <- &cfg
+	goToSleep()
+	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
+	vrrpIntf, exists := testSvr.Intf[key]
+	if !exists {
+		t.Error("failed to init fsm for vrrp v4 version configuration:", cfg)
+		t.Error("	    key used for searching vrrp interface:", key)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		return
+	}
+	if vrrpIntf.Fsm.IsRunning() {
+		t.Error("fsm should not be started as VRRP Global is not yet enabled")
+		return
+	}
+
+	cfg.AdminState = true
+	cfg.Operation = common.UPDATE
+	testSvr.CfgCh <- &cfg
+	goToSleep()
+	if !reflect.DeepEqual(cfg, *vrrpIntf.Fsm.Config) {
+		t.Error("vrrp update config didn't update fsm configuration")
+		t.Error("	    want cfg:", cfg)
+		t.Error("	    fsm config:", *vrrpIntf.Fsm.Config)
+		return
+	}
+
+	if !reflect.DeepEqual(cfg, *vrrpIntf.Config) {
+		t.Error("vrrp update config didn't update interface configuration")
+		t.Error("	    want cfg:", cfg)
+		t.Error("	    intf config:", *vrrpIntf.Config)
+		return
+	}
+	vrrpIntf = testSvr.Intf[key]
+	if vrrpIntf.Fsm.IsRunning() {
+		t.Error("after updating adming state without vrrp globally enabled fsm should not start")
+		t.Error("	    vrrp global information:", *testSvr.GlobalConfig)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		t.Error("	    vrrp fsm information:", *vrrpIntf.Fsm.Config)
+		return
+	}
+
+	testEnableGlobalConfig()
+	vrrpIntf = testSvr.Intf[key]
+	if vrrpIntf.Fsm.IsRunning() == false {
+		t.Error("after global config enable fsm needs to start for vrrp interfaces")
+		t.Error("	    vrrp global information:", *testSvr.GlobalConfig)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		return
+	}
+	testDisableGlobalConfig()
+	if vrrpIntf.Fsm.IsRunning() {
+		t.Error("after global config disable fsm need to stop for vrrp interfaces")
+		t.Error("	    vrrp global information:", *testSvr.GlobalConfig)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		t.Error("	    vrrp fsm information:", vrrpIntf.Fsm)
+		return
+	}
+
+	cfg.Operation = common.DELETE
+	testSvr.CfgCh <- &cfg
+	goToSleep()
+
+	if len(testSvr.Intf) != 0 {
+		t.Error("failed to delete vrrp v4 interface configuration")
+		t.Error("	    vrrp global information:", *testSvr.GlobalConfig)
+		t.Error("	    vrrp interface information:", testSvr.Intf)
+		return
+	}
+	TestServerDeInit(t)
+}

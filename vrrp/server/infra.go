@@ -99,15 +99,21 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
 	}
+	if cfg.IpType == syscall.AF_INET {
+		// check if ipv4 address is configured on the intfRef
+		_, v4exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
+		if !v4exists {
+			return false, errors.New(fmt.Sprintln("Vrrp V4 cannot be configured as no l3 Interface found for:", cfg.IntfRef))
+		}
+	} else if cfg.IpType == syscall.AF_INET6 {
+		// check if ipv6 address is configured on the intRef
+		_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
 
-	// check if ipv4 address is configured on the intfRef
-	_, v4exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
-
-	// check if ipv6 address is configured on the intRef
-	_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
-
-	if !v4exists && !v6exists {
-		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:", cfg.IntfRef))
+		if !v6exists {
+			return false, errors.New(fmt.Sprintln("Vrrp V6 cannot be configured as no l3 Interface found for:", cfg.IntfRef))
+		}
+	} else {
+		return false, errors.New("Invalid ip type")
 	}
 	debug.Logger.Info("Validation of create config:", *cfg, "is success")
 	return true, nil
@@ -282,6 +288,9 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 		debug.Logger.Debug("ip interface exists and hence get information from DB")
 		l3Info.IfIndex = ifIndex
 		ipIntf.GetObjFromDb(l3Info)
+	} else {
+		debug.Logger.Err("cannot create config as no l3 interface is found")
+		return
 	}
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh, svr.UpdateRxCh, svr.UpdateTxCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
