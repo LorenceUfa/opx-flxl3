@@ -223,12 +223,45 @@ func TestGetStateInfo(t *testing.T) {
 	testFsmDeInit(t)
 }
 
+func TestFsmUpGetStateInfo(t *testing.T) {
+	TestV6FsmInit(t)
+	if testFsm == nil {
+		return
+	}
+	go testFsm.StartFsm()
+	time.Sleep(10 * time.Millisecond)
+	wantStateInfo := common.State{
+		IntfRef:                 testv6IntfCfg.IntfRef,
+		Vrid:                    testv6IntfCfg.VRID,
+		OperState:               common.STATE_UP,
+		CurrentFsmState:         VRRP_INITIALIZE_STATE_STRING,
+		MasterIp:                "",
+		AdverRx:                 0,
+		AdverTx:                 0,
+		LastAdverRx:             "",
+		LastAdverTx:             "",
+		IpAddr:                  testL3Info.IpAddr,
+		VirtualIp:               testv6IntfCfg.VirtualIPAddr,
+		VirtualRouterMACAddress: testV6Vmac,
+		AdvertisementInterval:   testv6IntfCfg.AdvertisementInterval,
+		MasterDownTimer:         0,
+	}
+	state := common.State{}
+	testFsm.GetStateInfo(&state)
+	if !reflect.DeepEqual(wantStateInfo, state) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", state)
+		return
+	}
+	testFsmDeInit(t)
+}
+
 func TestV6VMacCreate(t *testing.T) {
 	TestV6FsmInit(t)
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testFsm.createVirtualMac()
 	if testFsm.VirtualMACAddress != testV6Vmac {
 		t.Error("Failed creating virtual mac for v6 interface")
