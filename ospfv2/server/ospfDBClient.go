@@ -115,7 +115,20 @@ func (server *OSPFV2Server) RouteDelFromDB(msg RouteDelMsg) {
 
 	obj.DestId = convertUint32ToDotNotation(msg.RTblKey.DestId)
 	obj.AddrMask = convertUint32ToDotNotation(msg.RTblKey.AddrMask)
-	obj.DestType = string(msg.RTblKey.DestType)
+	switch msg.RTblKey.DestType {
+	case Network:
+		obj.DestType = "Network"
+	case InternalRouter:
+		obj.DestType = "Internal Router"
+	case AreaBdrRouter:
+		obj.DestType = "Area Border Router"
+	case ASBdrRouter:
+		obj.DestType = "AS Border Router"
+	case ASAreaBdrRouter:
+		obj.DestType = "AS and Area Border Router"
+	default:
+		obj.DestType = "Invalid"
+	}
 
 	objects.ConvertThriftToospfv2dOspfv2RouteStateObj(obj, &dbObj)
 	if server.dbHdl == nil {
