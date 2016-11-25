@@ -207,6 +207,7 @@ func (server *OSPFV2Server) ProcessLsdb(initDoneCh chan bool) {
 			return
 		case areaId := <-server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlCh:
 			server.DeinitAreaLsdb(areaId)
+			server.RefreshLsdbSlice()
 			server.CalcSPFAndRoutingTbl()
 			server.LsdbData.LsdbCtrlChData.LsdbAreaCtrlReplyCh <- areaId
 		case areaId := <-server.MessagingChData.ServerToLsdbChData.InitAreaLsdbCh:
