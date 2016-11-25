@@ -635,6 +635,25 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 		return
 	}
 
+	ipIntf.MsgType = common.IP_MSG_STATE_CHANGE
+	ipIntf.OperState = common.STATE_UP
+	testSvr.L3IntfNotifyCh <- ipIntf
+	goToSleep()
+	v6State = testSvr.GetEntry(key)
+	if v6State == nil {
+		t.Error("get vrrp v4 interface by intfRef & VRID failed")
+		return
+	}
+	// hacking time stamp to be empty
+	v6State.LastAdverRx = ""
+	v6State.LastAdverTx = ""
+	if !reflect.DeepEqual(wantStateInfo, *v6State) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", v6State)
+		return
+	}
+
 	cfg.Operation = common.DELETE
 	testSvr.CfgCh <- &cfg
 	goToSleep()
