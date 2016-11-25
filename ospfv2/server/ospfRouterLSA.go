@@ -289,7 +289,7 @@ func (server *OSPFV2Server) processRecvdSelfRouterLSA(msg RecvdSelfLsaMsg) error
 		server.logger.Err("No such self originated router LSA exist", msg.LsaKey)
 		return nil
 	}
-	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+	if lsaEnt.LsaMd.LSSequenceNum < lsa.LsaMd.LSSequenceNum {
 		checksumOffset := uint16(14)
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0

@@ -61,7 +61,7 @@ func (server *OSPFV2Server) processRecvdSelfASExternalLSA(msg RecvdSelfLsaMsg) e
 		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
-	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+	if lsaEnt.LsaMd.LSSequenceNum < lsa.LsaMd.LSSequenceNum {
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
 		lsaEnt.LsaMd.LSChecksum = 0
