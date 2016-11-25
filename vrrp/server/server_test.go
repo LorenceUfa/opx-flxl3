@@ -711,3 +711,42 @@ func TestV4V6Intf(t *testing.T) {
 		return
 	}
 }
+
+func TestGlobalRxTxCount(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	var empty struct{}
+	testSvr.UpdateRxCh <- empty
+	testSvr.UpdateTxCh <- empty
+	goToSleep()
+	if testSvr.globalState.TotalRxFrames != 1 {
+		t.Error("failed to update rx count")
+		return
+	}
+	if testSvr.globalState.TotalTxFrames != 1 {
+		t.Error("failed to update tx count")
+		return
+	}
+	TestServerDeInit(t)
+}
+
+func TestDummyDbRead(t *testing.T) {
+	TestServerInit(t)
+	goToSleep()
+	testSvr.readVrrpGblCfg()
+	testSvr.readVrrpV4IntfCfg()
+	testSvr.readVrrpV6IntfCfg()
+	if testSvr.GlobalConfig.Vrf == "default" {
+		t.Error("if no db handle then Global Config should not be done")
+		return
+	}
+	if len(testSvr.V4) != 0 {
+		t.Error("no entries are stored in db and hence V4 interfaces count should be 0")
+		return
+	}
+	if len(testSvr.V6) != 0 {
+		t.Error("no entries are stored in db and hence V6 interfaces count should be 0")
+		return
+	}
+	TestServerDeInit(t)
+}
