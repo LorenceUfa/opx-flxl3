@@ -208,6 +208,46 @@ func (server *OSPFV2Server) validateLsaIsNew(rlsamd LsaMetadata, dlsamd LsaMetad
 	return true
 }
 
+func (server *OSPFV2Server) GetLsaByteFromLsaKey(areaId uint32, lsaKey LsaKey) []byte {
+	lsaByte := []byte{}
+	switch lsaKey.LSType {
+	case RouterLSA:
+		rlsa, valid := server.getRouterLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeRouterLsa(rlsa, lsaKey)
+		break
+	case NetworkLSA:
+		nlsa, valid := server.getNetworkLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeNetworkLsa(nlsa, lsaKey)
+		break
+	case Summary3LSA, Summary4LSA:
+		slsa, valid := server.getSummaryLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeSummaryLsa(slsa, lsaKey)
+		break
+
+	case ASExternalLSA:
+		alsa, valid := server.getASExternalLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeASExternalLsa(alsa, lsaKey)
+		break
+
+	default:
+		server.logger.Debug("Flood: Invalid lsa type . ", lsaKey)
+		return nil
+	}
+	return lsaByte
+}
+
 func (server *OSPFV2Server) getLsaByteFromLsa(msg LsdbToFloodLSAMsg) []byte {
 	lsaByte := []byte{}
 	switch msg.LsaKey.LSType {
