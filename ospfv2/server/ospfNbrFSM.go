@@ -445,6 +445,11 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 
 		server.SendMsgFromNbrToLsdb(msg)
 	}
+	floodMsg := NbrToFloodMsg{
+		NbrKey:  nbrKey,
+		MsgType: LSA_FLOOD_NBR_FULL,
+	}
+	server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh <- floodMsg
 }
 
 func (server *OSPFV2Server) ProcessNetworkDRChangeMsg(msg NetworkDRChangeMsg) {
