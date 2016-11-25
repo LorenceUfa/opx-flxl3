@@ -135,10 +135,11 @@ type NbrDownMsg struct {
 type RecvdLsaMsgType uint8
 
 const (
-	LSA_ADD        RecvdLsaMsgType = 0
-	LSA_DEL        RecvdLsaMsgType = 1
-	LSA_FLOOD_ALL  RecvdLsaMsgType = 2
-	LSA_FLOOD_INTF RecvdLsaMsgType = 3
+	LSA_ADD            RecvdLsaMsgType = 0
+	LSA_DEL            RecvdLsaMsgType = 1
+	LSA_FLOOD_ALL      RecvdLsaMsgType = 2
+	LSA_FLOOD_INTF     RecvdLsaMsgType = 3
+	LSA_FLOOD_NBR_FULL RecvdLsaMsgType = 4
 )
 
 type RecvdLsaMsg struct {
