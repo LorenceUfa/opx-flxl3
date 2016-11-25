@@ -24,6 +24,7 @@
 package server
 
 import (
+	"errors"
 	"net"
 	"time"
 )
@@ -180,4 +181,24 @@ func (server *OSPFV2Server) DeinitNbrStruct() {
 		nbr.NbrLsaRxTimer = nil
 	}
 	server.NbrConfMap = nil
+}
+
+func (server *OSPFV2Server) getFullNbrList(intfKey IntfConfKey) ([]uint32, error) {
+	nbrConfKeyList, exist := server.NbrConfData.IntfToNbrMap[intfKey]
+	if !exist {
+		return nil, errors.New("No entry in IntfToNbrMap found")
+	}
+
+	var nbrRtrIdList []uint32
+	for _, nbrConfKey := range nbrConfKeyList {
+		nbrConf, exist := server.NbrConfMap[nbrConfKey]
+		if !exist {
+			continue
+		}
+		nbrRtrIdList = append(nbrRtrIdList, nbrConf.NbrRtrId)
+	}
+	if len(nbrRtrIdList) == 0 {
+		return nil, errors.New("No Nbrs exist")
+	}
+	return nbrRtrIdList, nil
 }
