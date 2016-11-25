@@ -102,6 +102,9 @@ func (rpcHdl *rpcServiceHandler) GetOspfv2GlobalState(Vrf string) (*ospfv2d.Ospf
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2GlobalState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2GlobalStateGetInfo, error) {
 	var getBulkInfo ospfv2d.Ospfv2GlobalStateGetInfo
 	info, err := api.GetBulkOspfv2GlobalState(int(fromIdx), int(count))
+	if info == nil || err != nil {
+		return &getBulkInfo, err
+	}
 	getBulkInfo.StartIdx = fromIdx
 	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
 	getBulkInfo.More = info.More

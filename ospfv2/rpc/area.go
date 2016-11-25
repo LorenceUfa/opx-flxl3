@@ -102,6 +102,9 @@ func (rpcHdl *rpcServiceHandler) GetOspfv2AreaState(AreaId string) (*ospfv2d.Osp
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2AreaState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2AreaStateGetInfo, error) {
 	var getBulkInfo ospfv2d.Ospfv2AreaStateGetInfo
 	info, err := api.GetBulkOspfv2AreaState(int(fromIdx), int(count))
+	if info == nil || err != nil {
+		return &getBulkInfo, err
+	}
 	getBulkInfo.StartIdx = fromIdx
 	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
 	getBulkInfo.More = info.More

@@ -74,7 +74,6 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		//Stop Rx Pkt
 		//Deinit Rx Pkt
 		//Deinit Tx Pkt
-		server.StopAllRxTxPkt()
 		// TODO: Stop Nbr FSM
 		server.StopNbrFSM()
 
@@ -137,9 +136,6 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Init Rx
 		// Init Tx
 		// Start Rx
-		server.StartAllRxTxPkt()
-		server.logger.Info("Successfully started All Rx Tx Packet")
-
 		// Init Ospf Intf FSM
 		//Start All Interface FSM
 		server.StartAllIntfFSM()
@@ -174,8 +170,6 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 		server.logger.Info("Successfully started Lsdb Routine")
 		server.StartNbrFSM()
 		server.logger.Info("Successfully started Nbr FSM")
-		server.StartAllRxTxPkt()
-		server.logger.Info("Successfully started All Rx Tx Packet")
 		server.StartAllIntfFSM()
 		server.logger.Info("Successfully started All Intf FSM")
 	}
