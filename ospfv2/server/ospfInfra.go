@@ -480,7 +480,6 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 			intfConfEnt.OperState = true
 			server.IntfConfMap[intfConfKey] = intfConfEnt
 			if intfConfEnt.AdminState == true {
-				server.StartIntfRxTxPkt(intfConfKey)
 				server.StartIntfFSM(intfConfKey)
 			}
 		}
@@ -498,7 +497,6 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 			server.IntfConfMap[intfConfKey] = intfConfEnt
 			if intfConfEnt.AdminState == true {
 				server.StopIntfFSM(intfConfKey)
-				server.StopIntfRxTxPkt(intfConfKey)
 			}
 		}
 	}

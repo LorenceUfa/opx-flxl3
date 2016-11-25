@@ -21,89 +21,27 @@
 
 package server
 
-import (
-	"l3/ospfv2/objects"
-	"utils/commonDefs"
-)
-
-func (server *OSPFV2Server) StopAllRxTxPkt() {
-	for intfConfKey, intfConfEnt := range server.IntfConfMap {
-		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-			server.StopIntfRxTxPkt(intfConfKey)
-		}
-	}
-}
-
-func (server *OSPFV2Server) StopAreaRxTxPkt(areaId uint32) {
-	for intfConfKey, intfConfEnt := range server.IntfConfMap {
-		if intfConfEnt.AreaId == areaId {
-			if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DOWN {
-				server.StopIntfRxTxPkt(intfConfKey)
-			}
-		}
-	}
-}
+import ()
 
 func (server *OSPFV2Server) StopIntfRxTxPkt(intfKey IntfConfKey) {
-	ent, _ := server.IntfConfMap[intfKey]
-	if ent.IfType != commonDefs.IfTypeLoopback {
-		areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
-		if err != nil {
-			server.logger.Err("Error:", err)
-			return
-		}
-
-		if server.globalData.AdminState == true &&
-			ent.AdminState == true &&
-			areaConf.AdminState == true &&
-			ent.OperState == true {
-
-			server.StopOspfRecvPkts(intfKey)
-			//Nothing to stop for Tx
-			server.DeinitRxPkt(intfKey)
-			server.DeinitTxPkt(intfKey)
-		}
-	}
-}
-
-func (server *OSPFV2Server) StartAllRxTxPkt() {
-	for intfConfKey, _ := range server.IntfConfMap {
-		server.StartIntfRxTxPkt(intfConfKey)
-	}
-}
-
-func (server *OSPFV2Server) StartAreaRxTxPkt(areaId uint32) {
-	for intfConfKey, intfConfEnt := range server.IntfConfMap {
-		if areaId == intfConfEnt.AreaId {
-			server.StartIntfRxTxPkt(intfConfKey)
-		}
-	}
+	server.StopOspfRecvPkts(intfKey)
+	//Nothing to stop for Tx
+	server.DeinitRxPkt(intfKey)
+	server.DeinitTxPkt(intfKey)
+	server.logger.Info("StopIntfRxTxPkt() successfully")
 }
 
 func (server *OSPFV2Server) StartIntfRxTxPkt(intfKey IntfConfKey) {
-	ent, _ := server.IntfConfMap[intfKey]
-	if ent.IfType != commonDefs.IfTypeLoopback {
-		areaConf, err := server.GetAreaConfForGivenArea(ent.AreaId)
-		if err != nil {
-			server.logger.Err("Error:", err)
-			return
-		}
-
-		if server.globalData.AdminState == true &&
-			ent.AdminState == true &&
-			areaConf.AdminState == true &&
-			ent.OperState == true {
-			err := server.InitRxPkt(intfKey)
-			if err != nil {
-				server.logger.Err("Error: InitRxPkt()", err)
-				return
-			}
-			err = server.InitTxPkt(intfKey)
-			if err != nil {
-				server.logger.Err("Error: InitTxPkt()", err)
-				return
-			}
-			go server.StartOspfRecvPkts(intfKey)
-		}
+	err := server.InitRxPkt(intfKey)
+	if err != nil {
+		server.logger.Err("Error: InitRxPkt()", err)
+		return
 	}
+	err = server.InitTxPkt(intfKey)
+	if err != nil {
+		server.logger.Err("Error: InitTxPkt()", err)
+		return
+	}
+	go server.StartOspfRecvPkts(intfKey)
+	server.logger.Info("StartIntfRxTxPkt() successfully")
 }
