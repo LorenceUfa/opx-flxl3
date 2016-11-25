@@ -457,6 +457,7 @@ func TestVrrpV4IntfConfig(t *testing.T) {
 	}
 	wantStateInfo.OperState = common.STATE_UP
 	wantStateInfo.MasterDownTimer = 3
+	goToSleep()
 	v4State = testSvr.GetEntry(key)
 	if v4State == nil {
 		t.Error("get vrrp v4 interface by intfRef & VRID failed")
@@ -516,6 +517,7 @@ func TestVrrpV4IntfConfig(t *testing.T) {
 }
 
 func TestVrrpV6IntfConfig(t *testing.T) {
+	t.Log("=====TestVrrpV6IntfConfig======")
 	TestServerInit(t)
 	goToSleep()
 	ipIntf := ipv6Intf
@@ -622,7 +624,7 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 	goToSleep()
 	v6State := testSvr.GetEntry(key)
 	if v6State == nil {
-		t.Error("get vrrp v4 interface by intfRef & VRID failed")
+		t.Error("get vrrp v6 interface by intfRef & VRID failed")
 		return
 	}
 	// hacking time stamp to be empty
@@ -638,10 +640,9 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 	ipIntf.MsgType = common.IP_MSG_STATE_CHANGE
 	ipIntf.OperState = common.STATE_UP
 	testSvr.L3IntfNotifyCh <- ipIntf
-	goToSleep()
 	v6State = testSvr.GetEntry(key)
 	if v6State == nil {
-		t.Error("get vrrp v4 interface by intfRef & VRID failed")
+		t.Error("get vrrp v6 interface by intfRef & VRID failed")
 		return
 	}
 	// hacking time stamp to be empty

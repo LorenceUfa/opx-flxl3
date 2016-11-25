@@ -257,6 +257,10 @@ func (f *FSM) updateCurrentState() {
 }
 
 func (f *FSM) receivePkt() {
+	if f.pHandle == nil {
+		debug.Logger.Alert("we started receiving packets even when pcap handle is not created")
+		return
+	}
 	packetSource := gopacket.NewPacketSource(f.pHandle, f.pHandle.LinkType())
 	in := packetSource.Packets()
 	ifName := f.Config.IntfRef

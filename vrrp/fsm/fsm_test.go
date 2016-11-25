@@ -110,6 +110,7 @@ func TestV6FsmInit(t *testing.T) {
 	}
 
 	go mimicServer(t)
+	time.Sleep(50 * time.Millisecond)
 }
 
 func testFsmDeInit(t *testing.T) {
@@ -165,7 +166,6 @@ func TestV6UpdateIntfConfig(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testv6IntfCfg.Priority = 125
 	testFsm.UpdateConfig(testv6IntfCfg)
 	if !reflect.DeepEqual(testv6IntfCfg, testFsm.Config) {
@@ -277,7 +277,6 @@ func TestV4VMacCreate(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testFsm.ipType = syscall.AF_INET
 	testFsm.createVirtualMac()
 	if testFsm.VirtualMACAddress != testV4Vmac {
@@ -294,7 +293,6 @@ func TestInitPktListener(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testFsm.initPktListener()
 	if testFsm.pHandle == nil {
 		t.Error("Failed creating pkt listener")
