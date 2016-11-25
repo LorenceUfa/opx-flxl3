@@ -165,7 +165,7 @@ func TestV6UpdateIntfConfig(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	go testFsm.StartFsm()
+	//go testFsm.StartFsm()
 	testv6IntfCfg.Priority = 125
 	testFsm.UpdateConfig(testv6IntfCfg)
 	if !reflect.DeepEqual(testv6IntfCfg, testFsm.Config) {
@@ -183,7 +183,7 @@ func TestFsmIsRunning(t *testing.T) {
 		return
 	}
 	go testFsm.StartFsm()
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	if testFsm.IsRunning() == false {
 		t.Error("FSM started but is running flag is set to false")
 		return
@@ -196,7 +196,7 @@ func TestGetStateInfo(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	go testFsm.StartFsm()
+	//go testFsm.StartFsm()
 	wantStateInfo := common.State{
 		IntfRef:                 testv6IntfCfg.IntfRef,
 		Vrid:                    testv6IntfCfg.VRID,
@@ -229,7 +229,7 @@ func TestV6VMacCreate(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	go testFsm.StartFsm()
+	//go testFsm.StartFsm()
 	testFsm.createVirtualMac()
 	if testFsm.VirtualMACAddress != testV6Vmac {
 		t.Error("Failed creating virtual mac for v6 interface")
@@ -245,7 +245,7 @@ func TestV4VMacCreate(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	go testFsm.StartFsm()
+	//go testFsm.StartFsm()
 	testFsm.ipType = syscall.AF_INET
 	testFsm.createVirtualMac()
 	if testFsm.VirtualMACAddress != testV4Vmac {
@@ -262,7 +262,7 @@ func TestInitPktListener(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	go testFsm.StartFsm()
+	//go testFsm.StartFsm()
 	testFsm.initPktListener()
 	if testFsm.pHandle == nil {
 		t.Error("Failed creating pkt listener")
