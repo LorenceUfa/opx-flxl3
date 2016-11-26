@@ -229,9 +229,11 @@ func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf
 	if len(reqlist) < 1 && nbrConf.State != NbrFull {
 		server.logger.Warning("Nbr : Req list is nill. Nbr is full. ", nbrId)
 		server.ProcessNbrFull(nbrId)
+		return nbrConf.NbrReqListIndex
 	}
 	req_list_items := len(reqlist) - nbrConf.NbrReqListIndex
 	max_req := calculateMaxLsaReq()
+	server.logger.Debug("Nbr : max req ", max_req)
 	if max_req > req_list_items {
 		add_items = req_list_items
 		nbrConf.NbrReqListIndex = len(reqlist)
@@ -240,9 +242,13 @@ func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf
 		add_items = max_req
 		nbrConf.NbrReqListIndex += max_req
 	}
+	if add_items < 1 {
+		server.logger.Debug("Nbr : All requests sent out")
+		server.ProcessNbrFull(nbrId)
+		return nbrConf.NbrReqListIndex
+	}
 	server.logger.Info(fmt.Sprintln("LSAREQ: nbrIndex ",
 		nbrConf.NbrReqListIndex, " add_items ", add_items, " req_list len ", len(reqlist)))
-	index := nbrConf.NbrReqListIndex
 	for i = 0; i < add_items; i++ {
 		req.ls_type = uint32(reqlist[i].ls_type)
 		req.link_state_id = reqlist[i].link_state_id
@@ -254,7 +260,7 @@ func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf
 		server.logger.Info(fmt.Sprintln("LSA request: Send req to nbr ", nbrId.NbrIdentity,
 			" lsid ", lsid, " rtrid ", adv_rtr, " lstype ", req.ls_type))
 	}
-	if add_items == len(reqlist) {
+	if nbrConf.NbrReqListIndex == len(reqlist) {
 		nbrConf.NbrReqList = []*ospfLSAHeader{}
 	} else {
 		newList := []*ospfLSAHeader{}
@@ -270,11 +276,10 @@ func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf
 			server.logger.Err("Nbr: Intfconf does not exist.No lsa req sent ", nbrConf.IntfKey)
 			return 0
 		}
-		data := server.EncodeLSAReqPkt(nbrConf.IntfKey, intConf, nbrConf, msg.lsa_slice, intConf.IfMacAddr)
+		data := server.EncodeLSAReqPkt(nbrConf.IntfKey, intConf, nbrConf, msg.lsa_slice, nbrConf.NbrMac)
 		server.SendOspfPkt(nbrConf.IntfKey, data)
-		index += add_items
 	}
-	return index
+	return nbrConf.NbrReqListIndex
 }
 
 /*
