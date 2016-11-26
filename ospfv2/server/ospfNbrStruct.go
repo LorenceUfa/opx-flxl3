@@ -72,6 +72,7 @@ const (
 	NBR_FLAG_DEAD_DURATION    int = 0x00000026
 	NBR_FLAG_DEAD_TIMER       int = 0x00000028
 	NBR_FLAG_REQ_LIST         int = 0x00000030
+	NBR_FLAG_REQ_LIST_INDEX   int = 0x00000032
 )
 
 //Nbr states
