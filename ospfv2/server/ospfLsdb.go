@@ -384,17 +384,27 @@ func (server *OSPFV2Server) getLsdbState(lsaType uint8, lsId, areaId, advRtrId u
 
 func (server *OSPFV2Server) getBulkLsdbState(fromIdx, cnt int) (*objects.Ospfv2LsdbStateGetInfo, error) {
 	var retObj objects.Ospfv2LsdbStateGetInfo
+	var lsdbSliceMap map[LsdbSliceStruct]bool
 	count := 0
-	idx := fromIdx
 	sliceLen := len(server.GetBulkData.LsdbSlice)
 	if fromIdx >= sliceLen {
 		return nil, errors.New("Invalid Range")
 	}
+	lsdbSliceMap = make(map[LsdbSliceStruct]bool)
+	for idx := 0; idx < fromIdx; idx++ {
+		lsdbSliceMap[server.GetBulkData.LsdbSlice[idx]] = true
+	}
+	idx := fromIdx
 	for count < cnt {
 		if idx == sliceLen {
 			break
 		}
 		lsdbSlice := server.GetBulkData.LsdbSlice[idx]
+		_, exist := lsdbSliceMap[lsdbSlice]
+		if exist {
+			idx++
+			continue
+		}
 		lsdbEnt, exist := server.LsdbData.AreaLsdb[lsdbSlice.LsdbKey]
 		if !exist {
 			idx++
@@ -459,6 +469,7 @@ func (server *OSPFV2Server) getBulkLsdbState(fromIdx, cnt int) (*objects.Ospfv2L
 		obj.Length = lsaMd.LSLen
 		obj.Advertisement = convertByteToOctetString(lsaEnc[OSPF_LSA_HEADER_SIZE:])
 		retObj.List = append(retObj.List, &obj)
+		lsdbSliceMap[lsdbSlice] = true
 		count++
 		idx++
 	}

@@ -480,6 +480,7 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 			intfConfEnt.OperState = true
 			server.IntfConfMap[intfConfKey] = intfConfEnt
 			if intfConfEnt.AdminState == true {
+				server.logger.Info("StartIntfFSM ():")
 				server.StartIntfFSM(intfConfKey)
 			}
 		}
@@ -493,11 +494,12 @@ func (server *OSPFV2Server) ProcessIPv4StateChange(msg asicdCommonDefs.IPv4L3Int
 		}
 		intfConfEnt, exist := server.IntfConfMap[intfConfKey]
 		if exist {
-			intfConfEnt.OperState = false
-			server.IntfConfMap[intfConfKey] = intfConfEnt
 			if intfConfEnt.AdminState == true {
+				server.logger.Info("StopIntfFSM ():")
 				server.StopIntfFSM(intfConfKey)
 			}
+			intfConfEnt.OperState = false
+			server.IntfConfMap[intfConfKey] = intfConfEnt
 		}
 	}
 	server.infraData.ipPropertyMap[ifIdx] = ipEnt

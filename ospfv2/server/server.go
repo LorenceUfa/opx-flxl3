@@ -30,6 +30,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/debug"
 	"syscall"
 	"utils/dbutils"
@@ -159,6 +160,9 @@ func (server *OSPFV2Server) SigHandler(sigChan <-chan os.Signal) {
 	case syscall.SIGHUP:
 		server.logger.Debug("Received SIGHUP signal")
 		debug.PrintStack()
+		var memStat runtime.MemStats
+		runtime.ReadMemStats(&memStat)
+		server.logger.Info("===Memstat===", memStat)
 	default:
 		server.logger.Err("Unhandled signal : ", signal)
 	}

@@ -88,6 +88,9 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	}
 	lsaEnt, exist := lsdbEnt.NetworkLsaMap[lsaKey]
 	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	if len(nbrList) == 0 {
+		return server.flushNetworkLSA(intfKey)
+	}
 	lsaEnt.AttachedRtr = nil
 	lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, server.globalData.RouterId)
 	for _, nbr := range nbrList {
