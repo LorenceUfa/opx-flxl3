@@ -223,24 +223,23 @@ func (server *OSPFV2Server) generateDbsummary4LsaList(self_areaId uint32) []*osp
 	return db_list
 }
 
-func (server *OSPFV2Server) generateRequestList(nbrKey NbrConfKey, nbrConf NbrConf, nbrDbPkt NbrDbdData) {
+func (server *OSPFV2Server) generateRequestList(nbrKey NbrConfKey, nbrConf NbrConf, nbrDbPkt NbrDbdData) []*ospfLSAHeader {
 	/* 1) get lsa headers update in req_list */
 	headers_len := len(nbrDbPkt.lsa_headers)
-	server.logger.Info(fmt.Sprintln("REQ_LIST: Received lsa headers for nbr ", nbrKey,
-		" no of header ", headers_len))
-	req_list := nbrConf.NbrReqList
+	server.logger.Info("REQ_LIST: Received lsa headers for nbr ", nbrKey,
+		" no of header ", headers_len)
+	server.logger.Debug("REQ_LIST: Existing len of req ", len(nbrConf.NbrReqList))
 	for i := 0; i < headers_len; i++ {
 		var lsaheader ospfLSAHeader
 		lsaheader = nbrDbPkt.lsa_headers[i]
 		result := server.lsaAddCheck(lsaheader, nbrConf) // check lsdb
 		if result {
-			req := []ospfLSAHeader{}
-			req = append(req, lsaheader)
+			nbrConf.NbrReqList = append(nbrConf.NbrReqList, &lsaheader)
 		}
 	}
-	nbrConf.NbrReqList = req_list
-	server.logger.Info(fmt.Sprintln("REQ_LIST: updated req_list for nbr ",
-		nbrKey, " req_list ", req_list))
+	server.logger.Info("REQ_LIST: updated req_list for nbr ",
+		nbrKey, " req_list ", nbrConf.NbrReqList)
+	return nbrConf.NbrReqList
 }
 
 func (server *OSPFV2Server) lsaAddCheck(lsaheader ospfLSAHeader,
