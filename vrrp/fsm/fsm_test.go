@@ -110,6 +110,7 @@ func TestV6FsmInit(t *testing.T) {
 	}
 
 	go mimicServer(t)
+	time.Sleep(50 * time.Millisecond)
 }
 
 func testFsmDeInit(t *testing.T) {
@@ -165,7 +166,6 @@ func TestV6UpdateIntfConfig(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testv6IntfCfg.Priority = 125
 	testFsm.UpdateConfig(testv6IntfCfg)
 	if !reflect.DeepEqual(testv6IntfCfg, testFsm.Config) {
@@ -196,11 +196,44 @@ func TestGetStateInfo(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	wantStateInfo := common.State{
 		IntfRef:                 testv6IntfCfg.IntfRef,
 		Vrid:                    testv6IntfCfg.VRID,
 		OperState:               common.STATE_DOWN,
+		CurrentFsmState:         VRRP_INITIALIZE_STATE_STRING,
+		MasterIp:                "",
+		AdverRx:                 0,
+		AdverTx:                 0,
+		LastAdverRx:             "",
+		LastAdverTx:             "",
+		IpAddr:                  testL3Info.IpAddr,
+		VirtualIp:               testv6IntfCfg.VirtualIPAddr,
+		VirtualRouterMACAddress: testV6Vmac,
+		AdvertisementInterval:   testv6IntfCfg.AdvertisementInterval,
+		MasterDownTimer:         0,
+	}
+	state := common.State{}
+	testFsm.GetStateInfo(&state)
+	if !reflect.DeepEqual(wantStateInfo, state) {
+		t.Error("Failure getting state information from fsm")
+		t.Error("	    want state info:", wantStateInfo)
+		t.Error("	    got state info:", state)
+		return
+	}
+	testFsmDeInit(t)
+}
+
+func TestFsmUpGetStateInfo(t *testing.T) {
+	TestV6FsmInit(t)
+	if testFsm == nil {
+		return
+	}
+	go testFsm.StartFsm()
+	time.Sleep(10 * time.Millisecond)
+	wantStateInfo := common.State{
+		IntfRef:                 testv6IntfCfg.IntfRef,
+		Vrid:                    testv6IntfCfg.VRID,
+		OperState:               common.STATE_UP,
 		CurrentFsmState:         VRRP_INITIALIZE_STATE_STRING,
 		MasterIp:                "",
 		AdverRx:                 0,
@@ -229,7 +262,6 @@ func TestV6VMacCreate(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testFsm.createVirtualMac()
 	if testFsm.VirtualMACAddress != testV6Vmac {
 		t.Error("Failed creating virtual mac for v6 interface")
@@ -245,7 +277,6 @@ func TestV4VMacCreate(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testFsm.ipType = syscall.AF_INET
 	testFsm.createVirtualMac()
 	if testFsm.VirtualMACAddress != testV4Vmac {
@@ -262,7 +293,6 @@ func TestInitPktListener(t *testing.T) {
 	if testFsm == nil {
 		return
 	}
-	//go testFsm.StartFsm()
 	testFsm.initPktListener()
 	if testFsm.pHandle == nil {
 		t.Error("Failed creating pkt listener")

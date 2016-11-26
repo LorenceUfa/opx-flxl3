@@ -34,6 +34,9 @@ import (
 func (svr *VrrpServer) readVrrpGblCfg() {
 	debug.Logger.Info("Reading Vrrp Global Config from DB")
 	var dbObj objects.VrrpGlobal
+	if svr.dmnBase == nil {
+		return
+	}
 	objList, err := svr.dmnBase.DbHdl.GetAllObjFromDb(dbObj)
 	if err != nil {
 		debug.Logger.Warning("Vrrp Global DB read returned:", err)
@@ -55,6 +58,9 @@ func (svr *VrrpServer) readVrrpGblCfg() {
 func (svr *VrrpServer) readVrrpV4IntfCfg() {
 	debug.Logger.Info("Reading Vrrp V4 Intf Config from DB")
 	var dbObj objects.VrrpV4Intf
+	if svr.dmnBase == nil {
+		return
+	}
 	objList, err := svr.dmnBase.DbHdl.GetAllObjFromDb(dbObj)
 	if err != nil {
 		debug.Logger.Warning("Vrrp v4 Interface read returned:", err)
@@ -93,6 +99,9 @@ func (svr *VrrpServer) readVrrpV4IntfCfg() {
 func (svr *VrrpServer) readVrrpV6IntfCfg() {
 	debug.Logger.Info("Reading Vrrp V6 Intf Config from DB")
 	var dbObj objects.VrrpV6Intf
+	if svr.dmnBase == nil {
+		return
+	}
 	objList, err := svr.dmnBase.DbHdl.GetAllObjFromDb(dbObj)
 	if err != nil {
 		debug.Logger.Warning("Vrrp v4 Interface read returned:", err)
