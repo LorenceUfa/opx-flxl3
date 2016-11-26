@@ -257,6 +257,14 @@ type RouteTblToDBClntChStruct struct {
 	RouteDelMsgCh chan RouteDelMsg
 }
 
+type ServerToDBClntChStruct struct {
+	FlushRouteFromDBCh chan bool
+}
+
+type DBClntToServerChStruct struct {
+	FlushRouteFromDBDoneCh chan bool
+}
+
 type MessagingChStruct struct {
 	IntfToNbrFSMChData     IntfToNbrFSMChStruct
 	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
@@ -267,6 +275,8 @@ type MessagingChStruct struct {
 	LsdbToSPFChData        LsdbToSPFChStruct
 	SPFToLsdbChData        SPFToLsdbChStruct
 	ServerToLsdbChData     ServerToLsdbChStruct
+	ServerToDBClntChData   ServerToDBClntChStruct
 	LsdbToServerChData     LsdbToServerChStruct
 	RouteTblToDBClntChData RouteTblToDBClntChStruct
+	DBClntToServerChData   DBClntToServerChStruct
 }

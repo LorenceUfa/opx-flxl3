@@ -152,6 +152,8 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh = make(chan bool)
 	server.MessagingChData.RouteTblToDBClntChData.RouteAddMsgCh = make(chan RouteAddMsg, 100)
 	server.MessagingChData.RouteTblToDBClntChData.RouteDelMsgCh = make(chan RouteDelMsg, 100)
+	server.MessagingChData.ServerToDBClntChData.FlushRouteFromDBCh = make(chan bool)
+	server.MessagingChData.DBClntToServerChData.FlushRouteFromDBDoneCh = make(chan bool)
 }
 
 func (server *OSPFV2Server) SigHandler(sigChan <-chan os.Signal) {
@@ -160,6 +162,8 @@ func (server *OSPFV2Server) SigHandler(sigChan <-chan os.Signal) {
 	switch signal {
 	case syscall.SIGHUP:
 		server.logger.Debug("Received SIGHUP signal")
+		server.SendFlushRouteMsgToDBClnt()
+		<-server.MessagingChData.DBClntToServerChData.FlushRouteFromDBDoneCh
 		debug.PrintStack()
 		var memStat runtime.MemStats
 		runtime.ReadMemStats(&memStat)
