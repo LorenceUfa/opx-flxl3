@@ -200,6 +200,11 @@ type RouteInfoDataUpdateMsg struct {
 	RouteInfoList []RouteInfo
 }
 
+type NbrDeadMsg struct {
+	AreaId   uint32
+	NbrRtrId uint32
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
@@ -218,6 +223,7 @@ type NbrFSMToLsdbChStruct struct {
 	RecvdLsaMsgCh          chan RecvdLsaMsg
 	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
+	NbrDeadMsgCh           chan NbrDeadMsg
 }
 
 type NbrFSMToFloodChStruct struct {

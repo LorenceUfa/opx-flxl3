@@ -568,6 +568,15 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 				NbrKey: nbrKey,
 			}
 			server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[nbrConf.IntfKey] <- nbrDownMsg
+			//Send Msg to Lsdb for Nbr Dead
+			intfConfEnt, exist := server.IntfConfMap[nbrConf.IntfKey]
+			if exist {
+				nbrDeadMsg := NbrDeadMsg{
+					AreaId:   intfConfEnt.AreaId,
+					NbrRtrId: nbrConf.NbrRtrId,
+				}
+				server.SendMsgToLsdbFromNbrFSMForNbrDead(nbrDeadMsg)
+			}
 			//send message to lsdb if I am DR.
 			intf, valid := server.IntfConfMap[nbrConf.IntfKey]
 			if !valid {
