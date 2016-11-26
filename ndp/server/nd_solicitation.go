@@ -102,6 +102,17 @@ func (intf *Interface) SendNS(myMac, nbrMac, nbrIp string, isFastProbe bool) NDP
 	return IGNORE
 }
 
+func (intf *Interface) deleteIncompleteEntry(ipAddr string) {
+	delete(intf.incompleteNbr, ipAddr)
+	debug.Logger.Debug("incompleteNbr list is:", intf.incompleteNbr)
+}
+
+func (intf *Interface) insertIncompleteEntry(ndInfo *packet.NDInfo) {
+	var empty struct{}
+	intf.incompleteNbr[ndInfo.TargetAddress.String()] = empty
+	debug.Logger.Debug("incompleteNbr list is:", intf.incompleteNbr)
+}
+
 /*
  *  helper function to handle incoming Neighbor solicitation messages...
  *  Case 1) SrcIP == "::"
@@ -111,12 +122,17 @@ func (intf *Interface) SendNS(myMac, nbrMac, nbrIp string, isFastProbe bool) NDP
  *		This is a message coming from our Neighbor. Ok now what do we need to do?
  *		If no cache entry:
  *		    Then create a cache entry and mark that entry as incomplete
+ *		    nd info: {4000::105:1:1:1 0(135) -1 cc:37:ab:a9:23:f5 4000::105:1:1:2 ff02::1:ff01:1 33:33:ff:01:00:01 fpPort48 0 0 0 0 0 0 [0xc8211290c0]}
  *		If cache entry exists:
  *		    Then update the state to STALE
  */
 func (intf *Interface) processNS(ndInfo *packet.NDInfo) (nbrInfo *config.NeighborConfig, oper NDP_OPERATION) {
-	if ndInfo.SrcIp == "" || ndInfo.SrcIp == "::" || ndInfo.SrcIp == intf.linkScope || ndInfo.SrcIp == intf.globalScope {
+	if ndInfo.SrcIp == "" || ndInfo.SrcIp == "::" {
 		// NS was generated locally or it is multicast-solicitation message
+		return nil, IGNORE
+	}
+	if (ndInfo.SrcIp == intf.linkScope || ndInfo.SrcIp == intf.globalScope) && len(ndInfo.TargetAddress) != 0 {
+		intf.insertIncompleteEntry(ndInfo)
 		return nil, IGNORE
 	}
 	nbrKey := intf.createNbrKey(ndInfo)

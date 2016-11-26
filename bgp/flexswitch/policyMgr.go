@@ -93,16 +93,14 @@ func convertModelsToPolicyConditionConfig(cfg *objects.PolicyCondition) *utilspo
 			MasklengthRange: cfg.MaskLengthRange,
 		},
 	}
+	matchExtendedCommunityInfo := utilspolicy.PolicyExtendedCommunityInfo{cfg.ExtendedCommunityType, cfg.ExtendedCommunityValue}
 
 	return &utilspolicy.PolicyConditionConfig{
-		Name:                          cfg.Name,
-		ConditionType:                 cfg.ConditionType,
-		MatchDstIpPrefixConditionInfo: destIPMatch,
-		MatchCommunityConditionInfo:   cfg.Community,
-		MatchExtendedCommunityConditionInfo: utilspolicy.PolicyExtendedCommunityInfo{
-			Type:  cfg.ExtendedCommunityType,
-			Value: cfg.ExtendedCommunityValue,
-		},
+		Name:                                cfg.Name,
+		ConditionType:                       cfg.ConditionType,
+		MatchDstIpPrefixConditionInfo:       destIPMatch,
+		MatchCommunityConditionInfo:         utilspolicy.PolicyMatchCommunitySetCondition{cfg.Community, cfg.CommunitySet},
+		MatchExtendedCommunityConditionInfo: utilspolicy.PolicyMatchExtendedCommunitySetCondition{ExtendedCommunity: matchExtendedCommunityInfo, ExtendedCommunitySet: cfg.ExtendedCommunitySet},
 	}
 }
 

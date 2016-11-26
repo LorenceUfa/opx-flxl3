@@ -37,6 +37,7 @@ type LsdbSliceStruct struct {
 
 type GetBulkStruct struct {
 	IntfConfSlice        []IntfConfKey
+	NbrConfSlice         []NbrConfKey
 	AreaConfSlice        []uint32
 	LsdbSlice            []LsdbSliceStruct
 	SliceRefreshCh       chan bool
@@ -122,7 +123,7 @@ type NetworkDRChangeMsg struct {
 }
 
 type DeleteNbrMsg struct {
-	NbrKeyList []NbrConfKey //List of Nbr Identity
+	IntfKey IntfConfKey //List of Nbr Identity
 }
 
 type GenerateRouterLSAMsg struct {
@@ -134,10 +135,11 @@ type NbrDownMsg struct {
 type RecvdLsaMsgType uint8
 
 const (
-	LSA_ADD        RecvdLsaMsgType = 0
-	LSA_DEL        RecvdLsaMsgType = 1
-	LSA_FLOOD_ALL  RecvdLsaMsgType = 2
-	LSA_FLOOD_INTF RecvdLsaMsgType = 3
+	LSA_ADD            RecvdLsaMsgType = 0
+	LSA_DEL            RecvdLsaMsgType = 1
+	LSA_FLOOD_ALL      RecvdLsaMsgType = 2
+	LSA_FLOOD_INTF     RecvdLsaMsgType = 3
+	LSA_FLOOD_NBR_FULL RecvdLsaMsgType = 4
 )
 
 type RecvdLsaMsg struct {
@@ -175,6 +177,7 @@ type NbrToFloodMsg struct {
 	MsgType RecvdLsaMsgType
 	LsaPkt  []byte
 	NbrKey  NbrConfKey
+	LsaType uint8
 }
 type RouteAddMsg struct {
 	RTblKey   RoutingTblEntryKey
@@ -197,6 +200,11 @@ type RouteInfoDataUpdateMsg struct {
 	RouteInfoList []RouteInfo
 }
 
+type NbrDeadMsg struct {
+	AreaId   uint32
+	NbrRtrId uint32
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
@@ -215,6 +223,7 @@ type NbrFSMToLsdbChStruct struct {
 	RecvdLsaMsgCh          chan RecvdLsaMsg
 	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
+	NbrDeadMsgCh           chan NbrDeadMsg
 }
 
 type NbrFSMToFloodChStruct struct {
@@ -248,6 +257,14 @@ type RouteTblToDBClntChStruct struct {
 	RouteDelMsgCh chan RouteDelMsg
 }
 
+type ServerToDBClntChStruct struct {
+	FlushRouteFromDBCh chan bool
+}
+
+type DBClntToServerChStruct struct {
+	FlushRouteFromDBDoneCh chan bool
+}
+
 type MessagingChStruct struct {
 	IntfToNbrFSMChData     IntfToNbrFSMChStruct
 	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
@@ -258,6 +275,8 @@ type MessagingChStruct struct {
 	LsdbToSPFChData        LsdbToSPFChStruct
 	SPFToLsdbChData        SPFToLsdbChStruct
 	ServerToLsdbChData     ServerToLsdbChStruct
+	ServerToDBClntChData   ServerToDBClntChStruct
 	LsdbToServerChData     LsdbToServerChStruct
 	RouteTblToDBClntChData RouteTblToDBClntChStruct
+	DBClntToServerChData   DBClntToServerChStruct
 }

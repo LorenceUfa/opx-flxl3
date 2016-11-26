@@ -24,6 +24,8 @@
 package server
 
 import (
+	"errors"
+	"net"
 	"time"
 )
 
@@ -31,17 +33,16 @@ type NbrConf struct {
 	IntfKey             IntfConfKey
 	State               NbrState
 	InactivityTimer     time.Time
-	RtrId               uint32
 	isMaster            bool
 	DDSequenceNum       uint32
 	Mtu                 uint32
 	NbrRtrId            uint32
 	NbrPriority         int32
 	NbrIP               uint32
+	NbrMac              net.HardwareAddr
 	NbrOption           uint32
 	NbrDR               uint32 //mentioned by rfc.
 	NbrBdr              uint32 //needed by rfc. not sure why we need it.
-	NbrDeadDuration     int
 	NbrDeadTimer        *time.Timer
 	NbrDeadTimeDuration time.Duration
 	NbrLsaRxTimer       *time.Timer
@@ -72,6 +73,7 @@ const (
 	NBR_FLAG_DEAD_DURATION    int = 0x00000026
 	NBR_FLAG_DEAD_TIMER       int = 0x00000028
 	NBR_FLAG_REQ_LIST         int = 0x00000030
+	NBR_FLAG_REQ_LIST_INDEX   int = 0x00000032
 )
 
 //Nbr states
@@ -155,13 +157,49 @@ type NbrStruct struct {
 	nbrLsaAckEventCh      chan NbrLsaAckMsg
 	IntfToNbrMap          map[IntfConfKey][]NbrConfKey
 	nbrFSMCtrlCh          chan bool
+	nbrFSMCtrlReplyCh     chan bool
 }
 
-func (server *OSPFV2Server) initNbrStruct() {
+func (server *OSPFV2Server) InitNbrStruct() {
+	server.NbrConfMap = make(map[NbrConfKey]NbrConf)
 	server.NbrConfData.IntfToNbrMap = make(map[IntfConfKey][]NbrConfKey)
 	server.NbrConfData.neighborDBDEventCh = make(chan NbrDbdMsg)
 	server.NbrConfData.neighborLSAUpdEventCh = make(chan NbrLsaUpdMsg)
 	server.NbrConfData.neighborLSAReqEventCh = make(chan NbrLsaReqMsg)
 	server.NbrConfData.nbrLsaAckEventCh = make(chan NbrLsaAckMsg)
+	server.NbrConfData.nbrFSMCtrlCh = make(chan bool)
+	server.NbrConfData.nbrFSMCtrlReplyCh = make(chan bool)
 	server.logger.Debug("Nbr: InitNbrStruct done ")
+}
+
+func (server *OSPFV2Server) DeinitNbrStruct() {
+
+	for _, nbr := range server.NbrConfMap {
+		nbr.NbrReqList = nil
+		nbr.NbrDBSummaryList = nil
+		nbr.NbrRetxList = nil
+		nbr.NbrDeadTimer = nil
+		nbr.NbrLsaRxTimer = nil
+	}
+	server.NbrConfMap = nil
+}
+
+func (server *OSPFV2Server) getFullNbrList(intfKey IntfConfKey) ([]uint32, error) {
+	nbrConfKeyList, exist := server.NbrConfData.IntfToNbrMap[intfKey]
+	if !exist {
+		return nil, errors.New("No entry in IntfToNbrMap found")
+	}
+
+	var nbrRtrIdList []uint32
+	for _, nbrConfKey := range nbrConfKeyList {
+		nbrConf, exist := server.NbrConfMap[nbrConfKey]
+		if !exist {
+			continue
+		}
+		nbrRtrIdList = append(nbrRtrIdList, nbrConf.NbrRtrId)
+	}
+	if len(nbrRtrIdList) == 0 {
+		return nil, errors.New("No Nbrs exist")
+	}
+	return nbrRtrIdList, nil
 }

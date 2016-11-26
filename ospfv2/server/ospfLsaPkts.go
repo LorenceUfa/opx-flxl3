@@ -541,6 +541,7 @@ func encodeLsaHeader(lsaMd LsaMetadata, lsakey LsaKey) []byte {
 	binary.BigEndian.PutUint32(lsaHdr[4:8], lsakey.LSId)
 	binary.BigEndian.PutUint32(lsaHdr[8:12], lsakey.AdvRouter)
 	binary.BigEndian.PutUint32(lsaHdr[12:16], uint32(lsaMd.LSSequenceNum))
+	binary.BigEndian.PutUint16(lsaHdr[16:18], lsaMd.LSChecksum)
 	binary.BigEndian.PutUint16(lsaHdr[18:20], lsaMd.LSLen)
 	return lsaHdr
 }

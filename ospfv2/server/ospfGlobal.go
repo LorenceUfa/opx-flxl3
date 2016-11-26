@@ -74,8 +74,8 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		//Stop Rx Pkt
 		//Deinit Rx Pkt
 		//Deinit Tx Pkt
-		server.StopAllRxTxPkt()
 		// TODO: Stop Nbr FSM
+		server.StopNbrFSM()
 
 		// Deinit LSDB Data Structure
 		// Stop LSDB
@@ -83,6 +83,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 		//TODO: Stop Flooding
 
+		server.StopFlooding()
 		// Flush all the routes
 		// Deinit Routing Tbl
 		// Deinit SPF Structures
@@ -121,22 +122,24 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		// Init Routing Tbl
 		// Start SPF
 		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
 
-		// TODO: Start Flooding
-
+		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
 		// Init LSDB Data Structure
 		// Start LSDB
 		server.StartLsdbRoutine()
-		// TODO: Start Nbr FSM
+		server.logger.Info("Successfully started Lsdb Routine")
+		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
 
 		// Init Rx
 		// Init Tx
 		// Start Rx
-		server.StartAllRxTxPkt()
-
 		// Init Ospf Intf FSM
 		//Start All Interface FSM
 		server.StartAllIntfFSM()
+		server.logger.Info("Successfully started All Intf FSM")
 	}
 
 	return true, nil
@@ -144,9 +147,9 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error) {
 	server.logger.Info("Global configuration create")
-	if cfg.Vrf != "Default" {
-		server.logger.Err("Vrp other than Default is not supported")
-		return false, errors.New("Vrp other than Default is not supported")
+	if cfg.Vrf != "default" {
+		server.logger.Err("Vrf other than default is not supported")
+		return false, errors.New("Vrf other than default is not supported")
 	}
 	server.globalData.Vrf = cfg.Vrf
 	server.globalData.AdminState = cfg.AdminState
@@ -160,10 +163,15 @@ func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error
 			return false, err
 		}
 		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
+		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
 		server.StartLsdbRoutine()
-		//TODO: Start NBR FSM
-		server.StartAllRxTxPkt()
+		server.logger.Info("Successfully started Lsdb Routine")
+		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
 		server.StartAllIntfFSM()
+		server.logger.Info("Successfully started All Intf FSM")
 	}
 	return true, nil
 }
@@ -207,7 +215,7 @@ func (server *OSPFV2Server) getBulkGlobalState(fromIdx, cnt int) (*objects.Ospfv
 	retObj.More = false
 	retObj.Count = 1
 	for idx := fromIdx; idx < retObj.EndIdx; idx++ {
-		obj, err := server.getGlobalState("Default")
+		obj, err := server.getGlobalState("default")
 		if err != nil {
 			server.logger.Err("Error getting the Ospfv2GlobalState for vrf=default")
 			return nil, err

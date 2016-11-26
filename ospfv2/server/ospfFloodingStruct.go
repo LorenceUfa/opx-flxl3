@@ -23,31 +23,13 @@
 
 package server
 
-import (
-//"encoding/binary"
-//"fmt"
-//"l3/ospf/config"
-//"net"
-)
+import ()
 
 const (
 	FloodLsa uint8 = LsdbNoAction + 1
 )
 
-/* Flood message structure to be sent
-for tx LSAUPD channel
-*/
-type ospfFloodMsg struct {
-	nbrKey  NbrConfKey
-	intfKey IntfConfKey
-	areaId  uint32
-	lsType  uint8
-	linkid  uint32
-	lsaKey  LsaKey
-	lsOp    RecvdLsaMsgType // indicates whether to flood on all interfaces or selective ones.
-	pkt     []byte          //LSA flood packet received from another neighbor
-}
-
 type FloodStruct struct {
-	FloodCtrlCh chan bool
+	FloodCtrlCh      chan bool
+	FloodCtrlReplyCh chan bool
 }

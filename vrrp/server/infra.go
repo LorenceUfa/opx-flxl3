@@ -99,15 +99,21 @@ func (svr *VrrpServer) ValidateCreateConfig(cfg *common.IntfCfg) (bool, error) {
 		return false, errors.New(fmt.Sprintln("Vrrp Interface already created for config:", cfg,
 			"only update is allowed"))
 	}
+	if cfg.IpType == syscall.AF_INET {
+		// check if ipv4 address is configured on the intfRef
+		_, v4exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
+		if !v4exists {
+			return false, errors.New(fmt.Sprintln("Vrrp V4 cannot be configured as no l3 Interface found for:", cfg.IntfRef))
+		}
+	} else if cfg.IpType == syscall.AF_INET6 {
+		// check if ipv6 address is configured on the intRef
+		_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
 
-	// check if ipv4 address is configured on the intfRef
-	_, v4exists := svr.V4IntfRefToIfIndex[cfg.IntfRef]
-
-	// check if ipv6 address is configured on the intRef
-	_, v6exists := svr.V6IntfRefToIfIndex[cfg.IntfRef]
-
-	if !v4exists && !v6exists {
-		return false, errors.New(fmt.Sprintln("Vrrp cannot be configured as no l3 Interface found for:", cfg.IntfRef))
+		if !v6exists {
+			return false, errors.New(fmt.Sprintln("Vrrp V6 cannot be configured as no l3 Interface found for:", cfg.IntfRef))
+		}
+	} else {
+		return false, errors.New("Invalid ip type")
 	}
 	debug.Logger.Info("Validation of create config:", *cfg, "is success")
 	return true, nil
@@ -152,6 +158,7 @@ func (svr *VrrpServer) ValidConfiguration(cfg *common.IntfCfg) (bool, error) {
 /* Update Intf List which can be used during state
  */
 func (svr *VrrpServer) updateIntfList(key KeyInfo, ipType int, insert bool) {
+	debug.Logger.Debug("updating state object intf key list for:", key, ipType, insert)
 	switch insert {
 	case true:
 		// new vrrp configured insert the entry into lists
@@ -177,6 +184,7 @@ func (svr *VrrpServer) updateIntfList(key KeyInfo, ipType int, insert bool) {
 			}
 		}
 	}
+	debug.Logger.Debug("after updating len of v4intfs is:", len(svr.v4Intfs), "len of v6Intf is:", len(svr.v6Intfs))
 }
 
 /* During Create of Virtual Interface Enable should always be set to false... when
@@ -224,6 +232,22 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
 	}
 }
 
+/* During Delete of Virtual Interface Enable should always be set to false
+ * Input: (vrrp interface config, virtual mac)
+ */
+func (svr *VrrpServer) DeleteVirtualIntf(cfg *common.IntfCfg, vMac string) {
+	if svr.GlobalConfig.Enable == false {
+		return
+	}
+	debug.Logger.Info("Vrrp Deleting Virtual Interface for:", cfg.IntfRef, cfg.VirtualIPAddr, vMac)
+	switch cfg.IpType {
+	case syscall.AF_INET:
+		svr.SwitchPlugin.DeleteVirtualIPv4Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
+	case syscall.AF_INET6:
+		svr.SwitchPlugin.DeleteVirtualIPv6Intf(cfg.IntfRef, cfg.VirtualIPAddr, vMac, false /*enable*/)
+	}
+}
+
 /*
  *  Handling Vrrp Interface Configuration
  */
@@ -264,6 +288,9 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 		debug.Logger.Debug("ip interface exists and hence get information from DB")
 		l3Info.IfIndex = ifIndex
 		ipIntf.GetObjFromDb(l3Info)
+	} else {
+		debug.Logger.Err("cannot create config as no l3 interface is found")
+		return
 	}
 	intf.InitVrrpIntf(cfg, l3Info, svr.VirtualIpCh, svr.UpdateRxCh, svr.UpdateTxCh)
 	// if l3 interface was created before vrrp interface then there might be a chance that interface is already
@@ -293,7 +320,7 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 }
 
 func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
-	debug.Logger.Info("Received vrrp interface create config:", *cfg)
+	debug.Logger.Info("Received vrrp interface delete config:", *cfg)
 	key := constructIntfKey(cfg.IntfRef, cfg.VRID, cfg.IpType)
 	intf, exists := svr.Intf[key]
 	if !exists {
@@ -301,7 +328,9 @@ func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
 		debug.Logger.Err("no vrrp interface found for:", key)
 		return
 	}
+	mac := intf.GetVMac()
 	intf.DeInitVrrpIntf()
+	svr.DeleteVirtualIntf(cfg, mac)
 	delete(svr.Intf, key)
 	svr.updateIntfList(key, cfg.IpType, false /*delete*/)
 }
@@ -449,12 +478,21 @@ func (svr *VrrpServer) HandleIpNotification(msg *common.BaseIpInfo) {
 			v4, exists := svr.V4[msg.IfIndex]
 			if exists {
 				v4.DeInit(msg)
+				delete(svr.V4, msg.IfIndex)
 			}
 		case syscall.AF_INET6:
 			// most likely we will get two delete one for linkscope and other for global-scope
 			v6, exists := svr.V6[msg.IfIndex]
-			if exists && !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+			if exists {
 				v6.DeInit(msg)
+				if !netUtils.IsIpv6LinkLocal(msg.IpAddr) {
+					v6.Cfg.GlobalScopeIp = ""
+				} else {
+					v6.Cfg.Info.IpAddr = ""
+				}
+				if v6.Cfg.GlobalScopeIp == "" && v6.Cfg.Info.IpAddr == "" {
+					delete(svr.V6, msg.IfIndex)
+				}
 			}
 		}
 

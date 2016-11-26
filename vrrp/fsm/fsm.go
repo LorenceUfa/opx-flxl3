@@ -29,34 +29,13 @@ import (
 	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
+	"net"
 	"strconv"
 	"syscall"
 	"time"
 )
 
 /*
-	0                   1                   2                   3
-	0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|                    IPv4 Fields or IPv6 Fields                 |
-	...                                                             ...
-	|                                                               |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|Version| Type  | Virtual Rtr ID|   Priority    |Count IPvX Addr|
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|(rsvd) |     Max Adver Int     |          Checksum             |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|                                                               |
-	+                                                               +
-	|                       IPvX Address(es)                        |
-	+                                                               +
-	+                                                               +
-	+                                                               +
-	+                                                               +
-	|                                                               |
-	+                                                               +
-	|                                                               |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 			   +---------------+
 		+--------->|               |<-------------+
 		|          |  Initialize   |              |
@@ -109,6 +88,7 @@ type FSM struct {
 	vipCh               chan *common.VirtualIpInfo // this will be used to bring up/down virtual ip interface
 	rxCh                chan struct{}              // inform server to update global rx count
 	txCh                chan struct{}              // inform server to update global tx count
+	exitFsmGoRoutineCh  chan struct{}              // inform fsm go routine to exit out fixing go routine mem-leak
 	running             bool
 	empty               struct{}
 }
@@ -122,16 +102,22 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f := FSM{}
 	f.Config = cfg
 	f.stateInfo = &common.State{}
-	f.ipAddr = l3Info.IpAddr
+	ip, _, err := net.ParseCIDR(l3Info.IpAddr)
+	if err != nil {
+		ip = net.ParseIP(l3Info.IpAddr)
+	}
+	f.ipAddr = ip.String()
 	f.ifIndex = l3Info.IfIndex
 	f.ipType = l3Info.IpType
 	f.createVirtualMac()
 	f.vipCh = vipCh
 	f.pktCh = make(chan *PktChannelInfo)
 	f.IntfEventCh = make(chan *IntfEvent)
+	f.exitFsmGoRoutineCh = make(chan struct{})
 	f.PktInfo = packet.Init()
 	f.State = VRRP_INITIALIZE_STATE
 	f.previousState = VRRP_UNINITIALIZE_STATE
+	f.stateInfo.CurrentFsmState = getStateName(f.State)
 	f.rxCh = rxCh
 	f.txCh = txCh
 	var empty struct{}
@@ -155,6 +141,7 @@ func (f *FSM) DeInitFsm() {
 	f.stateInfo = nil
 	f.pktCh = nil
 	f.IntfEventCh = nil
+	debug.Logger.Info(FSM_PREFIX, "de init for fsm done")
 }
 
 func (f *FSM) StartFsm() {
@@ -162,7 +149,6 @@ func (f *FSM) StartFsm() {
 	f.initialize()
 	debug.Logger.Debug(FSM_PREFIX, "fsm started for interface:", f.Config.IntfRef)
 	for {
-		debug.Logger.Debug(FSM_PREFIX)
 		select {
 		case pktCh, ok := <-f.pktCh:
 			if ok {
@@ -180,6 +166,11 @@ func (f *FSM) StartFsm() {
 					return
 				}
 			}
+		case _, ok := <-f.exitFsmGoRoutineCh:
+			if ok {
+				debug.Logger.Debug(FSM_PREFIX, "exiting go routine for fsm")
+				return
+			}
 		}
 	}
 }
@@ -189,13 +180,15 @@ func (f *FSM) IsRunning() bool {
 }
 
 func (f *FSM) GetStateInfo(info *common.State) {
-	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
+	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef, f.running)
 	info.IntfRef = f.Config.IntfRef
 	info.Vrid = f.Config.VRID
 	if f.running {
 		info.OperState = common.STATE_UP
+		debug.Logger.Debug(FSM_PREFIX, "fsm running and hence operstate is :", info.OperState)
 	} else {
 		info.OperState = common.STATE_DOWN
+		debug.Logger.Debug(FSM_PREFIX, "fsm not running and hence operstate is :", info.OperState)
 	}
 	info.IpAddr = f.ipAddr
 	info.CurrentFsmState = f.stateInfo.CurrentFsmState
@@ -259,7 +252,15 @@ func (f *FSM) updateTxStInfo() {
 	f.txCh <- f.empty
 }
 
+func (f *FSM) updateCurrentState() {
+	f.stateInfo.CurrentFsmState = getStateName(f.State)
+}
+
 func (f *FSM) receivePkt() {
+	if f.pHandle == nil {
+		debug.Logger.Alert("we started receiving packets even when pcap handle is not created")
+		return
+	}
 	packetSource := gopacket.NewPacketSource(f.pHandle, f.pHandle.LinkType())
 	in := packetSource.Packets()
 	ifName := f.Config.IntfRef
@@ -339,7 +340,6 @@ func (f *FSM) send(pktInfo *packet.PacketInfo) {
 			debug.Logger.Err(FSM_PREFIX, "Writing packet failed for interface:", f.Config.IntfRef)
 			return
 		}
-		f.updateTxStInfo()
 	}
 }
 
@@ -425,12 +425,14 @@ func (f *FSM) stateDownEvent() {
 		pkt := f.getPacketInfo()
 		pkt.Priority = VRRP_MASTER_DOWN_PRIORITY
 		f.send(pkt)
+		f.updateTxStInfo()
 	}
 	f.previousState = f.State
 	f.State = VRRP_INITIALIZE_STATE
 	f.deInitPktListener()
 	// remove the virtual ip if state down event
 	f.updateVirtualIP(false /*disable*/)
+	f.updateCurrentState()
 }
 
 func (f *FSM) stateUpEvent() {
@@ -439,7 +441,22 @@ func (f *FSM) stateUpEvent() {
 }
 
 func (f *FSM) exitFsm() {
-	f.stateDownEvent()
+	debug.Logger.Debug(FSM_PREFIX, "exiting fsm for:", *f.Config)
+	f.stopMasterAdverTimer()
+	if f.State == VRRP_MASTER_STATE {
+		debug.Logger.Debug(FSM_PREFIX, "sending master down to backup")
+		pkt := f.getPacketInfo()
+		pkt.Priority = VRRP_MASTER_DOWN_PRIORITY
+		f.send(pkt)
+		debug.Logger.Debug(FSM_PREFIX, "master down send out")
+	}
+	debug.Logger.Debug(FSM_PREFIX, "de init pkt listener")
+	f.deInitPktListener()
+	debug.Logger.Debug(FSM_PREFIX, "stop master down timer")
+	f.stopMasterDownTimer()
+	if f.running {
+		f.exitFsmGoRoutineCh <- f.empty
+	}
 }
 
 func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
@@ -456,7 +473,7 @@ func (f *FSM) handleIntfEvent(intfEvent *IntfEvent) {
 	case TEAR_DOWN:
 		// special case...
 		debug.Logger.Info(FSM_PREFIX, "Tear down fsm for:", f.Config.IntfRef, "vrid:", f.Config.VRID)
-		f.exitFsm()
+		f.stateDownEvent()
 	}
 }
 

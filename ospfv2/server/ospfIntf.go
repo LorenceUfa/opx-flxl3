@@ -138,10 +138,14 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		server.logger.Err("Ospf Interface configuration doesnot exist")
 		return false, errors.New("Ospf Interface configuration doesnot exist")
 	}
-	if intfConfEnt.AdminState == true {
+	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
+	if intfConfEnt.AdminState == true &&
+		server.globalData.AdminState == true &&
+		areaEnt.AdminState == true &&
+		intfConfEnt.OperState == true {
 		server.StopIntfFSM(intfConfKey)
-		server.StopIntfRxTxPkt(intfConfKey)
 	}
+	intfConfEnt, _ = server.IntfConfMap[intfConfKey]
 	oldIntfConfEnt := intfConfEnt
 	mask := getOspfv2IntfUpdateMask(attrset)
 	if mask&objects.OSPFV2_INTF_UPDATE_ADMIN_STATE == objects.OSPFV2_INTF_UPDATE_ADMIN_STATE {
@@ -176,7 +180,7 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	if mask&objects.OSPFV2_INTF_UPDATE_METRIC_VALUE == objects.OSPFV2_INTF_UPDATE_METRIC_VALUE {
 		intfConfEnt.Cost = uint32(newCfg.MetricValue)
 	}
-	areaEnt, _ := server.AreaConfMap[oldIntfConfEnt.AreaId]
+	areaEnt, _ = server.AreaConfMap[oldIntfConfEnt.AreaId]
 	delete(areaEnt.IntfMap, intfConfKey)
 	server.AreaConfMap[oldIntfConfEnt.AreaId] = areaEnt
 
@@ -187,9 +191,12 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 	areaEnt.IntfMap[intfConfKey] = true
 	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
 
-	if intfConfEnt.AdminState == true {
-		server.StartIntfRxTxPkt(intfConfKey)
+	if intfConfEnt.AdminState == true &&
+		server.globalData.AdminState == true &&
+		areaEnt.AdminState == true &&
+		intfConfEnt.OperState == true {
 		server.StartIntfFSM(intfConfKey)
+		server.logger.Info("Started Intf FSM successfully", intfConfKey, intfConfEnt)
 	}
 	return true, nil
 }
@@ -216,6 +223,8 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 			intfConfEnt.IfMacAddr = ipEnt.MacAddr
 			intfConfEnt.Netmask = ipEnt.NetMask
 		*/
+		server.logger.Err("Unknown L3 Interface", cfg.IpAddress, cfg.AddressLessIfIdx)
+		return false, errors.New("Unable to create Interface config: since no such L3 Interface exist")
 	} else {
 		ipEnt, _ := server.infraData.ipPropertyMap[l3IfIdx]
 		intfConfEnt.OperState = ipEnt.State
@@ -264,8 +273,10 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	areaEnt.IntfMap[intfConfKey] = true
 	server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[intfConfKey] = make(chan NbrDownMsg)
 	server.AreaConfMap[cfg.AreaId] = areaEnt
-	if intfConfEnt.AdminState == true {
-		server.StartIntfRxTxPkt(intfConfKey)
+	if intfConfEnt.AdminState == true &&
+		server.globalData.AdminState == true &&
+		areaEnt.AdminState == true &&
+		intfConfEnt.OperState == true {
 		server.StartIntfFSM(intfConfKey)
 	}
 	//Adding Interface Conf Key To Slice
@@ -286,12 +297,14 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 	}
 
 	server.logger.Info("Intf Conf Ent", intfConfEnt)
-	if intfConfEnt.AdminState == true {
+	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
+	if intfConfEnt.AdminState == true &&
+		server.globalData.AdminState == true &&
+		areaEnt.AdminState == true &&
+		intfConfEnt.OperState == true {
 		server.StopIntfFSM(intfConfKey)
-		server.StopIntfRxTxPkt(intfConfKey)
 	}
 
-	areaEnt, _ := server.AreaConfMap[intfConfEnt.AreaId]
 	delete(areaEnt.IntfMap, intfConfKey)
 	server.AreaConfMap[intfConfEnt.AreaId] = areaEnt
 	delete(server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap, intfConfKey)
@@ -413,6 +426,7 @@ func (server *OSPFV2Server) GetIntfConfForGivenIntfKey(intfConfKey IntfConfKey) 
 	return intfConfEnt, nil
 }
 
+/*
 func (server *OSPFV2Server) GetIntfNbrList(intfEnt IntfConf) (nbrList []NbrConfKey) {
 	for nbrKey, _ := range intfEnt.NbrMap {
 		nbrList = append(nbrList, nbrKey)
@@ -420,7 +434,12 @@ func (server *OSPFV2Server) GetIntfNbrList(intfEnt IntfConf) (nbrList []NbrConfK
 	return nbrList
 }
 
+*/
+
 func (server *OSPFV2Server) RefreshIntfConfSlice() {
+	if len(server.GetBulkData.AreaConfSlice) == 0 {
+		return
+	}
 	server.GetBulkData.IntfConfSlice = server.GetBulkData.IntfConfSlice[:len(server.GetBulkData.AreaConfSlice)-1]
 	server.GetBulkData.IntfConfSlice = nil
 	for intfKey, _ := range server.IntfConfMap {

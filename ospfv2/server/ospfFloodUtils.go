@@ -207,3 +207,74 @@ func (server *OSPFV2Server) validateLsaIsNew(rlsamd LsaMetadata, dlsamd LsaMetad
 	/* Debug further - currently it doesnt return true for latest LSA */
 	return true
 }
+
+func (server *OSPFV2Server) GetLsaByteFromLsaKey(areaId uint32, lsaKey LsaKey) []byte {
+	lsaByte := []byte{}
+	switch lsaKey.LSType {
+	case RouterLSA:
+		rlsa, valid := server.getRouterLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeRouterLsa(rlsa, lsaKey)
+		break
+	case NetworkLSA:
+		nlsa, valid := server.getNetworkLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeNetworkLsa(nlsa, lsaKey)
+		break
+	case Summary3LSA, Summary4LSA:
+		slsa, valid := server.getSummaryLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeSummaryLsa(slsa, lsaKey)
+		break
+
+	case ASExternalLSA:
+		alsa, valid := server.getASExternalLsaFromLsdb(areaId, lsaKey)
+		if valid == LsdbEntryNotFound {
+			return nil
+		}
+		lsaByte = encodeASExternalLsa(alsa, lsaKey)
+		break
+
+	default:
+		server.logger.Debug("Flood: Invalid lsa type . ", lsaKey)
+		return nil
+	}
+	return lsaByte
+}
+
+func (server *OSPFV2Server) getLsaByteFromLsa(msg LsdbToFloodLSAMsg) []byte {
+	lsaByte := []byte{}
+	switch msg.LsaKey.LSType {
+	case RouterLSA:
+		if lsa, ok := msg.LsaData.(RouterLsa); ok {
+			server.logger.Debug("Flood: Retrieved router lsa  from lsdb")
+			lsaByte = encodeRouterLsa(lsa, msg.LsaKey)
+		}
+	case NetworkLSA:
+		if lsa, ok := msg.LsaData.(NetworkLsa); ok {
+			server.logger.Debug("Flood: Retrieved network lsa  from lsdb")
+			lsaByte = encodeNetworkLsa(lsa, msg.LsaKey)
+		}
+
+	case Summary3LSA, Summary4LSA:
+		if lsa, ok := msg.LsaData.(SummaryLsa); ok {
+			server.logger.Debug("Flood: Retrieved network lsa  from lsdb")
+			lsaByte = encodeSummaryLsa(lsa, msg.LsaKey)
+		}
+
+	case ASExternalLSA:
+		if lsa, ok := msg.LsaData.(ASExternalLsa); ok {
+			server.logger.Debug("Flood: Retrieved as external  lsa  from lsdb")
+			lsaByte = encodeASExternalLsa(lsa, msg.LsaKey)
+		}
+	default:
+		server.logger.Err("Flood: Invalid LSA type . Not able to decode message from lsdb ", msg.LsaKey)
+	}
+	return lsaByte
+}

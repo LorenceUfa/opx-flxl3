@@ -215,7 +215,7 @@ type OspfPktDataStruct struct {
 }
 
 func (server *OSPFV2Server) processOspfPkt(pkt gopacket.Packet, key IntfConfKey, ospfPktData *OspfPktStruct) error {
-	server.logger.Info("Recevied Ospf Packet")
+	server.logger.Debug("Recevied Ospf Packet")
 	ent, exist := server.IntfConfMap[key]
 	if !exist {
 		return errors.New("Dropped because of interface no more valid")

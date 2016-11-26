@@ -28,6 +28,11 @@ import (
 	"errors"
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"io/ioutil"
+	"os"
+	"os/signal"
+	"runtime"
+	"runtime/debug"
+	"syscall"
 	"utils/dbutils"
 	"utils/logging"
 )
@@ -135,6 +140,7 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh = make(chan RecvdLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.NbrDeadMsgCh = make(chan NbrDeadMsg)
 	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
 	server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh = make(chan NbrToFloodMsg)
 	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
@@ -146,12 +152,34 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh = make(chan bool)
 	server.MessagingChData.RouteTblToDBClntChData.RouteAddMsgCh = make(chan RouteAddMsg, 100)
 	server.MessagingChData.RouteTblToDBClntChData.RouteDelMsgCh = make(chan RouteDelMsg, 100)
+	server.MessagingChData.ServerToDBClntChData.FlushRouteFromDBCh = make(chan bool)
+	server.MessagingChData.DBClntToServerChData.FlushRouteFromDBDoneCh = make(chan bool)
+}
+
+func (server *OSPFV2Server) SigHandler(sigChan <-chan os.Signal) {
+	server.logger.Debug("Inside sigHandler....")
+	signal := <-sigChan
+	switch signal {
+	case syscall.SIGHUP:
+		server.logger.Debug("Received SIGHUP signal")
+		server.SendFlushRouteMsgToDBClnt()
+		<-server.MessagingChData.DBClntToServerChData.FlushRouteFromDBDoneCh
+		debug.PrintStack()
+		var memStat runtime.MemStats
+		runtime.ReadMemStats(&memStat)
+		server.logger.Info("===Memstat===", memStat)
+	default:
+		server.logger.Err("Unhandled signal : ", signal)
+	}
 }
 
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
+	sigChan := make(chan os.Signal, 1)
+	signalList := []os.Signal{syscall.SIGHUP}
+	signal.Notify(sigChan, signalList...)
+	go server.SigHandler(sigChan)
 	server.initMessagingChData()
-	server.initNbrStruct()
 	server.initAsicdComm()
 	server.initRibdComm()
 	server.ConnectToServers()
@@ -313,12 +341,13 @@ func (server *OSPFV2Server) StartOspfv2Server() {
 		case <-server.GetBulkData.SliceRefreshCh:
 			//Refresh IntfConf Slice
 			server.RefreshIntfConfSlice()
+			//Refresh NbrConf Slice
+			server.RefreshNbrConfSlice()
 			//Refresh AreaConf Slice
 			server.RefreshAreaConfSlice()
 			//Refresh Lsdb Slice
 			server.SendMsgToLsdbToRefreshSlice()
 			<-server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh
-			//TODO: Refresh NbrConf Slice
 			server.logger.Info("Ospf GetBulk Slice Refresh in progress")
 			server.GetBulkData.SliceRefreshDoneCh <- true
 			server.logger.Info("Ospf GetBulk Slice Refresh in done")

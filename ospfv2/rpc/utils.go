@@ -125,11 +125,11 @@ func convertFromRPCFmtOspfv2Global(config *ospfv2d.Ospfv2Global) (*objects.Ospfv
 		return nil, errors.New("Invalid AdminState")
 	}
 	// Skipping VRF for now
-	if config.Vrf != "Default" {
+	if config.Vrf != "default" {
 		return nil, errors.New("Invalid Vrf")
 	}
 	return &objects.Ospfv2Global{
-		Vrf:                "Default",
+		Vrf:                "default",
 		RouterId:           routerId,
 		AdminState:         adminState,
 		ASBdrRtrStatus:     config.ASBdrRtrStatus,
@@ -139,7 +139,7 @@ func convertFromRPCFmtOspfv2Global(config *ospfv2d.Ospfv2Global) (*objects.Ospfv
 
 func convertToRPCFmtOspfv2GlobalState(obj *objects.Ospfv2GlobalState) *ospfv2d.Ospfv2GlobalState {
 	return &ospfv2d.Ospfv2GlobalState{
-		Vrf:                "Default",
+		Vrf:                "default",
 		AreaBdrRtrStatus:   obj.AreaBdrRtrStatus,
 		NumOfAreas:         int32(obj.NumOfAreas),
 		NumOfIntfs:         int32(obj.NumOfIntfs),
@@ -279,12 +279,13 @@ func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv
 	lsId := convertUint32ToDotNotation(obj.LSId)
 	areaId := convertUint32ToDotNotation(obj.AreaId)
 	advRtrId := convertUint32ToDotNotation(obj.AdvRouterId)
+	seqNum := fmt.Sprintf("0x%X", obj.SequenceNum)
 	return &ospfv2d.Ospfv2LsdbState{
 		LSType:        lsType,
 		LSId:          lsId,
 		AreaId:        areaId,
 		AdvRouterId:   advRtrId,
-		SequenceNum:   int32(obj.SequenceNum),
+		SequenceNum:   seqNum,
 		Age:           int16(obj.Age),
 		Checksum:      int16(obj.Checksum),
 		Options:       int8(obj.Options),

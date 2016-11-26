@@ -56,6 +56,7 @@ func (h *ConfigHandler) convertVrrpV6IntfEntryToThriftEntry(state common.State) 
 	entry := vrrpd.NewVrrpV6IntfState()
 	entry.IntfRef = state.IntfRef
 	entry.VRID = state.Vrid
+	entry.OperState = state.OperState
 	entry.CurrentState = state.CurrentFsmState
 	entry.MasterIp = state.MasterIp
 	entry.AdverRx = int32(state.AdverRx)
