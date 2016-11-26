@@ -53,6 +53,7 @@ type VXLANDServiceHandler struct {
 	logger       *logging.Writer
 	Thriftserver *thrift.TSimpleServer
 	running      bool
+	readdb       bool
 }
 
 // look up the various other daemons based on c string
@@ -109,6 +110,7 @@ func (v *VXLANDServiceHandler) CreateThriftServer() {
 		transportFactory := thrift.NewTBufferedTransportFactory(8192)
 		protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
 		v.Thriftserver = thrift.NewTSimpleServer4(processor, transport, transportFactory, protocolFactory)
+
 	}
 }
 
@@ -130,6 +132,14 @@ func (v *VXLANDServiceHandler) StartCfgServerLoop() {
 		v.logger.Info("Starting Cfg Server loop")
 		// Not going to do anything as we don't want to edit thrift code at this time.
 		// See thrift code changes
+
+		// lets read the db on creation, necessary for restart
+		if !v.readdb {
+			prevState := vxlan.VxlanGlobalStateGet()
+			v.ReadConfigFromDB(prevState)
+			v.readdb = true
+		}
+
 		v.running = true
 		err := v.Thriftserver.Serve()
 		v.logger.Info("Cfg Server loop stopped", err)
@@ -140,8 +150,6 @@ func (v *VXLANDServiceHandler) CreateVxlanGlobal(config *vxland.VxlanGlobal) (rv
 	rv = true
 	v.logger.Info(fmt.Sprintf("CreateVxlanGlobal (server): %s", config.AdminState))
 
-	prevState := vxlan.VxlanGlobalStateGet()
-
 	if config.AdminState == "UP" {
 		vxlan.VxlanGlobalStateSet(vxlan.VXLAN_GLOBAL_ENABLE)
 	} else if config.AdminState == "DOWN" {
@@ -149,7 +157,7 @@ func (v *VXLANDServiceHandler) CreateVxlanGlobal(config *vxland.VxlanGlobal) (rv
 	} else {
 		return rv, errors.New(fmt.Sprintln("Error VxlanGlobal unknown Admin State setting", config.AdminState))
 	}
-	go v.ReadConfigFromDB(prevState)
+
 	return rv, err
 }
 
