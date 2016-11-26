@@ -200,6 +200,11 @@ type RouteInfoDataUpdateMsg struct {
 	RouteInfoList []RouteInfo
 }
 
+type NbrDeadMsg struct {
+	AreaId   uint32
+	NbrRtrId uint32
+}
+
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
 	DeleteNbrCh       chan DeleteNbrMsg //List of Nbr Identity
@@ -218,6 +223,7 @@ type NbrFSMToLsdbChStruct struct {
 	RecvdLsaMsgCh          chan RecvdLsaMsg
 	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
+	NbrDeadMsgCh           chan NbrDeadMsg
 }
 
 type NbrFSMToFloodChStruct struct {
@@ -251,6 +257,14 @@ type RouteTblToDBClntChStruct struct {
 	RouteDelMsgCh chan RouteDelMsg
 }
 
+type ServerToDBClntChStruct struct {
+	FlushRouteFromDBCh chan bool
+}
+
+type DBClntToServerChStruct struct {
+	FlushRouteFromDBDoneCh chan bool
+}
+
 type MessagingChStruct struct {
 	IntfToNbrFSMChData     IntfToNbrFSMChStruct
 	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
@@ -261,6 +275,8 @@ type MessagingChStruct struct {
 	LsdbToSPFChData        LsdbToSPFChStruct
 	SPFToLsdbChData        SPFToLsdbChStruct
 	ServerToLsdbChData     ServerToLsdbChStruct
+	ServerToDBClntChData   ServerToDBClntChStruct
 	LsdbToServerChData     LsdbToServerChStruct
 	RouteTblToDBClntChData RouteTblToDBClntChStruct
+	DBClntToServerChData   DBClntToServerChStruct
 }

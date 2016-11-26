@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"models/objects"
 	"ospfv2d"
+	"utils/typeConv"
 )
 
 func (server *OSPFV2Server) StartDBClient() {
@@ -36,8 +37,29 @@ func (server *OSPFV2Server) StartDBClient() {
 			server.RouteAddToDB(msg)
 		case msg := <-server.MessagingChData.RouteTblToDBClntChData.RouteDelMsgCh:
 			server.RouteDelFromDB(msg)
+		case _ = <-server.MessagingChData.ServerToDBClntChData.FlushRouteFromDBCh:
+			server.FlushAllRoutesFromDB()
+			server.SendFlushRouteDoneMsgToServer()
 		}
 	}
+}
+
+func (server *OSPFV2Server) FlushAllRoutesFromDB() {
+	ospfv2RouteKeys, err := server.dbHdl.GetAllKeys("Ospfv2RouteState#*")
+	if err != nil {
+		return
+	}
+	keys, err := typeConv.ConvertToStrings(ospfv2RouteKeys, nil)
+	if err != nil {
+		return
+	}
+	for _, ospfv2RouteKey := range keys {
+		err := server.dbHdl.DeleteValFromDb(ospfv2RouteKey)
+		if err != nil {
+			server.logger.Err("Error Deleting Route from DB", ospfv2RouteKey)
+		}
+	}
+	return
 }
 
 func (server *OSPFV2Server) RouteAddToDB(msg RouteAddMsg) {

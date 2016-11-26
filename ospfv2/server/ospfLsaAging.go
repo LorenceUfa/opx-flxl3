@@ -396,7 +396,10 @@ func (server *OSPFV2Server) processLsdbAgingTicker() {
 					if exist {
 						//TODO: If Age=LSRefreshTime Regenerate
 						if lsaEnt.LsaMd.LSAge == LS_REFRESH_TIME {
-							needSPFCalcNetwork = true
+							ret := server.reGenerateNetworkLSA(lsaKey, lsaEnt, lsdbKey)
+							if ret == true {
+								needSPFCalcNetwork = true
+							}
 						}
 					}
 				}
