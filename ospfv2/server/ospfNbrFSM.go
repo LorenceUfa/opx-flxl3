@@ -165,6 +165,10 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	nbrConf.NbrBdr = nbrData.NbrBDRIpAddr
 	nbrConf.IntfKey = nbrData.IntfConfKey
 	nbrConf.NbrRtrId = nbrData.RouterId
+	nbrConf.NbrReqListIndex = 0
+	nbrConf.NbrReqList = []*ospfLSAHeader{}
+	nbrConf.NbrRetxList = []*ospfLSAHeader{}
+	nbrConf.NbrDBSummaryList = []*ospfLSAHeader{}
 	nbrConf.NbrDeadTimeDuration = nbrData.NbrDeadTime
 	if nbrData.TwoWayStatus {
 		nbrConf.State = NbrTwoWay
@@ -287,9 +291,9 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 			dbd_mdata.dd_sequence_number++
 		}
 
-		server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
-		flags = NBR_FLAG_REQ_LIST
-
+		req_list := server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
+		server.logger.Debug("Nbr: received nbr req len ", len(req_list))
+		nbrConf.NbrReqList = req_list
 	} else { // negotiation not done
 		nbrConf.State = NbrExchangeStart
 		if nbrConf.isMaster &&
@@ -309,7 +313,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 	}
 	nbrConf.DDSequenceNum = nbrDbPkt.dd_sequence_number
 	nbrConf.NbrOption = uint32(nbrDbPkt.options)
-	flags = flags | NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_IS_MASTER
+	flags = NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_IS_MASTER | NBR_FLAG_REQ_LIST
 	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
 
 }
@@ -344,15 +348,17 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 			}
 
 			// Genrate request list
-			server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
-			server.logger.Debug(fmt.Sprintln("DBD:(Exchange) Total elements in req_list ", len(nbrConf.NbrReqList)))
+			req_list := server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
+			nbrConf.NbrReqList = req_list
+			server.logger.Debug("DBD:(Exchange) Total elements in req_list ", len(nbrConf.NbrReqList))
 
 		} else { // i am slave
 			/* send acknowledgement DBD with I and MS bit false and mbit same as
 			   rx packet
 			    if mbit is 0 && last_exchange == true generate NbrExchangeDone*/
 			server.logger.Debug(fmt.Sprintln("DBD: (slave/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIdentity))
-			server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
+			req_list := server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
+			nbrConf.NbrReqList = req_list
 			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, nbrDbPkt.mbit, false,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false)
 			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
@@ -366,7 +372,7 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 		}
 	}
 	nbrConf.DDSequenceNum = nbrDbPkt.dd_sequence_number
-	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE
+	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE | NBR_FLAG_REQ_LIST | NBR_FLAG_REQ_LIST_INDEX
 	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
 
 }
@@ -377,7 +383,7 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf
 	server.logger.Debug(fmt.Sprintln("DBD: Loading . Nbr ", nbrKey.NbrIdentity))
 	isDiscard := server.NbrDbPacketDiscardCheck(nbrDbPkt, nbrConf)
 	isDuplicate := server.verifyDuplicatePacket(nbrConf, nbrDbPkt)
-
+	nbrConf.State = NbrLoading
 	if isDiscard {
 		server.logger.Debug(fmt.Sprintln("NBRDBD:Loading  Discard packet. nbr", nbrKey.NbrIdentity,
 			" nbr state ", nbrConf.State))
@@ -401,10 +407,8 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf
 			seq_num = dbd_mdata.dd_sequence_number + 1
 		}
 		seq_num = nbrConf.NbrLastDbd.dd_sequence_number
-		nbrConf.State = NbrLoading
 	} else {
 		seq_num = nbrConf.NbrLastDbd.dd_sequence_number
-		nbrConf.State = NbrLoading
 	}
 	nbrConf.DDSequenceNum = seq_num
 	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE
@@ -564,6 +568,15 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 				NbrKey: nbrKey,
 			}
 			server.MessagingChData.NbrToIntfFSMChData.NbrDownMsgChMap[nbrConf.IntfKey] <- nbrDownMsg
+			//Send Msg to Lsdb for Nbr Dead
+			intfConfEnt, exist := server.IntfConfMap[nbrConf.IntfKey]
+			if exist {
+				nbrDeadMsg := NbrDeadMsg{
+					AreaId:   intfConfEnt.AreaId,
+					NbrRtrId: nbrConf.NbrRtrId,
+				}
+				server.SendMsgToLsdbFromNbrFSMForNbrDead(nbrDeadMsg)
+			}
 			//send message to lsdb if I am DR.
 			intf, valid := server.IntfConfMap[nbrConf.IntfKey]
 			if !valid {

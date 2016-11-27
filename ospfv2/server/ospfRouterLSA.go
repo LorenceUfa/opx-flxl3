@@ -222,17 +222,9 @@ func (server *OSPFV2Server) reGenerateRouterLSA(msg GenerateRouterLSAMsg) {
 		AreaId: msg.AreaId,
 	}
 
-	lsdbEnt, lsdbExist := server.LsdbData.AreaLsdb[lsdbKey]
-	if !lsdbExist {
-		server.logger.Err("Area doesnot exist. No router LSA will be generated", lsdbKey)
-		return
-	}
+	lsdbEnt, _ := server.LsdbData.AreaLsdb[lsdbKey]
 	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
-	lsaEnt, exist := lsdbEnt.RouterLsaMap[lsaKey]
-	if !exist {
-		server.logger.Err("No router LSA will be regenerated as it doesnot exist", lsdbKey)
-		return
-	}
+	lsaEnt, _ := lsdbEnt.RouterLsaMap[lsaKey]
 	if numOfLinks == 0 {
 		delete(lsdbEnt.RouterLsaMap, lsaKey)
 		delete(selfOrigLsaEnt, lsaKey)
@@ -255,9 +247,7 @@ func (server *OSPFV2Server) reGenerateRouterLSA(msg GenerateRouterLSAMsg) {
 	checksumOffset := uint16(14)
 	lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
 	lsdbEnt.RouterLsaMap[lsaKey] = lsaEnt
-	selfOrigLsaEnt[lsaKey] = true
 	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
-	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Self Router LSA (areaId, lsaEnt, lsaKey)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
 	return
@@ -289,7 +279,7 @@ func (server *OSPFV2Server) processRecvdSelfRouterLSA(msg RecvdSelfLsaMsg) error
 		server.logger.Err("No such self originated router LSA exist", msg.LsaKey)
 		return nil
 	}
-	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+	if lsaEnt.LsaMd.LSSequenceNum < lsa.LsaMd.LSSequenceNum {
 		checksumOffset := uint16(14)
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0

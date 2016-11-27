@@ -25,12 +25,7 @@ package server
 
 import ()
 
-func (server *OSPFV2Server) SendMsgFromNbrToLsdb(msg UpdateSelfNetworkLSAMsg) {
-	server.logger.Info("Sending msg To lsdb from nbr to update network LSA  :")
-	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh <- msg
-}
-
-func (server *OSPFV2Server) SendMsgToLsdbFromNbrFSMForNbrDead(msg NbrDeadMsg) {
-	server.logger.Debug("Sending msg to Lsdb from nbr for Nbr Dead:", msg)
-	server.MessagingChData.NbrFSMToLsdbChData.NbrDeadMsgCh <- msg
+func (server *OSPFV2Server) SendFlushRouteMsgToDBClnt() {
+	server.logger.Info("Sending flush route msg to DB CLnt:")
+	server.MessagingChData.ServerToDBClntChData.FlushRouteFromDBCh <- true
 }

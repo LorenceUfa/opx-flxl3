@@ -56,6 +56,9 @@ func (rpcHdl *rpcServiceHandler) GetOspfv2LsdbState(LSType string, LsId, AreaId,
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2LsdbState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2LsdbStateGetInfo, error) {
 	var getBulkInfo ospfv2d.Ospfv2LsdbStateGetInfo
 	info, err := api.GetBulkOspfv2LsdbState(int(fromIdx), int(count))
+	if info == nil || err != nil {
+		return &getBulkInfo, err
+	}
 	getBulkInfo.StartIdx = fromIdx
 	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
 	getBulkInfo.More = info.More

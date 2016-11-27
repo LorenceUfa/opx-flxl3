@@ -99,7 +99,6 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		server.globalData.AdminState == true {
 		//This will cause Nbrs to be deleted from NbrFSM
 		server.StopAreaIntfFSM(newCfg.AreaId)
-		server.StopAreaRxTxPkt(newCfg.AreaId)
 		// This will cause area Lsdb to be flushed and Flush Routes also
 		server.FlushAreaLsdb(newCfg.AreaId)
 	}
@@ -124,7 +123,6 @@ func (server *OSPFV2Server) updateArea(newCfg, oldCfg *objects.Ospfv2Area, attrs
 		server.SendMsgToLsdbToInitAreaLsdb(newCfg.AreaId)
 		<-server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh
 		//server.InitAreaLsdb(newCfg.AreaId)
-		server.StartAreaRxTxPkt(newCfg.AreaId)
 		server.StartAreaIntfFSM(newCfg.AreaId)
 	}
 	return true, nil
@@ -156,7 +154,6 @@ func (server *OSPFV2Server) createArea(cfg *objects.Ospfv2Area) (bool, error) {
 		// TODO: Probably we don't need below 2 calls as
 		// we cannot create an interface if corresponding area
 		// doesnot exist
-		//server.StartAreaRxTxPkt(newCfg.AreaId)
 		//server.StartAreaIntfFSM(newCfg.AreaId)
 	}
 	//Adding to GetBulk Slice
@@ -175,7 +172,6 @@ func (server *OSPFV2Server) deleteArea(cfg *objects.Ospfv2Area) (bool, error) {
 	if areaEnt.AdminState == true {
 		//This will cause Nbrs to be deleted from NbrFSM
 		server.StopAreaIntfFSM(cfg.AreaId)
-		server.StopAreaRxTxPkt(cfg.AreaId)
 		// This will cause area Lsdb to be flushed and Flush Routes also
 		server.FlushAreaLsdb(cfg.AreaId)
 	}

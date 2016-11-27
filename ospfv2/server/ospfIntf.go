@@ -144,7 +144,6 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		areaEnt.AdminState == true &&
 		intfConfEnt.OperState == true {
 		server.StopIntfFSM(intfConfKey)
-		server.StopIntfRxTxPkt(intfConfKey)
 	}
 	intfConfEnt, _ = server.IntfConfMap[intfConfKey]
 	oldIntfConfEnt := intfConfEnt
@@ -196,8 +195,6 @@ func (server *OSPFV2Server) updateIntf(newCfg, oldCfg *objects.Ospfv2Intf, attrs
 		server.globalData.AdminState == true &&
 		areaEnt.AdminState == true &&
 		intfConfEnt.OperState == true {
-		server.StartIntfRxTxPkt(intfConfKey)
-		server.logger.Info("StartIntfRxTxPkt() successfully")
 		server.StartIntfFSM(intfConfKey)
 		server.logger.Info("Started Intf FSM successfully", intfConfKey, intfConfEnt)
 	}
@@ -280,7 +277,6 @@ func (server *OSPFV2Server) createIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		server.globalData.AdminState == true &&
 		areaEnt.AdminState == true &&
 		intfConfEnt.OperState == true {
-		server.StartIntfRxTxPkt(intfConfKey)
 		server.StartIntfFSM(intfConfKey)
 	}
 	//Adding Interface Conf Key To Slice
@@ -307,7 +303,6 @@ func (server *OSPFV2Server) deleteIntf(cfg *objects.Ospfv2Intf) (bool, error) {
 		areaEnt.AdminState == true &&
 		intfConfEnt.OperState == true {
 		server.StopIntfFSM(intfConfKey)
-		server.StopIntfRxTxPkt(intfConfKey)
 	}
 
 	delete(areaEnt.IntfMap, intfConfKey)

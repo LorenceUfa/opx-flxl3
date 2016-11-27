@@ -62,6 +62,15 @@ func (server *OSPFV2Server) UpdateNbrConf(nbrKey NbrConfKey, conf NbrConf, flags
 	if flags&NBR_FLAG_OPTION == NBR_FLAG_STATE {
 		nbrE.NbrOption = conf.NbrOption
 	}
+	if flags&NBR_FLAG_REQ_LIST == NBR_FLAG_REQ_LIST {
+		if len(conf.NbrReqList) > 0 {
+			nbrE.NbrReqList = conf.NbrReqList
+			server.logger.Debug("nbr: updated req list ", len(nbrE.NbrReqList))
+		}
+	}
+	if flags&NBR_FLAG_REQ_LIST_INDEX == NBR_FLAG_REQ_LIST_INDEX {
+		nbrE.NbrReqListIndex = conf.NbrReqListIndex
+	}
 	server.NbrConfMap[nbrKey] = nbrE
 }
 

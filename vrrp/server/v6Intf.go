@@ -36,9 +36,9 @@ type V6Intf struct {
 func (intf *V6Intf) updateIp(ipAddr string) {
 	ip, _, _ := net.ParseCIDR(ipAddr)
 	if ip.IsLinkLocalUnicast() == false {
-		intf.Cfg.GlobalScopeIp = ip.String()
+		intf.Cfg.GlobalScopeIp = ipAddr //ip.String()
 	} else {
-		intf.Cfg.Info.IpAddr = ip.String()
+		intf.Cfg.Info.IpAddr = ipAddr //ip.String()
 	}
 }
 
@@ -46,6 +46,7 @@ func (intf *V6Intf) Init(obj *common.BaseIpInfo) {
 	intf.Cfg.Info.IntfRef = obj.IntfRef
 	intf.Cfg.Info.IfIndex = obj.IfIndex
 	intf.Cfg.Info.OperState = obj.OperState
+	intf.Cfg.Info.IpType = obj.IpType
 	intf.updateIp(obj.IpAddr)
 	intf.Vrrpkey = nil
 	debug.Logger.Debug("v6 ip interface initialized:", intf.Cfg)

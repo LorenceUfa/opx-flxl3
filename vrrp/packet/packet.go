@@ -157,27 +157,6 @@ func (p *PacketInfo) validateV6Header(hdr *Header, ipv6Hdr *layers.IPv6, layerCo
 		return errors.New(VRRP_INCORRECT_VERSION)
 	}
 	binary.BigEndian.PutUint16(layerContent[6:8], 0)
-	/*
-		length := uint32(len(layerContent))
-		// get ipv6 pseudo header
-		csum := pseudoheaderChecksum(ipv6Hdr)
-		csum += uint32(ipv6Hdr.NextHeader)
-		csum += length & 0xffff
-		csum += length >> 16
-		//csum := uint32(0)
-		cLen := len(layerContent) - 1
-		for i := 0; i < cLen; i += 2 {
-			csum += uint32(layerContent[i]) << 8
-			csum += uint32(layerContent[i+1])
-		}
-		if len(layerContent)%2 == 1 {
-			csum += uint32(layerContent[cLen]) << 8
-		}
-		for csum > 0xffff {
-			csum = (csum >> 16) + (csum & 0xffff)
-		}
-		chksum := ^uint16(csum + (csum >> 16))
-	*/
 	chksum := computeV6Checksum(ipv6Hdr, layerContent)
 	if chksum != hdr.CheckSum {
 		debug.Logger.Err(chksum, "!=", hdr.CheckSum)

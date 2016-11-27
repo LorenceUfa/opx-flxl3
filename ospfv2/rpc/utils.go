@@ -279,12 +279,13 @@ func convertToRPCFmtOspfv2LsdbState(obj *objects.Ospfv2LsdbState) *ospfv2d.Ospfv
 	lsId := convertUint32ToDotNotation(obj.LSId)
 	areaId := convertUint32ToDotNotation(obj.AreaId)
 	advRtrId := convertUint32ToDotNotation(obj.AdvRouterId)
+	seqNum := fmt.Sprintf("0x%X", obj.SequenceNum)
 	return &ospfv2d.Ospfv2LsdbState{
 		LSType:        lsType,
 		LSId:          lsId,
 		AreaId:        areaId,
 		AdvRouterId:   advRtrId,
-		SequenceNum:   int32(obj.SequenceNum),
+		SequenceNum:   seqNum,
 		Age:           int16(obj.Age),
 		Checksum:      int16(obj.Checksum),
 		Options:       int8(obj.Options),

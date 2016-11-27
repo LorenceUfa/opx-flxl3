@@ -29,34 +29,13 @@ import (
 	"l3/vrrp/common"
 	"l3/vrrp/debug"
 	"l3/vrrp/packet"
+	"net"
 	"strconv"
 	"syscall"
 	"time"
 )
 
 /*
-	0                   1                   2                   3
-	0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|                    IPv4 Fields or IPv6 Fields                 |
-	...                                                             ...
-	|                                                               |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|Version| Type  | Virtual Rtr ID|   Priority    |Count IPvX Addr|
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|(rsvd) |     Max Adver Int     |          Checksum             |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	|                                                               |
-	+                                                               +
-	|                       IPvX Address(es)                        |
-	+                                                               +
-	+                                                               +
-	+                                                               +
-	+                                                               +
-	|                                                               |
-	+                                                               +
-	|                                                               |
-	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 			   +---------------+
 		+--------->|               |<-------------+
 		|          |  Initialize   |              |
@@ -123,7 +102,11 @@ func InitFsm(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.
 	f := FSM{}
 	f.Config = cfg
 	f.stateInfo = &common.State{}
-	f.ipAddr = l3Info.IpAddr
+	ip, _, err := net.ParseCIDR(l3Info.IpAddr)
+	if err != nil {
+		ip = net.ParseIP(l3Info.IpAddr)
+	}
+	f.ipAddr = ip.String()
 	f.ifIndex = l3Info.IfIndex
 	f.ipType = l3Info.IpType
 	f.createVirtualMac()
@@ -197,13 +180,15 @@ func (f *FSM) IsRunning() bool {
 }
 
 func (f *FSM) GetStateInfo(info *common.State) {
-	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef)
+	debug.Logger.Debug(FSM_PREFIX, "get state info request for:", f.Config.IntfRef, f.running)
 	info.IntfRef = f.Config.IntfRef
 	info.Vrid = f.Config.VRID
 	if f.running {
 		info.OperState = common.STATE_UP
+		debug.Logger.Debug(FSM_PREFIX, "fsm running and hence operstate is :", info.OperState)
 	} else {
 		info.OperState = common.STATE_DOWN
+		debug.Logger.Debug(FSM_PREFIX, "fsm not running and hence operstate is :", info.OperState)
 	}
 	info.IpAddr = f.ipAddr
 	info.CurrentFsmState = f.stateInfo.CurrentFsmState
@@ -267,7 +252,15 @@ func (f *FSM) updateTxStInfo() {
 	f.txCh <- f.empty
 }
 
+func (f *FSM) updateCurrentState() {
+	f.stateInfo.CurrentFsmState = getStateName(f.State)
+}
+
 func (f *FSM) receivePkt() {
+	if f.pHandle == nil {
+		debug.Logger.Alert("we started receiving packets even when pcap handle is not created")
+		return
+	}
 	packetSource := gopacket.NewPacketSource(f.pHandle, f.pHandle.LinkType())
 	in := packetSource.Packets()
 	ifName := f.Config.IntfRef
@@ -439,6 +432,7 @@ func (f *FSM) stateDownEvent() {
 	f.deInitPktListener()
 	// remove the virtual ip if state down event
 	f.updateVirtualIP(false /*disable*/)
+	f.updateCurrentState()
 }
 
 func (f *FSM) stateUpEvent() {
