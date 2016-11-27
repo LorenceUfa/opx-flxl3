@@ -116,21 +116,45 @@ func (server *OSPFV2Server) StopNbrFSM() {
 
 /**** handle neighbor states ***/
 func (server *OSPFV2Server) ProcessNbrHello(nbrData NbrHelloEventMsg) {
+	var oldState NbrState
+	var newState NbrState
+	oldState = NbrDown
 	/*
 		nbrKey := NbrConfKey{
 			NbrIdentity:         nbrData.NbrIpAddr,
 			NbrAddressLessIfIdx: 0,
 		} */
 	nbrKey := nbrData.NbrKey
-	_, valid := server.NbrConfMap[nbrKey]
+	nbrConf, valid := server.NbrConfMap[nbrKey]
 	if !valid {
 		server.logger.Debug("Nbr: add new neighbor ", nbrData.NbrIP)
 		// add new neighbor
 		server.CreateNewNbr(nbrData)
+		if nbrData.TwoWayStatus {
+			newState = NbrTwoWay
+		} else {
+			newState = NbrInit
+		}
+	} else {
+		oldState = nbrConf.State
+		if nbrData.TwoWayStatus {
+			newState = NbrTwoWay
+		} else {
+			newState = NbrInit
+		}
+		nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
 	}
-	nbrConf := server.NbrConfMap[nbrKey]
-	flags := 0
-	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
+	if (oldState == NbrDown || oldState == NbrInit) &&
+		newState == NbrTwoWay {
+		nbrConf.State = NbrTwoWay
+		server.ProcessNbrTwoway(nbrKey)
+	} else if newState == NbrInit &&
+		(oldState != NbrInit && oldState != NbrDown) {
+		nbrConf.State = NbrInit
+		server.ProcessNbrInit(nbrKey)
+	} else {
+		server.ProcessNbrUpdate(nbrKey, nbrConf)
+	}
 }
 
 func (server *OSPFV2Server) ProcessNbrDbdMsg(dbdMsg NbrDbdMsg) {
@@ -177,22 +201,19 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 		nbrConf.State = NbrInit
 		server.NbrConfMap[nbrKey] = nbrConf
 	}
-	newList := []NbrConfKey{}
-	//newList = append(newList, nbrKey)
-	server.NbrConfData.IntfToNbrMap[nbrData.IntfConfKey] = newList
 	server.ProcessNbrDead(nbrKey)
 	nbrConf, exist := server.NbrConfMap[nbrKey]
 	if !exist {
 		server.logger.Err("Nbr : Nbr conf does not exist .  Dbd will not be processed. ", nbrKey)
 		return
 	}
-	server.ProcessNbrFsmStart(nbrKey, nbrConf)
+	//	server.ProcessNbrFsmStart(nbrKey, nbrConf)
 	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
 }
 
-func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrConf) {
+func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey) {
 	var dbd_mdata NbrDbdData
-	var flags int
+	nbrConf, _ := server.NbrConfMap[nbrKey]
 	isAdjacent := server.AdjacencyCheck(nbrKey)
 	if isAdjacent {
 		nbrConf.State = NbrExchangeStart
@@ -201,22 +222,36 @@ func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey, nbrConf NbrCon
 		server.ConstructDbdMdata(nbrKey, true, true, true,
 			INTF_OPTIONS, nbrConf.DDSequenceNum, false, false)
 		server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
-		flags = NBR_FLAG_STATE | NBR_FLAG_SEQ_NUMBER | NBR_FLAG_IS_MASTER | NBR_FLAG_INACTIVITY_TIMER
 		server.logger.Debug("Nbr: Exstart seq ", dbd_mdata.dd_sequence_number)
 
 	} else { // no adjacency
 		server.logger.Debug("Nbr: Twoway  ", nbrKey)
 		nbrConf.State = NbrTwoWay
-		flags = NBR_FLAG_STATE | NBR_FLAG_INACTIVITY_TIMER
 	}
 
-	server.UpdateNbrConf(nbrKey, nbrConf, flags)
+	server.ProcessNbrUpdate(nbrKey, nbrConf)
 
 }
 
+func (server *OSPFV2Server) ProcessNbrInit(nbrKey NbrConfKey) {
+	nbrConf, exist := server.NbrConfMap[nbrKey]
+	if !exist {
+		server.logger.Err("Nbr : Does not exist. Init state ", nbrKey)
+		return
+	}
+	nbrConf.NbrReqListIndex = -1
+	nbrConf.NbrReqList = nil
+	nbrConf.NbrRetxList = nil
+	nbrConf.NbrDBSummaryList = nil
+	nbrConf.NbrLsaIndex = -1
+	server.ProcessNbrUpdate(nbrKey, nbrConf)
+}
+
+func (server *OSPFV2Server) ProcessNbrTwoway(nbrKey NbrConfKey) {
+	server.ProcessNbrFsmStart(nbrKey)
+}
+
 func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf, nbrDbPkt NbrDbdData) {
-	var flags int
-	flags = 0
 	var dbd_mdata NbrDbdData
 	var isAdjacent bool
 	var negotiationDone bool
@@ -313,8 +348,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 	}
 	nbrConf.DDSequenceNum = nbrDbPkt.dd_sequence_number
 	nbrConf.NbrOption = uint32(nbrDbPkt.options)
-	flags = NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_IS_MASTER | NBR_FLAG_REQ_LIST
-	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
+	server.ProcessNbrUpdate(nbrKey, nbrConf)
 
 }
 
@@ -349,7 +383,7 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 
 			// Genrate request list
 			req_list := server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
-			nbrConf.NbrReqList = req_list
+			nbrConf.NbrReqList = append(nbrConf.NbrReqList, req_list...)
 			server.logger.Debug("DBD:(Exchange) Total elements in req_list ", len(nbrConf.NbrReqList))
 
 		} else { // i am slave
@@ -358,22 +392,22 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 			    if mbit is 0 && last_exchange == true generate NbrExchangeDone*/
 			server.logger.Debug(fmt.Sprintln("DBD: (slave/Exchange) Send next packet in the exchange  to nbr ", nbrKey.NbrIdentity))
 			req_list := server.generateRequestList(nbrKey, nbrConf, nbrDbPkt)
-			nbrConf.NbrReqList = req_list
+			nbrConf.NbrReqList = append(nbrConf.NbrReqList, req_list...)
 			dbd_mdata, last_exchange = server.ConstructDbdMdata(nbrKey, false, nbrDbPkt.mbit, false,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, true, false)
 			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
 			nbrConf.NbrLastDbd = dbd_mdata
 			dbd_mdata.dd_sequence_number++
-			if !nbrDbPkt.mbit && last_exchange {
-				nbrConf.State = NbrLoading
-				nbrConf.NbrReqListIndex = server.BuildAndSendLSAReq(nbrKey, nbrConf)
-				server.logger.Debug(fmt.Sprintln("DBD: Loading , nbr ", nbrKey.NbrIdentity))
-			}
 		}
+		if !nbrDbPkt.mbit && last_exchange {
+			nbrConf.State = NbrLoading
+			nbrConf.NbrReqListIndex = server.BuildAndSendLSAReq(nbrKey, nbrConf)
+			server.logger.Debug(fmt.Sprintln("DBD: Loading , nbr ", nbrKey.NbrIdentity))
+		}
+
 	}
 	nbrConf.DDSequenceNum = nbrDbPkt.dd_sequence_number
-	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE | NBR_FLAG_REQ_LIST | NBR_FLAG_REQ_LIST_INDEX
-	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
+	server.ProcessNbrUpdate(nbrKey, nbrConf)
 
 }
 
@@ -411,8 +445,7 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf
 		seq_num = nbrConf.NbrLastDbd.dd_sequence_number
 	}
 	nbrConf.DDSequenceNum = seq_num
-	flags := NBR_FLAG_SEQ_NUMBER | NBR_FLAG_OPTION | NBR_FLAG_INACTIVITY_TIMER | NBR_FLAG_STATE
-	server.ProcessNbrUpdate(nbrKey, nbrConf, flags)
+	server.ProcessNbrUpdate(nbrKey, nbrConf)
 }
 
 func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
@@ -422,8 +455,7 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 	}
 	nbrConf.State = NbrFull
 	server.UpdateIntfToNbrMap(nbrKey)
-	flags := NBR_FLAG_STATE
-	server.UpdateNbrConf(nbrKey, nbrConf, flags)
+	server.ProcessNbrUpdate(nbrKey, nbrConf)
 	server.logger.Debug("Nbr: Nbr full event ", nbrKey)
 	intf, valid := server.IntfConfMap[nbrConf.IntfKey]
 	if !valid {
@@ -630,44 +662,7 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 
 }
 
-func (server *OSPFV2Server) ProcessNbrUpdate(nbrKey NbrConfKey, nbrConf NbrConf, flags int) {
-	nbrConfOld, valid := server.NbrConfMap[nbrKey]
-	if !valid {
-		server.logger.Err("Nbr: Nbr key is not valid. no updates. ", nbrKey)
-		return
-	}
-	if flags&NBR_FLAG_STATE == NBR_FLAG_STATE {
-		nbrConfOld.State = nbrConf.State
-	}
-	if flags&NBR_FLAG_IS_MASTER == NBR_FLAG_IS_MASTER {
-		nbrConfOld.isMaster = nbrConf.isMaster
-	}
-	if flags&NBR_FLAG_SEQ_NUMBER == NBR_FLAG_SEQ_NUMBER {
-		nbrConfOld.DDSequenceNum = nbrConf.DDSequenceNum
-	}
-	if flags&NBR_FLAG_NBR_ID == NBR_FLAG_NBR_ID {
-		nbrConfOld.NbrRtrId = nbrConf.NbrRtrId
-	}
-	if flags&NBR_FLAG_PRIORITY == NBR_FLAG_PRIORITY {
-		nbrConfOld.NbrPriority = nbrConf.NbrPriority
-	}
-	if flags&NBR_FLAG_OPTION == NBR_FLAG_OPTION {
-		nbrConfOld.NbrOption = nbrConf.NbrOption
-	}
-
-	if flags&NBR_FLAG_DR == NBR_FLAG_DR {
-		nbrConfOld.NbrDR = nbrConf.NbrDR
-	}
-
-	if flags&NBR_FLAG_BDR == NBR_FLAG_BDR {
-		nbrConfOld.NbrBdr = nbrConf.NbrBdr
-	}
-
-	if flags&NBR_FLAG_DEAD_DURATION == NBR_FLAG_DEAD_DURATION {
-		nbrConfOld.NbrDeadTimeDuration = nbrConf.NbrDeadTimeDuration
-	}
-
-	nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
+func (server *OSPFV2Server) ProcessNbrUpdate(nbrKey NbrConfKey, nbrConf NbrConf) {
 	server.NbrConfMap[nbrKey] = nbrConf
 	server.logger.Debug("Nbr: Nbr conf updated ", nbrKey)
 }

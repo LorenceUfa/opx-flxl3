@@ -117,3 +117,9 @@ const (
 	LSAEXTFLOOD             = 5 //flood AS External summary LSA
 	LSAROUTERFLOOD          = 6 //flood only router LSA
 )
+
+const (
+	AllSPFRouters = "224.0.0.5"
+	AllDRouters   = "224.0.0.6"
+	McastMAC      = "01:00:5e:00:00:05"
+)
