@@ -153,13 +153,13 @@ func (server OSPFV2Server) ProcessLsaFloodAll(nbrKey NbrConfKey, lsaType uint8, 
 	for key, intf := range server.IntfConfMap {
 		areaid := intf.AreaId
 		if intf.IpAddr == rxIntf.IpAddr || areaid != rxIntf.AreaId {
-			server.logger.Info(fmt.Sprintln("LSA_FLOOD_ALL:Dont flood on rx intf ", rxIntf.IpAddr))
+			server.logger.Info("LSA_FLOOD_ALL:Dont flood on rx intf ", rxIntf.IpAddr)
 			continue // dont flood the LSA on the interface it is received.
 		}
 		send := server.nbrFloodCheck(nbrKey, key, intf, lsaType)
 		if send {
 			if lsa_pkt != nil {
-				server.logger.Info(fmt.Sprintln("LSA_FLOOD_ALL: Unicast LSA interface ", intf.IpAddr))
+				server.logger.Info("LSA_FLOOD_ALL: Unicast LSA interface ", intf.IpAddr)
 				lsas_enc := make([]byte, 4)
 				var no_lsa uint32
 				no_lsa = 1
@@ -167,9 +167,14 @@ func (server OSPFV2Server) ProcessLsaFloodAll(nbrKey NbrConfKey, lsaType uint8, 
 				lsaEncPkt = append(lsaEncPkt, lsas_enc...)
 				lsaEncPkt = append(lsaEncPkt, lsa_pkt...)
 				lsa_pkt_len := len(lsaEncPkt)
-				destIp := net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
+				destIp, destMac, err := server.GetDestIpForFlood(key, nbrConf.NbrIP, nbrConf.NbrMac)
+				if err != nil {
+					server.logger.Err("LSA_FLOOD_ALL: Can not get dest ip for intf for flood ", key)
+					continue
+				}
+				server.logger.Debug("LSA_FLOOD_ALL: Flood on ", destIp, " mac ", destMac)
 				pkt := server.BuildLsaUpdPkt(key, intf,
-					intf.IfMacAddr, destIp, lsa_pkt_len, lsaEncPkt)
+					destMac, destIp, lsa_pkt_len, lsaEncPkt)
 				server.SendOspfPkt(key, pkt)
 			}
 		}
@@ -331,42 +336,32 @@ Check if we need to flood the LSA on the interface
 func (server *OSPFV2Server) nbrFloodCheck(nbrKey NbrConfKey, key IntfConfKey, intf IntfConf, lsType uint8) bool {
 	/* Check neighbor state */
 	flood_check := true
-	nbrConf := server.NbrConfMap[nbrKey]
-	intfConf, valid := server.IntfConfMap[nbrConf.IntfKey]
-	if !valid {
-		server.logger.Err("Nbr : Intf does not exist. Flood check failed. ", nbrConf.IntfKey)
-		return false
-	}
-	//rtrid := convertIPv4ToUint32(server.globalData.RouterId)
-	if nbrConf.IntfKey == key && nbrConf.NbrDR == intfConf.DRtrId && lsType != Summary3LSA && lsType != Summary4LSA {
-		server.logger.Info(fmt.Sprintln("IF FLOOD: Nbr is DR/BDR.  Dont flood on this interface . nbr - ", nbrKey.NbrIdentity, nbrConf.NbrIP))
-		return false
-	}
+	/*
+		if nbrConf.IntfKey == key && nbrConf.NbrDR == intfConf.DRtrId && lsType != Summary3LSA && lsType != Summary4LSA {
+			server.logger.Info(fmt.Sprintln("IF FLOOD: Nbr is DR/BDR.  Dont flood on this interface . nbr - ", nbrKey.NbrIdentity, nbrConf.NbrIP))
+			return false
+		} */
 	flood_check = server.interfaceFloodCheck(key)
 	return flood_check
 }
 
 func (server *OSPFV2Server) interfaceFloodCheck(key IntfConfKey) bool {
 	flood_check := false
-	nbrData, exist := server.NbrConfData.IntfToNbrMap[key]
+	intf, exist := server.IntfConfMap[key]
 	if !exist {
-		server.logger.Info(fmt.Sprintln("FLOOD: Intf to nbr map doesnt exist.Dont flood."))
-		return false
+		server.logger.Err("Flood: intf does not exist ", key)
+		return flood_check
 	}
-	if nbrData != nil {
-		for _, nbrId := range nbrData {
-			nbrConf := server.NbrConfMap[nbrId]
-			if nbrConf.State < NbrExchange {
-				server.logger.Info(fmt.Sprintln("FLOOD: Nbr < exchange . ", nbrConf.NbrIP))
-				flood_check = false
-				continue
-			}
+
+	for nbrId, _ := range intf.NbrMap {
+		nbrConf := server.NbrConfMap[nbrId]
+		if nbrConf.State >= NbrExchange {
+			server.logger.Info(fmt.Sprintln("FLOOD: Nbr >=  exchange . ", nbrConf.NbrIP))
 			flood_check = true
-			/* TODO - add check if nbrstate is loading - check its retransmission list
-			   add LSA to the adjacency list of neighbor with FULL state.*/
+			break
 		}
-	} else {
-		server.logger.Info(fmt.Sprintln("FLOOD: nbr list is null for interface ", key.IpAddr))
+		/* TODO - add check if nbrstate is loading - check its retransmission list
+		   add LSA to the adjacency list of neighbor with FULL state.*/
 	}
 	return flood_check
 }
