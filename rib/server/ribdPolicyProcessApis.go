@@ -642,7 +642,7 @@ func (m *RIBDServer) UndoApplyPolicy(info *ribdInt.ApplyPolicyInfo, apply bool, 
 		switch conditions[j].ConditionType {
 		case "MatchProtocol":
 			logger.Debug(conditions[j].Protocol)
-			conditionName = "Match" + conditions[j].Protocol
+			conditionName = "__InternalMatch" + conditions[j].Protocol + "__"
 			ok := policyConditionsDB.Match(patriciaDB.Prefix(conditionName))
 			if !ok {
 				logger.Debug("condition ", conditionName, " not found")
