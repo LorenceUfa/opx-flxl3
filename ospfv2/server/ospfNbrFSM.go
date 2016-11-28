@@ -142,7 +142,7 @@ func (server *OSPFV2Server) ProcessNbrHello(nbrData NbrHelloEventMsg) {
 		} else {
 			newState = NbrInit
 		}
-		nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
+		//nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
 	}
 	if (oldState == NbrDown || oldState == NbrInit) &&
 		newState == NbrTwoWay {
@@ -202,17 +202,13 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 		server.NbrConfMap[nbrKey] = nbrConf
 	}
 	server.ProcessNbrDead(nbrKey)
-	nbrConf, exist := server.NbrConfMap[nbrKey]
-	if !exist {
-		server.logger.Err("Nbr : Nbr conf does not exist .  Dbd will not be processed. ", nbrKey)
-		return
-	}
 	//	server.ProcessNbrFsmStart(nbrKey, nbrConf)
 	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey) {
 	var dbd_mdata NbrDbdData
+	server.logger.Debug("Nbr: Nbr fsm start ", nbrKey)
 	nbrConf, _ := server.NbrConfMap[nbrKey]
 	isAdjacent := server.AdjacencyCheck(nbrKey)
 	if isAdjacent {
@@ -663,6 +659,8 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 }
 
 func (server *OSPFV2Server) ProcessNbrUpdate(nbrKey NbrConfKey, nbrConf NbrConf) {
+	nbrConf.NbrDeadTimer.Stop()
+	nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
 	server.NbrConfMap[nbrKey] = nbrConf
 	server.logger.Debug("Nbr: Nbr conf updated ", nbrKey)
 }
