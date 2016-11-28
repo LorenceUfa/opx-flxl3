@@ -103,7 +103,7 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 
 	for _, lsa := range db_list {
 		rtr_id := convertUint32ToDotNotation(lsa.adv_router_id)
-		server.logger.Info(fmt.Sprintln(lsa, ": ", rtr_id, " lsatype ", lsa.ls_type))
+		server.logger.Debug(lsa, ": ", rtr_id, " lsatype ", lsa.ls_type)
 	}
 	nbrConf.NbrDBSummaryList = db_list
 }

@@ -28,9 +28,10 @@ import (
 	//"github.com/google/gopacket"
 	//"github.com/google/gopacket/layers"
 	//"l3/ospf/config"
+	"errors"
+	"l3/ospfv2/objects"
 	"math"
-	//"net"
-	//"time"
+	"net"
 )
 
 func (server *OSPFV2Server) selfGenLsaCheck(key LsaKey) bool {
@@ -188,7 +189,7 @@ func validateChecksum(data []byte) bool {
 
 func (server *OSPFV2Server) validateLsaIsNew(rlsamd LsaMetadata, dlsamd LsaMetadata) bool {
 	if rlsamd.LSSequenceNum > dlsamd.LSSequenceNum {
-		server.logger.Info(fmt.Sprintln("LSA: received lsseq num > db seq num. "))
+		server.logger.Debug("LSA: received lsseq num > db seq num. ")
 		return true
 	}
 	if rlsamd.LSChecksum > dlsamd.LSChecksum {
@@ -277,4 +278,39 @@ func (server *OSPFV2Server) getLsaByteFromLsa(msg LsdbToFloodLSAMsg) []byte {
 		server.logger.Err("Flood: Invalid LSA type . Not able to decode message from lsdb ", msg.LsaKey)
 	}
 	return lsaByte
+}
+
+/*
+On broadcast networks, the Link State Update packets are
+            multicast.  The destination IP address specified for the
+            Link State Update Packet depends on the state of the
+            interface.  If the interface state is DR or Backup, the
+            address AllSPFRouters should be used.  Otherwise, the
+            address AllDRouters should be used.
+            On non-broadcast networks, separate Link State Update
+            packets must be sent, as unicasts, to each adjacent neighbor
+            (i.e., those in state Exchange or greater).  The destination
+            IP addresses for these packets are the neighbors' IP
+            addresses.
+*/
+func (server *OSPFV2Server) GetDestIpForFlood(intfKey IntfConfKey, nbrIP uint32, nbrMac net.HardwareAddr) (net.IP, net.HardwareAddr, error) {
+	var destIp net.IP
+	var destMac net.HardwareAddr
+	intf, exist := server.IntfConfMap[intfKey]
+	if !exist {
+		return nil, nil, errors.New("intf conf does not exist ")
+	}
+	if intf.Type == objects.INTF_TYPE_BROADCAST {
+		if intf.DRtrId == server.globalData.RouterId || intf.BDRtrId == server.globalData.RouterId {
+			destIp = net.ParseIP(AllSPFRouters)
+		} else {
+			destIp = net.ParseIP(AllDRouters)
+		}
+		destMac, _ = net.ParseMAC(McastMAC)
+	} else if intf.Type == objects.INTF_TYPE_POINT2POINT {
+		destIp = net.ParseIP(convertUint32ToDotNotation(nbrIP))
+		destMac = nbrMac
+	}
+
+	return destIp, destMac, nil
 }

@@ -336,10 +336,6 @@ func (server *OSPFV2Server) BuildLsaUpdPkt(intfKey IntfConfKey, ent IntfConf,
 	csum := computeCheckSum(ospf)
 	binary.BigEndian.PutUint16(ospf[12:14], csum)
 	binary.BigEndian.PutUint64(ospf[16:24], ent.AuthKey)
-	if ent.FSMState == objects.INTF_FSM_STATE_P2P {
-		dstIp = net.ParseIP(config.AllSPFRouters)
-		dstMAC, _ = net.ParseMAC(config.McastMAC)
-	}
 	srcIp := net.ParseIP(convertUint32ToDotNotation(ent.IpAddr))
 	ipPktlen := IP_HEADER_MIN_LEN + ospfHdr.Pktlen
 	ipLayer := layers.IPv4{
@@ -411,7 +407,6 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 		return
 	}
 
-	lsop := uint8(LSASELFLOOD)
 	intf := server.IntfConfMap[nbr.IntfKey]
 	lsa_max_age := false
 	discard = server.lsaUpdDiscardCheck(nbr, msg.data)
@@ -438,7 +433,7 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 			" LSTYPE ", lsa_header.LSType,
 			" len ", lsa_header.length))
 		end_index = int(lsa_header.length) + index /* length includes data + header */
-		currLsa := make([]byte, end_index-i)
+		currLsa := make([]byte, end_index-index)
 		copy(currLsa, msg.data[index:end_index])
 		if lsa_header.LSAge == LSA_MAX_AGE {
 			lsa_max_age = true
@@ -524,8 +519,8 @@ func (server *OSPFV2Server) ProcessLsaUpd(msg NbrLsaUpdMsg) {
 			LsaType: lsa_header.LSType,
 		}
 		flood_pkt.LsaPkt = make([]byte, end_index-index)
-
-		if lsop != LSASUMMARYFLOOD && !self_gen { // for ABR summary lsa is flooded after LSDB/SPF changes are done.
+		copy(flood_pkt.LsaPkt, currLsa)
+		if !self_gen { // for ABR summary lsa is flooded after LSDB/SPF changes are done.
 			server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh <- flood_pkt
 		}
 
