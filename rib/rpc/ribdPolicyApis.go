@@ -25,7 +25,6 @@
 package rpc
 
 import (
-	"fmt"
 	defs "l3/rib/ribdCommonDefs"
 	"l3/rib/server"
 	"ribd"
@@ -47,7 +46,7 @@ func (m RIBDServicesHandler) CreatePolicyStmt(cfg *ribd.PolicyStmt) (val bool, e
 }
 
 func (m RIBDServicesHandler) DeletePolicyStmt(cfg *ribd.PolicyStmt) (val bool, err error) {
-	logger.Debug(fmt.Sprintln("DeletePolicyStatement for name ", cfg.Name))
+	logger.Debug("DeletePolicyStatement for name ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
 		Op:               defs.DelPolicyStmt,
@@ -88,14 +87,14 @@ func (m RIBDServicesHandler) GetPolicyStmtState(name string) (*ribd.PolicyStmtSt
 	return retState, nil
 }
 func (m RIBDServicesHandler) GetBulkPolicyStmtState(fromIndex ribd.Int, rcount ribd.Int) (policyStmts *ribd.PolicyStmtStateGetInfo, err error) { //(routes []*ribd.Routes, err error) {
-	logger.Debug(fmt.Sprintln("GetBulkPolicyStmtState"))
+	logger.Debug("GetBulkPolicyStmtState")
 	policyStmts, err = m.server.GetBulkPolicyStmtState(fromIndex, rcount, m.server.GlobalPolicyEngineDB)
 	logger.Debug("all policy stmts fetched in rpc/getbulkpolicystmtstate")
 	return policyStmts, err
 }
 
 func (m RIBDServicesHandler) CreatePolicyDefinition(cfg *ribd.PolicyDefinition) (val bool, err error) {
-	logger.Debug(fmt.Sprintln("CreatePolicyDefinition"))
+	logger.Debug("CreatePolicyDefinition")
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
 		Op:               defs.AddPolicyDefinition,
@@ -108,7 +107,7 @@ func (m RIBDServicesHandler) CreatePolicyDefinition(cfg *ribd.PolicyDefinition) 
 }
 
 func (m RIBDServicesHandler) DeletePolicyDefinition(cfg *ribd.PolicyDefinition) (val bool, err error) {
-	logger.Debug(fmt.Sprintln("DeletePolicyDefinition for name ", cfg.Name))
+	logger.Debug("DeletePolicyDefinition for name ", cfg.Name)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		OrigConfigObject: cfg,
 		Op:               defs.DelPolicyDefinition,
@@ -121,7 +120,7 @@ func (m RIBDServicesHandler) DeletePolicyDefinition(cfg *ribd.PolicyDefinition) 
 }
 
 func (m RIBDServicesHandler) UpdatePolicyDefinition(origconfig *ribd.PolicyDefinition, newconfig *ribd.PolicyDefinition, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
-	logger.Debug(fmt.Sprintln("UpdatePolicyDefinition for name ", origconfig.Name))
+	logger.Debug("UpdatePolicyDefinition for name ", origconfig.Name)
 	if op == nil || len(op) == 0 {
 		//update op
 		logger.Info("Update op for policy definition")
@@ -149,14 +148,14 @@ func (m RIBDServicesHandler) GetPolicyDefinitionState(name string) (*ribd.Policy
 	return retState, nil
 }
 func (m RIBDServicesHandler) GetBulkPolicyDefinitionState(fromIndex ribd.Int, rcount ribd.Int) (policyStmts *ribd.PolicyDefinitionStateGetInfo, err error) { //(routes []*ribd.Routes, err error) {
-	logger.Debug(fmt.Sprintln("GetBulkPolicyDefinitionState"))
+	logger.Debug("GetBulkPolicyDefinitionState")
 	policyStmts, err = m.server.GetBulkPolicyDefinitionState(fromIndex, rcount, m.server.GlobalPolicyEngineDB)
 	return policyStmts, err
 }
 
 //this API is called by applications when user applies a policy to a entity and RIBD applies the policy/runs the policyEngine
 func (m RIBDServicesHandler) ApplyPolicy(applyList []*ribdInt.ApplyPolicyInfo, undoList []*ribdInt.ApplyPolicyInfo) (err error) {
-	logger.Debug(fmt.Sprintln("RIB handler ApplyPolicy applyList:", applyList, " undoList:", undoList))
+	logger.Debug("RIB handler ApplyPolicy applyList:", applyList, " undoList:", undoList)
 	m.server.PolicyConfCh <- server.RIBdServerConfig{
 		PolicyList: server.ApplyPolicyList{applyList, undoList},
 		Op:         defs.ApplyPolicy,
@@ -173,6 +172,7 @@ func (m RIBDServicesHandler) UpdateApplyPolicy(applyList []*ribdInt.ApplyPolicyI
 	return nil
 }
 func (m RIBDServicesHandler) CreateRedistributionPolicy(cfg *ribd.RedistributionPolicy) (val bool, err error) {
+	logger.Debug("CreateRedistributionPolicy cfg:", cfg)
 	ribdConditionsList := make([]*ribdInt.ConditionInfo, 0)
 	var condition ribdInt.ConditionInfo
 	if cfg.Source != "ALL" {
@@ -192,15 +192,51 @@ func (m RIBDServicesHandler) CreateRedistributionPolicy(cfg *ribd.Redistribution
 	return true, nil
 }
 func (m RIBDServicesHandler) UpdateRedistributionPolicy(origconfig *ribd.RedistributionPolicy, newconfig *ribd.RedistributionPolicy, attrset []bool, op []*ribd.PatchOpInfo) (val bool, err error) {
+	logger.Debug("UpdateRedistributionPolicy origconfig:", origconfig, " newconfig:", newconfig)
+	ribdConditionsList := make([]*ribdInt.ConditionInfo, 0)
+	var condition ribdInt.ConditionInfo
+	if origconfig.Source != "ALL" {
+		condition = ribdInt.ConditionInfo{ConditionType: "MatchProtocol", Protocol: origconfig.Source}
+	}
+	ribdConditionsList = append(ribdConditionsList, &condition)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		PolicyList: server.ApplyPolicyList{
+			[]*ribdInt.ApplyPolicyInfo{&ribdInt.ApplyPolicyInfo{
+				Source:     newconfig.Target,
+				Policy:     newconfig.Policy,
+				Action:     "Redistribution",
+				Conditions: ribdConditionsList,
+			}},
+			[]*ribdInt.ApplyPolicyInfo{&ribdInt.ApplyPolicyInfo{
+				Source:     origconfig.Target,
+				Policy:     origconfig.Policy,
+				Action:     "Redistribution",
+				Conditions: ribdConditionsList,
+			}},
+		},
+		Op: defs.ApplyPolicy,
+	}
+	err = <-m.server.PolicyConfDone
 	return true, nil
 }
 func (m RIBDServicesHandler) DeleteRedistributionPolicy(cfg *ribd.RedistributionPolicy) (val bool, err error) {
+	logger.Debug("DeleteRedistributionPolicy cfg:", cfg)
+	ribdConditionsList := make([]*ribdInt.ConditionInfo, 0)
+	var condition ribdInt.ConditionInfo
+	if cfg.Source != "ALL" {
+		condition = ribdInt.ConditionInfo{ConditionType: "MatchProtocol", Protocol: cfg.Source}
+	}
+	ribdConditionsList = append(ribdConditionsList, &condition)
+	m.server.PolicyConfCh <- server.RIBdServerConfig{
+		PolicyList: server.ApplyPolicyList{nil,
+			[]*ribdInt.ApplyPolicyInfo{&ribdInt.ApplyPolicyInfo{
+				Source:     cfg.Target,
+				Policy:     cfg.Policy,
+				Action:     "Redistribution",
+				Conditions: ribdConditionsList,
+			}}},
+		Op: defs.ApplyPolicy,
+	}
+	err = <-m.server.PolicyConfDone
 	return true, nil
-}
-func (m RIBDServicesHandler) GetBulkRedistributionPolicyState(fromIndex ribd.Int, count ribd.Int) (info *ribd.RedistributionPolicyStateGetInfo, err error) {
-	logger.Debug(fmt.Sprintln("GetBulkRedistributionPolicyState"))
-	return nil, nil
-}
-func (m RIBDServicesHandler) GetRedistributionPolicyState(Target string, Source string) (info *ribd.RedistributionPolicyState, err error) {
-	return nil, nil
 }
