@@ -388,18 +388,37 @@ func (server *OSPFV2Server) constructL3Infra() {
 func (server *OSPFV2Server) UpdateMtu(msg asicdCommonDefs.PortAttrChangeNotifyMsg) {
 	ent, _ := server.infraData.portPropertyMap[msg.IfIndex]
 	ent.Mtu = msg.Mtu
+	server.infraData.portPropertyMap[msg.IfIndex] = ent
 	for ifIdx, _ := range ent.IpIfIdxMap {
 		ipEnt, exist := server.infraData.ipPropertyMap[ifIdx]
 		if !exist {
 			server.logger.Err("Something bad this should not happen", server.infraData.ipPropertyMap, server.infraData.portPropertyMap)
 			continue
 		}
-		if ipEnt.Mtu > ent.Mtu {
-			ipEnt.Mtu = ent.Mtu
+		oldMtu := ipEnt.Mtu
+		newMtu := server.getMTU(ipEnt.IfType, ifIdx, true)
+		if newMtu != oldMtu {
+			ipEnt.Mtu = newMtu
 			server.infraData.ipPropertyMap[ifIdx] = ipEnt
+			intfConfKey := IntfConfKey{
+				IpAddr:  ipEnt.IpAddr,
+				IntfIdx: 0,
+			}
+			intfConfEnt, exist := server.IntfConfMap[intfConfKey]
+			if exist {
+				if intfConfEnt.AdminState == true {
+					server.logger.Info("StopIntfFSM ():")
+					server.StopIntfFSM(intfConfKey)
+				}
+				intfConfEnt.Mtu = uint32(newMtu)
+				server.IntfConfMap[intfConfKey] = intfConfEnt
+				if intfConfEnt.AdminState == true {
+					server.logger.Info("StartIntfFSM ():")
+					server.StartIntfFSM(intfConfKey)
+				}
+			}
 		}
 	}
-	server.infraData.portPropertyMap[msg.IfIndex] = ent
 }
 
 func (server *OSPFV2Server) UpdateLogicalIntfInfra(msg asicdCommonDefs.LogicalIntfNotifyMsg, msgType uint8) {

@@ -368,7 +368,7 @@ func (server *BFDServer) NewPerLinkBfdSessions(IfIndex int32, LocalIp string, De
 func (server *BFDServer) NewBfdSession(DestIp string, ParamName string, Interface string, Protocol bfddCommonDefs.BfdSessionOwner, PerLink bool) *BfdSession {
 	var IfType int
 	var interfaceSpecific bool
-	if Interface != "" {
+	if Interface != "None" && Interface != "" {
 		interfaceSpecific = true
 	}
 	IfIndex, localIp, err := server.GetIfIndexFromDestIp(DestIp)
