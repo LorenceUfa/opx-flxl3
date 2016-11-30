@@ -41,7 +41,7 @@ func initAsicdNotification() commonDefs.AsicdNotification {
 		commonDefs.NOTIFY_MPLSINTF_CREATE:               false,
 		commonDefs.NOTIFY_MPLSINTF_DELETE:               false,
 		commonDefs.NOTIFY_PORT_CONFIG_MODE_CHANGE:       false,
-		commonDefs.NOTIFY_PORT_CONFIG_MTU_CHANGE:        false,
+		commonDefs.NOTIFY_PORT_ATTR_CHANGE:              false,
 		commonDefs.NOTIFY_IPV4VIRTUAL_INTF_CREATE:       false,
 		commonDefs.NOTIFY_IPV4VIRTUAL_INTF_DELETE:       false,
 		commonDefs.NOTIFY_IPV6VIRTUAL_INTF_CREATE:       false,
