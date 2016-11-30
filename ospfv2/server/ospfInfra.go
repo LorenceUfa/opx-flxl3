@@ -385,7 +385,7 @@ func (server *OSPFV2Server) constructL3Infra() {
 	}
 }
 
-func (server *OSPFV2Server) UpdateMtu(msg asicdCommonDefs.PortConfigMtuChgNotigyMsg) {
+func (server *OSPFV2Server) UpdateMtu(msg asicdCommonDefs.PortAttrChangeNotifyMsg) {
 	ent, _ := server.infraData.portPropertyMap[msg.IfIndex]
 	ent.Mtu = msg.Mtu
 	for ifIdx, _ := range ent.IpIfIdxMap {

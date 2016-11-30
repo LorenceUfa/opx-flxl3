@@ -32,6 +32,7 @@ import (
 	nanomsg "github.com/op/go-nanomsg"
 	"strconv"
 	"time"
+	"utils/commonDefs"
 	"utils/ipcutils"
 )
 
@@ -131,14 +132,16 @@ func (server *OSPFV2Server) processAsicdNotification(asicdRxBuf []byte) {
 		server.logger.Err("Unable to unmarshal asicdrxBuf:", asicdRxBuf)
 		return
 	}
-	if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_PORT_CONFIG_MTU_CHANGE {
-		var msg asicdCommonDefs.PortConfigMtuChgNotigyMsg
+	if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_PORT_ATTR_CHANGE {
+		var msg asicdCommonDefs.PortAttrChangeNotifyMsg
 		err = json.Unmarshal(asicdMsg.Msg, &msg)
 		if err != nil {
 			server.logger.Err("Mtu change :Unable to unmarshal msg :", asicdMsg.Msg)
 			return
 		}
-		server.UpdateMtu(msg)
+		if (msg.AttrMask & commonDefs.PORT_ATTR_MTU) == commonDefs.PORT_ATTR_MTU {
+			server.UpdateMtu(msg)
+		}
 	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_CREATE ||
 		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_DELETE {
 		var msg asicdCommonDefs.LogicalIntfNotifyMsg
