@@ -287,13 +287,13 @@ func (v *VXLANDServiceHandler) CreateVxlanVtepInstance(config *vxland.VxlanVtepI
 	if err == nil {
 		for _, c := range cs {
 			err = vxlan.VtepConfigCheck(c, true)
-			if err == nil {
-				v.server.Configchans.Vtepcreate <- *c
-				return true, err
+			if err != nil {
+	                	return false, err
 			}
+			v.server.Configchans.Vtepcreate <- *c
 		}
 	}
-	return false, err
+	return true, err
 }
 
 func (v *VXLANDServiceHandler) DeleteVxlanVtepInstance(config *vxland.VxlanVtepInstance) (bool, error) {
@@ -449,7 +449,7 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 	//}
 
 	for _, v := range vxlan.GetVtepDB() {
-
+                
 		if v.VtepConfigName == intf &&
 			v.Vni == uint32(vni) {
 			OperState := "UNKNOWN"
@@ -555,7 +555,7 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 			nextVxlanVtepState.Mtu = int32(v.MTU)
 
 			var v2 *vxlan.VtepDbEntry
-			for currIndex2 := vxland.Int(currIndex); vxlan.GetVtepDbListEntry(int32(currIndex2), &v2); currIndex2++ {
+			for currIndex2 := vxland.Int(0); vxlan.GetVtepDbListEntry(int32(currIndex2), &v2); currIndex2++ {
 
 				if v2 != nil &&
 					v2.VtepConfigName == v.VtepConfigName &&
