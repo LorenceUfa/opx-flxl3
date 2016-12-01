@@ -490,6 +490,9 @@ func TestVrrpV4IntfConfig(t *testing.T) {
 	}
 
 	testDisableGlobalConfig()
+	goToSleep()
+	goToSleep()
+	goToSleep()
 	if vrrpIntf.Fsm.IsRunning() {
 		t.Error("after global config disable fsm need to stop for vrrp interfaces")
 		t.Error("	    vrrp global information:", *testSvr.GlobalConfig)
@@ -657,6 +660,8 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 
 	cfg.Operation = common.DELETE
 	testSvr.CfgCh <- &cfg
+	goToSleep()
+	goToSleep()
 	goToSleep()
 
 	if len(testSvr.Intf) != 0 {

@@ -192,9 +192,6 @@ func (svr *VrrpServer) updateIntfList(key KeyInfo, ipType int, insert bool) {
  * Input: (vrrp interface config, virtual mac)
  */
 func (svr *VrrpServer) CreateVirtualIntf(cfg *common.IntfCfg, vMac string) {
-	if svr.GlobalConfig.Enable == false {
-		return
-	}
 	debug.Logger.Info("Vrrp Creating Virtual Interface for:", cfg.IntfRef, cfg.VirtualIPAddr, vMac)
 	switch cfg.IpType {
 	case syscall.AF_INET:
@@ -236,9 +233,6 @@ func (svr *VrrpServer) UpdateVirtualIntf(virtualIpInfo *common.VirtualIpInfo) {
  * Input: (vrrp interface config, virtual mac)
  */
 func (svr *VrrpServer) DeleteVirtualIntf(cfg *common.IntfCfg, vMac string) {
-	if svr.GlobalConfig.Enable == false {
-		return
-	}
 	debug.Logger.Info("Vrrp Deleting Virtual Interface for:", cfg.IntfRef, cfg.VirtualIPAddr, vMac)
 	switch cfg.IpType {
 	case syscall.AF_INET:
@@ -298,12 +292,12 @@ func (svr *VrrpServer) HandlerVrrpIntfCreateConfig(cfg *common.IntfCfg) {
 	if l3Info.OperState == common.STATE_UP && svr.GlobalConfig.Enable && cfg.AdminState {
 		// during create always call start fsm
 		intf.StartFsm()
+		debug.Logger.Info("Fsm is initialized for the interface, now calling create virtual interface")
+		svr.CreateVirtualIntf(cfg, intf.GetVMac())
 	}
 	debug.Logger.Debug("storing interface at location:", key)
 	svr.Intf[key] = intf
 	ipIntf.SetVrrpIntfKey(key)
-	debug.Logger.Info("Fsm is initialized for the interface, now calling create virtual interface")
-	svr.CreateVirtualIntf(cfg, intf.GetVMac())
 	svr.updateIntfList(key, cfg.IpType, true /*insert*/)
 }
 
@@ -330,7 +324,9 @@ func (svr *VrrpServer) HandleVrrpIntfDeleteConfig(cfg *common.IntfCfg) {
 	}
 	mac := intf.GetVMac()
 	intf.DeInitVrrpIntf()
-	svr.DeleteVirtualIntf(cfg, mac)
+	if svr.GlobalConfig.Enable {
+		svr.DeleteVirtualIntf(cfg, mac)
+	}
 	delete(svr.Intf, key)
 	svr.updateIntfList(key, cfg.IpType, false /*delete*/)
 }
@@ -371,8 +367,10 @@ func (svr *VrrpServer) HandleVrrpEnableDisable(enable bool) {
 	for key, intf := range svr.Intf {
 		if enable {
 			intf.UpdateIpState()
+			svr.CreateVirtualIntf(intf.Config, intf.GetVMac())
 		} else {
 			intf.StopFsm()
+			svr.DeleteVirtualIntf(intf.Config, intf.GetVMac())
 		}
 		svr.Intf[key] = intf
 	}
