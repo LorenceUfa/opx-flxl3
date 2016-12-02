@@ -59,17 +59,19 @@ type Ospfv2Area struct {
 }
 
 type Ospfv2AreaState struct {
-	AreaId           uint32
-	NumSpfRuns       uint32
-	NumBdrRtr        uint32
-	NumAsBdrRtr      uint32
-	NumRouterLsa     uint32
-	NumNetworkLsa    uint32
-	NumSummary3Lsa   uint32
-	NumSummary4Lsa   uint32
-	NumASExternalLsa uint32
-	NumIntfs         uint32
-	NumNbrs          uint32
+	AreaId uint32
+	//NumSpfRuns       uint32
+	//NumBdrRtr        uint32
+	//NumAsBdrRtr      uint32
+	NumOfRouterLSA     uint32
+	NumOfNetworkLSA    uint32
+	NumOfSummary3LSA   uint32
+	NumOfSummary4LSA   uint32
+	NumOfASExternalLSA uint32
+	NumOfIntfs         uint32
+	NumOfLSA           uint32
+	NumOfNbrs          uint32
+	NumOfRoutes        uint32
 }
 
 type Ospfv2AreaStateGetInfo struct {
@@ -105,8 +107,18 @@ type Ospfv2Global struct {
 }
 
 type Ospfv2GlobalState struct {
-	Vrf              string
-	AreaBdrRtrStatus bool
+	Vrf                string
+	AreaBdrRtrStatus   bool
+	NumOfAreas         uint32
+	NumOfIntfs         uint32
+	NumOfNbrs          uint32
+	NumOfLSA           uint32
+	NumOfRouterLSA     uint32
+	NumOfNetworkLSA    uint32
+	NumOfSummary3LSA   uint32
+	NumOfSummary4LSA   uint32
+	NumOfASExternalLSA uint32
+	NumOfRoutes        uint32
 }
 
 type Ospfv2GlobalStateGetInfo struct {
@@ -192,7 +204,18 @@ type Ospfv2IntfState struct {
 	DesignatedRouterId       uint32
 	BackupDesignatedRouter   uint32
 	BackupDesignatedRouterId uint32
-	NumNbrs                  uint32
+	NumOfRouterLSA           uint32
+	NumOfNetworkLSA          uint32
+	NumOfSummary3LSA         uint32
+	NumOfSummary4LSA         uint32
+	NumOfASExternalLSA       uint32
+	NumOfLSA                 uint32
+	NumOfNbrs                uint32
+	NumOfRoutes              uint32
+	Mtu                      uint32
+	Cost                     uint32
+	NumOfStateChange         uint32
+	TimeOfStateChange        string
 }
 type Ospfv2IntfStateGetInfo struct {
 	EndIdx int
@@ -225,6 +248,8 @@ type Ospfv2LsdbState struct {
 	SequenceNum   uint32
 	Age           uint16
 	Checksum      uint16
+	Options       uint8
+	Length        uint16
 	Advertisement string
 }
 
@@ -274,12 +299,7 @@ type Ospfv2NbrStateGetInfo struct {
 	List   []*Ospfv2NbrState
 }
 
-type Ospfv2LsaKey struct {
-	LsType    uint8
-	LSId      uint32
-	AdvRouter uint32
-}
-
+/*
 type Ospfv2NextHop struct {
 	IntfIPAddr    uint32
 	IntfIfIdx     uint32
@@ -288,17 +308,19 @@ type Ospfv2NextHop struct {
 }
 
 type Ospfv2RouteState struct {
-	DestId          uint32
-	AddrMask        uint32
-	DestType        uint8
-	OptCapabilities int32
-	AreaId          uint32
-	PathType        uint8
-	Cost            uint32
-	Type2Cost       uint32
-	NumOfPaths      uint16
-	NextHops        []Ospfv2NextHop
-	LSOrigin        Ospfv2LsaKey
+	DestId            uint32
+	AddrMask          uint32
+	DestType          uint8
+	OptCapabilities   int32
+	AreaId            uint32
+	PathType          uint8
+	Cost              uint32
+	Type2Cost         uint32
+	NumOfPaths        uint16
+	LSOriginLSType    uint8
+	LSOriginLSId      uint32
+	LSOriginAdvRouter uint32
+	NextHops          []Ospfv2NextHop
 }
 
 type Ospfv2RouteStateGetInfo struct {
@@ -307,3 +329,4 @@ type Ospfv2RouteStateGetInfo struct {
 	More   bool
 	List   []*Ospfv2RouteState
 }
+*/

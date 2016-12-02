@@ -25,7 +25,6 @@ package server
 
 import (
 	"asicd/asicdCommonDefs"
-	"asicdServices"
 	"errors"
 	"net"
 	"utils/commonDefs"
@@ -48,27 +47,27 @@ type LagProperty struct {
 	Links []int32
 }
 
-func (server *BFDServer) updateVlanPropertyMap(vlanNotifyMsg asicdCommonDefs.VlanNotifyMsg, msgType uint8) {
-	if msgType == asicdCommonDefs.NOTIFY_VLAN_CREATE { // Create Vlan
-		ent := server.vlanPropertyMap[int32(vlanNotifyMsg.VlanId)]
-		ent.Name = vlanNotifyMsg.VlanName
-		ent.UntagPorts = vlanNotifyMsg.UntagPorts
-		server.vlanPropertyMap[int32(vlanNotifyMsg.VlanId)] = ent
-	} else { // Delete Vlan
-		delete(server.vlanPropertyMap, int32(vlanNotifyMsg.VlanId))
+func (server *BFDServer) updateVlanPropertyMap(msg commonDefs.VlanNotifyMsg) {
+	if msg.MsgType == commonDefs.NOTIFY_VLAN_CREATE {
+		ent := server.vlanPropertyMap[int32(msg.VlanId)]
+		ent.Name = msg.VlanName
+		ent.UntagPorts = msg.UntagPorts
+		server.vlanPropertyMap[int32(msg.VlanId)] = ent
+	} else if msg.MsgType == commonDefs.NOTIFY_VLAN_DELETE {
+		delete(server.vlanPropertyMap, int32(msg.VlanId))
 	}
 }
 
-func (server *BFDServer) updatePortPropertyMap(vlanNotifyMsg asicdCommonDefs.VlanNotifyMsg, msgType uint8) {
-	if msgType == asicdCommonDefs.NOTIFY_VLAN_CREATE { // Create Vlan
-		for _, portNum := range vlanNotifyMsg.UntagPorts {
+func (server *BFDServer) updatePortPropertyMap(msg commonDefs.VlanNotifyMsg) {
+	if msg.MsgType == commonDefs.NOTIFY_VLAN_CREATE { // Create Vlan
+		for _, portNum := range msg.UntagPorts {
 			ent := server.portPropertyMap[portNum]
-			ent.VlanId = vlanNotifyMsg.VlanId
-			ent.VlanName = vlanNotifyMsg.VlanName
+			ent.VlanId = msg.VlanId
+			ent.VlanName = msg.VlanName
 			server.portPropertyMap[portNum] = ent
 		}
 	} else { // Delete Vlan
-		for _, portNum := range vlanNotifyMsg.UntagPorts {
+		for _, portNum := range msg.UntagPorts {
 			ent := server.portPropertyMap[portNum]
 			ent.VlanId = 0
 			ent.VlanName = ""
@@ -78,32 +77,30 @@ func (server *BFDServer) updatePortPropertyMap(vlanNotifyMsg asicdCommonDefs.Vla
 }
 
 func (server *BFDServer) BuildPortPropertyMap() error {
-	currMarker := asicdServices.Int(asicdCommonDefs.MIN_SYS_PORTS)
-	if server.asicdClient.IsConnected {
-		server.logger.Info("Calling asicd for port property")
-		count := 10
-		for {
-			server.logger.Info("Calling bulkget port ", currMarker, count)
-			bulkInfo, _ := server.asicdClient.ClientHdl.GetBulkPortState(asicdServices.Int(currMarker), asicdServices.Int(count))
-			if bulkInfo == nil {
-				server.logger.Info("Bulkget port got nothing")
-				return nil
-			}
-			objCount := int(bulkInfo.Count)
-			more := bool(bulkInfo.More)
-			server.logger.Info("Bulkget port got ", objCount, more)
-			currMarker = asicdServices.Int(bulkInfo.EndIdx)
-			for i := 0; i < objCount; i++ {
-				ifIndex := bulkInfo.PortStateList[i].IfIndex
-				ent := server.portPropertyMap[ifIndex]
-				ent.Name = bulkInfo.PortStateList[i].Name
-				ent.VlanId = 0
-				ent.VlanName = ""
-				server.portPropertyMap[ifIndex] = ent
-			}
-			if more == false {
-				return nil
-			}
+	currMarker := int(asicdCommonDefs.MIN_SYS_PORTS)
+	server.logger.Info("Calling asicd for port property")
+	count := 10
+	for {
+		server.logger.Info("Calling bulkget port ", currMarker, count)
+		bulkInfo, _ := server.AsicdPlugin.GetBulkPortState(currMarker, count)
+		if bulkInfo == nil {
+			server.logger.Info("Bulkget port got nothing")
+			return nil
+		}
+		objCount := int(bulkInfo.Count)
+		more := bool(bulkInfo.More)
+		server.logger.Info("Bulkget port got ", objCount, more)
+		currMarker = int(bulkInfo.EndIdx)
+		for i := 0; i < objCount; i++ {
+			ifIndex := bulkInfo.PortStateList[i].IfIndex
+			ent := server.portPropertyMap[ifIndex]
+			ent.Name = bulkInfo.PortStateList[i].Name
+			ent.VlanId = 0
+			ent.VlanName = ""
+			server.portPropertyMap[ifIndex] = ent
+		}
+		if more == false {
+			break
 		}
 	}
 	return nil
@@ -114,9 +111,9 @@ func (server *BFDServer) BuildLagPropertyMap() error {
 	return nil
 }
 
-func (server *BFDServer) updateLagPropertyMap(msg asicdCommonDefs.LagNotifyMsg, msgType uint8) {
+func (server *BFDServer) updateLagPropertyMap(msg commonDefs.LagNotifyMsg) {
 	_, exists := server.lagPropertyMap[msg.IfIndex]
-	if msgType == asicdCommonDefs.NOTIFY_LAG_CREATE { // Create LAG
+	if msg.MsgType == commonDefs.NOTIFY_LAG_CREATE { // Create LAG
 		if exists {
 			server.logger.Info("CreateLag: already exists", msg.IfIndex)
 		} else {
@@ -128,7 +125,7 @@ func (server *BFDServer) updateLagPropertyMap(msg asicdCommonDefs.LagNotifyMsg, 
 			}
 			server.lagPropertyMap[msg.IfIndex] = lagEntry
 		}
-	} else if msgType == asicdCommonDefs.NOTIFY_LAG_DELETE { // Delete Lag
+	} else if msg.MsgType == commonDefs.NOTIFY_LAG_DELETE { // Delete Lag
 		if exists {
 			server.logger.Info("Deleting lag ", msg.IfIndex)
 			delete(server.lagPropertyMap, msg.IfIndex)

@@ -27,14 +27,14 @@ package server
 import (
 	"arpdInt"
 	//	"fmt"
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 )
 
 func arpdResolveRoute(routeInfoRecord RouteInfoRecord) {
 	if arpdclnt.IsConnected == false {
 		return
 	}
-	if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
+	if routeInfoRecord.ipType == defs.IPv6 {
 		return
 	}
 	//logger.Debug(" arpdResolveRoute: Sending ARP Resolve for ", routeInfoRecord.nextHopIp.String(), " routeInfoRecord.nextHopIfIndex ", routeInfoRecord.nextHopIfIndex, " routeInfoRecord.resolvedNextHopIpIntf.NextHopIfIndex ", routeInfoRecord.resolvedNextHopIpIntf.NextHopIfIndex)
@@ -45,7 +45,7 @@ func arpdRemoveRoute(routeInfoRecord RouteInfoRecord) {
 	if arpdclnt.IsConnected == false {
 		return
 	}
-	if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
+	if routeInfoRecord.ipType == defs.IPv6 {
 		return
 	}
 	//logger.Debug("arpdRemoveRoute: for ", routeInfoRecord.nextHopIp.String())
@@ -58,9 +58,9 @@ func (ribdServiceHandler *RIBDServer) StartArpdServer() {
 		select {
 		case route := <-ribdServiceHandler.ArpdRouteCh:
 			logger.Debug(" received message on ArpdRouteCh, op:", route.Op)
-			if route.Op == "add" {
+			if route.Op == defs.Add {
 				arpdResolveRoute(route.OrigConfigObject.(RouteInfoRecord))
-			} else if route.Op == "del" {
+			} else if route.Op == defs.Del {
 				arpdRemoveRoute(route.OrigConfigObject.(RouteInfoRecord))
 			}
 		}

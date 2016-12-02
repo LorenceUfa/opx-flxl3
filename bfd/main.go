@@ -26,8 +26,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"l3/bfd/asicdMgr"
 	"l3/bfd/rpc"
 	"l3/bfd/server"
+	"utils/asicdClient"
+	"utils/commonDefs"
 	"utils/dbutils"
 	"utils/keepalive"
 	"utils/logging"
@@ -60,10 +63,20 @@ func main() {
 
 	logger.Info("Starting BFD Server...")
 	bfdServer := server.NewBFDServer(logger)
+
+	pluginName := "Flexswitch" // Flexswitch/OvsDB
+	clientInfoFile := fileName + "clients.json"
+	nHdl, nMap := asicdMgr.NewNotificationHdl(bfdServer, logger)
+	asicdHdl := commonDefs.AsicdClientStruct{
+		Logger: logger,
+		NHdl:   nHdl,
+		NMap:   nMap,
+	}
+	asicdPlugin := asicdClient.NewAsicdClientInit(pluginName, clientInfoFile, asicdHdl)
 	// Start signal handler
 	go bfdServer.SigHandler(dbHdl)
 	// Start bfd server
-	go bfdServer.StartServer(clientsFileName, dbHdl)
+	go bfdServer.StartServer(clientsFileName, dbHdl, asicdPlugin)
 
 	<-bfdServer.ServerStartedCh
 	logger.Info("BFD Server started")

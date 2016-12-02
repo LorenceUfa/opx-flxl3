@@ -215,7 +215,7 @@ type OspfPktDataStruct struct {
 }
 
 func (server *OSPFV2Server) processOspfPkt(pkt gopacket.Packet, key IntfConfKey, ospfPktData *OspfPktStruct) error {
-	server.logger.Info("Recevied Ospf Packet")
+	server.logger.Debug("Recevied Ospf Packet")
 	ent, exist := server.IntfConfMap[key]
 	if !exist {
 		return errors.New("Dropped because of interface no more valid")
@@ -271,18 +271,49 @@ func (server *OSPFV2Server) ProcessOspfRecvHelloPkt(recvPktData OspfHelloPktRecv
 }
 
 func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDbdPktRecvStruct) {
+	var nbrIdentity uint32
+	ent, valid := server.IntfConfMap[recvPktData.IntfConfKey]
+	if !valid {
+		server.logger.Err("Intf : RecvLsaAndDbdPkt interface entry does not exist ",
+			recvPktData.IntfConfKey)
+		return
+	}
+
 	for {
 		select {
 		case msg := <-recvPktData.OspfRecvLsaAndDbdPktCh:
+			if ent.Type == objects.INTF_TYPE_POINT2POINT {
+				nbrIdentity = msg.OspfHdrMd.RouterId
+			} else {
+				nbrIdentity = msg.IpHdrMd.SrcIP
+			}
+
+			nbrKey := NbrConfKey{
+				NbrIdentity:         nbrIdentity,
+				NbrAddressLessIfIdx: recvPktData.IntfConfKey.IntfIdx,
+			}
+
 			switch msg.OspfHdrMd.PktType {
 			case DBDescriptionType:
-				//err = server.ProcessRxDbdPkt(data, ospfHdrMd, ipHdrMd, key)
+				err := server.ProcessRxDbdPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			case LSRequestType:
-				//err = server.ProcessRxLSAReqPkt(data, ospfHdrMd, ipHdrMd, key)
+				err := server.ProcessRxLSAReqPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			case LSUpdateType:
-				//err = server.ProcessRxLsaUpdPkt(data, ospfHdrMd, ipHdrMd, key)
+				err := server.ProcessRxLsaUpdPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			case LSAckType:
-				//err = server.ProcessRxLSAAckPkt(data, ospfHdrMd, ipHdrMd, key)
+				err := server.ProcessRxLSAAckPkt(msg.Data, msg.OspfHdrMd, msg.IpHdrMd, nbrKey)
+				if err != nil {
+					server.logger.Err("Failed to process rx dbd pkt ", nbrKey)
+				}
 			default:
 				server.logger.Err("Invalid Packet type")
 			}

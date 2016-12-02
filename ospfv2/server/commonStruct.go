@@ -30,6 +30,22 @@ import (
 	"time"
 )
 
+type LsdbSliceStruct struct {
+	LsdbKey LsdbKey
+	LsaKey  LsaKey
+}
+
+type GetBulkStruct struct {
+	IntfConfSlice        []IntfConfKey
+	NbrConfSlice         []NbrConfKey
+	AreaConfSlice        []uint32
+	LsdbSlice            []LsdbSliceStruct
+	SliceRefreshCh       chan bool
+	SliceRefreshDoneCh   chan bool
+	SliceRefreshTimer    *time.Timer
+	SliceRefreshDuration time.Duration
+}
+
 type NbrData struct {
 	TwoWayStatus bool
 	RtrPrio      uint8
@@ -107,7 +123,7 @@ type NetworkDRChangeMsg struct {
 }
 
 type DeleteNbrMsg struct {
-	NbrKeyList []NbrConfKey //List of Nbr Identity
+	IntfKey IntfConfKey //List of Nbr Identity
 }
 
 type GenerateRouterLSAMsg struct {
@@ -119,8 +135,11 @@ type NbrDownMsg struct {
 type RecvdLsaMsgType uint8
 
 const (
-	LSA_ADD RecvdLsaMsgType = 0
-	LSA_DEL RecvdLsaMsgType = 1
+	LSA_ADD            RecvdLsaMsgType = 0
+	LSA_DEL            RecvdLsaMsgType = 1
+	LSA_FLOOD_ALL      RecvdLsaMsgType = 2
+	LSA_FLOOD_INTF     RecvdLsaMsgType = 3
+	LSA_FLOOD_NBR_FULL RecvdLsaMsgType = 4
 )
 
 type RecvdLsaMsg struct {
@@ -154,6 +173,37 @@ type LsdbToFloodLSAMsg struct {
 	LsaKey  LsaKey
 	LsaData interface{}
 }
+type NbrToFloodMsg struct {
+	MsgType RecvdLsaMsgType
+	LsaPkt  []byte
+	NbrKey  NbrConfKey
+	LsaType uint8
+}
+type RouteAddMsg struct {
+	RTblKey   RoutingTblEntryKey
+	RTblEntry GlobalRoutingTblEntry
+}
+
+type RouteDelMsg struct {
+	RTblKey RoutingTblEntryKey
+}
+
+type RouteInfoUpdateMsgType uint8
+
+const (
+	ROUTE_INFO_ADD RouteInfoUpdateMsgType = 0
+	ROUTE_INFO_DEL RouteInfoUpdateMsgType = 1
+)
+
+type RouteInfoDataUpdateMsg struct {
+	MsgType       RouteInfoUpdateMsgType
+	RouteInfoList []RouteInfo
+}
+
+type NbrDeadMsg struct {
+	AreaId   uint32
+	NbrRtrId uint32
+}
 
 type IntfToNbrFSMChStruct struct {
 	NbrHelloEventCh   chan NbrHelloEventMsg
@@ -173,8 +223,12 @@ type NbrFSMToLsdbChStruct struct {
 	RecvdLsaMsgCh          chan RecvdLsaMsg
 	RecvdSelfLsaMsgCh      chan RecvdSelfLsaMsg
 	UpdateSelfNetworkLSACh chan UpdateSelfNetworkLSAMsg
+	NbrDeadMsgCh           chan NbrDeadMsg
 }
 
+type NbrFSMToFloodChStruct struct {
+	LsaFloodCh chan NbrToFloodMsg
+}
 type LsdbToFloodChStruct struct {
 	LsdbToFloodLSACh chan []LsdbToFloodLSAMsg
 }
@@ -187,12 +241,42 @@ type SPFToLsdbChStruct struct {
 	DoneSPF chan bool
 }
 
+type ServerToLsdbChStruct struct {
+	RefreshLsdbSliceCh    chan bool
+	RouteInfoDataUpdateCh chan RouteInfoDataUpdateMsg
+	InitAreaLsdbCh        chan uint32
+}
+
+type LsdbToServerChStruct struct {
+	RefreshLsdbSliceDoneCh chan bool
+	InitAreaLsdbDoneCh     chan bool
+}
+
+type RouteTblToDBClntChStruct struct {
+	RouteAddMsgCh chan RouteAddMsg
+	RouteDelMsgCh chan RouteDelMsg
+}
+
+type ServerToDBClntChStruct struct {
+	FlushRouteFromDBCh chan bool
+}
+
+type DBClntToServerChStruct struct {
+	FlushRouteFromDBDoneCh chan bool
+}
+
 type MessagingChStruct struct {
-	IntfToNbrFSMChData  IntfToNbrFSMChStruct
-	IntfFSMToLsdbChData IntfFSMToLsdbChStruct
-	NbrToIntfFSMChData  NbrToIntfFSMChStruct
-	NbrFSMToLsdbChData  NbrFSMToLsdbChStruct
-	LsdbToFloodChData   LsdbToFloodChStruct
-	LsdbToSPFChData     LsdbToSPFChStruct
-	SPFToLsdbChData     SPFToLsdbChStruct
+	IntfToNbrFSMChData     IntfToNbrFSMChStruct
+	IntfFSMToLsdbChData    IntfFSMToLsdbChStruct
+	NbrToIntfFSMChData     NbrToIntfFSMChStruct
+	NbrFSMToLsdbChData     NbrFSMToLsdbChStruct
+	NbrFSMToFloodChData    NbrFSMToFloodChStruct
+	LsdbToFloodChData      LsdbToFloodChStruct
+	LsdbToSPFChData        LsdbToSPFChStruct
+	SPFToLsdbChData        SPFToLsdbChStruct
+	ServerToLsdbChData     ServerToLsdbChStruct
+	ServerToDBClntChData   ServerToDBClntChStruct
+	LsdbToServerChData     LsdbToServerChStruct
+	RouteTblToDBClntChData RouteTblToDBClntChStruct
+	DBClntToServerChData   DBClntToServerChStruct
 }

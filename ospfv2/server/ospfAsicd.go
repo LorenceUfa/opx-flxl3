@@ -32,6 +32,7 @@ import (
 	nanomsg "github.com/op/go-nanomsg"
 	"strconv"
 	"time"
+	"utils/commonDefs"
 	"utils/ipcutils"
 )
 
@@ -131,14 +132,16 @@ func (server *OSPFV2Server) processAsicdNotification(asicdRxBuf []byte) {
 		server.logger.Err("Unable to unmarshal asicdrxBuf:", asicdRxBuf)
 		return
 	}
-	if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_PORT_CONFIG_MTU_CHANGE {
-		var msg asicdCommonDefs.PortConfigMtuChgNotigyMsg
+	if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_PORT_ATTR_CHANGE {
+		var msg asicdCommonDefs.PortAttrChangeNotifyMsg
 		err = json.Unmarshal(asicdMsg.Msg, &msg)
 		if err != nil {
 			server.logger.Err("Mtu change :Unable to unmarshal msg :", asicdMsg.Msg)
 			return
 		}
-		server.UpdateMtu(msg)
+		if (msg.AttrMask & commonDefs.PORT_ATTR_MTU) == commonDefs.PORT_ATTR_MTU {
+			server.UpdateMtu(msg)
+		}
 	} else if asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_CREATE ||
 		asicdMsg.MsgType == asicdCommonDefs.NOTIFY_LOGICAL_INTF_DELETE {
 		var msg asicdCommonDefs.LogicalIntfNotifyMsg
@@ -215,6 +218,36 @@ func (server *OSPFV2Server) initAsicdForRxMulticastPkt() (err error) {
 	ret, err = server.asicdComm.asicdClient.ClientHdl.EnablePacketReception(&allDRtrMacConf)
 	if !ret {
 		server.logger.Info("Adding reserved mac failed", ALLDROUTERMAC)
+		return err
+	}
+	return nil
+}
+
+func (server *OSPFV2Server) deinitAsicdForRxMulticastPkt() (err error) {
+	// All SPF Router
+	allSPFRtrMacConf := asicdInt.RsvdProtocolMacConfig{
+		MacAddr:     ALLSPFROUTERMAC,
+		MacAddrMask: MASKMAC,
+	}
+	if server.asicdComm.asicdClient.ClientHdl == nil {
+		server.logger.Err("Null asicd client handle")
+		return nil
+	}
+	ret, err := server.asicdComm.asicdClient.ClientHdl.DisablePacketReception(&allSPFRtrMacConf)
+	if !ret {
+		server.logger.Info("Deleting reserved mac failed", ALLSPFROUTERMAC)
+		return err
+	}
+
+	// All D Router
+	allDRtrMacConf := asicdInt.RsvdProtocolMacConfig{
+		MacAddr:     ALLDROUTERMAC,
+		MacAddrMask: MASKMAC,
+	}
+
+	ret, err = server.asicdComm.asicdClient.ClientHdl.DisablePacketReception(&allDRtrMacConf)
+	if !ret {
+		server.logger.Info("Deleting reserved mac failed", ALLDROUTERMAC)
 		return err
 	}
 	return nil

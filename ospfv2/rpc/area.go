@@ -24,9 +24,35 @@
 package rpc
 
 import (
+	"errors"
 	"l3/ospfv2/api"
+	"models/objects"
 	"ospfv2d"
 )
+
+func (rpcHdl *rpcServiceHandler) restoreOspfv2AreaConfFromDB() (bool, error) {
+	rpcHdl.logger.Info("Restoring Ospfv2 Area Config From DB")
+	var ospfv2Area objects.Ospfv2Area
+
+	ospfAreaList, err := rpcHdl.dbHdl.GetAllObjFromDb(ospfv2Area)
+	if err != nil {
+		return false, errors.New("Failed to retireve Ospfv2Area object info from DB")
+	}
+	for idx := 0; idx < len(ospfAreaList); idx++ {
+		dbObj := ospfAreaList[idx].(objects.Ospfv2Area)
+		obj := new(ospfv2d.Ospfv2Area)
+		objects.Convertospfv2dOspfv2AreaObjToThrift(&dbObj, obj)
+		convObj, err := convertFromRPCFmtOspfv2Area(obj)
+		if err != nil {
+			return false, err
+		}
+		ok, err := api.CreateOspfv2Area(convObj)
+		if !ok {
+			return ok, err
+		}
+	}
+	return true, nil
+}
 
 func (rpcHdl *rpcServiceHandler) CreateOspfv2Area(config *ospfv2d.Ospfv2Area) (bool, error) {
 	cfg, err := convertFromRPCFmtOspfv2Area(config)
@@ -76,6 +102,9 @@ func (rpcHdl *rpcServiceHandler) GetOspfv2AreaState(AreaId string) (*ospfv2d.Osp
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2AreaState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2AreaStateGetInfo, error) {
 	var getBulkInfo ospfv2d.Ospfv2AreaStateGetInfo
 	info, err := api.GetBulkOspfv2AreaState(int(fromIdx), int(count))
+	if info == nil || err != nil {
+		return &getBulkInfo, err
+	}
 	getBulkInfo.StartIdx = fromIdx
 	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
 	getBulkInfo.More = info.More

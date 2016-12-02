@@ -46,6 +46,9 @@ func (rpcHdl *rpcServiceHandler) GetOspfv2NbrState(IpAddr string, AddressLessIfI
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2NbrState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2NbrStateGetInfo, error) {
 	var getBulkInfo ospfv2d.Ospfv2NbrStateGetInfo
 	info, err := api.GetBulkOspfv2NbrState(int(fromIdx), int(count))
+	if info == nil || err != nil {
+		return &getBulkInfo, err
+	}
 	getBulkInfo.StartIdx = fromIdx
 	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
 	getBulkInfo.More = info.More

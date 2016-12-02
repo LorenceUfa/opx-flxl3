@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 	// "models/objects"
 	"net"
 	"reflect"
@@ -51,7 +51,7 @@ func (m RIBDServer) GetV6RouteReachabilityInfo(destNet string, ifIndex ribdInt.I
 				logger.Err("Selected route not found")
 				return nil, errors.New("dest ip address not reachable")
 			}
-			nhFound, v, _ := findRouteWithNextHop(routeInfoList, ribdCommonDefs.IPv6, "", ribd.Int(ifIndex))
+			nhFound, v, _ := findRouteWithNextHop(routeInfoList, defs.IPv6, "", ribd.Int(ifIndex))
 			if !nhFound {
 				logger.Err("Selected route not found")
 				return nil, errors.New(fmt.Sprintln("dest ip address not reachable via ifIndex", ifIndex))
@@ -135,7 +135,7 @@ func UpdateV6RouteReachabilityStatus(prefix patriciaDB.Prefix, //prefix of the n
 					//logger.Debug("Adding to DBRouteCh from updateRouteReachability case 1")
 					RouteServiceHandler.DBRouteCh <- RIBdServerConfig{
 						OrigConfigObject: RouteDBInfo{v[i], rmapInfoRecordList},
-						Op:               "add",
+						Op:               defs.Add,
 					}
 					//RouteServiceHandler.WriteIPv4RouteStateEntryToDB(RouteDBInfo{v[i], rmapInfoRecordList})
 					//logger.Debug("Bringing down route : ip: ", v[i].networkAddr)
@@ -156,7 +156,7 @@ func UpdateV6RouteReachabilityStatus(prefix patriciaDB.Prefix, //prefix of the n
 					//logger.Debug("Adding to DBRouteCh from updateRouteReachability case 2")
 					RouteServiceHandler.DBRouteCh <- RIBdServerConfig{
 						OrigConfigObject: RouteDBInfo{v[i], rmapInfoRecordList},
-						Op:               "add",
+						Op:               defs.Add,
 					}
 					//RouteServiceHandler.WriteIPv4RouteStateEntryToDB(RouteDBInfo{v[i], rmapInfoRecordList})
 					RouteReachabilityStatusUpdate(k, RouteReachabilityStatusInfo{v[i].networkAddr, v[i].ipType, "Up", k, nextHopIntf})
@@ -759,7 +759,7 @@ func (m RIBDServer) ProcessV6RouteDeleteConfig(cfg *ribd.IPv6Route, delType int)
 			nextHopIntRef, _ := strconv.Atoi(cfg.NextHop[i].NextHopIntRef)
 			nextHopIfIndex = ribd.Int(nextHopIntRef)
 		}
-		_, err = deleteIPRoute(cfg.DestinationNw, ribdCommonDefs.IPv6, cfg.NetworkMask, cfg.Protocol, cfg.NextHop[i].NextHopIp, nextHopIfIndex, ribd.Int(delType), ribdCommonDefs.RoutePolicyStateChangetoInValid)
+		_, err = deleteIPRoute(cfg.DestinationNw, defs.IPv6, cfg.NetworkMask, cfg.Protocol, cfg.NextHop[i].NextHopIp, nextHopIfIndex, ribd.Int(delType), defs.RoutePolicyStateChangetoInValid)
 	}
 	return true, err
 }
@@ -860,7 +860,7 @@ func (m RIBDServer) Processv6RouteUpdateConfig(origconfig *ribd.IPv6Route, newco
 	routeInfoRecordList := routeInfoRecordListItem.(RouteInfoRecordList)
 	callUpdate := true
 	if attrset != nil {
-		found, routeInfoRecord, index := findRouteWithNextHop(routeInfoRecordList.routeInfoProtocolMap[origconfig.Protocol], ribdCommonDefs.IPv6, origconfig.NextHop[0].NextHopIp, -1)
+		found, routeInfoRecord, index := findRouteWithNextHop(routeInfoRecordList.routeInfoProtocolMap[origconfig.Protocol], defs.IPv6, origconfig.NextHop[0].NextHopIp, -1)
 		if !found || index == -1 {
 			logger.Debug("Invalid nextHopIP")
 			return val, err
@@ -904,7 +904,7 @@ func (m RIBDServer) Processv6RouteUpdateConfig(origconfig *ribd.IPv6Route, newco
 		logger.Debug("Adding to DBRouteCh from processRouteUpdateConfig")
 		RouteServiceHandler.DBRouteCh <- RIBdServerConfig{
 			OrigConfigObject: RouteDBInfo{routeInfoRecord, routeInfoRecordList},
-			Op:               "add",
+			Op:               defs.Add,
 		}
 		//RouteServiceHandler.WriteIPv4RouteStateEntryToDB(RouteDBInfo{routeInfoRecord, routeInfoRecordList})
 		if callUpdate == false {

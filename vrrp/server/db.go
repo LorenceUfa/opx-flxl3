@@ -28,11 +28,15 @@ import (
 	"l3/vrrp/debug"
 	"models/objects"
 	"strings"
+	"syscall"
 )
 
 func (svr *VrrpServer) readVrrpGblCfg() {
 	debug.Logger.Info("Reading Vrrp Global Config from DB")
 	var dbObj objects.VrrpGlobal
+	if svr.dmnBase == nil {
+		return
+	}
 	objList, err := svr.dmnBase.DbHdl.GetAllObjFromDb(dbObj)
 	if err != nil {
 		debug.Logger.Warning("Vrrp Global DB read returned:", err)
@@ -54,6 +58,9 @@ func (svr *VrrpServer) readVrrpGblCfg() {
 func (svr *VrrpServer) readVrrpV4IntfCfg() {
 	debug.Logger.Info("Reading Vrrp V4 Intf Config from DB")
 	var dbObj objects.VrrpV4Intf
+	if svr.dmnBase == nil {
+		return
+	}
 	objList, err := svr.dmnBase.DbHdl.GetAllObjFromDb(dbObj)
 	if err != nil {
 		debug.Logger.Warning("Vrrp v4 Interface read returned:", err)
@@ -73,9 +80,16 @@ func (svr *VrrpServer) readVrrpV4IntfCfg() {
 			AdvertisementInterval: cfg.AdvertisementInterval,
 			PreemptMode:           cfg.PreemptMode,
 			AcceptMode:            cfg.AcceptMode,
-			AdminState:            cfg.AdminState,
-			Version:               common.VERSION2,
 			Operation:             common.CREATE,
+			IpType:                syscall.AF_INET,
+		}
+		if cfg.AdminState == common.STATE_UP {
+			v4Cfg.AdminState = true
+		}
+		if cfg.Version == common.VERSION2_STR {
+			v4Cfg.Version = common.VERSION2
+		} else if cfg.Version == common.VERSION3_STR {
+			v4Cfg.Version = common.VERSION3
 		}
 		svr.HandleVrrpIntfConfig(v4Cfg)
 	}
@@ -85,6 +99,9 @@ func (svr *VrrpServer) readVrrpV4IntfCfg() {
 func (svr *VrrpServer) readVrrpV6IntfCfg() {
 	debug.Logger.Info("Reading Vrrp V6 Intf Config from DB")
 	var dbObj objects.VrrpV6Intf
+	if svr.dmnBase == nil {
+		return
+	}
 	objList, err := svr.dmnBase.DbHdl.GetAllObjFromDb(dbObj)
 	if err != nil {
 		debug.Logger.Warning("Vrrp v4 Interface read returned:", err)
@@ -93,6 +110,9 @@ func (svr *VrrpServer) readVrrpV6IntfCfg() {
 	debug.Logger.Info("Vrrp V4 Intf Objects reterived from DB are", objList)
 	for _, obj := range objList {
 		cfg := obj.(objects.VrrpV6Intf)
+		if !strings.Contains(cfg.Address, common.NETMASK_DELIMITER) {
+			cfg.Address += common.NETMASK_DELIMITER + common.SLASH_64
+		}
 		v6Cfg := &common.IntfCfg{
 			IntfRef:               cfg.IntfRef,
 			VRID:                  cfg.VRID,
@@ -101,9 +121,12 @@ func (svr *VrrpServer) readVrrpV6IntfCfg() {
 			AdvertisementInterval: cfg.AdvertisementInterval,
 			PreemptMode:           cfg.PreemptMode,
 			AcceptMode:            cfg.AcceptMode,
-			AdminState:            cfg.AdminState,
 			Version:               common.VERSION3,
 			Operation:             common.CREATE,
+			IpType:                syscall.AF_INET6,
+		}
+		if cfg.AdminState == common.STATE_UP {
+			v6Cfg.AdminState = true
 		}
 		svr.HandleVrrpIntfConfig(v6Cfg)
 	}

@@ -61,7 +61,7 @@ func (server *OSPFV2Server) processRecvdSelfSummary4LSA(msg RecvdSelfLsaMsg) err
 		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
-	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+	if lsaEnt.LsaMd.LSSequenceNum < lsa.LsaMd.LSSequenceNum {
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
 		lsaEnt.LsaMd.LSChecksum = 0
@@ -112,7 +112,7 @@ func (server *OSPFV2Server) processRecvdSelfSummary3LSA(msg RecvdSelfLsaMsg) err
 		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
-	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+	if lsaEnt.LsaMd.LSSequenceNum < lsa.LsaMd.LSSequenceNum {
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
 		lsaEnt.LsaMd.LSChecksum = 0
@@ -153,9 +153,18 @@ func (server *OSPFV2Server) processRecvdSummaryLSA(msg RecvdLsaMsg) error {
 			return nil
 		}
 		if msg.LsaKey.LSType == Summary3LSA {
+			_, exist = lsdbEnt.Summary3LsaMap[msg.LsaKey]
 			lsdbEnt.Summary3LsaMap[msg.LsaKey] = lsa
 		} else {
+			_, exist = lsdbEnt.Summary3LsaMap[msg.LsaKey]
 			lsdbEnt.Summary4LsaMap[msg.LsaKey] = lsa
+		}
+		if !exist {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: msg.LsdbKey,
+				LsaKey:  msg.LsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 		}
 	} else if msg.MsgType == LSA_DEL {
 		if msg.LsaKey.LSType == Summary3LSA {
@@ -240,6 +249,11 @@ func (server *OSPFV2Server) insertNewSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey, 
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood New Summary Lsa
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, sLsa)
+	lsdbSlice := LsdbSliceStruct{
+		LsdbKey: lsdbKey,
+		LsaKey:  lsaKey,
+	}
+	server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
 }
 
 func (server *OSPFV2Server) flushSummaryLsa(lsdbKey LsdbKey, lsaKey LsaKey) {

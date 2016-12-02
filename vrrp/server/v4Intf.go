@@ -38,6 +38,7 @@ func (intf *V4Intf) Init(obj *common.BaseIpInfo) {
 	intf.Cfg.Info.IfIndex = obj.IfIndex
 	intf.Cfg.Info.OperState = obj.OperState
 	intf.Cfg.Info.IpAddr = obj.IpAddr
+	intf.Cfg.Info.IpType = obj.IpType
 	intf.Vrrpkey = nil
 	debug.Logger.Debug("v4 ip interface initialized:", intf.Cfg)
 }
@@ -48,6 +49,7 @@ func (intf *V4Intf) Update(obj *common.BaseIpInfo) {
 }
 
 func (intf *V4Intf) DeInit(obj *common.BaseIpInfo) {
+	intf.Vrrpkey = nil
 }
 
 func (intf *V4Intf) GetObjFromDb(l3Info *common.BaseIpInfo) {

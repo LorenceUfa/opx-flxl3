@@ -24,7 +24,6 @@
 package server
 
 import (
-	"asicdServices"
 	"encoding/json"
 	"github.com/google/gopacket/pcap"
 	nanomsg "github.com/op/go-nanomsg"
@@ -38,6 +37,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"utils/asicdClient"
+	"utils/commonDefs"
 	"utils/dbutils"
 	"utils/ipcutils"
 	"utils/logging"
@@ -135,11 +136,9 @@ type BFDServer struct {
 	logger                *logging.Writer
 	ServerStartedCh       chan bool
 	ribdClient            RibdClient
-	asicdClient           AsicdClient
+	AsicdPlugin           asicdClient.AsicdClientIntf
 	GlobalConfigCh        chan GlobalConfig
-	asicdSubSocket        *nanomsg.SubSocket
-	asicdSubSocketCh      chan []byte
-	asicdSubSocketErrCh   chan error
+	AsicdSubSocketCh      chan commonDefs.AsicdNotifyMsg
 	ribdSubSocket         *nanomsg.SubSocket
 	ribdSubSocketCh       chan []byte
 	ribdSubSocketErrCh    chan error
@@ -168,8 +167,7 @@ func NewBFDServer(logger *logging.Writer) *BFDServer {
 	bfdServer.logger = logger
 	bfdServer.ServerStartedCh = make(chan bool)
 	bfdServer.GlobalConfigCh = make(chan GlobalConfig)
-	bfdServer.asicdSubSocketCh = make(chan []byte)
-	bfdServer.asicdSubSocketErrCh = make(chan error)
+	bfdServer.AsicdSubSocketCh = make(chan commonDefs.AsicdNotifyMsg)
 	bfdServer.ribdSubSocketCh = make(chan []byte)
 	bfdServer.ribdSubSocketErrCh = make(chan error)
 	bfdServer.portPropertyMap = make(map[int32]PortProperty)
@@ -231,32 +229,7 @@ func (server *BFDServer) ConnectToServers(paramsFile string) {
 	}
 
 	for _, client := range clientsList {
-		if client.Name == "asicd" {
-			server.logger.Info("found asicd at port", client.Port)
-			server.asicdClient.Address = "localhost:" + strconv.Itoa(client.Port)
-			server.asicdClient.TTransport, server.asicdClient.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(server.asicdClient.Address)
-			if err != nil {
-				server.logger.Info("Failed to connect to Asicd, retrying until connection is successful")
-				count := 0
-				ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
-				for _ = range ticker.C {
-					server.asicdClient.TTransport, server.asicdClient.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(server.asicdClient.Address)
-					if err == nil {
-						ticker.Stop()
-						break
-					}
-					count++
-					if (count % 10) == 0 {
-						server.logger.Info("Still can't connect to Asicd, retrying...")
-					}
-				}
-			}
-			if server.asicdClient.TTransport != nil && server.asicdClient.PtrProtocolFactory != nil {
-				server.asicdClient.ClientHdl = asicdServices.NewASICDServicesClientFactory(server.asicdClient.TTransport, server.asicdClient.PtrProtocolFactory)
-				server.asicdClient.IsConnected = true
-				server.logger.Info("Bfdd is connected to Asicd")
-			}
-		} else if client.Name == "ribd" {
+		if client.Name == "ribd" {
 			server.logger.Info("found ribd at port", client.Port)
 			server.ribdClient.Address = "localhost:" + strconv.Itoa(client.Port)
 			server.ribdClient.TTransport, server.ribdClient.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(server.ribdClient.Address)
@@ -318,8 +291,15 @@ func (server *BFDServer) PublishSessionNotifications() {
 	}
 }
 
-func (server *BFDServer) InitServer(paramFile string) {
+func (server *BFDServer) InitServer(paramFile string, asicdPlugin asicdClient.AsicdClientIntf) {
 	server.logger.Info("Starting Bfd Server")
+	if asicdPlugin == nil {
+		server.logger.Err("Unable to instantiate Asicd Interface")
+		return
+	}
+	server.AsicdPlugin = asicdPlugin
+	server.logger.Debug("Listen for ASICd updates")
+
 	server.ConnectToServers(paramFile)
 	server.initBfdGlobalConfDefault()
 	server.BuildPortPropertyMap()
@@ -327,11 +307,9 @@ func (server *BFDServer) InitServer(paramFile string) {
 	server.createDefaultSessionParam()
 }
 
-func (server *BFDServer) StartServer(paramFile string, dbHdl *dbutils.DBUtil) {
+func (server *BFDServer) StartServer(paramFile string, dbHdl *dbutils.DBUtil, asicdPlugin asicdClient.AsicdClientIntf) {
 	// Initialize BFD server from params file
-	server.InitServer(paramFile)
-	// Start subcriber for ASICd events
-	go server.CreateASICdSubscriber()
+	server.InitServer(paramFile, asicdPlugin)
 	// Start subcriber for RIBd events
 	go server.CreateRIBdSubscriber()
 	// Start session management handler
@@ -347,9 +325,8 @@ func (server *BFDServer) StartServer(paramFile string, dbHdl *dbutils.DBUtil) {
 		case gConf := <-server.GlobalConfigCh:
 			server.logger.Info("Received call for performing Global Configuration", gConf)
 			server.processGlobalConfig(gConf)
-		case asicdrxBuf := <-server.asicdSubSocketCh:
+		case asicdrxBuf := <-server.AsicdSubSocketCh:
 			server.processAsicdNotification(asicdrxBuf)
-		case <-server.asicdSubSocketErrCh:
 		case ribdrxBuf := <-server.ribdSubSocketCh:
 			server.processRibdNotification(ribdrxBuf)
 		case <-server.ribdSubSocketErrCh:

@@ -613,8 +613,14 @@ func (vtep *VtepDbEntry) snoop(data []byte) {
 func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 
 	vxlanLayer := packet.Layer(layers.LayerTypeVxlan)
+	vlanLayer := packet.Layer(layers.LayerTypeDot1Q)
 	if vxlanLayer != nil {
 		vxlan := vxlanLayer.(*layers.VXLAN)
+		vlan := uint16(0)
+		if vlanLayer != nil {
+			v := vlanLayer.(*layers.Dot1Q)
+			vlan = v.VLANIdentifier
+		}
 		buf := vxlan.LayerPayload()
 		//logger.Info(fmt.Sprintf("Sending Packet to %s %#v", vtep.VtepName, buf))
 		vtep.snoop(buf)
@@ -622,7 +628,7 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 		pktlen := len(buf)
 		vtep.counters.Rxpkts++
 		vtep.counters.Rxbytes += uint64(pktlen)
-		if vtep.handle != nil {
+		if vtep.handle != nil && vlan == 0 {
 			if err := vtep.handle.WritePacketData(buf); err != nil {
 				rc := fmt.Sprintln("Error writing packet to interface", vtep.VtepName, err)
 				logger.Err(rc)
@@ -631,24 +637,28 @@ func (vtep *VtepDbEntry) decapAndDispatchPkt(packet gopacket.Packet) {
 				vtep.counters.Lastrxdropreason = rc
 				return
 			}
-		} else {
+			vtep.counters.Rxfwdpkts++
+			vtep.counters.Rxfwdbytes += uint64(pktlen)
+		} else if vlan != 0 {
 			// TODO need to forward based on customer vlan, but as of 10/28/16
 			// there is only one vlan in the map so can always send it
-			for vlan, handle := range vtep.taghandles {
-				if err := handle.WritePacketData(buf); err != nil {
-					// This is really the Int interface but users should not care about
-					// internal details
-					rc := fmt.Sprintln("Error writing packet to interface", fmt.Sprintf("%s.%d", vtep.VtepName, vlan), err)
-					logger.Err(rc)
-					vtep.counters.Rxdroppkts++
-					vtep.counters.Rxdropbytes += uint64(pktlen)
-					vtep.counters.Lastrxdropreason = rc
-					return
+			for vlanId, handle := range vtep.taghandles {
+				if vlanId == vlan {
+					if err := handle.WritePacketData(buf); err != nil {
+						// This is really the Int interface but users should not care about
+						// internal details
+						rc := fmt.Sprintln("Error writing packet to interface", fmt.Sprintf("%s.%d", vtep.VtepName, vlanId), err)
+						logger.Err(rc)
+						vtep.counters.Rxdroppkts++
+						vtep.counters.Rxdropbytes += uint64(pktlen)
+						vtep.counters.Lastrxdropreason = rc
+						return
+					}
+					vtep.counters.Rxfwdpkts++
+					vtep.counters.Rxfwdbytes += uint64(pktlen)
 				}
 			}
 		}
-		vtep.counters.Rxfwdpkts++
-		vtep.counters.Rxfwdbytes += uint64(pktlen)
 	}
 }
 

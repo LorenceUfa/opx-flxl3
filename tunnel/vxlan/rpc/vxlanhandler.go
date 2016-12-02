@@ -52,6 +52,8 @@ type VXLANDServiceHandler struct {
 	server       *server.VXLANServer
 	logger       *logging.Writer
 	Thriftserver *thrift.TSimpleServer
+	running      bool
+	readdb       bool
 }
 
 // look up the various other daemons based on c string
@@ -108,22 +110,37 @@ func (v *VXLANDServiceHandler) CreateThriftServer() {
 		transportFactory := thrift.NewTBufferedTransportFactory(8192)
 		protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
 		v.Thriftserver = thrift.NewTSimpleServer4(processor, transport, transportFactory, protocolFactory)
+
 	}
 }
 
 // StopThriftServer for purposes of stopping vxlan config from coming from confd
 func (v *VXLANDServiceHandler) StopCfgServerLoop() {
 	if v.Thriftserver != nil {
-		err := v.Thriftserver.Stop()
-		v.logger.Info("Stopping Cfg Server loop", err)
-
+		// Not going to do anything as we don't want to edit thrift code at this time.
+		// See thrift code changes
+		//err := v.Thriftserver.Stop()
+		//v.running = False
+		//v.logger.Info("Stopping Cfg Server loop", err)
+		v.logger.Info("Stopping Cfg Server loop")
 	}
 }
 
 // Enable listening of server config
 func (v *VXLANDServiceHandler) StartCfgServerLoop() {
-	if v.Thriftserver != nil {
+	if v.Thriftserver != nil && !v.running {
 		v.logger.Info("Starting Cfg Server loop")
+		// Not going to do anything as we don't want to edit thrift code at this time.
+		// See thrift code changes
+
+		// lets read the db on creation, necessary for restart
+		if !v.readdb {
+			prevState := vxlan.VxlanGlobalStateGet()
+			v.ReadConfigFromDB(prevState)
+			v.readdb = true
+		}
+
+		v.running = true
 		err := v.Thriftserver.Serve()
 		v.logger.Info("Cfg Server loop stopped", err)
 	}
@@ -133,8 +150,6 @@ func (v *VXLANDServiceHandler) CreateVxlanGlobal(config *vxland.VxlanGlobal) (rv
 	rv = true
 	v.logger.Info(fmt.Sprintf("CreateVxlanGlobal (server): %s", config.AdminState))
 
-	prevState := vxlan.VxlanGlobalStateGet()
-
 	if config.AdminState == "UP" {
 		vxlan.VxlanGlobalStateSet(vxlan.VXLAN_GLOBAL_ENABLE)
 	} else if config.AdminState == "DOWN" {
@@ -142,7 +157,7 @@ func (v *VXLANDServiceHandler) CreateVxlanGlobal(config *vxland.VxlanGlobal) (rv
 	} else {
 		return rv, errors.New(fmt.Sprintln("Error VxlanGlobal unknown Admin State setting", config.AdminState))
 	}
-	go v.ReadConfigFromDB(prevState)
+
 	return rv, err
 }
 
@@ -272,13 +287,13 @@ func (v *VXLANDServiceHandler) CreateVxlanVtepInstance(config *vxland.VxlanVtepI
 	if err == nil {
 		for _, c := range cs {
 			err = vxlan.VtepConfigCheck(c, true)
-			if err == nil {
-				v.server.Configchans.Vtepcreate <- *c
-				return true, err
+			if err != nil {
+	                	return false, err
 			}
+			v.server.Configchans.Vtepcreate <- *c
 		}
 	}
-	return false, err
+	return true, err
 }
 
 func (v *VXLANDServiceHandler) DeleteVxlanVtepInstance(config *vxland.VxlanVtepInstance) (bool, error) {
@@ -434,7 +449,7 @@ func (v *VXLANDServiceHandler) GetVxlanVtepInstanceState(intf string, vni int32)
 	//}
 
 	for _, v := range vxlan.GetVtepDB() {
-
+                
 		if v.VtepConfigName == intf &&
 			v.Vni == uint32(vni) {
 			OperState := "UNKNOWN"
@@ -540,9 +555,10 @@ func (la *VXLANDServiceHandler) GetBulkVxlanVtepInstanceState(fromIndex vxland.I
 			nextVxlanVtepState.Mtu = int32(v.MTU)
 
 			var v2 *vxlan.VtepDbEntry
-			for currIndex2 := vxland.Int(currIndex); vxlan.GetVtepDbListEntry(int32(currIndex2), &v2); currIndex2++ {
+			for currIndex2 := vxland.Int(0); vxlan.GetVtepDbListEntry(int32(currIndex2), &v2); currIndex2++ {
 
-				if v2.VtepConfigName == v.VtepConfigName &&
+				if v2 != nil &&
+					v2.VtepConfigName == v.VtepConfigName &&
 					v2.Vni == v.Vni {
 					foundIndex = false
 					for _, idx := range indexListAdded {

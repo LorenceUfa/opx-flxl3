@@ -47,7 +47,8 @@ const (
 	CHECK_AGE               uint16        = 300  // 5 mins
 	MAX_AGE_DIFF            uint16        = 900  // 15 mins
 	//LSSequenceNumber      int           = InitialSequenceNumber
-	LSInfinity uint32 = 0x00ffffff
+	LSInfinity                 uint32 = 0x00ffffff
+	FLETCHER_CHECKSUM_VALIDATE uint16 = 0xffff
 )
 
 const (
@@ -104,4 +105,21 @@ const (
 	LsdbDel      uint8 = 1
 	LsdbUpdate   uint8 = 2
 	LsdbNoAction uint8 = 3
+)
+
+const (
+	LSA_MAX_AGE      uint16 = 0x7fff
+	LSA_MAX_AGE_DIFF uint16 = 0x7fff
+	LSASELFLOOD             = 1 // flood for received LSA
+	LSAINTF                 = 2 // Send LSA on the interface in reply to LSAREQ
+	LSAAGE                  = 3 // flood aged LSAs.
+	LSASUMMARYFLOOD         = 4 //flood summary LSAs in different areas.
+	LSAEXTFLOOD             = 5 //flood AS External summary LSA
+	LSAROUTERFLOOD          = 6 //flood only router LSA
+)
+
+const (
+	AllSPFRouters = "224.0.0.5"
+	AllDRouters   = "224.0.0.6"
+	McastMAC      = "01:00:5e:00:00:05"
 )

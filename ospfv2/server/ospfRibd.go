@@ -25,12 +25,12 @@ package server
 
 import (
 	//"bytes"
-	//"encoding/json"
+	"encoding/json"
 	//"git.apache.org/thrift.git/lib/go/thrift"
 	nanomsg "github.com/op/go-nanomsg"
 	"l3/rib/ribdCommonDefs"
 	"ribd"
-	//"ribdInt"
+	"ribdInt"
 	"strconv"
 	"time"
 	"utils/ipcutils"
@@ -82,7 +82,7 @@ func (server *OSPFV2Server) ConnectToRibdServer(port int) {
 
 func (server *OSPFV2Server) StartRibdSubscriber() {
 	server.logger.Info("Listen for ribd updates")
-	server.listenForRibdUpdates(ribdCommonDefs.PUB_SOCKET_ADDR)
+	server.listenForRibdUpdates(ribdCommonDefs.PUB_SOCKET_OSPFD_ADDR)
 	go server.createRibdSubscriber()
 }
 
@@ -124,6 +124,96 @@ func (server *OSPFV2Server) createRibdSubscriber() {
 	}
 }
 
+func (server *OSPFV2Server) getBulkRoutesFromRibd() []*RouteInfo {
+	curMark := ribdInt.Int(0)
+	var routeInfoList []*RouteInfo
+
+	if server.ribdComm.ribdClient.IsConnected {
+		server.logger.Info("Calling Ribd To get Routes for Ospfd")
+		rCount := ribdInt.Int(1000)
+		for {
+			bulkInfo, _ := server.ribdComm.ribdClient.ClientHdl.GetBulkRoutesForProtocol("OSPF", curMark, rCount)
+			if bulkInfo == nil {
+				break
+			}
+			objCount := int(bulkInfo.Count)
+			more := bool(bulkInfo.More)
+			curMark = bulkInfo.EndIdx
+			for idx := 0; idx < objCount; idx++ {
+				route := bulkInfo.RouteList[idx]
+				nwAddr, _ := convertDotNotationToUint32(route.Ipaddr)
+				netmask, _ := convertDotNotationToUint32(route.Mask)
+				metric := uint32(route.Metric)
+				routeInfo := RouteInfo{
+					NwAddr:  nwAddr,
+					Netmask: netmask,
+					Metric:  metric,
+				}
+				routeInfoList = append(routeInfoList, &routeInfo)
+			}
+			if more == false {
+				break
+			}
+		}
+	}
+	return routeInfoList
+}
+
 func (server *OSPFV2Server) processRibdNotification(ribdRxBuf []byte) {
-	//TODO
+	if server.globalData.AdminState == false {
+		return
+	}
+	var ribdMsg ribdCommonDefs.RibdNotifyMsg
+	var routeListInfo ribdCommonDefs.RoutelistInfo
+	err := json.Unmarshal(ribdRxBuf, &ribdMsg)
+	if err != nil {
+		server.logger.Err("Unable to unmarshal ribdRxBuf:", ribdRxBuf)
+		return
+	}
+	err = json.Unmarshal(ribdMsg.MsgBuf, &routeListInfo)
+	if ribdMsg.MsgType == ribdCommonDefs.NOTIFY_ROUTE_CREATED {
+		server.processRibdRouteAddMsg(&routeListInfo)
+	} else if ribdMsg.MsgType == ribdCommonDefs.NOTIFY_ROUTE_DELETED {
+		server.processRibdRouteDelMsg(&routeListInfo)
+	} else {
+		server.logger.Err("Unknown Msg Type from Ribd")
+	}
+}
+
+func (server *OSPFV2Server) processRibdRouteAddMsg(routeList *ribdCommonDefs.RoutelistInfo) {
+	var routeInfoList []RouteInfo
+	route := routeList.RouteInfo
+	nwAddr, _ := convertDotNotationToUint32(route.Ipaddr)
+	netmask, _ := convertDotNotationToUint32(route.Mask)
+	metric := uint32(route.Metric)
+	routeInfo := RouteInfo{
+		NwAddr:  nwAddr,
+		Netmask: netmask,
+		Metric:  metric,
+	}
+	routeInfoList = append(routeInfoList, routeInfo)
+	msg := RouteInfoDataUpdateMsg{
+		MsgType:       ROUTE_INFO_ADD,
+		RouteInfoList: routeInfoList,
+	}
+	server.SendMsgToLsdbToUpdateRouteInfo(msg)
+}
+
+func (server *OSPFV2Server) processRibdRouteDelMsg(routeList *ribdCommonDefs.RoutelistInfo) {
+	var routeInfoList []RouteInfo
+	route := routeList.RouteInfo
+	nwAddr, _ := convertDotNotationToUint32(route.Ipaddr)
+	netmask, _ := convertDotNotationToUint32(route.Mask)
+	metric := uint32(route.Metric)
+	routeInfo := RouteInfo{
+		NwAddr:  nwAddr,
+		Netmask: netmask,
+		Metric:  metric,
+	}
+	routeInfoList = append(routeInfoList, routeInfo)
+	msg := RouteInfoDataUpdateMsg{
+		MsgType:       ROUTE_INFO_DEL,
+		RouteInfoList: routeInfoList,
+	}
+	server.SendMsgToLsdbToUpdateRouteInfo(msg)
 }

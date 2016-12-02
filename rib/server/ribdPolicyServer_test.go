@@ -25,6 +25,7 @@ package server
 
 import (
 	"fmt"
+	defs "l3/rib/ribdCommonDefs"
 	"ribd"
 	"ribdInt"
 	"testing"
@@ -298,7 +299,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, condition := range conditionsList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			OrigConfigObject: condition,
-			Op:               "addPolicyCondition",
+			Op:               defs.AddPolicyCondition,
 		}
 	}
 	fmt.Println("Conditions Created")
@@ -307,7 +308,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, stmt := range stmtsList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			OrigConfigObject: stmt,
-			Op:               "addPolicyStmt",
+			Op:               defs.AddPolicyStmt,
 		}
 	}
 	fmt.Println("Stmts Created")
@@ -316,7 +317,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, policy := range policyDefinitionsList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			OrigConfigObject: policy,
-			Op:               "addPolicyDefinition",
+			Op:               defs.AddPolicyDefinition,
 		}
 	}
 	fmt.Println("Definitions Created")
@@ -327,7 +328,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, applyPolicyInfo := range applyPolicyList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			PolicyList: ApplyPolicyList{[]*ribdInt.ApplyPolicyInfo{applyPolicyInfo}, make([]*ribdInt.ApplyPolicyInfo, 0)},
-			Op:         "applyPolicy",
+			Op:         defs.ApplyPolicy,
 		}
 	}
 	fmt.Println("Policies applied")
@@ -335,7 +336,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, policy := range policyDefinitionsList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			OrigConfigObject: policy,
-			Op:               "delPolicyDefinition",
+			Op:               defs.DelPolicyDefinition,
 		}
 	}
 	fmt.Println("Definitions Deleted")
@@ -344,7 +345,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, stmt := range stmtsList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			OrigConfigObject: stmt,
-			Op:               "delPolicyStmt",
+			Op:               defs.DelPolicyStmt,
 		}
 	}
 	fmt.Println("Stmts Deleted")
@@ -353,7 +354,7 @@ func TestPolicyServer(t *testing.T) {
 	for _, condition := range conditionsList {
 		server.PolicyConfCh <- RIBdServerConfig{
 			OrigConfigObject: condition,
-			Op:               "delPolicyCondition",
+			Op:               defs.DelPolicyCondition,
 		}
 	}
 	fmt.Println("Conditions Deleted")

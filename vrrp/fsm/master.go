@@ -43,6 +43,7 @@ func (f *FSM) transitionToMaster() {
 	}
 	// (145) + Transition to the {Master} state
 	f.State = VRRP_MASTER_STATE
+	f.updateTxStInfo()
 	// (140) + Set the Adver_Timer to Advertisement_Interval
 	// Start Advertisement Timer
 	f.startMasterAdverTimer()
@@ -56,6 +57,7 @@ func (f *FSM) startMasterAdverTimer() {
 		SendMasterAdveristement_func = func() {
 			// Send advertisment every time interval expiration
 			f.send(f.getPacketInfo())
+			f.updateTxStInfo()
 			f.AdverTimer.Reset(time.Duration(f.Config.AdvertisementInterval) * time.Second)
 		}
 		debug.Logger.Debug(FSM_PREFIX, "Setting Master Advertisement Timer to:", f.Config.AdvertisementInterval)
@@ -78,7 +80,7 @@ func (f *FSM) stopMasterDownTimer() {
 }
 
 func (f *FSM) master(decodeInfo *DecodedInfo) {
-	debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *decodeInfo)
+	//debug.Logger.Debug(FSM_PREFIX, "In Master State Handling Fsm Info:", *decodeInfo)
 	pktInfo := decodeInfo.PktInfo
 	hdr := pktInfo.Hdr
 	/* // @TODO:
@@ -96,6 +98,7 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 		// (710) -* Send an ADVERTISEMENT
 		debug.Logger.Debug(FSM_PREFIX, "Priority in the ADVERTISEMENT is zero, then: Send an ADVERTISEMENT")
 		f.send(f.getPacketInfo())
+		f.updateTxStInfo()
 		// (715) -* Reset the Adver_Timer to Advertisement_Interval
 		f.startMasterAdverTimer()
 	} else { // (720) -+ else // priority was non-zero
@@ -105,9 +108,8 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 		*               the local Priority and the primary IPvX Address of the
 		*	        sender is greater than the local primary IPvX Address, then:
 		 */
-		if int32(hdr.Priority) > f.Config.Priority ||
-			(int32(hdr.Priority) == f.Config.Priority &&
-				bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.ipAddr)) > 0) {
+		if (int32(hdr.Priority) > f.Config.Priority) ||
+			((int32(hdr.Priority) == f.Config.Priority) && (bytes.Compare(net.ParseIP(pktInfo.IpAddr), net.ParseIP(f.ipAddr)) > 0)) {
 			// (740) -@ Cancel Adver_Timer
 			f.stopMasterAdverTimer()
 			/*
@@ -119,6 +121,7 @@ func (f *FSM) master(decodeInfo *DecodedInfo) {
 			*/
 			f.previousState = f.State
 			f.transitionToBackup(int32(hdr.MaxAdverInt))
+			f.updateRxStInfo(pktInfo)
 		} else { // new Master logic
 			// Discard Advertisement
 			return

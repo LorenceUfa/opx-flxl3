@@ -758,12 +758,13 @@ func (intf VXLANSnapClient) GetIntfInfo(IfName string, intfchan chan<- vxlan.Mac
 			if bulkIntf == nil {
 				exitnotfound = false
 			} else {
-				//logger.Info(fmt.Sprintln("Return from GetBulkIntf"))
+				logger.Info(fmt.Sprintln("Return from GetBulkIntf"))
 				for _, intf := range bulkIntf.IntfList {
-					if intf.IfName == IfName && IfIndex == 0 {
+					if intf.IfName == IfName {
 						IfIndex = intf.IfIndex
 						foundIntf = true
 						logger.Debug(fmt.Sprintln("Found IfName", IfName))
+						break
 					}
 				}
 

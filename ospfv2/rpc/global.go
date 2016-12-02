@@ -26,8 +26,34 @@ package rpc
 import (
 	"errors"
 	"l3/ospfv2/api"
+	"models/objects"
 	"ospfv2d"
 )
+
+func (rpcHdl *rpcServiceHandler) restoreOspfv2GlobalConfFromDB() (bool, error) {
+	rpcHdl.logger.Info("Restoring Ospfv2 Global Config From DB")
+	var ospfv2Gbl objects.Ospfv2Global
+
+	ospfGblList, err := rpcHdl.dbHdl.GetAllObjFromDb(ospfv2Gbl)
+	if err != nil {
+		return false, errors.New("Failed to retireve Ospfv2Global object info from DB")
+	}
+	rpcHdl.logger.Info("ospfGblList:", ospfGblList)
+	for idx := 0; idx < len(ospfGblList); idx++ {
+		dbObj := ospfGblList[idx].(objects.Ospfv2Global)
+		obj := new(ospfv2d.Ospfv2Global)
+		objects.Convertospfv2dOspfv2GlobalObjToThrift(&dbObj, obj)
+		convObj, err := convertFromRPCFmtOspfv2Global(obj)
+		if err != nil {
+			return false, err
+		}
+		ok, err := api.CreateOspfv2Global(convObj)
+		if !ok {
+			return ok, err
+		}
+	}
+	return true, nil
+}
 
 func (rpcHdl *rpcServiceHandler) CreateOspfv2Global(config *ospfv2d.Ospfv2Global) (bool, error) {
 	cfg, err := convertFromRPCFmtOspfv2Global(config)
@@ -63,7 +89,7 @@ func (rpcHdl *rpcServiceHandler) DeleteOspfv2Global(config *ospfv2d.Ospfv2Global
 func (rpcHdl *rpcServiceHandler) GetOspfv2GlobalState(Vrf string) (*ospfv2d.Ospfv2GlobalState, error) {
 	var convObj *ospfv2d.Ospfv2GlobalState
 	// Need to be updated when we support Vrf
-	if Vrf != "Default" {
+	if Vrf != "default" {
 		return nil, errors.New("Unsupported Vrf")
 	}
 	obj, err := api.GetOspfv2GlobalState(Vrf)
@@ -76,6 +102,9 @@ func (rpcHdl *rpcServiceHandler) GetOspfv2GlobalState(Vrf string) (*ospfv2d.Ospf
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2GlobalState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2GlobalStateGetInfo, error) {
 	var getBulkInfo ospfv2d.Ospfv2GlobalStateGetInfo
 	info, err := api.GetBulkOspfv2GlobalState(int(fromIdx), int(count))
+	if info == nil || err != nil {
+		return &getBulkInfo, err
+	}
 	getBulkInfo.StartIdx = fromIdx
 	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
 	getBulkInfo.More = info.More

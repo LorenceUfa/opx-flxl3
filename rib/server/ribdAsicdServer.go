@@ -28,7 +28,7 @@ import (
 	"asicdInt"
 	"asicdServices"
 	//"fmt"
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 )
 
 var asicdBulkCount = 30000
@@ -47,13 +47,13 @@ func addAsicdRouteBulk(routeInfoRecord RouteInfoRecord, bulkEnd bool) {
 		return
 	}
 	ipType := ""
-	if routeInfoRecord.ipType == ribdCommonDefs.IPv4 {
+	if routeInfoRecord.ipType == defs.IPv4 {
 		ipType = "IPv4"
-	} else if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
+	} else if routeInfoRecord.ipType == defs.IPv6 {
 		ipType = "IPv6"
 	}
 	logger.Info("addAsicdRoute, weight = ", routeInfoRecord.weight+1, " ipType:", ipType)
-	if routeInfoRecord.ipType == ribdCommonDefs.IPv4 {
+	if routeInfoRecord.ipType == defs.IPv4 {
 		if asicdv4RouteCount == 0 {
 			asicdv4Routes = make([]*asicdInt.IPv4Route, 0)
 		}
@@ -74,7 +74,7 @@ func addAsicdRouteBulk(routeInfoRecord RouteInfoRecord, bulkEnd bool) {
 			asicdv4Routes = nil
 			asicdv4RouteCount = 0
 		}
-	} else if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
+	} else if routeInfoRecord.ipType == defs.IPv6 {
 	}
 }
 func addAsicdRoute(routeInfoRecord RouteInfoRecord) {
@@ -88,7 +88,7 @@ func addAsicdRoute(routeInfoRecord RouteInfoRecord) {
 			ipType = "IPv6"
 		}
 		logger.Info("addAsicdRoute, weight = ", routeInfoRecord.weight+1, " ipType:", ipType)*/
-	if routeInfoRecord.ipType == ribdCommonDefs.IPv4 {
+	if routeInfoRecord.ipType == defs.IPv4 {
 		//logger.Info("ipv4 route, calling onewaycreateipv4 route")
 		/*	asicdRoute = make([]asicdInt.IPv4Route, asicdBulkCount)
 			if asicdRouteCount == 0 {
@@ -123,7 +123,7 @@ func addAsicdRoute(routeInfoRecord RouteInfoRecord) {
 				},
 			},
 		})
-	} else if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
+	} else if routeInfoRecord.ipType == defs.IPv6 {
 		add := true
 		//fmt.Println("RIBD addAsicdRoute: ipv6 address add for ", routeInfoRecord.destNetIp.String())
 		if routeInfoRecord.destNetIp.IsLinkLocalUnicast() {
@@ -157,7 +157,7 @@ func delAsicdRoute(routeInfoRecord RouteInfoRecord) {
 		return
 	}
 	logger.Info("delAsicdRoute with ipType ", routeInfoRecord.ipType)
-	if routeInfoRecord.ipType == ribdCommonDefs.IPv4 {
+	if routeInfoRecord.ipType == defs.IPv4 {
 		asicdclnt.ClientHdl.OnewayDeleteIPv4Route([]*asicdInt.IPv4Route{
 			&asicdInt.IPv4Route{
 				routeInfoRecord.destNetIp.String(),
@@ -171,7 +171,7 @@ func delAsicdRoute(routeInfoRecord RouteInfoRecord) {
 				},
 			},
 		})
-	} else if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
+	} else if routeInfoRecord.ipType == defs.IPv6 {
 		del := true
 		//fmt.Println("RIBD delAsicdRoute: delete asicd address:", routeInfoRecord.destNetIp.String())
 		if routeInfoRecord.destNetIp.IsLinkLocalUnicast() {
@@ -267,18 +267,18 @@ func (ribdServiceHandler *RIBDServer) StartAsicdServer() {
 		select {
 		case route := <-ribdServiceHandler.AsicdRouteCh:
 			logger.Info(" received message on AsicdRouteCh, op:", route.Op)
-			if route.Op == "add" {
+			if route.Op == defs.Add {
 				if route.Bulk {
 					addAsicdRouteBulk(route.OrigConfigObject.(RouteInfoRecord), route.BulkEnd)
 				} else {
 					addAsicdRoute(route.OrigConfigObject.(RouteInfoRecord))
 				}
-			} else if route.Op == "del" {
+			} else if route.Op == defs.Del {
 				delAsicdRoute(route.OrigConfigObject.(RouteInfoRecord))
-			} else if route.Op == "fetchv4" {
+			} else if route.Op == defs.AsicdFetchv4 {
 				logger.Info("AsicdServer loop fetchv4, call getv4connectedroutes")
 				ribdServiceHandler.GetV4ConnectedRoutes()
-			} else if route.Op == "fetchv6" {
+			} else if route.Op == defs.AsicdFetchv6 {
 				logger.Info("AsicdServer loop fetchv6, call getv6connectedroutes")
 				ribdServiceHandler.GetV6ConnectedRoutes()
 			}

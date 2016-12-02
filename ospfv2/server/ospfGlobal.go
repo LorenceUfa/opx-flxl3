@@ -74,8 +74,8 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		//Stop Rx Pkt
 		//Deinit Rx Pkt
 		//Deinit Tx Pkt
-		server.StopAllRxTxPkt()
 		// TODO: Stop Nbr FSM
+		server.StopNbrFSM()
 
 		// Deinit LSDB Data Structure
 		// Stop LSDB
@@ -83,6 +83,7 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 		//TODO: Stop Flooding
 
+		server.StopFlooding()
 		// Flush all the routes
 		// Deinit Routing Tbl
 		// Deinit SPF Structures
@@ -90,6 +91,11 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 		server.StopSPF()
 
 		//TODO: Stop Ribd updates
+		err := server.deinitAsicdForRxMulticastPkt()
+		if err != nil {
+			server.logger.Err("Unable to initialize ASIC for recving Multicast Packets", err)
+			return false, err
+		}
 	}
 
 	mask := genOspfv2GlobalUpdateMask(attrset)
@@ -107,29 +113,33 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 	}
 
 	if server.globalData.AdminState == true {
+		err := server.initAsicdForRxMulticastPkt()
+		if err != nil {
+			server.logger.Err("Unable to initialize ASIC for recving Multicast Packets", err)
+			return false, err
+		}
 		// Init SPF Structures
 		// Init Routing Tbl
 		// Start SPF
 		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
 
-		// TODO: Start Flooding
-
+		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
 		// Init LSDB Data Structure
 		// Start LSDB
 		server.StartLsdbRoutine()
-		// TODO: Start Nbr FSM
+		server.logger.Info("Successfully started Lsdb Routine")
+		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
 
 		// Init Rx
 		// Init Tx
 		// Start Rx
-		server.StartAllRxTxPkt()
-
 		// Init Ospf Intf FSM
 		//Start All Interface FSM
 		server.StartAllIntfFSM()
-
-		//TODO
-		//Start Ribd Updates if ASBdrRtrStatus = true
+		server.logger.Info("Successfully started All Intf FSM")
 	}
 
 	return true, nil
@@ -137,15 +147,32 @@ func (server *OSPFV2Server) updateGlobal(newCfg, oldCfg *objects.Ospfv2Global, a
 
 func (server *OSPFV2Server) createGlobal(cfg *objects.Ospfv2Global) (bool, error) {
 	server.logger.Info("Global configuration create")
-	if cfg.Vrf != "Default" {
-		server.logger.Err("Vrp other than Default is not supported")
-		return false, errors.New("Vrp other than Default is not supported")
+	if cfg.Vrf != "default" {
+		server.logger.Err("Vrf other than default is not supported")
+		return false, errors.New("Vrf other than default is not supported")
 	}
 	server.globalData.Vrf = cfg.Vrf
 	server.globalData.AdminState = cfg.AdminState
 	server.globalData.RouterId = cfg.RouterId
 	server.globalData.ASBdrRtrStatus = cfg.ASBdrRtrStatus
 	server.globalData.ReferenceBandwidth = cfg.ReferenceBandwidth
+	if server.globalData.AdminState == true {
+		err := server.initAsicdForRxMulticastPkt()
+		if err != nil {
+			server.logger.Err("Unable to initialize ASIC for recving Multicast Packets", err)
+			return false, err
+		}
+		server.StartSPF()
+		server.logger.Info("Successfully started SPF")
+		server.StartFlooding()
+		server.logger.Info("Successfully started Flooding")
+		server.StartLsdbRoutine()
+		server.logger.Info("Successfully started Lsdb Routine")
+		server.StartNbrFSM()
+		server.logger.Info("Successfully started Nbr FSM")
+		server.StartAllIntfFSM()
+		server.logger.Info("Successfully started All Intf FSM")
+	}
 	return true, nil
 }
 
@@ -159,6 +186,23 @@ func (server *OSPFV2Server) getGlobalState(vrf string) (*objects.Ospfv2GlobalSta
 	var retObj objects.Ospfv2GlobalState
 	retObj.Vrf = vrf
 	retObj.AreaBdrRtrStatus = server.globalData.AreaBdrRtrStatus
+	retObj.NumOfAreas = uint32(len(server.AreaConfMap))
+	retObj.NumOfIntfs = uint32(len(server.IntfConfMap))
+	numOfNbrs := 0
+	for _, intfEnt := range server.IntfConfMap {
+		numOfNbrs += len(intfEnt.NbrMap)
+	}
+	for _, lsdbEnt := range server.LsdbData.AreaLsdb {
+		retObj.NumOfRouterLSA += uint32(len(lsdbEnt.RouterLsaMap))
+		retObj.NumOfNetworkLSA += uint32(len(lsdbEnt.NetworkLsaMap))
+		retObj.NumOfSummary3LSA += uint32(len(lsdbEnt.Summary3LsaMap))
+		retObj.NumOfSummary4LSA += uint32(len(lsdbEnt.Summary4LsaMap))
+		retObj.NumOfASExternalLSA += uint32(len(lsdbEnt.ASExternalLsaMap))
+	}
+	retObj.NumOfLSA = retObj.NumOfRouterLSA + retObj.NumOfNetworkLSA +
+		retObj.NumOfSummary3LSA + retObj.NumOfSummary4LSA +
+		retObj.NumOfASExternalLSA
+	//TODO: num of routes
 	return &retObj, nil
 }
 
@@ -171,7 +215,7 @@ func (server *OSPFV2Server) getBulkGlobalState(fromIdx, cnt int) (*objects.Ospfv
 	retObj.More = false
 	retObj.Count = 1
 	for idx := fromIdx; idx < retObj.EndIdx; idx++ {
-		obj, err := server.getGlobalState("Default")
+		obj, err := server.getGlobalState("default")
 		if err != nil {
 			server.logger.Err("Error getting the Ospfv2GlobalState for vrf=default")
 			return nil, err
@@ -180,71 +224,3 @@ func (server *OSPFV2Server) getBulkGlobalState(fromIdx, cnt int) (*objects.Ospfv
 	}
 	return &retObj, nil
 }
-
-/*
-func (server *OSPFV2Server) initOspfGlobal() {
-	server.globalData.Vrf = "Default"
-	server.globalData.RouterId = 0
-	server.globalData.AdminState = false
-	server.globalData.ASBdrRtrStatus = false
-	server.globalData.ReferenceBandwidth = 100000 //Default value 100Gbps
-	server.globalData.AreaBdrRtrStatus = false
-	server.logger.Info("Global configuration initialized")
-}
-
-func (server *OSPFServer) processASBdrRtrStatus(isASBR bool) {
-	if isASBR {
-		server.logger.Info(fmt.Sprintln("GLOBAL: Router is ASBR. Listen to RIBD updates."))
-		//get ribd routes
-		//server.testASExternal()
-		server.getRibdRoutes()
-		server.startRibdUpdates()
-	}
-}
-func (server *OSPFServer) processGlobalConfig(gConf config.GlobalConf) error {
-	var localIntfStateMap = make(map[IntfConfKey]config.Status)
-	for key, ent := range server.IntfConfMap {
-		localIntfStateMap[key] = ent.IfAdminStat
-		if ent.IfAdminStat == config.Enabled &&
-			server.ospfGlobalConf.AdminStat == config.Enabled {
-			server.StopSendRecvPkts(key)
-		}
-	}
-
-	if server.ospfGlobalConf.AdminStat == config.Enabled {
-		server.nbrFSMCtrlCh <- false
-		//	server.neighborConfStopCh <- true
-		//server.NeighborListMap = nil
-		server.StopLSDatabase()
-		server.ospfRxNbrPktStopCh <- true
-		server.ospfTxNbrPktStopCh <- true
-		server.neighborFSMCtrlCh <- false
-		server.neighborConfStopCh <- true
-
-	}
-	server.logger.Info(fmt.Sprintln("Received call for performing Global Configuration", gConf))
-	server.updateGlobalConf(gConf)
-
-	if server.ospfGlobalConf.AdminStat == config.Enabled {
-		//server.NeighborListMap = make(map[IntfConfKey]list.List)
-		server.logger.Info(fmt.Sprintln("Spawn Neighbor state machine"))
-		server.InitNeighborStateMachine()
-		go server.UpdateNeighborConf()
-		go server.ProcessNbrStateMachine()
-		go server.ProcessTxNbrPkt()
-		go server.ProcessRxNbrPkt()
-		server.StartLSDatabase()
-
-	}
-	server.processASBdrRtrStatus(server.ospfGlobalConf.AreaBdrRtrStatus)
-	for key, ent := range localIntfStateMap {
-		if ent == config.Enabled &&
-			server.ospfGlobalConf.AdminStat == config.Enabled {
-			server.logger.Info(fmt.Sprintln("Start rx/tx thread."))
-			server.StartSendRecvPkts(key)
-		}
-	}
-
-	return nil
-}
-*/

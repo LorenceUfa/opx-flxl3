@@ -88,6 +88,9 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	}
 	lsaEnt, exist := lsdbEnt.NetworkLsaMap[lsaKey]
 	selfOrigLsaEnt, _ := server.LsdbData.AreaSelfOrigLsa[lsdbKey]
+	if len(nbrList) == 0 {
+		return server.flushNetworkLSA(intfKey)
+	}
 	lsaEnt.AttachedRtr = nil
 	lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, server.globalData.RouterId)
 	for _, nbr := range nbrList {
@@ -112,6 +115,13 @@ func (server *OSPFV2Server) generateNetworkLSA(intfKey IntfConfKey, nbrList []ui
 	server.LsdbData.AreaSelfOrigLsa[lsdbKey] = selfOrigLsaEnt
 	//Flood new Network LSA (areaId, lsaEnt, lsaKey)
 	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
+	if !exist {
+		lsdbSlice := LsdbSliceStruct{
+			LsdbKey: lsdbKey,
+			LsaKey:  lsaKey,
+		}
+		server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+	}
 	return nil
 }
 
@@ -156,7 +166,7 @@ func (server *OSPFV2Server) processRecvdSelfNetworkLSA(msg RecvdSelfLsaMsg) erro
 		server.CreateAndSendMsgFromLsdbToFloodLsa(msg.LsdbKey.AreaId, msg.LsaKey, lsa)
 		return nil
 	}
-	if lsaEnt.LsaMd.LSSequenceNum > lsa.LsaMd.LSSequenceNum {
+	if lsaEnt.LsaMd.LSSequenceNum < lsa.LsaMd.LSSequenceNum {
 		checksumOffset := uint16(14)
 		lsaEnt.LsaMd.LSSequenceNum = lsa.LsaMd.LSSequenceNum + 1
 		lsaEnt.LsaMd.LSAge = 0
@@ -188,10 +198,70 @@ func (server *OSPFV2Server) processRecvdNetworkLSA(msg RecvdLsaMsg) error {
 			server.logger.Err("Unable to assert given Network lsa")
 			return nil
 		}
+		_, exist = lsdbEnt.NetworkLsaMap[msg.LsaKey]
 		lsdbEnt.NetworkLsaMap[msg.LsaKey] = lsa
+		if !exist {
+			lsdbSlice := LsdbSliceStruct{
+				LsdbKey: msg.LsdbKey,
+				LsaKey:  msg.LsaKey,
+			}
+			server.GetBulkData.LsdbSlice = append(server.GetBulkData.LsdbSlice, lsdbSlice)
+		}
 	} else if msg.MsgType == LSA_DEL {
 		delete(lsdbEnt.NetworkLsaMap, msg.LsaKey)
 	}
 	server.LsdbData.AreaLsdb[msg.LsdbKey] = lsdbEnt
 	return nil
+}
+
+func (server *OSPFV2Server) reGenerateNetworkLSA(lsaKey LsaKey, nLsa NetworkLsa, lsdbKey LsdbKey) bool {
+	server.logger.Info("Regenerating Network LSA")
+	flag := false
+	var intfConfKey IntfConfKey
+	var intfEnt IntfConf
+	for intfKey, intfConfEnt := range server.IntfConfMap {
+		if intfConfEnt.FSMState != objects.INTF_FSM_STATE_DR {
+			continue
+		}
+		if intfConfEnt.Type != objects.INTF_TYPE_BROADCAST {
+			continue
+		}
+		if nLsa.Netmask == intfConfEnt.Netmask &&
+			lsaKey.LSId == intfConfEnt.IpAddr &&
+			lsaKey.AdvRouter == server.globalData.RouterId {
+			flag = true
+			intfConfKey = intfKey
+			intfEnt = intfConfEnt
+			break
+		}
+	}
+
+	if flag == false {
+		return false
+	}
+	nbrList, err := server.getFullNbrList(intfConfKey)
+	if err != nil {
+		return false
+	}
+	lsdbEnt, _ := server.LsdbData.AreaLsdb[lsdbKey]
+	lsaEnt, _ := lsdbEnt.NetworkLsaMap[lsaKey]
+	lsaEnt.AttachedRtr = nil
+	lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, server.globalData.RouterId)
+	for _, nbr := range nbrList {
+		lsaEnt.AttachedRtr = append(lsaEnt.AttachedRtr, nbr)
+	}
+	lsaEnt.Netmask = intfEnt.Netmask
+	lsaEnt.LsaMd.LSAge = 0
+	lsaEnt.LsaMd.LSChecksum = 0
+	lsaEnt.LsaMd.LSLen = uint16(OSPF_LSA_HEADER_SIZE + 4 + (4 * len(lsaEnt.AttachedRtr)))
+	lsaEnt.LsaMd.LSSequenceNum = lsaEnt.LsaMd.LSSequenceNum + 1
+	lsaEnt.LsaMd.Options = EOption
+	lsaEnc := encodeNetworkLsa(lsaEnt, lsaKey)
+	checksumOffset := uint16(14)
+	lsaEnt.LsaMd.LSChecksum = computeFletcherChecksum(lsaEnc[2:], checksumOffset)
+	lsdbEnt.NetworkLsaMap[lsaKey] = lsaEnt
+	server.LsdbData.AreaLsdb[lsdbKey] = lsdbEnt
+	//Flood new Network LSA (areaId, lsaEnt, lsaKey)
+	server.CreateAndSendMsgFromLsdbToFloodLsa(lsdbKey.AreaId, lsaKey, lsaEnt)
+	return true
 }

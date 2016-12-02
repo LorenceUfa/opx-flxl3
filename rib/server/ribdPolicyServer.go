@@ -27,7 +27,7 @@ package server
 import (
 	"encoding/json"
 	"github.com/op/go-nanomsg"
-	"l3/rib/ribdCommonDefs"
+	defs "l3/rib/ribdCommonDefs"
 	"models/objects"
 	"ribd"
 	"ribdInt"
@@ -53,21 +53,102 @@ func (ribdServiceHandler *RIBDServer) PolicyPrefixSetNotificationSend(PUB *nanom
 	msgBuf := objects.PolicyPrefixSet{}
 	objects.ConvertThriftToribdPolicyPrefixSetObj(&cfg, &msgBuf)
 	msgbufbytes, err := json.Marshal(msgBuf)
-	msg := ribdCommonDefs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		logger.Err("Error in marshalling Json")
 		return
 	}
 	var evtStr string
-	if evt == ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_CREATED {
+	if evt == defs.NOTIFY_POLICY_PREFIX_SET_CREATED {
 		evtStr = " POLICY_PREFIX_SET_CREATED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_DELETED {
+	} else if evt == defs.NOTIFY_POLICY_PREFIX_SET_DELETED {
 		evtStr = " POLICY_PREFIX_SET_DELETED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_UPDATED {
+	} else if evt == defs.NOTIFY_POLICY_PREFIX_SET_UPDATED {
 		evtStr = " POLICY_PREFIX_SET_UPDATED "
 	}
 	eventInfo := evtStr + " for prefix set " + cfg.Name
+	logger.Debug("Adding ", evtStr, " to notification channel")
+	ribdServiceHandler.NotificationChannel <- NotificationMsg{PUB, buf, eventInfo}
+}
+
+/*
+   Function to send PolicyCommunitySet Notification
+*/
+func (ribdServiceHandler *RIBDServer) PolicyCommunitySetNotificationSend(PUB *nanomsg.PubSocket, cfg ribd.PolicyCommunitySet, evt int) {
+	logger.Info("PolicyCommunitySetNotificationSend")
+	msgBuf := objects.PolicyCommunitySet{}
+	objects.ConvertThriftToribdPolicyCommunitySetObj(&cfg, &msgBuf)
+	msgbufbytes, err := json.Marshal(msgBuf)
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	buf, err := json.Marshal(msg)
+	if err != nil {
+		logger.Err("Error in marshalling Json")
+		return
+	}
+	var evtStr string
+	if evt == defs.NOTIFY_POLICY_COMMUNITY_SET_CREATED {
+		evtStr = " POLICY_COMMUNITY_SET_CREATED "
+	} else if evt == defs.NOTIFY_POLICY_COMMUNITY_SET_DELETED {
+		evtStr = " POLICY_COMMUNITY_SET_DELETED "
+	} else if evt == defs.NOTIFY_POLICY_COMMUNITY_SET_UPDATED {
+		evtStr = " POLICY_COMMUNITY_SET_UPDATED "
+	}
+	eventInfo := evtStr + " for community set " + cfg.Name
+	logger.Debug("Adding ", evtStr, " to notification channel")
+	ribdServiceHandler.NotificationChannel <- NotificationMsg{PUB, buf, eventInfo}
+}
+
+/*
+   Function to send PolicyExtendedCommunitySet Notification
+*/
+func (ribdServiceHandler *RIBDServer) PolicyExtendedCommunitySetNotificationSend(PUB *nanomsg.PubSocket, cfg ribd.PolicyExtendedCommunitySet, evt int) {
+	logger.Info("PolicyExtendedCommunitySetNotificationSend")
+	msgBuf := objects.PolicyExtendedCommunitySet{}
+	objects.ConvertThriftToribdPolicyExtendedCommunitySetObj(&cfg, &msgBuf)
+	msgbufbytes, err := json.Marshal(msgBuf)
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	buf, err := json.Marshal(msg)
+	if err != nil {
+		logger.Err("Error in marshalling Json")
+		return
+	}
+	var evtStr string
+	if evt == defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_CREATED {
+		evtStr = " POLICY_EXTENDED_COMMUNITY_SET_CREATED "
+	} else if evt == defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_DELETED {
+		evtStr = " POLICY_EXTENDED_COMMUNITY_SET_DELETED "
+	} else if evt == defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_UPDATED {
+		evtStr = " POLICY_EXTENDED_COMMUNITY_SET_UPDATED "
+	}
+	eventInfo := evtStr + " for extended community set " + cfg.Name
+	logger.Debug("Adding ", evtStr, " to notification channel")
+	ribdServiceHandler.NotificationChannel <- NotificationMsg{PUB, buf, eventInfo}
+}
+
+/*
+   Function to send PolicyASPathSet Notification
+*/
+func (ribdServiceHandler *RIBDServer) PolicyASPathSetNotificationSend(PUB *nanomsg.PubSocket, cfg ribd.PolicyASPathSet, evt int) {
+	logger.Info("PolicyASPathSetNotificationSend")
+	msgBuf := objects.PolicyASPathSet{}
+	objects.ConvertThriftToribdPolicyASPathSetObj(&cfg, &msgBuf)
+	msgbufbytes, err := json.Marshal(msgBuf)
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	buf, err := json.Marshal(msg)
+	if err != nil {
+		logger.Err("Error in marshalling Json")
+		return
+	}
+	var evtStr string
+	if evt == defs.NOTIFY_POLICY_ASPATH_SET_CREATED {
+		evtStr = " POLICY_ASPATH_SET_CREATED "
+	} else if evt == defs.NOTIFY_POLICY_ASPATH_SET_DELETED {
+		evtStr = " POLICY_ASPATH_SET_DELETED "
+	} else if evt == defs.NOTIFY_POLICY_ASPATH_SET_UPDATED {
+		evtStr = " POLICY_ASPATH_SET_UPDATED "
+	}
+	eventInfo := evtStr + " for aspath set " + cfg.Name
 	logger.Debug("Adding ", evtStr, " to notification channel")
 	ribdServiceHandler.NotificationChannel <- NotificationMsg{PUB, buf, eventInfo}
 }
@@ -87,18 +168,18 @@ func (ribdServiceHandler *RIBDServer) PolicyConditionNotificationSend(PUB *nanom
 				MasklengthRange : cfg.MasklengthRange
 	}*/
 	msgbufbytes, err := json.Marshal(msgBuf)
-	msg := ribdCommonDefs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		logger.Err("Error in marshalling Json")
 		return
 	}
 	var evtStr string
-	if evt == ribdCommonDefs.NOTIFY_POLICY_CONDITION_CREATED {
+	if evt == defs.NOTIFY_POLICY_CONDITION_CREATED {
 		evtStr = " POLICY_CONDITION_CREATED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_CONDITION_DELETED {
+	} else if evt == defs.NOTIFY_POLICY_CONDITION_DELETED {
 		evtStr = " POLICY_CONDITION_DELETED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_CONDITION_UPDATED {
+	} else if evt == defs.NOTIFY_POLICY_CONDITION_UPDATED {
 		evtStr = " POLICY_CONDITION_UPDATED "
 	}
 	eventInfo := evtStr + " for condition " + cfg.Name + " " + " type " + cfg.ConditionType
@@ -123,18 +204,18 @@ func (ribdServiceHandler *RIBDServer) PolicyStmtNotificationSend(PUB *nanomsg.Pu
 			msgBuf.Conditions = append(msgBuf.Conditions,cfg.Conditions[i])
 		}*/
 	msgbufbytes, err := json.Marshal(msgBuf)
-	msg := ribdCommonDefs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		logger.Err("Error in marshalling Json")
 		return
 	}
 	var evtStr string
-	if evt == ribdCommonDefs.NOTIFY_POLICY_STMT_CREATED {
+	if evt == defs.NOTIFY_POLICY_STMT_CREATED {
 		evtStr = " POLICY_STMT_CREATED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_STMT_DELETED {
+	} else if evt == defs.NOTIFY_POLICY_STMT_DELETED {
 		evtStr = " POLICY_STMT_DELETED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_STMT_UPDATED {
+	} else if evt == defs.NOTIFY_POLICY_STMT_UPDATED {
 		evtStr = " POLICY_STMT_UPDATED "
 	}
 	eventInfo := evtStr + " for policy stmt " + cfg.Name
@@ -163,18 +244,18 @@ func (ribdServiceHandler *RIBDServer) PolicyDefinitionNotificationSend(PUB *nano
 			msgBuf.PolicyDefinitionStatements = append(msgBuf.PolicyDefinitionStatements, policyDefinitionStatement)
 		}*/
 	msgbufbytes, err := json.Marshal(msgBuf)
-	msg := ribdCommonDefs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
+	msg := defs.RibdNotifyMsg{MsgType: uint16(evt), MsgBuf: msgbufbytes}
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		logger.Err("Error in marshalling Json")
 		return
 	}
 	var evtStr string
-	if evt == ribdCommonDefs.NOTIFY_POLICY_DEFINITION_CREATED {
+	if evt == defs.NOTIFY_POLICY_DEFINITION_CREATED {
 		evtStr = " POLICY_DEFINITION_CREATED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_DEFINITION_DELETED {
+	} else if evt == defs.NOTIFY_POLICY_DEFINITION_DELETED {
 		evtStr = " POLICY_DEFINITION_DELETED "
-	} else if evt == ribdCommonDefs.NOTIFY_POLICY_DEFINITION_UPDATED {
+	} else if evt == defs.NOTIFY_POLICY_DEFINITION_UPDATED {
 		evtStr = "POLICY_DEFINITION_UPDATED"
 	}
 	eventInfo := evtStr + " for policy " + cfg.Name
@@ -199,113 +280,197 @@ func (ribdServiceHandler *RIBDServer) StartPolicyServer() {
 		case conf := <-ribdServiceHandler.PolicyConfCh:
 			logger.Debug("received message on PolicyConfCh channel, op: ", conf.Op, " policyconfdone:", ribdServiceHandler.PolicyConfDone)
 			var err error
-			if conf.Op == "addPolicyCondition" {
+			if conf.Op == defs.AddPolicyCondition {
 				_, err = ribdServiceHandler.ProcessPolicyConditionConfigCreate(conf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCondition)), ribdCommonDefs.NOTIFY_POLICY_CONDITION_CREATED)
+					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCondition)), defs.NOTIFY_POLICY_CONDITION_CREATED)
 					_, err = ribdServiceHandler.ProcessPolicyConditionConfigCreate(conf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "delPolicyCondition" {
+			} else if conf.Op == defs.DelPolicyCondition {
 				_, err = ribdServiceHandler.ProcessPolicyConditionConfigDelete(conf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCondition)), ribdCommonDefs.NOTIFY_POLICY_CONDITION_DELETED)
+					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCondition)), defs.NOTIFY_POLICY_CONDITION_DELETED)
 					_, err = ribdServiceHandler.ProcessPolicyConditionConfigDelete(conf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "updatePolicyCondition" {
+			} else if conf.Op == defs.UpdatePolicyCondition {
 				logger.Debug("Received updatePolicyCondition on policy server channel")
 				var err error
 				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
 					err = ribdServiceHandler.ProcessPolicyConditionConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyCondition), conf.NewConfigObject.(*ribd.PolicyCondition), conf.AttrSet, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCondition)), ribdCommonDefs.NOTIFY_POLICY_CONDITION_UPDATED)
+						ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCondition)), defs.NOTIFY_POLICY_CONDITION_UPDATED)
 						ribdServiceHandler.ProcessPolicyConditionConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyCondition), conf.NewConfigObject.(*ribd.PolicyCondition), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
 					}
 				}
-			} else if conf.Op == "addPolicyPrefixSet" {
+			} else if conf.Op == defs.AddPolicyPrefixSet {
 				_, err = ribdServiceHandler.ProcessPolicyPrefixSetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_CREATED)
+					ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), defs.NOTIFY_POLICY_PREFIX_SET_CREATED)
 					_, err = ribdServiceHandler.ProcessPolicyPrefixSetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "delPolicyPrefixSet" {
+			} else if conf.Op == defs.DelPolicyPrefixSet {
 				_, err = ribdServiceHandler.ProcessPolicyPrefixSetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_DELETED)
+					ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), defs.NOTIFY_POLICY_PREFIX_SET_DELETED)
 					_, err = ribdServiceHandler.ProcessPolicyPrefixSetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "updatePolicyPrefixSet" {
+			} else if conf.Op == defs.UpdatePolicyPrefixSet {
 				logger.Debug("Received updatePolicyPrefixSet on policy server channel")
 				var err error
 				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
 					err = ribdServiceHandler.ProcessPolicyPrefixSetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), conf.NewConfigObject.(*ribd.PolicyPrefixSet), conf.AttrSet, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_UPDATED)
+						ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), defs.NOTIFY_POLICY_PREFIX_SET_UPDATED)
 						ribdServiceHandler.ProcessPolicyPrefixSetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), conf.NewConfigObject.(*ribd.PolicyPrefixSet), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
 					}
 				} else {
 					err = ribdServiceHandler.ProcessPolicyPrefixSetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), conf.NewConfigObject.(*ribd.PolicyPrefixSet), conf.PatchOp, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), ribdCommonDefs.NOTIFY_POLICY_PREFIX_SET_UPDATED)
+						ribdServiceHandler.PolicyPrefixSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyPrefixSet)), defs.NOTIFY_POLICY_PREFIX_SET_UPDATED)
 						ribdServiceHandler.ProcessPolicyPrefixSetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyPrefixSet), conf.NewConfigObject.(*ribd.PolicyPrefixSet), conf.PatchOp, ribdServiceHandler.PolicyEngineDB)
 					}
 				}
-			} else if conf.Op == "addPolicyStmt" {
+			} else if conf.Op == defs.AddPolicyCommunitySet {
+				_, err = ribdServiceHandler.ProcessPolicyCommunitySetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), GlobalPolicyEngineDB)
+				if err == nil {
+					ribdServiceHandler.PolicyCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCommunitySet)), defs.NOTIFY_POLICY_COMMUNITY_SET_CREATED)
+					_, err = ribdServiceHandler.ProcessPolicyCommunitySetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), ribdServiceHandler.PolicyEngineDB)
+				}
+			} else if conf.Op == defs.DelPolicyCommunitySet {
+				_, err = ribdServiceHandler.ProcessPolicyCommunitySetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), GlobalPolicyEngineDB)
+				if err == nil {
+					ribdServiceHandler.PolicyCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCommunitySet)), defs.NOTIFY_POLICY_COMMUNITY_SET_DELETED)
+					_, err = ribdServiceHandler.ProcessPolicyCommunitySetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), ribdServiceHandler.PolicyEngineDB)
+				}
+			} else if conf.Op == defs.UpdatePolicyCommunitySet {
+				logger.Debug("Received updatePolicyCommunitySet on policy server channel")
+				var err error
+				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
+					err = ribdServiceHandler.ProcessPolicyCommunitySetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), conf.NewConfigObject.(*ribd.PolicyCommunitySet), conf.AttrSet, GlobalPolicyEngineDB)
+					if err == nil {
+						ribdServiceHandler.PolicyCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCommunitySet)), defs.NOTIFY_POLICY_COMMUNITY_SET_UPDATED)
+						ribdServiceHandler.ProcessPolicyCommunitySetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), conf.NewConfigObject.(*ribd.PolicyCommunitySet), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
+					}
+				} else {
+					err = ribdServiceHandler.ProcessPolicyCommunitySetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), conf.NewConfigObject.(*ribd.PolicyCommunitySet), conf.PatchOp, GlobalPolicyEngineDB)
+					if err == nil {
+						ribdServiceHandler.PolicyCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyCommunitySet)), defs.NOTIFY_POLICY_COMMUNITY_SET_UPDATED)
+						ribdServiceHandler.ProcessPolicyCommunitySetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyCommunitySet), conf.NewConfigObject.(*ribd.PolicyCommunitySet), conf.PatchOp, ribdServiceHandler.PolicyEngineDB)
+					}
+				}
+			} else if conf.Op == defs.AddPolicyExtendedCommunitySet {
+				_, err = ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), GlobalPolicyEngineDB)
+				if err == nil {
+					ribdServiceHandler.PolicyExtendedCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet)), defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_CREATED)
+					_, err = ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), ribdServiceHandler.PolicyEngineDB)
+				}
+			} else if conf.Op == defs.DelPolicyExtendedCommunitySet {
+				_, err = ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), GlobalPolicyEngineDB)
+				if err == nil {
+					ribdServiceHandler.PolicyExtendedCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet)), defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_DELETED)
+					_, err = ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), ribdServiceHandler.PolicyEngineDB)
+				}
+			} else if conf.Op == defs.UpdatePolicyExtendedCommunitySet {
+				logger.Debug("Received updatePolicyExtendedCommunitySet on policy server channel")
+				var err error
+				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
+					err = ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.NewConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.AttrSet, GlobalPolicyEngineDB)
+					if err == nil {
+						ribdServiceHandler.PolicyExtendedCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet)), defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_UPDATED)
+						ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.NewConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
+					}
+				} else {
+					err = ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.NewConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.PatchOp, GlobalPolicyEngineDB)
+					if err == nil {
+						ribdServiceHandler.PolicyExtendedCommunitySetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet)), defs.NOTIFY_POLICY_EXTENDED_COMMUNITY_SET_UPDATED)
+						ribdServiceHandler.ProcessPolicyExtendedCommunitySetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.NewConfigObject.(*ribd.PolicyExtendedCommunitySet), conf.PatchOp, ribdServiceHandler.PolicyEngineDB)
+					}
+				}
+			} else if conf.Op == defs.AddPolicyASPathSet {
+				_, err = ribdServiceHandler.ProcessPolicyASPathSetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyASPathSet), GlobalPolicyEngineDB)
+				if err == nil {
+					ribdServiceHandler.PolicyASPathSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyASPathSet)), defs.NOTIFY_POLICY_ASPATH_SET_CREATED)
+					_, err = ribdServiceHandler.ProcessPolicyASPathSetConfigCreate(conf.OrigConfigObject.(*ribd.PolicyASPathSet), ribdServiceHandler.PolicyEngineDB)
+				}
+			} else if conf.Op == defs.DelPolicyASPathSet {
+				_, err = ribdServiceHandler.ProcessPolicyASPathSetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyASPathSet), GlobalPolicyEngineDB)
+				if err == nil {
+					ribdServiceHandler.PolicyASPathSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyASPathSet)), defs.NOTIFY_POLICY_ASPATH_SET_DELETED)
+					_, err = ribdServiceHandler.ProcessPolicyASPathSetConfigDelete(conf.OrigConfigObject.(*ribd.PolicyASPathSet), ribdServiceHandler.PolicyEngineDB)
+				}
+			} else if conf.Op == defs.UpdatePolicyASPathSet {
+				logger.Debug("Received updatePolicyASPathSet on policy server channel")
+				var err error
+				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
+					err = ribdServiceHandler.ProcessPolicyASPathSetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyASPathSet), conf.NewConfigObject.(*ribd.PolicyASPathSet), conf.AttrSet, GlobalPolicyEngineDB)
+					if err == nil {
+						ribdServiceHandler.PolicyASPathSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyASPathSet)), defs.NOTIFY_POLICY_ASPATH_SET_UPDATED)
+						ribdServiceHandler.ProcessPolicyASPathSetConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyASPathSet), conf.NewConfigObject.(*ribd.PolicyASPathSet), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
+					}
+				} else {
+					err = ribdServiceHandler.ProcessPolicyASPathSetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyASPathSet), conf.NewConfigObject.(*ribd.PolicyASPathSet), conf.PatchOp, GlobalPolicyEngineDB)
+					if err == nil {
+						ribdServiceHandler.PolicyASPathSetNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyASPathSet)), defs.NOTIFY_POLICY_ASPATH_SET_UPDATED)
+						ribdServiceHandler.ProcessPolicyASPathSetConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyASPathSet), conf.NewConfigObject.(*ribd.PolicyASPathSet), conf.PatchOp, ribdServiceHandler.PolicyEngineDB)
+					}
+				}
+			} else if conf.Op == defs.AddPolicyStmt {
 				err = ribdServiceHandler.ProcessPolicyStmtConfigCreate(conf.OrigConfigObject.(*ribd.PolicyStmt), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), ribdCommonDefs.NOTIFY_POLICY_STMT_CREATED)
+					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), defs.NOTIFY_POLICY_STMT_CREATED)
 					err = ribdServiceHandler.ProcessPolicyStmtConfigCreate(conf.OrigConfigObject.(*ribd.PolicyStmt), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "delPolicyStmt" {
+			} else if conf.Op == defs.DelPolicyStmt {
 				err = ribdServiceHandler.ProcessPolicyStmtConfigDelete(conf.OrigConfigObject.(*ribd.PolicyStmt), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), ribdCommonDefs.NOTIFY_POLICY_STMT_DELETED)
+					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), defs.NOTIFY_POLICY_STMT_DELETED)
 					err = ribdServiceHandler.ProcessPolicyStmtConfigDelete(conf.OrigConfigObject.(*ribd.PolicyStmt), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "updatePolicyStmt" {
+			} else if conf.Op == defs.UpdatePolicyStmt {
 				logger.Debug("Received updatePolicyStmt on policy server channel")
 				var err error
 				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
 					err = ribdServiceHandler.ProcessPolicyStmtConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyStmt), conf.NewConfigObject.(*ribd.PolicyStmt), conf.AttrSet, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), ribdCommonDefs.NOTIFY_POLICY_STMT_UPDATED)
+						ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), defs.NOTIFY_POLICY_STMT_UPDATED)
 						ribdServiceHandler.ProcessPolicyStmtConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyStmt), conf.NewConfigObject.(*ribd.PolicyStmt), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
 					}
 				} else {
 					err = ribdServiceHandler.ProcessPolicyStmtConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyStmt), conf.NewConfigObject.(*ribd.PolicyStmt), conf.PatchOp, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), ribdCommonDefs.NOTIFY_POLICY_STMT_UPDATED)
+						ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyStmt)), defs.NOTIFY_POLICY_STMT_UPDATED)
 						ribdServiceHandler.ProcessPolicyStmtConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyStmt), conf.NewConfigObject.(*ribd.PolicyStmt), conf.PatchOp, ribdServiceHandler.PolicyEngineDB)
 					}
 				}
-			} else if conf.Op == "addPolicyDefinition" {
+			} else if conf.Op == defs.AddPolicyDefinition {
 				err = ribdServiceHandler.ProcessPolicyDefinitionConfigCreate(conf.OrigConfigObject.(*ribd.PolicyDefinition), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), ribdCommonDefs.NOTIFY_POLICY_DEFINITION_CREATED)
+					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), defs.NOTIFY_POLICY_DEFINITION_CREATED)
 					err = ribdServiceHandler.ProcessPolicyDefinitionConfigCreate(conf.OrigConfigObject.(*ribd.PolicyDefinition), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "delPolicyDefinition" {
+			} else if conf.Op == defs.DelPolicyDefinition {
 				err = ribdServiceHandler.ProcessPolicyDefinitionConfigDelete(conf.OrigConfigObject.(*ribd.PolicyDefinition), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), ribdCommonDefs.NOTIFY_POLICY_DEFINITION_DELETED)
+					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), defs.NOTIFY_POLICY_DEFINITION_DELETED)
 					err = ribdServiceHandler.ProcessPolicyDefinitionConfigDelete(conf.OrigConfigObject.(*ribd.PolicyDefinition), ribdServiceHandler.PolicyEngineDB)
 				}
-			} else if conf.Op == "updatePolicyDefinition" {
+			} else if conf.Op == defs.UpdatePolicyDefinition {
 				logger.Debug("Received updatePolicyDefinition on policy server channel")
 				var err error
 				if conf.PatchOp == nil || len(conf.PatchOp) == 0 {
 					err = ribdServiceHandler.ProcessPolicyDefinitionConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyDefinition), conf.NewConfigObject.(*ribd.PolicyDefinition), conf.AttrSet, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), ribdCommonDefs.NOTIFY_POLICY_DEFINITION_UPDATED)
+						ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), defs.NOTIFY_POLICY_DEFINITION_UPDATED)
 						ribdServiceHandler.ProcessPolicyDefinitionConfigUpdate(conf.OrigConfigObject.(*ribd.PolicyDefinition), conf.NewConfigObject.(*ribd.PolicyDefinition), conf.AttrSet, ribdServiceHandler.PolicyEngineDB)
 					}
 				} else {
 					err = ribdServiceHandler.ProcessPolicyDefinitionConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyDefinition), conf.NewConfigObject.(*ribd.PolicyDefinition), conf.PatchOp, GlobalPolicyEngineDB)
 					if err == nil {
-						ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), ribdCommonDefs.NOTIFY_POLICY_DEFINITION_UPDATED)
+						ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), defs.NOTIFY_POLICY_DEFINITION_UPDATED)
 						ribdServiceHandler.ProcessPolicyDefinitionConfigPatchUpdate(conf.OrigConfigObject.(*ribd.PolicyDefinition), conf.NewConfigObject.(*ribd.PolicyDefinition), conf.PatchOp, ribdServiceHandler.PolicyEngineDB)
 					}
 				}
-			} else if conf.Op == "applyPolicy" {
+			} else if conf.Op == defs.ApplyPolicy {
 				ribdServiceHandler.UpdateApplyPolicyList(conf.PolicyList.ApplyList, conf.PolicyList.UndoList, true, ribdServiceHandler.PolicyEngineDB)
 				ribdServiceHandler.UpdateApplyPolicyList(conf.PolicyList.ApplyList, conf.PolicyList.UndoList, false, GlobalPolicyEngineDB)
 			}
@@ -331,13 +496,13 @@ func (ribdServiceHandler *RIBDServer) StartPolicyServer() {
 			if condConf.Op == "add" {
 				_, err := ribdServiceHandler.ProcessPolicyConditionConfigCreate(condConf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(condConf.OrigConfigObject.(*ribd.PolicyCondition)), ribdCommonDefs.NOTIFY_POLICY_CONDITION_CREATED)
+					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(condConf.OrigConfigObject.(*ribd.PolicyCondition)), defs.NOTIFY_POLICY_CONDITION_CREATED)
 					ribdServiceHandler.ProcessPolicyConditionConfigCreate(condConf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.PolicyEngineDB)
 				}
 			} else if condConf.Op == "del" {
 				_, err := ribdServiceHandler.ProcessPolicyConditionConfigDelete(condConf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(condConf.OrigConfigObject.(*ribd.PolicyCondition)), ribdCommonDefs.NOTIFY_POLICY_CONDITION_DELETED)
+					ribdServiceHandler.PolicyConditionNotificationSend(RIBD_POLICY_PUB, *(condConf.OrigConfigObject.(*ribd.PolicyCondition)), defs.NOTIFY_POLICY_CONDITION_DELETED)
 					ribdServiceHandler.ProcessPolicyConditionConfigDelete(condConf.OrigConfigObject.(*ribd.PolicyCondition), ribdServiceHandler.PolicyEngineDB)
 				}
 			}
@@ -346,13 +511,13 @@ func (ribdServiceHandler *RIBDServer) StartPolicyServer() {
 			if stmtConf.Op == "add" {
 				err := ribdServiceHandler.ProcessPolicyStmtConfigCreate(stmtConf.OrigConfigObject.(*ribd.PolicyStmt), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(stmtConf.OrigConfigObject.(*ribd.PolicyStmt)), ribdCommonDefs.NOTIFY_POLICY_STMT_CREATED)
+					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(stmtConf.OrigConfigObject.(*ribd.PolicyStmt)), defs.NOTIFY_POLICY_STMT_CREATED)
 					ribdServiceHandler.ProcessPolicyStmtConfigCreate(stmtConf.OrigConfigObject.(*ribd.PolicyStmt), ribdServiceHandler.PolicyEngineDB)
 				}
 			} else if stmtConf.Op == "del" {
 				err := ribdServiceHandler.ProcessPolicyStmtConfigDelete(stmtConf.OrigConfigObject.(*ribd.PolicyStmt), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(stmtConf.OrigConfigObject.(*ribd.PolicyStmt)), ribdCommonDefs.NOTIFY_POLICY_STMT_DELETED)
+					ribdServiceHandler.PolicyStmtNotificationSend(RIBD_POLICY_PUB, *(stmtConf.OrigConfigObject.(*ribd.PolicyStmt)), defs.NOTIFY_POLICY_STMT_DELETED)
 					ribdServiceHandler.ProcessPolicyStmtConfigDelete(stmtConf.OrigConfigObject.(*ribd.PolicyStmt), ribdServiceHandler.PolicyEngineDB)
 				}
 			}
@@ -361,13 +526,13 @@ func (ribdServiceHandler *RIBDServer) StartPolicyServer() {
 			if conf.Op == "add" {
 				err := ribdServiceHandler.ProcessPolicyDefinitionConfigCreate(conf.OrigConfigObject.(*ribd.PolicyDefinition), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), ribdCommonDefs.NOTIFY_POLICY_DEFINITION_CREATED)
+					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), defs.NOTIFY_POLICY_DEFINITION_CREATED)
 					ribdServiceHandler.ProcessPolicyDefinitionConfigCreate(conf.OrigConfigObject.(*ribd.PolicyDefinition), ribdServiceHandler.PolicyEngineDB)
 				}
 			} else if conf.Op == "del" {
 				err := ribdServiceHandler.ProcessPolicyDefinitionConfigDelete(conf.OrigConfigObject.(*ribd.PolicyDefinition), GlobalPolicyEngineDB)
 				if err == nil {
-					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), ribdCommonDefs.NOTIFY_POLICY_DEFINITION_DELETED)
+					ribdServiceHandler.PolicyDefinitionNotificationSend(RIBD_POLICY_PUB, *(conf.OrigConfigObject.(*ribd.PolicyDefinition)), defs.NOTIFY_POLICY_DEFINITION_DELETED)
 					ribdServiceHandler.ProcessPolicyDefinitionConfigDelete(conf.OrigConfigObject.(*ribd.PolicyDefinition), ribdServiceHandler.PolicyEngineDB)
 				}
 			}

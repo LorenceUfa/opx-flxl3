@@ -24,52 +24,48 @@
 package rpc
 
 import (
-	//"l3/ospfv2/api"
-	"errors"
+	"l3/ospfv2/api"
 	"ospfv2d"
 )
 
 func (rpcHdl *rpcServiceHandler) GetOspfv2LsdbState(LSType string, LsId, AreaId, AdvRouterId string) (*ospfv2d.Ospfv2LsdbState, error) {
-	/*
-		var convObj *ospfv2d.Ospfv2LsdbState
-		lsType, err := convertFromRPCFmtLSType(LSType)
-		if err != nil {
-			return nil, err
-		}
-		lsId, err := convertDotNotationToUint32(LsId)
-		if err != nil {
-			return nil, err
-		}
-		areaId, err := convertDotNotationToUint32(AreaId)
-		if err != nil {
-			return nil, err
-		}
-		advRouterId, err := convertDotNotationToUint32(AdvRouterId)
-		if err != nil {
-			return nil, err
-		}
-		obj, err := api.GetOspfv2LsdbState(lsType, lsId, areaId, advRouterId)
-		if err == nil {
-			convObj = convertToRPCFmtOspfv2LsdbState(obj)
-		}
-		return convObj, err
-	*/
-	return nil, errors.New("This call should not come to Ospfv2 Daemon")
+	var convObj *ospfv2d.Ospfv2LsdbState
+	lsType, err := convertFromRPCFmtLSType(LSType)
+	if err != nil {
+		return nil, err
+	}
+	lsId, err := convertDotNotationToUint32(LsId)
+	if err != nil {
+		return nil, err
+	}
+	areaId, err := convertDotNotationToUint32(AreaId)
+	if err != nil {
+		return nil, err
+	}
+	advRouterId, err := convertDotNotationToUint32(AdvRouterId)
+	if err != nil {
+		return nil, err
+	}
+	obj, err := api.GetOspfv2LsdbState(lsType, lsId, areaId, advRouterId)
+	if err == nil {
+		convObj = convertToRPCFmtOspfv2LsdbState(obj)
+	}
+	return convObj, err
 }
 
 func (rpcHdl *rpcServiceHandler) GetBulkOspfv2LsdbState(fromIdx, count ospfv2d.Int) (*ospfv2d.Ospfv2LsdbStateGetInfo, error) {
-	/*
-			var getBulkInfo ospfv2d.Ospfv2LsdbStateGetInfo
-			info, err := api.GetBulkOspfv2LsdbState(int(fromIdx), int(count))
-			getBulkInfo.StartIdx = fromIdx
-			getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
-			getBulkInfo.More = info.More
-			getBulkInfo.Count = ospfv2d.Int(len(info.List))
-			for idx := 0; idx < len(info.List); idx++ {
-				getBulkInfo.Ospfv2LsdbStateList = append(getBulkInfo.Ospfv2LsdbStateList,
-					convertToRPCFmtOspfv2LsdbState(info.List[idx]))
-			}
+	var getBulkInfo ospfv2d.Ospfv2LsdbStateGetInfo
+	info, err := api.GetBulkOspfv2LsdbState(int(fromIdx), int(count))
+	if info == nil || err != nil {
 		return &getBulkInfo, err
-	*/
-	return nil, errors.New("This call should not come to Ospfv2 Daemon")
+	}
+	getBulkInfo.StartIdx = fromIdx
+	getBulkInfo.EndIdx = ospfv2d.Int(info.EndIdx)
+	getBulkInfo.More = info.More
+	getBulkInfo.Count = ospfv2d.Int(len(info.List))
+	for idx := 0; idx < len(info.List); idx++ {
+		getBulkInfo.Ospfv2LsdbStateList = append(getBulkInfo.Ospfv2LsdbStateList,
+			convertToRPCFmtOspfv2LsdbState(info.List[idx]))
+	}
+	return &getBulkInfo, err
 }

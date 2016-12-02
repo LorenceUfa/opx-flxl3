@@ -25,8 +25,14 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"io/ioutil"
+	"os"
+	"os/signal"
+	"runtime"
+	"runtime/debug"
+	"syscall"
 	"utils/dbutils"
 	"utils/logging"
 )
@@ -66,13 +72,18 @@ type OSPFV2Server struct {
 
 	globalData      GlobalStruct
 	IntfConfMap     map[IntfConfKey]IntfConf
+	NbrConfMap      map[NbrConfKey]NbrConf
 	AreaConfMap     map[uint32]AreaConf //Key AreaId
 	MessagingChData MessagingChStruct
 
+	NbrConfData    NbrStruct
 	LsdbData       LsdbStruct
+	FloodData      FloodStruct
 	SPFData        SPFStruct
 	RoutingTblData RoutingTblStruct
 	SummaryLsDb    map[LsdbKey]SummaryLsaMap
+
+	GetBulkData GetBulkStruct
 }
 
 func NewOspfv2Server(initParams InitParams) (*OSPFV2Server, error) {
@@ -129,26 +140,60 @@ func (server *OSPFV2Server) initMessagingChData() {
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdLsaMsgCh = make(chan RecvdLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.RecvdSelfLsaMsgCh = make(chan RecvdSelfLsaMsg)
 	server.MessagingChData.NbrFSMToLsdbChData.UpdateSelfNetworkLSACh = make(chan UpdateSelfNetworkLSAMsg)
+	server.MessagingChData.NbrFSMToLsdbChData.NbrDeadMsgCh = make(chan NbrDeadMsg)
 	server.MessagingChData.LsdbToFloodChData.LsdbToFloodLSACh = make(chan []LsdbToFloodLSAMsg)
+	server.MessagingChData.NbrFSMToFloodChData.LsaFloodCh = make(chan NbrToFloodMsg)
 	server.MessagingChData.LsdbToSPFChData.StartSPF = make(chan bool)
 	server.MessagingChData.SPFToLsdbChData.DoneSPF = make(chan bool)
+	server.MessagingChData.ServerToLsdbChData.RefreshLsdbSliceCh = make(chan bool)
+	server.MessagingChData.ServerToLsdbChData.RouteInfoDataUpdateCh = make(chan RouteInfoDataUpdateMsg)
+	server.MessagingChData.ServerToLsdbChData.InitAreaLsdbCh = make(chan uint32)
+	server.MessagingChData.LsdbToServerChData.InitAreaLsdbDoneCh = make(chan bool)
+	server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh = make(chan bool)
+	server.MessagingChData.RouteTblToDBClntChData.RouteAddMsgCh = make(chan RouteAddMsg, 100)
+	server.MessagingChData.RouteTblToDBClntChData.RouteDelMsgCh = make(chan RouteDelMsg, 100)
+	server.MessagingChData.ServerToDBClntChData.FlushRouteFromDBCh = make(chan bool)
+	server.MessagingChData.DBClntToServerChData.FlushRouteFromDBDoneCh = make(chan bool)
+}
+
+func (server *OSPFV2Server) SigHandler(sigChan <-chan os.Signal) {
+	server.logger.Debug("Inside sigHandler....")
+	signal := <-sigChan
+	switch signal {
+	case syscall.SIGHUP:
+		server.logger.Debug("Received SIGHUP signal")
+		server.SendFlushRouteMsgToDBClnt()
+		<-server.MessagingChData.DBClntToServerChData.FlushRouteFromDBDoneCh
+		debug.PrintStack()
+		var memStat runtime.MemStats
+		runtime.ReadMemStats(&memStat)
+		server.logger.Info("===Memstat===", memStat)
+	default:
+		server.logger.Err("Unhandled signal : ", signal)
+	}
 }
 
 func (server *OSPFV2Server) initServer() error {
 	server.logger.Info("Starting OspfV2 server")
+	sigChan := make(chan os.Signal, 1)
+	signalList := []os.Signal{syscall.SIGHUP}
+	signal.Notify(sigChan, signalList...)
+	go server.SigHandler(sigChan)
 	server.initMessagingChData()
 	server.initAsicdComm()
 	server.initRibdComm()
 	server.ConnectToServers()
 	server.StartSubscribers()
-	err := server.initAsicdForRxMulticastPkt()
-	if err != nil {
-		server.logger.Err("Unable to initialize asicd for receiving multicast packets", err)
-		return err
-	}
 	server.initInfra()
 	server.buildInfra()
-
+	//TODO:server.DeleteRouteFromDB()
+	server.InitGetBulkSliceRefresh()
+	go server.GetBulkSliceRefresh()
+	if server.dbHdl == nil {
+		server.logger.Err("DB Handle is nil")
+		return errors.New("DB Handle is nil")
+	}
+	go server.StartDBClient()
 	return nil
 }
 
@@ -257,6 +302,18 @@ func (server *OSPFV2Server) handleRPCRequest(req *ServerRequest) {
 			retObj.BulkInfo, retObj.Err = server.getBulkNbrState(val.FromIdx, val.Count)
 		}
 		server.ReplyChan <- interface{}(&retObj)
+	case GET_OSPFV2_LSDB_STATE:
+		var retObj GetOspfv2LsdbStateOutArgs
+		if val, ok := req.Data.(*GetOspfv2LsdbStateInArgs); ok {
+			retObj.Obj, retObj.Err = server.getLsdbState(val.LSType, val.LSId, val.AreaId, val.AdvRtrId)
+		}
+		server.ReplyChan <- interface{}(&retObj)
+	case GET_BULK_OSPFV2_LSDB_STATE:
+		var retObj GetBulkOspfv2LsdbStateOutArgs
+		if val, ok := req.Data.(*GetBulkInArgs); ok {
+			retObj.BulkInfo, retObj.Err = server.getBulkLsdbState(val.FromIdx, val.Count)
+		}
+		server.ReplyChan <- interface{}(&retObj)
 	default:
 		server.logger.Err("Error: Server received unrecognized request -", req.Op)
 	}
@@ -281,6 +338,19 @@ func (server *OSPFV2Server) StartOspfv2Server() {
 			server.processRibdNotification(ribRxBuf)
 		case <-server.ribdComm.ribdSubSocketErrCh:
 			server.logger.Err("Invalid Message from Ribd")
+		case <-server.GetBulkData.SliceRefreshCh:
+			//Refresh IntfConf Slice
+			server.RefreshIntfConfSlice()
+			//Refresh NbrConf Slice
+			server.RefreshNbrConfSlice()
+			//Refresh AreaConf Slice
+			server.RefreshAreaConfSlice()
+			//Refresh Lsdb Slice
+			server.SendMsgToLsdbToRefreshSlice()
+			<-server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh
+			server.logger.Info("Ospf GetBulk Slice Refresh in progress")
+			server.GetBulkData.SliceRefreshDoneCh <- true
+			server.logger.Info("Ospf GetBulk Slice Refresh in done")
 		}
 	}
 }

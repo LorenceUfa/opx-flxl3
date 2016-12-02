@@ -44,12 +44,12 @@ type VrrpInterface struct {
 	Fsm    *fsm.FSM           // Vrrp fsm information
 }
 
-func (intf *VrrpInterface) InitVrrpIntf(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo) {
+func (intf *VrrpInterface) InitVrrpIntf(cfg *common.IntfCfg, l3Info *common.BaseIpInfo, vipCh chan *common.VirtualIpInfo, rxCh chan struct{}, txCh chan struct{}) {
 	debug.Logger.Info("Initializing interface with config:", *cfg, "base ip interface:", *l3Info)
 	intf.Config = cfg
 	intf.L3 = l3Info
 	// Init fsm
-	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh)
+	intf.Fsm = fsm.InitFsm(intf.Config, l3Info, vipCh, rxCh, txCh)
 }
 
 func (intf *VrrpInterface) DeInitVrrpIntf() {
@@ -98,7 +98,7 @@ func (intf *VrrpInterface) UpdateIpState() {
 	}
 }
 
-func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) {
+func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) (oper int) {
 	debug.Logger.Info("Updating interface configuration from old Config:", *intf.Config, "to new Config:", *cfg)
 	intf.Fsm.UpdateConfig(cfg)
 	// Special case for handling interface admin state
@@ -106,10 +106,13 @@ func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) {
 		if cfg.AdminState == false {
 			// tear down fsm as admin state is down
 			intf.StopFsm()
+			oper = common.DELETE
 		} else {
 			// start fsm
 			intf.StartFsm()
+			oper = common.CREATE
 		}
 	}
 	intf.Config = cfg
+	return oper
 }
