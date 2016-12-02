@@ -197,23 +197,23 @@ func GetMPAttrs(pathAttrs []BGPPathAttr) (mpReach *BGPPathAttrMPReachNLRI, mpUnr
 	return mpReach, mpUnreach
 }
 
-func SetLocalPref(updateMsg *BGPMessage, pref uint32) {
-	body := updateMsg.Body.(*BGPUpdate)
-
+func SetLocalPrefToPathAttrs(pathAttrs []BGPPathAttr, pref uint32, overwrite bool) []BGPPathAttr {
 	var idx int
 	var pa BGPPathAttr
-	for idx, pa = range body.PathAttributes {
+	for idx, pa = range pathAttrs {
 		if pa.GetCode() == BGPPathAttrTypeLocalPref {
-			body.PathAttributes[idx].(*BGPPathAttrLocalPref).Value = pref
-			return
+			if overwrite {
+				pathAttrs[idx].(*BGPPathAttrLocalPref).Value = pref
+			}
+			return pathAttrs
 		}
 	}
 
 	idx = -1
-	for idx, pa = range body.PathAttributes {
+	for idx, pa = range pathAttrs {
 		if pa.GetCode() > BGPPathAttrTypeLocalPref {
 			break
-		} else if idx == len(body.PathAttributes)-1 {
+		} else if idx == len(pathAttrs)-1 {
 			idx += 1
 		}
 	}
@@ -221,12 +221,19 @@ func SetLocalPref(updateMsg *BGPMessage, pref uint32) {
 	if idx >= 0 {
 		paLocalPref := NewBGPPathAttrLocalPref()
 		paLocalPref.Value = pref
-		body.PathAttributes = append(body.PathAttributes, paLocalPref)
-		if idx < len(body.PathAttributes)-1 {
-			copy(body.PathAttributes[idx+1:], body.PathAttributes[idx:])
-			body.PathAttributes[idx] = paLocalPref
+		pathAttrs = append(pathAttrs, paLocalPref)
+		if idx < len(pathAttrs)-1 {
+			copy(pathAttrs[idx+1:], pathAttrs[idx:])
+			pathAttrs[idx] = paLocalPref
 		}
 	}
+
+	return pathAttrs
+}
+
+func SetLocalPref(updateMsg *BGPMessage, pref uint32, overwrite bool) {
+	body := updateMsg.Body.(*BGPUpdate)
+	body.PathAttributes = SetLocalPrefToPathAttrs(body.PathAttributes, pref, overwrite)
 }
 
 func SetNextHop(updateMsg *BGPMessage, nextHop net.IP) {

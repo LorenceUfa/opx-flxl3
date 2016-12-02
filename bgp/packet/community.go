@@ -106,6 +106,18 @@ func NewBGPPathAttrCommunity() *BGPPathAttrCommunity {
 	return comm
 }
 
+func AddCommunityToPathAttrs(pa []BGPPathAttr, value uint32) []BGPPathAttr {
+	paCommunity := getTypeFromPathAttrs(pa, BGPPathAttrTypeCommunity)
+	if paCommunity == nil {
+		paCommunity = NewBGPPathAttrCommunity()
+		pa = addPathAttrToPathAttrs(pa, paCommunity)
+	}
+
+	community := paCommunity.(*BGPPathAttrCommunity)
+	community.AddCommunity(value)
+	return pa
+}
+
 type BGPPathAttrExtCommunity struct {
 	BGPPathAttrBase
 	Value []uint64
@@ -181,4 +193,16 @@ func NewBGPPathAttrExtCommunity() *BGPPathAttrExtCommunity {
 	}
 
 	return comm
+}
+
+func AddExtCommunityToPathAttrs(pa []BGPPathAttr, value uint64) []BGPPathAttr {
+	paExtComm := getTypeFromPathAttrs(pa, BGPPathAttrTypeExtCommunity)
+	if paExtComm == nil {
+		paExtComm = NewBGPPathAttrExtCommunity()
+		pa = addPathAttrToPathAttrs(pa, paExtComm)
+	}
+
+	extComm := paExtComm.(*BGPPathAttrExtCommunity)
+	extComm.AddCommunity(value)
+	return pa
 }

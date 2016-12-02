@@ -31,7 +31,7 @@ import (
 	utilspolicy "utils/policy"
 )
 
-func (eng *AdjRibPPolicyEngine) AdjRIBDeleteRoutePolicyState(route *bgprib.AdjRIBRoute, policyName string) {
+func (eng *AdjRibPPolicyEngine) AdjRIBDeleteRoutePolicyState(route *bgprib.AdjRIBPathIdRoute, policyName string) {
 	utils.Logger.Info("deleteRoutePolicyState")
 	found := false
 	idx := 0
@@ -50,19 +50,21 @@ func (eng *AdjRibPPolicyEngine) AdjRIBDeleteRoutePolicyState(route *bgprib.AdjRI
 	route.PolicyList = append(route.PolicyList[:idx], route.PolicyList[idx+1:]...)
 }
 
-func deleteAdjRIBRoutePolicyStateAll(route *bgprib.AdjRIBRoute) {
+func deleteAdjRIBRoutePolicyStateAll(route *bgprib.AdjRIBPathIdRoute) {
 	utils.Logger.Debug("deleteAdjRIBRoutePolicyStateAll")
 	route.PolicyList = nil
+	route.PolicyStmt = ""
 	return
 }
 
-func addAdjRIBRoutePolicyState(route *bgprib.AdjRIBRoute, policy string, policyStmt string) {
+func addAdjRIBRoutePolicyState(route *bgprib.AdjRIBPathIdRoute, policy string, policyStmt string) {
 	utils.Logger.Debug("addAdjRIBRoutePolicyState")
 	route.PolicyList = append(route.PolicyList, policy)
+	route.PolicyStmt = policyStmt
 	return
 }
 
-func UpdateAdjRIBRoutePolicyState(route *bgprib.AdjRIBRoute, op int, policy string, policyStmt string) {
+func UpdateAdjRIBRoutePolicyState(route *bgprib.AdjRIBPathIdRoute, op int, policy string, policyStmt string) {
 	utils.Logger.Debug("UpdateAdjRIBRoutePolicyState - op=%d", op)
 	if op == DelAll {
 		deleteAdjRIBRoutePolicyStateAll(route)
@@ -72,7 +74,7 @@ func UpdateAdjRIBRoutePolicyState(route *bgprib.AdjRIBRoute, op int, policy stri
 	}
 }
 
-func (eng *AdjRibPPolicyEngine) addAdjRIBPolicyRouteMap(route *bgprib.AdjRIBRoute, policy string) {
+func (eng *AdjRibPPolicyEngine) addAdjRIBPolicyRouteMap(route *bgprib.AdjRIBPathIdRoute, policy string) {
 	utils.Logger.Debugf("addAdjRIBPolicyRouteMap - route=%+v, policy=%s", route, policy)
 	var newRoute string
 	newRoute = route.NLRI.GetCIDR()
@@ -122,11 +124,11 @@ func (eng *AdjRibPPolicyEngine) addAdjRIBPolicyRouteMap(route *bgprib.AdjRIBRout
 	eng.PolicyEngine.PolicyDB.Set(patriciaDB.Prefix(policy), tempPolicy)
 }
 
-func deleteAdjRIBPolicyRouteMap(route *bgprib.AdjRIBRoute, policy string) {
+func deleteAdjRIBPolicyRouteMap(route *bgprib.AdjRIBPathIdRoute, policy string) {
 	//fmt.Println("deletePolicyRouteMap")
 }
 
-func (eng *AdjRibPPolicyEngine) UpdateAdjRIBPolicyRouteMap(route *bgprib.AdjRIBRoute, policy string, op int) {
+func (eng *AdjRibPPolicyEngine) UpdateAdjRIBPolicyRouteMap(route *bgprib.AdjRIBPathIdRoute, policy string, op int) {
 	utils.Logger.Debugf("UpdateAdjRIBPolicyRouteMap - op=%d", op)
 	if op == Add {
 		eng.addAdjRIBPolicyRouteMap(route, policy)
