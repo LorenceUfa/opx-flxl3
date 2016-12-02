@@ -176,7 +176,7 @@ const (
 	BGPPathAttrTypeLocalPref
 	BGPPathAttrTypeAtomicAggregate
 	BGPPathAttrTypeAggregator
-	_
+	BGPPathAttrTypeCommunity
 	BGPPathAttrTypeOriginatorId
 	BGPPathAttrTypeClusterList
 	_
@@ -184,7 +184,7 @@ const (
 	_
 	BGPPathAttrTypeMPReachNLRI
 	BGPPathAttrTypeMPUnreachNLRI
-	_
+	BGPPathAttrTypeExtCommunity
 	BGPPathAttrTypeAS4Path
 	BGPPathAttrTypeAS4Aggregator
 	BGPPathAttrTypeUnknown
@@ -247,6 +247,7 @@ var BGPPathAttrTypeFlagsMap = map[BGPPathAttrType][]BGPPathAttrFlag{
 	BGPPathAttrTypeMPUnreachNLRI:   []BGPPathAttrFlag{BGPPathAttrFlagOptional, BGPPathAttrFlagAllMinusExtendedLen},
 	BGPPathAttrTypeAS4Path:         []BGPPathAttrFlag{BGPPathAttrFlagOptional | BGPPathAttrFlagTransitive, BGPPathAttrFlagAllMinusExtendedLen},
 	BGPPathAttrTypeAS4Aggregator:   []BGPPathAttrFlag{BGPPathAttrFlagOptional | BGPPathAttrFlagTransitive, BGPPathAttrFlagAllMinusExtendedLen},
+	BGPPathAttrTypeCommunity:       []BGPPathAttrFlag{BGPPathAttrFlagOptional | BGPPathAttrFlagTransitive, BGPPathAttrFlagAllMinusExtendedLen},
 }
 
 var BGPPathAttrTypeLenMap = map[BGPPathAttrType]uint16{

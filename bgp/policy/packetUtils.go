@@ -21,34 +21,28 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-// adjRibEngine.go
+// packetUtils.go
 package policy
 
 import (
-	bgprib "l3/bgp/rib"
-	"utils/logging"
+	"l3/bgp/packet"
+	"l3/bgp/utils"
 	utilspolicy "utils/policy"
+	"utils/policy/policyCommonDefs"
 )
 
-type AdjRibPolicyExtensions struct {
-	HitCounter    int
-	RouteList     []string
-	RouteInfoList []*bgprib.AdjRIBPathIdRoute
-}
+func ApplyActionsToPacket(pa []packet.BGPPathAttr, stmt utilspolicy.PolicyStmt) []packet.BGPPathAttr {
+	for _, action := range stmt.SetActionsState {
+		utils.Logger.Infof("ApplyActionsToPacket - action:%+v", action)
+		switch action.Attr {
+		case policyCommonDefs.PolicyActionTypeSetLocalPref:
+			pa = packet.SetLocalPrefToPathAttrs(pa, action.LocalPref, true)
 
-type AdjRibPPolicyEngine struct {
-	BasePolicyEngine
-}
+		case policyCommonDefs.PolicyActionTypeSetCommunity:
+			pa = packet.AddCommunityToPathAttrs(pa, action.Community)
 
-func NewAdjRibPolicyEngine(logger *logging.Writer) *AdjRibPPolicyEngine {
-	policyEngine := &AdjRibPPolicyEngine{
-		BasePolicyEngine: NewBasePolicyEngine(logger, utilspolicy.NewPolicyEngineDB(logger)),
+		case policyCommonDefs.PolicyActionTypeSetExtendedCommunity:
+		}
 	}
-	policyEngine.SetGetPolicyEntityMapIndexFunc(getPolicyEnityKey)
-	return policyEngine
-}
-
-func (eng *AdjRibPPolicyEngine) CreatePolicyDefinition(defCfg utilspolicy.PolicyDefinitionConfig) error {
-	defCfg.Extensions = AdjRibPolicyExtensions{}
-	return eng.PolicyEngine.CreatePolicyDefinition(defCfg)
+	return pa
 }

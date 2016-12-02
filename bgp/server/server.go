@@ -854,20 +854,22 @@ func (s *BGPServer) DoesAdjRIBOutRouteExist(params interface{}) bool {
 func (s *BGPServer) ApplyAdjRIBAction(actionInfo interface{}, conditionInfo []interface{}, params interface{},
 	policyStmt utilspolicy.PolicyStmt) {
 	policyParams := params.(*AdjRIBPolicyParams)
-	s.logger.Infof("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v\n", policyParams, policyStmt)
+	policyParams.PolicyStmt = policyStmt
+	s.logger.Infof("BGPServer:ApplyAdjRIBAction - actionInfo=%+v, conditionInfo=%+v, policyParams=%+v, policyStmt=%+v\n",
+		actionInfo, conditionInfo, policyParams, policyStmt)
 	if len(policyStmt.Actions) > 0 {
 		for _, action := range policyStmt.Actions {
 			if action == "permit" {
-				s.logger.Info("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v, action permit\n",
+				s.logger.Infof("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v, action permit\n",
 					policyParams, policyStmt, action)
 				policyParams.Accept = Accept
 				break
 			} else if action == "deny" {
-				s.logger.Info("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v, action deny\n",
+				s.logger.Infof("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v, action deny\n",
 					policyParams, policyStmt, action)
 				policyParams.Accept = Reject
 			} else {
-				s.logger.Err("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v, unknown action=%s\n",
+				s.logger.Errf("BGPServer:ApplyAdjRIBAction - policyParams=%+v, policyStmt=%+v, unknown action=%s\n",
 					policyParams, policyStmt, action)
 			}
 		}
@@ -877,20 +879,21 @@ func (s *BGPServer) ApplyAdjRIBAction(actionInfo interface{}, conditionInfo []in
 func (s *BGPServer) UndoAdjRIBAction(actionInfo interface{}, conditionInfo []interface{}, params interface{},
 	policyStmt utilspolicy.PolicyStmt) {
 	policyParams := params.(*AdjRIBPolicyParams)
-	s.logger.Info("BGPServer:UndoAdjRIBAction - policyParams=%+v policyStmt=%+v\n", policyParams, policyStmt)
+	s.logger.Infof("BGPServer:UndoAdjRIBAction - actionInfo=%+v, conditionInfo=%+v, policyParams=%+v policyStmt=%+v\n",
+		actionInfo, conditionInfo, policyParams, policyStmt)
 	if len(policyStmt.Actions) > 0 {
 		for _, action := range policyStmt.Actions {
 			if action == "permit" {
-				s.logger.Info("BGPServer:UndoAdjRIBAction - policyParams=%+v, policyStmt=%+v, action permit\n",
+				s.logger.Infof("BGPServer:UndoAdjRIBAction - policyParams=%+v, policyStmt=%+v, action permit\n",
 					policyParams, policyStmt, action)
 				policyParams.Accept = Accept
 				break
 			} else if action == "deny" {
-				s.logger.Info("BGPServer:UndoAdjRIBAction - policyParams=%+v, policyStmt=%+v, action deny\n",
+				s.logger.Infof("BGPServer:UndoAdjRIBAction - policyParams=%+v, policyStmt=%+v, action deny\n",
 					policyParams, policyStmt, action)
 				policyParams.Accept = Reject
 			} else {
-				s.logger.Err("BGPServer:UndoAdjRIBAction - policyParams=%+v, policyStmt=%+v, unknown action=%s\n",
+				s.logger.Errf("BGPServer:UndoAdjRIBAction - policyParams=%+v, policyStmt=%+v, unknown action=%s\n",
 					policyParams, policyStmt, action)
 			}
 		}
@@ -1014,7 +1017,7 @@ func (s *BGPServer) TraverseAndReverseAdjRIB(policyData interface{}, pe *bgppoli
 		return
 	}
 
-	var route *bgprib.AdjRIBRoute
+	var route *bgprib.AdjRIBPathIdRoute
 	var peer *Peer
 	for idx := 0; idx < len(policyExtensions.RouteInfoList); idx++ {
 		route = policyExtensions.RouteInfoList[idx]
