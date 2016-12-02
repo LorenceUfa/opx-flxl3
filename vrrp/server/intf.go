@@ -98,7 +98,7 @@ func (intf *VrrpInterface) UpdateIpState() {
 	}
 }
 
-func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) {
+func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) (oper int) {
 	debug.Logger.Info("Updating interface configuration from old Config:", *intf.Config, "to new Config:", *cfg)
 	intf.Fsm.UpdateConfig(cfg)
 	// Special case for handling interface admin state
@@ -106,10 +106,13 @@ func (intf *VrrpInterface) UpdateConfig(cfg *common.IntfCfg) {
 		if cfg.AdminState == false {
 			// tear down fsm as admin state is down
 			intf.StopFsm()
+			oper = common.DELETE
 		} else {
 			// start fsm
 			intf.StartFsm()
+			oper = common.CREATE
 		}
 	}
 	intf.Config = cfg
+	return oper
 }

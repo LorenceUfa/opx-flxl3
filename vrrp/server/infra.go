@@ -309,7 +309,12 @@ func (svr *VrrpServer) HandleVrrpIntfUpdateConfig(cfg *common.IntfCfg) {
 		debug.Logger.Err("Cannot perform update as no interface found in db for key:", key)
 		return
 	}
-	intf.UpdateConfig(cfg)
+	oper := intf.UpdateConfig(cfg)
+	if oper == common.CREATE {
+		svr.CreateVirtualIntf(cfg, intf.GetVMac())
+	} else if oper == common.DELETE {
+		svr.DeleteVirtualIntf(cfg, intf.GetVMac())
+	}
 	svr.Intf[key] = intf
 }
 
