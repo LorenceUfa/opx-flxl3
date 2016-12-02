@@ -27,6 +27,7 @@ package policy
 import (
 	"l3/bgp/packet"
 	"l3/bgp/utils"
+	"strconv"
 	utilspolicy "utils/policy"
 	"utils/policy/policyCommonDefs"
 )
@@ -42,6 +43,12 @@ func ApplyActionsToPacket(pa []packet.BGPPathAttr, stmt utilspolicy.PolicyStmt) 
 			pa = packet.AddCommunityToPathAttrs(pa, action.Community)
 
 		case policyCommonDefs.PolicyActionTypeSetExtendedCommunity:
+			if extComm, err := strconv.ParseUint(action.ExtendedCommunity, 0, 64); err == nil {
+				pa = packet.AddExtCommunityToPathAttrs(pa, extComm)
+			} else {
+				utils.Logger.Errf("ApplyActionsToPacket - Cannot convert ext community %v to uint",
+					action.ExtendedCommunity)
+			}
 		}
 	}
 	return pa
