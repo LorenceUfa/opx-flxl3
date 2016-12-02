@@ -134,7 +134,7 @@ func TestServerDeInit(t *testing.T) {
 }
 
 func goToSleep() {
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(75 * time.Millisecond)
 }
 
 func TestGlobalConfig(t *testing.T) {
@@ -457,6 +457,7 @@ func TestVrrpV4IntfConfig(t *testing.T) {
 	}
 	wantStateInfo.OperState = common.STATE_UP
 	wantStateInfo.MasterDownTimer = 3
+	wantStateInfo.CurrentFsmState = "Backup"
 	goToSleep()
 	v4State = testSvr.GetEntry(key)
 	if v4State == nil {
@@ -615,6 +616,7 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 	// hacking time stamp to be empty
 	v6Entry.LastAdverRx = ""
 	v6Entry.LastAdverTx = ""
+	wantStateInfo.CurrentFsmState = "Backup"
 	if !reflect.DeepEqual(wantStateInfo, v6Entry) {
 		t.Error("Failure getting state information from fsm")
 		t.Error("	    want state info:", wantStateInfo)
@@ -633,6 +635,7 @@ func TestVrrpV6IntfConfig(t *testing.T) {
 	// hacking time stamp to be empty
 	v6State.LastAdverRx = ""
 	v6State.LastAdverTx = ""
+	wantStateInfo.CurrentFsmState = "Initialize"
 	if !reflect.DeepEqual(wantStateInfo, *v6State) {
 		t.Error("Failure getting state information from fsm")
 		t.Error("	    want state info:", wantStateInfo)
