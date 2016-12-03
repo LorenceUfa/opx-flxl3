@@ -231,6 +231,9 @@ func (server *OSPFV2Server) BuildAndSendLSAReq(nbrId NbrConfKey, nbrConf NbrConf
 		server.ProcessNbrFull(nbrId)
 		return nbrConf.NbrReqListIndex
 	}
+	if len(reqlist) == 0 {
+		return nbrConf.NbrReqListIndex
+	}
 	req_list_items := len(reqlist) - nbrConf.NbrReqListIndex
 	max_req := calculateMaxLsaReq()
 	server.logger.Debug("Nbr : max req ", max_req)

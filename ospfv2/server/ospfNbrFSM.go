@@ -144,12 +144,13 @@ func (server *OSPFV2Server) ProcessNbrHello(nbrData NbrHelloEventMsg) {
 		}
 		//nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
 	}
+	server.logger.Debug("Nbr : oldstate", oldState, " newState ", newState, " state ", nbrConf.State)
 	if (oldState == NbrDown || oldState == NbrInit) &&
 		newState == NbrTwoWay {
 		nbrConf.State = NbrTwoWay
 		server.ProcessNbrTwoway(nbrKey)
 	} else if newState == NbrInit &&
-		(oldState != NbrInit && oldState != NbrDown) {
+		(oldState != NbrInit) { //&& oldState != NbrDown) {
 		nbrConf.State = NbrInit
 		server.ProcessNbrInit(nbrKey)
 	} else {
@@ -172,6 +173,8 @@ func (server *OSPFV2Server) ProcessNbrDbdMsg(dbdMsg NbrDbdMsg) {
 		server.ProcessNbrLoading(dbdMsg.nbrConfKey, nbrConf, dbdMsg.nbrDbdData)
 	case NbrFull:
 		server.logger.Err("Nbr: Received dbd packet when nbr is full . Restart FSM", dbdMsg.nbrConfKey)
+		nbrConf.State = NbrExchangeStart
+		server.ProcessNbrExstart(dbdMsg.nbrConfKey, nbrConf, dbdMsg.nbrDbdData)
 	case NbrDown:
 		server.logger.Warning("Nbr: Nbr is down state. Dont process dbd ", dbdMsg.nbrConfKey)
 	case NbrTwoWay:
@@ -659,8 +662,10 @@ func (server *OSPFV2Server) ProcessNbrDead(nbrKey NbrConfKey) {
 }
 
 func (server *OSPFV2Server) ProcessNbrUpdate(nbrKey NbrConfKey, nbrConf NbrConf) {
-	nbrConf.NbrDeadTimer.Stop()
-	nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
+	server.logger.Debug("Nbr : ", nbrConf)
+	if nbrConf.NbrDeadTimer != nil {
+		nbrConf.NbrDeadTimer.Reset(nbrConf.NbrDeadTimeDuration)
+	}
 	server.NbrConfMap[nbrKey] = nbrConf
 	server.logger.Debug("Nbr: Nbr conf updated ", nbrKey)
 }
