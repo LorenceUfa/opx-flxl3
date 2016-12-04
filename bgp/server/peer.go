@@ -1080,22 +1080,18 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 
 					delete(p.ribOut[protoFamily], ip)
 
-					if addPathsTx > 0 {
-						for pathId, pathIdRoute := range route.PathIdRouteMap {
-							if !p.checkRIBOutWithdraw(pathIdRoute) {
-								p.logger.Errf("Neighbor %s: processing withdraws, dest %s path id %d not advertised",
-									p.NeighborConf.Neighbor.NeighborAddress, ip, pathId)
-								continue
-							}
+					for pathId, pathIdRoute := range route.PathIdRouteMap {
+						if !p.checkRIBOutWithdraw(pathIdRoute) {
+							p.logger.Errf("Neighbor %s: processing withdraws, dest %s path id %d not advertised",
+								p.NeighborConf.Neighbor.NeighborAddress, ip, pathId)
+							continue
+						}
+						if addPathsTx > 0 {
 							nlri := packet.NewExtNLRI(pathId, dest.NLRI.GetIPPrefix())
 							withdrawList[protoFamily] = append(withdrawList[protoFamily], nlri)
-						}
-					} else {
-						if !p.checkRIBOutWithdraw(route.GetPathIdRoute(0)) {
-							p.logger.Errf("Neighbor %s: processing withdraws, dest %s not advertised",
-								p.NeighborConf.Neighbor.NeighborAddress, ip)
 						} else {
 							withdrawList[protoFamily] = append(withdrawList[protoFamily], dest.NLRI)
+							break
 						}
 					}
 					route.RemoveAllPaths()
@@ -1127,11 +1123,15 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 					route := dest.LocRibPathRoute
 					pathId := route.OutPathId
 					if !p.isAdvertisable(path) {
-						if ribOutRoute := p.ribOut[protoFamily][ip]; ribOutRoute != nil &&
-							p.checkRIBOutWithdraw(ribOutRoute.GetPathIdRoute(pathId)) {
-							withdrawList[protoFamily] = append(withdrawList[protoFamily], dest.NLRI)
-							p.ribOut[protoFamily][ip].RemoveAllPaths()
-							delete(p.ribOut[protoFamily], ip)
+						if ribOutRoute := p.ribOut[protoFamily][ip]; ribOutRoute != nil {
+							for _, pathIdRoute := range ribOutRoute.PathIdRouteMap {
+								if p.checkRIBOutWithdraw(pathIdRoute) {
+									withdrawList[protoFamily] = append(withdrawList[protoFamily], dest.NLRI)
+									p.ribOut[protoFamily][ip].RemoveAllPaths()
+									delete(p.ribOut[protoFamily], ip)
+									break
+								}
+							}
 						}
 					} else {
 						if _, ok := p.ribOut[protoFamily][ip]; !ok {
