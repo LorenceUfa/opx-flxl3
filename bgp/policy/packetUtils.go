@@ -26,8 +26,8 @@ package policy
 
 import (
 	"l3/bgp/packet"
+	bgprib "l3/bgp/rib"
 	"l3/bgp/utils"
-	"strconv"
 	utilspolicy "utils/policy"
 	"utils/policy/policyCommonDefs"
 )
@@ -43,13 +43,36 @@ func ApplyActionsToPacket(pa []packet.BGPPathAttr, stmt utilspolicy.PolicyStmt) 
 			pa = packet.AddCommunityToPathAttrs(pa, action.Community)
 
 		case policyCommonDefs.PolicyActionTypeSetExtendedCommunity:
-			if extComm, err := strconv.ParseUint(action.ExtendedCommunity, 0, 64); err == nil {
-				pa = packet.AddExtCommunityToPathAttrs(pa, extComm)
-			} else {
-				utils.Logger.Errf("ApplyActionsToPacket - Cannot convert ext community %v to uint",
-					action.ExtendedCommunity)
-			}
+			pa = packet.AddExtCommunityToPathAttrs(pa, action.ExtendedCommunity)
 		}
 	}
 	return pa
+}
+
+func GetPolicyEngineFilterEntity(path *bgprib.Path) *utilspolicy.PolicyEngineFilterEntityParams {
+	params := &utilspolicy.PolicyEngineFilterEntityParams{}
+
+	community := packet.GetCommunityValues(path.PathAttrs)
+	if community != nil {
+		params.Community = community
+	}
+
+	extComm := packet.GetExtCommunityValues(path.PathAttrs)
+	if extComm != nil {
+		params.ExtendedCommunity = extComm
+	}
+
+	if asPathStr, err := packet.GetASPathAsString(path.PathAttrs); err == nil {
+		params.ASPath = asPathStr
+	}
+
+	if localPref, err := packet.GetLocalPref(path.PathAttrs); err == nil {
+		params.LocalPref = localPref
+	}
+
+	if med, ok := packet.GetMED(path.PathAttrs); ok == true {
+		params.MED = med
+	}
+
+	return params
 }
