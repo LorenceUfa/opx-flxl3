@@ -31,6 +31,7 @@ import (
 	"math"
 	"net"
 	"strconv"
+	"strings"
 )
 
 type BGPPktInfo struct {
@@ -1206,6 +1207,7 @@ type BGPASPathSegment interface {
 	GetLen() uint8
 	GetNumASes() uint8
 	String() string
+	ToStr() string
 }
 
 type BGPASPathSegmentBase struct {
@@ -1327,6 +1329,12 @@ func (ps *BGPAS2PathSegment) String() string {
 	return fmt.Sprintf("%v", ps.AS)
 }
 
+func (ps *BGPAS2PathSegment) ToStr() string {
+	asPathsStr := fmt.Sprintf("%v", ps.AS)
+	asPathsStr = strings.Trim(asPathsStr, "[]")
+	return asPathsStr
+}
+
 func NewBGPAS2PathSegment(segType BGPASPathSegmentType) *BGPAS2PathSegment {
 	as := make([]uint16, 0)
 	return &BGPAS2PathSegment{
@@ -1444,6 +1452,12 @@ func (ps *BGPAS4PathSegment) AppendAS(as uint32) bool {
 
 func (ps *BGPAS4PathSegment) String() string {
 	return fmt.Sprintf("%v", ps.AS)
+}
+
+func (ps *BGPAS4PathSegment) ToStr() string {
+	asPathsStr := fmt.Sprintf("%v", ps.AS)
+	asPathsStr = strings.Trim(asPathsStr, "[]")
+	return asPathsStr
 }
 
 func NewBGPAS4PathSegment(segType BGPASPathSegmentType) *BGPAS4PathSegment {

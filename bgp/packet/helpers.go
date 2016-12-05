@@ -25,11 +25,13 @@
 package packet
 
 import (
+	"errors"
 	_ "fmt"
 	"l3/bgp/utils"
 	"math"
 	"net"
 	"sort"
+	"strings"
 )
 
 func PrependAS(updateMsg *BGPMessage, AS uint32, asSize uint8) {
@@ -84,6 +86,43 @@ func AppendASToAS4PathSeg(asPath *BGPPathAttrASPath, pathSeg BGPASPathSegment, a
 	}
 
 	return pathSeg
+}
+
+func GetASPathAsString(pathAttrs []BGPPathAttr) (asPathStr string, err error) {
+	err = errors.New("AS path not found")
+	paASPath := getTypeFromPathAttrs(pathAttrs, BGPPathAttrTypeASPath)
+	if paASPath != nil {
+		asPath := paASPath.(*BGPPathAttrASPath)
+		for _, asSeg := range asPath.Value {
+			asSegStr := asSeg.String()
+			utils.Logger.Infof("GetASPathAsString - asSegStr {%s}", asSegStr)
+			asSegStr = strings.TrimLeft(asSegStr, "[ ")
+			asSegStr = strings.TrimRight(asSegStr, "] ")
+			utils.Logger.Infof("GetASPathAsString - asSegStr after trim {%s}", asSegStr)
+			asPathStr = asPathStr + asSegStr + " "
+			utils.Logger.Infof("GetASPathAsString - asPathStr {%s}", asPathStr)
+		}
+		asPathStr = strings.TrimSpace(asPathStr)
+		err = nil
+	} else {
+		paASPath = getTypeFromPathAttrs(pathAttrs, BGPPathAttrTypeAS4Path)
+		if paASPath != nil {
+			asPath := paASPath.(*BGPPathAttrAS4Path)
+			for _, asSeg := range asPath.Value {
+				asSegStr := asSeg.String()
+				utils.Logger.Infof("GetASPathAsString - asSegStr {%s}", asSegStr)
+				asSegStr = strings.TrimLeft(asSegStr, "[ ")
+				asSegStr = strings.TrimRight(asSegStr, "] ")
+				utils.Logger.Infof("GetASPathAsString - asSegStr after trim {%s}", asSegStr)
+				asPathStr = asPathStr + asSegStr + " "
+				utils.Logger.Infof("GetASPathAsString - asPathStr {%s}", asPathStr)
+			}
+			asPathStr = strings.TrimSpace(asPathStr)
+			err = nil
+		}
+	}
+	utils.Logger.Infof("GetASPathAsString - final asPathStr {%s}", asPathStr)
+	return asPathStr, err
 }
 
 func AddPathAttrToPathAttrsByCode(pathAttrs []BGPPathAttr, code BGPPathAttrType, attr BGPPathAttr) []BGPPathAttr {
@@ -349,6 +388,16 @@ func GetMED(pathAttrs []BGPPathAttr) (uint32, bool) {
 	}
 
 	return uint32(0), false
+}
+
+func GetLocalPref(pathAttrs []BGPPathAttr) (uint32, error) {
+	pa := getTypeFromPathAttrs(pathAttrs, BGPPathAttrTypeLocalPref)
+	if pa != nil {
+		localPrefPathAttr := pa.(*BGPPathAttrLocalPref)
+		return localPrefPathAttr.Value, nil
+	}
+
+	return 0, errors.New("Local Pref path attr not found")
 }
 
 func GetNextHop(pathAttrs []BGPPathAttr) net.IP {
