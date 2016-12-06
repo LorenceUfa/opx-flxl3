@@ -233,6 +233,7 @@ func encodeDatabaseDescriptionData(dd_data NbrDbdData) []byte {
 }
 
 func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdData) {
+	var dstMAC net.HardwareAddr
 	server.logger.Debug("Nbr : Send the dbd packet out ")
 	intfKey := nbrConf.IntfKey
 	ent, exist := server.IntfConfMap[intfKey]
@@ -240,7 +241,6 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 		server.logger.Err("Nbr : failed to send db packet ", intfKey)
 		return
 	}
-	dstMAC := nbrConf.NbrMac
 
 	ospfHdr := OSPFHeader{
 		Ver:      OSPF_VERSION_2,
@@ -274,7 +274,9 @@ func (server *OSPFV2Server) BuildAndSendDdBDPkt(nbrConf NbrConf, dbdData NbrDbdD
 	ipPktlen := IP_HEADER_MIN_LEN + ospfHdr.Pktlen
 	if ent.FSMState == objects.INTF_FSM_STATE_P2P {
 		DstIP = net.ParseIP(config.AllSPFRouters)
+		dstMAC, _ = net.ParseMAC(ALLSPFROUTERMAC)
 	} else {
+		dstMAC = nbrConf.NbrMac
 		DstIP = net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
 	}
 	SrcIp := net.ParseIP(convertUint32ToDotNotation(ent.IpAddr))
