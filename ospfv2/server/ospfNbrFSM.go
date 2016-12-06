@@ -461,6 +461,7 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 		server.logger.Err("Nbr : Intf does not exist. ", nbrKey)
 		return
 	}
+	server.logger.Debug("Nbr : intf rtr ", intf.DRtrId , " global rtr ", server.globalData.RouterId)
 	if intf.DRtrId == server.globalData.RouterId {
 		server.logger.Debug("Nbr : Send message to lsdb to generate nw lsa ", nbrConf.NbrIP)
 		nbrList := []uint32{}

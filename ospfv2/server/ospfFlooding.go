@@ -135,10 +135,15 @@ func (server *OSPFV2Server) ProcessNbrFullFlood(nbrKey NbrConfKey) {
 			lsaEncPkt = append(lsaEncPkt, lsas_enc...)
 			lsaEncPkt = append(lsaEncPkt, lsa_data...)
 			lsa_pkt_len := len(lsaEncPkt)
-			dstMac := nbrConf.NbrMac
-			dstIp := net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
+			//dstMac := nbrConf.NbrMac
+			//dstIp := net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
+			destIp, destMac, err := server.GetDestIpForFlood(nbrConf.IntfKey, nbrConf.NbrIP, nbrConf.NbrMac)
+			if err != nil {
+				server.logger.Err("Flood: Failed to get dest ip and dest mac ", nbrConf.NbrIP)
+				return
+			}
 			pkt := server.BuildLsaUpdPkt(nbrConf.IntfKey, intf,
-				dstMac, dstIp, lsa_pkt_len, lsaEncPkt)
+				destMac, destIp, lsa_pkt_len, lsaEncPkt)
 			server.SendOspfPkt(nbrConf.IntfKey, pkt)
 
 		}
@@ -159,6 +164,7 @@ func (server OSPFV2Server) ProcessLsaFloodAll(nbrKey NbrConfKey, lsaType uint8, 
 		send := server.nbrFloodCheck(nbrKey, key, intf, lsaType)
 		if send {
 			if lsa_pkt != nil {
+				nbrSendConf := server.NbrConfMap[nbrKey]
 				server.logger.Info("LSA_FLOOD_ALL: Unicast LSA interface ", intf.IpAddr)
 				lsas_enc := make([]byte, 4)
 				var no_lsa uint32
@@ -167,7 +173,7 @@ func (server OSPFV2Server) ProcessLsaFloodAll(nbrKey NbrConfKey, lsaType uint8, 
 				lsaEncPkt = append(lsaEncPkt, lsas_enc...)
 				lsaEncPkt = append(lsaEncPkt, lsa_pkt...)
 				lsa_pkt_len := len(lsaEncPkt)
-				destIp, destMac, err := server.GetDestIpForFlood(key, nbrConf.NbrIP, nbrConf.NbrMac)
+				destIp, destMac, err := server.GetDestIpForFlood(key, nbrSendConf.NbrIP, nbrSendConf.NbrMac)
 				if err != nil {
 					server.logger.Err("LSA_FLOOD_ALL: Can not get dest ip for intf for flood ", key)
 					continue
@@ -203,9 +209,15 @@ func (server *OSPFV2Server) ProcessLsaFloodIntf(nbrKey NbrConfKey, lsa_pkt []byt
 		lsaEncPkt = append(lsaEncPkt, lsas_enc...)
 		lsaEncPkt = append(lsaEncPkt, lsa_pkt...)
 		lsa_pkt_len := len(lsaEncPkt)
-		destIp := net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
+		//destIp := net.ParseIP(convertUint32ToDotNotation(nbrConf.NbrIP))
+		destIp, destMac, err := server.GetDestIpForFlood(nbrConf.IntfKey, nbrConf.NbrIP, nbrConf.NbrMac)
+                if err != nil {
+                        server.logger.Err("Flood: Failed to get dest ip and dest mac ", nbrConf.NbrIP)
+                        return
+                }
+
 		pkt := server.BuildLsaUpdPkt(nbrConf.IntfKey, intf,
-			intf.IfMacAddr, destIp, lsa_pkt_len, lsaEncPkt)
+			destMac, destIp, lsa_pkt_len, lsaEncPkt)
 		server.logger.Info(fmt.Sprintln("LSA_FLOOD_INTF: Send  LSA to interface ", intf.IpAddr))
 		server.SendOspfPkt(nbrConf.IntfKey, pkt)
 
