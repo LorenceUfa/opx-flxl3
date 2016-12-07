@@ -207,7 +207,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	server.ProcessNbrDead(nbrKey)
 	//	server.ProcessNbrFsmStart(nbrKey, nbrConf)
 	server.logger.Debug("Nbr : Add to slice ", nbrKey)
-	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
+	server.addNbrToSlice(nbrKey)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey) {
@@ -550,6 +550,7 @@ func (server *OSPFV2Server) ProcessNbrDeadFromIntf(key IntfConfKey) {
 		nbrConf.NbrRetxList = nil
 		nbrConf.NbrDBSummaryList = nil
 		delete(server.NbrConfMap, nbr)
+		server.delNbrFromSlice(nbrKey)
 		server.logger.Info("Nbr: Deleted", nbr)
 	}
 
