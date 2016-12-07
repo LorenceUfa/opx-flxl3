@@ -26,7 +26,7 @@ package server
 import (
 	//"asicd/asicdCommonDefs"
 	"errors"
-	//"fmt"
+	"fmt"
 	"ribd"
 	"strconv"
 )
@@ -101,7 +101,6 @@ type GlobalRoutingTblEntry struct {
 	RoutingTblEnt RoutingTblEntry
 }
 
-/*
 func (server *OSPFV2Server) dumpRoutingTbl() {
 	server.logger.Info("=============Routing Table============")
 	server.logger.Info("DestId      AddrMask        DestType        OprCapabilities Area    PathType        Cost    Type2Cost       LSOrigin        NumOfPaths      NextHops")
@@ -230,7 +229,6 @@ func (server *OSPFV2Server) dumpGlobalRoutingTbl() {
 	}
 	server.logger.Info("==============End of Routing Table================")
 }
-*/
 
 func (server *OSPFV2Server) findP2PNextHopIP(vFirst VertexKey, vSecond VertexKey, areaIdKey AreaIdKey) (ifIPAddr uint32, nextHopIP uint32, err error) {
 	// Our link is P2P

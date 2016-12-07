@@ -211,7 +211,8 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				nbrEntry.RtrId = createMsg.RouterId
 				ent.NbrMap[nbrKey] = nbrEntry
 				server.IntfConfMap[key] = ent
-			}
+				server.SendMsgToGenerateRouterLSA(ent.AreaId)
+			} 
 		case changeMsg := <-ent.NbrChangeCh:
 			if changeMsg.DRtrIpAddr != 0 ||
 				changeMsg.BDRtrIpAddr != 0 {
@@ -229,6 +230,7 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				nbrEntry.RtrId = changeMsg.RouterId
 				ent.NbrMap[nbrKey] = nbrEntry
 				server.IntfConfMap[key] = ent
+				server.SendMsgToGenerateRouterLSA(ent.AreaId)
 			} else {
 				server.logger.Err("Nbr entry does not exists", nbrKey)
 			}

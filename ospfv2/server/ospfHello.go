@@ -217,7 +217,12 @@ func (server *OSPFV2Server) processOspfHelloNbr(ethHdrMd *EthHdrMetadata, ipHdrM
 	ent, _ := server.IntfConfMap[key]
 	var nbrIdentity uint32
 	if ent.Type == objects.INTF_TYPE_POINT2POINT {
-		nbrIdentity = ospfHdrMd.RouterId
+		/*Currently unumbered p2p is not supported
+		 hence nbrIdentity is SrcIp.
+		for unnumbered p2p it is router id.
+		*/
+		nbrIdentity = ipHdrMd.SrcIP
+		//nbrIdentity = ospfHdrMd.RouterId
 	} else {
 		nbrIdentity = ipHdrMd.SrcIP
 	}
