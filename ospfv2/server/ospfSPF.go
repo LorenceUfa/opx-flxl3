@@ -851,9 +851,9 @@ func (server *OSPFV2Server) SPFCalculation() {
 			continue
 		}
 		server.logger.Info("Start after Dijkstra")
-			server.dumpAreaGraph()
-		server.dumpAreaStubs()
-			server.dumpSPFTree()
+			//server.dumpAreaGraph()
+		//server.dumpAreaStubs()
+			//server.dumpSPFTree()
 		server.logger.Info("End after Dijkstra")
 		server.UpdateRoutingTbl(vKey, areaId)
 		server.logger.Info("Handling Stub links...")
