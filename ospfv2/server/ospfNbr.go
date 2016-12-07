@@ -96,8 +96,8 @@ func (server *OSPFV2Server) UpdateIntfToNbrMap(nbrKey NbrConfKey) {
 
 func (server *OSPFV2Server) NbrDbPacketDiscardCheck(nbrDbPkt NbrDbdData, nbrConf NbrConf) bool {
 	if nbrDbPkt.msbit != nbrConf.isMaster {
-		server.logger.Info(fmt.Sprintln("NBREVENT: SeqNumberMismatch. Nbr should be master  dbdmsbit ", nbrDbPkt.msbit,
-			" isMaster ", nbrConf.isMaster))
+		server.logger.Info("NBREVENT: SeqNumberMismatch. Nbr should be master  dbdmsbit ", nbrDbPkt.msbit,
+			" isMaster ", nbrConf.isMaster)
 		return true
 	}
 
@@ -186,6 +186,7 @@ func (server *OSPFV2Server) getBulkNbrState(fromIdx, cnt int) (*objects.Ospfv2Nb
 	count := 0
 	idx := fromIdx
 	sliceLen := len(server.GetBulkData.NbrConfSlice)
+	server.logger.Debug("Nbr : Total elements in nbr slice ", sliceLen)
 	if fromIdx >= sliceLen {
 		return nil, errors.New("Invalid Range")
 	}

@@ -206,6 +206,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	}
 	server.ProcessNbrDead(nbrKey)
 	//	server.ProcessNbrFsmStart(nbrKey, nbrConf)
+	server.logger.Debug("Nbr : Add to slice ", nbrKey)
 	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
 }
 
@@ -280,13 +281,14 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 			negotiationDone = true
 			nbrConf.State = NbrExchange
 		}
-		if nbrDbPkt.msbit && nbrConf.NbrRtrId > server.globalData.RouterId {
-			server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
-			nbrConf.isMaster = true
-			server.logger.Debug("NBREVENT: Negotiation done..")
-			negotiationDone = true
-			nbrConf.State = NbrExchange
-		}
+		/*
+			if nbrDbPkt.msbit && nbrConf.NbrRtrId > server.globalData.RouterId {
+				server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
+				nbrConf.isMaster = true
+				server.logger.Debug("NBREVENT: Negotiation done..")
+				negotiationDone = true
+				nbrConf.State = NbrExchange
+			} */
 
 		/*   The initialize(I) and master(MS) bits are off, the
 		     packet's DD sequence number equals the neighbor data
@@ -329,6 +331,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 		server.logger.Debug("Nbr: received nbr req len ", len(req_list))
 		nbrConf.NbrReqList = req_list
 	} else { // negotiation not done
+		server.logger.Debug("Nbr: Negotiation not done. ", nbrConf.NbrIP)
 		nbrConf.State = NbrExchangeStart
 		if nbrConf.isMaster &&
 			nbrConf.NbrRtrId > server.globalData.RouterId {
@@ -336,10 +339,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 			dbd_mdata, _ = server.ConstructDbdMdata(nbrKey, true, true, true,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false)
 			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
-			dbd_mdata.dd_sequence_number++
 		} else {
-			//start with new seq number
-			dbd_mdata.dd_sequence_number = uint32(time.Now().Nanosecond()) //nbrConf.dd_sequence_number
 			dbd_mdata, _ = server.ConstructDbdMdata(nbrKey, true, true, true,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false)
 			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
@@ -461,7 +461,7 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 		server.logger.Err("Nbr : Intf does not exist. ", nbrKey)
 		return
 	}
-	server.logger.Debug("Nbr : intf rtr ", intf.DRtrId , " global rtr ", server.globalData.RouterId)
+	server.logger.Debug("Nbr : intf rtr ", intf.DRtrId, " global rtr ", server.globalData.RouterId)
 	if intf.DRtrId == server.globalData.RouterId {
 		server.logger.Debug("Nbr : Send message to lsdb to generate nw lsa ", nbrConf.NbrIP)
 		nbrList := []uint32{}
