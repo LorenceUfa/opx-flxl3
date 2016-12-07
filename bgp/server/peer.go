@@ -805,7 +805,7 @@ func (p *Peer) ReceiveUpdate(pktInfo *packet.BGPPktSrc) (map[uint32]map[*bgprib.
 	return updated, withdrawn, updatedAddPaths
 }
 
-func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) bool {
+func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path, medUpdated bool) bool {
 	if p.NeighborConf.Neighbor.Transport.Config.LocalAddress == nil {
 		p.logger.Errf("Neighbor %s: Can't send Update message, FSM is not in Established state",
 			p.NeighborConf.Neighbor.NeighborAddress)
@@ -842,7 +842,7 @@ func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) boo
 		}
 	} else {
 		// Do change these path attrs for local routes
-		if path.NeighborConf != nil {
+		if path.NeighborConf != nil && !medUpdated {
 			packet.RemoveMultiExitDisc(bgpMsg)
 		}
 		packet.PrependAS(bgpMsg, p.NeighborConf.RunningConf.LocalAS, p.NeighborConf.ASSize)
@@ -862,7 +862,7 @@ func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) boo
 	return true
 }
 
-func (p *Peer) sendUpdateMsg(msg *packet.BGPMessage, path *bgprib.Path) {
+func (p *Peer) sendUpdateMsg(msg *packet.BGPMessage, path *bgprib.Path, medUpdated bool) {
 	if p.fsmManager == nil {
 		p.logger.Errf("Can't send update, FSM Manager is not instantiated for neighbor %s",
 			p.NeighborConf.Neighbor.NeighborAddress)
@@ -885,11 +885,10 @@ func (p *Peer) sendUpdateMsg(msg *packet.BGPMessage, path *bgprib.Path) {
 		}
 	}
 
-	if p.updatePathAttrs(msg, path) {
+	if p.updatePathAttrs(msg, path, medUpdated) {
 		atomic.AddUint32(&p.NeighborConf.Neighbor.State.Queues.Output, 1)
 		p.fsmManager.SendUpdateMsg(msg)
 	}
-
 }
 
 func (p *Peer) isAdvertisable(path *bgprib.Path) bool {
@@ -1211,13 +1210,13 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 				pathAtts := make([]packet.BGPPathAttr, 0)
 				pathAtts = append(pathAtts, mpUnreachNLRI)
 				updateMsg = packet.NewBGPUpdateMessage(ipv4List, pathAtts, nil)
-				p.sendUpdateMsg(updateMsg.Clone(), nil)
+				p.sendUpdateMsg(updateMsg.Clone(), nil, false)
 				ipv4List = nil
 			}
 		}
 		if ipv4List != nil {
 			updateMsg = packet.NewBGPUpdateMessage(ipv4List, nil, nil)
-			p.sendUpdateMsg(updateMsg.Clone(), nil)
+			p.sendUpdateMsg(updateMsg.Clone(), nil, false)
 		}
 	}
 
@@ -1241,15 +1240,16 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 					mpReachNLRI := packet.ConstructIPv6MPReachNLRI(protoFamily, localAddress, nil, nlriList)
 					pa := packet.CopyPathAttrs(path.PathAttrs)
 					pa = packet.AddMPReachNLRIToPathAttrs(pa, mpReachNLRI)
+					medUpdated := false
 					if policyStmt, ok := policyStmts[stmt]; ok {
 						p.logger.Infof("Neighbor %s: apply policy stmt %+v to path attrs",
 							p.NeighborConf.Neighbor.NeighborAddress, policyStmt)
-						pa = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
+						pa, medUpdated = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
 					}
 					updateMsg = packet.NewBGPUpdateMessage(nil, pa, ipv4List)
 					p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 						p.NeighborConf.Neighbor.NeighborAddress, nlriList, path.PathAttrs)
-					p.sendUpdateMsg(updateMsg.Clone(), path)
+					p.sendUpdateMsg(updateMsg.Clone(), path, medUpdated)
 					ipv4List = nil
 				}
 			}
@@ -1258,13 +1258,14 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 				p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 					p.NeighborConf.Neighbor.NeighborAddress, ipv4List, path.PathAttrs)
 				pa := packet.CopyPathAttrs(path.PathAttrs)
+				medUpdated := false
 				if policyStmt, ok := policyStmts[stmt]; ok {
 					p.logger.Infof("Neighbor %s: apply policy stmt %+v to path attrs",
 						p.NeighborConf.Neighbor.NeighborAddress, policyStmt)
-					pa = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
+					pa, medUpdated = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
 				}
 				updateMsg := packet.NewBGPUpdateMessage(make([]packet.NLRI, 0), pa, ipv4List)
-				p.sendUpdateMsg(updateMsg.Clone(), path)
+				p.sendUpdateMsg(updateMsg.Clone(), path, medUpdated)
 			}
 		}
 	}
@@ -1342,7 +1343,7 @@ func (p *Peer) AdjRIBOutPolicyUpdated(data interface{}, updateFunc utilspolicy.P
 				updateMsg = packet.NewBGPUpdateMessage(withdrawList, pa, updateList)
 				p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 					p.NeighborConf.Neighbor.NeighborAddress, updateList, path.PathAttrs)
-				p.sendUpdateMsg(updateMsg.Clone(), path)
+				p.sendUpdateMsg(updateMsg.Clone(), path, false)
 				updateList = nil
 				withdrawList = nil
 			}
@@ -1352,7 +1353,7 @@ func (p *Peer) AdjRIBOutPolicyUpdated(data interface{}, updateFunc utilspolicy.P
 			p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 				p.NeighborConf.Neighbor.NeighborAddress, updateList, path.PathAttrs)
 			updateMsg := packet.NewBGPUpdateMessage(withdrawList, path.PathAttrs, updateList)
-			p.sendUpdateMsg(updateMsg.Clone(), path)
+			p.sendUpdateMsg(updateMsg.Clone(), path, false)
 		}
 	}
 

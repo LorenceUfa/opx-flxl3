@@ -161,6 +161,8 @@ func convertModelsToPolicyStmtConfig(cfg *objects.PolicyStmt) *utilspolicy.Polic
 			Community:         setAction.Community,
 			ExtendedCommunity: utilspolicy.PolicyExtendedCommunityInfo{setAction.ExtendedCommunityType, setAction.ExtendedCommunityValue},
 			LocalPref:         setAction.LocalPref,
+			MED:               setAction.MED,
+			PrependASPath:     setAction.PrependASPath,
 		})
 	}
 	return &utilspolicy.PolicyStmtConfig{
