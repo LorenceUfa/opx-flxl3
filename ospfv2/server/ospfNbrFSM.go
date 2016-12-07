@@ -207,7 +207,7 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	server.ProcessNbrDead(nbrKey)
 	//	server.ProcessNbrFsmStart(nbrKey, nbrConf)
 	server.logger.Debug("Nbr : Add to slice ", nbrKey)
-	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
+	server.addNbrToSlice(nbrKey)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey) {
@@ -411,7 +411,6 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 }
 
 func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf, nbrDbPkt NbrDbdData) {
-	var dbd_mdata NbrDbdData
 	var seq_num uint32
 	server.logger.Debug(fmt.Sprintln("DBD: Loading . Nbr ", nbrKey.NbrIdentity))
 	isDiscard := server.NbrDbPacketDiscardCheck(nbrDbPkt, nbrConf)
@@ -424,10 +423,14 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf
 
 		nbrConf.State = NbrExchangeStart
 		nbrConf.isMaster = false
+		/*
 		dbd_mdata, _ = server.ConstructDbdMdata(nbrKey, true, true, true,
 			nbrDbPkt.options, nbrConf.DDSequenceNum+1, false, false)
 		server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
-		seq_num = dbd_mdata.dd_sequence_number
+		seq_num = dbd_mdata.dd_sequence_number */
+		nbrConf.State = NbrExchangeStart
+                server.ProcessNbrExstart(nbrKey, nbrConf, nbrDbPkt)
+
 	} else if !isDuplicate {
 		/*
 		   slave - Send the old dbd packet.
@@ -550,6 +553,7 @@ func (server *OSPFV2Server) ProcessNbrDeadFromIntf(key IntfConfKey) {
 		nbrConf.NbrRetxList = nil
 		nbrConf.NbrDBSummaryList = nil
 		delete(server.NbrConfMap, nbr)
+		server.delNbrFromSlice(nbr)
 		server.logger.Info("Nbr: Deleted", nbr)
 	}
 
