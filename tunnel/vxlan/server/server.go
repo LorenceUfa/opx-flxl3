@@ -83,7 +83,7 @@ func NewVXLANServer(l *logging.Writer, paramspath string, cfghandlerevt chan boo
 		// resolve the mac for the next hop ip
 		for _, client := range vxlan.ClientIntf {
 			client.SetServerChannels(VxlanServer.Configchans)
-			err := client.ConnectToClients(paramspath+"clZients.json", "")
+			err := client.ConnectToClients(paramspath+"clients.json", "")
 			VxlanServer.logger.Info("NewServer: (ConnectToClients)", err)
 			if err == nil {
 				VxlanServer.CfgHandlerEvt <- true
@@ -197,7 +197,7 @@ func (s *VXLANServer) ConfigListener() {
 						PortNum:      port.PortNum,
 						IfIndex:      port.IfIndex,
 					}
-					s.logger.Info("Saving Port Config to db", *portcfg)
+					//s.logger.Info("Saving Port Config to db", *portcfg)
 					vxlan.PortConfigMap[port.IfIndex] = portcfg
 				}
 			case intfinfo := <-cc.Vxlanintfinfo:
