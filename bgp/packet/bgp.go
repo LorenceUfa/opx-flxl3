@@ -1201,11 +1201,13 @@ type BGPASPathSegment interface {
 	Encode(pkt []byte) error
 	Decode(pkt []byte, data interface{}) error
 	PrependAS(as uint32) bool
+	PrependASList(asList []uint32) bool
 	AppendAS(as uint32) bool
 	TotalLen() uint16
 	GetType() BGPASPathSegmentType
 	GetLen() uint8
 	GetNumASes() uint8
+	GetMaxASes() int
 	String() string
 	ToStr() string
 }
@@ -1248,6 +1250,10 @@ func (ps *BGPASPathSegmentBase) GetType() BGPASPathSegmentType {
 
 func (ps *BGPASPathSegmentBase) GetLen() uint8 {
 	return ps.Length
+}
+
+func (ps *BGPASPathSegmentBase) GetMaxASes() int {
+	return 255
 }
 
 type BGPAS2PathSegment struct {
@@ -1311,6 +1317,22 @@ func (ps *BGPAS2PathSegment) PrependAS(as uint32) bool {
 	ps.AS[0] = uint16(as)
 	ps.Length += 1
 	ps.BGPASPathSegmentLen += 2
+	return true
+}
+
+func (ps *BGPAS2PathSegment) PrependASList(asList []uint32) bool {
+	asLen := len(asList)
+	if int(ps.Length)+asLen > 255 {
+		return false
+	}
+
+	ps.AS = append(ps.AS, make([]uint16, asLen)...)
+	copy(ps.AS[asLen:], ps.AS[0:])
+	for idx, asNum := range asList {
+		ps.AS[idx] = uint16(asNum)
+	}
+	ps.Length += uint8(asLen)
+	ps.BGPASPathSegmentLen += uint16(2 * asLen)
 	return true
 }
 
@@ -1436,6 +1458,26 @@ func (ps *BGPAS4PathSegment) PrependAS(as uint32) bool {
 	ps.AS[0] = as
 	ps.Length += 1
 	ps.BGPASPathSegmentLen += 4
+	return true
+}
+
+func (ps *BGPAS4PathSegment) PrependASList(asList []uint32) bool {
+	asLen := len(asList)
+	if asLen == 0 {
+		return true
+	}
+
+	if int(ps.Length)+asLen >= 255 {
+		return false
+	}
+
+	ps.AS = append(ps.AS, asList...)
+	copy(ps.AS[asLen:], ps.AS[0:])
+	for idx, as := range asList {
+		ps.AS[idx] = as
+	}
+	ps.Length += uint8(asLen)
+	ps.BGPASPathSegmentLen += uint16(4 * asLen)
 	return true
 }
 
