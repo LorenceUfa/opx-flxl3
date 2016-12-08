@@ -329,23 +329,29 @@ func (server *OSPFV2Server) StartOspfv2Server() {
 	for {
 		select {
 		case req := <-server.ReqChan:
+			server.logger.Debug("Handling RPC Req", req)
 			server.handleRPCRequest(req)
+			server.logger.Debug("Done Handling RPC Req", req)
 		case asicdRxBuf := <-server.asicdComm.asicdSubSocketCh:
+			server.logger.Debug("Process Asicd Rx Buf", asicdRxBuf)
 			server.processAsicdNotification(asicdRxBuf)
+			server.logger.Debug("Done Process Asicd Rx Buf", asicdRxBuf)
 		case <-server.asicdComm.asicdSubSocketErrCh:
 			server.logger.Err("Invalid Message from Asicd")
 		case ribRxBuf := <-server.ribdComm.ribdSubSocketCh:
+			server.logger.Debug("Process Rib Rx Buf", ribRxBuf)
 			server.processRibdNotification(ribRxBuf)
+			server.logger.Debug("Done Process Rib Rx Buf", ribRxBuf)
 		case <-server.ribdComm.ribdSubSocketErrCh:
 			server.logger.Err("Invalid Message from Ribd")
 		case <-server.GetBulkData.SliceRefreshCh:
-			//Refresh IntfConf Slice
+			server.logger.Debug("Refresh IntfConf Slice")
 			server.RefreshIntfConfSlice()
-			//Refresh NbrConf Slice
+			server.logger.Debug("Refresh NbrConf Slice")
 			server.RefreshNbrConfSlice()
-			//Refresh AreaConf Slice
+			server.logger.Debug("Refresh AreaConf Slice")
 			server.RefreshAreaConfSlice()
-			//Refresh Lsdb Slice
+			server.logger.Debug("Refresh Lsdb Slice")
 			server.SendMsgToLsdbToRefreshSlice()
 			<-server.MessagingChData.LsdbToServerChData.RefreshLsdbSliceDoneCh
 			server.logger.Info("Ospf GetBulk Slice Refresh in progress")
