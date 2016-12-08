@@ -1370,6 +1370,9 @@ func (s *BGPServer) copyGlobalConf(gConf config.GlobalConfig) {
 	s.BgpConfig.Global.Config.EBGPMaxPaths = gConf.EBGPMaxPaths
 	s.BgpConfig.Global.Config.EBGPAllowMultipleAS = gConf.EBGPAllowMultipleAS
 	s.BgpConfig.Global.Config.IBGPMaxPaths = gConf.IBGPMaxPaths
+	s.BgpConfig.Global.Config.Defaultv4Route = gConf.Defaultv4Route
+	s.BgpConfig.Global.Config.Defaultv6Route = gConf.Defaultv6Route
+	s.BgpConfig.Global.Config.DefaultMED = gConf.DefaultMED
 }
 
 func (s *BGPServer) handleBfdNotifications(oper config.Operation, DestIp string,
@@ -1435,6 +1438,7 @@ func (s *BGPServer) constructBGPGlobalState(gConf *config.GlobalConfig) {
 	s.BgpConfig.Global.State.IBGPMaxPaths = gConf.IBGPMaxPaths
 	s.BgpConfig.Global.State.Defaultv4Route = gConf.Defaultv4Route
 	s.BgpConfig.Global.State.Defaultv6Route = gConf.Defaultv6Route
+	s.BgpConfig.Global.State.DefaultMED = gConf.DefaultMED
 }
 
 func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
@@ -1690,17 +1694,8 @@ func (s *BGPServer) Restart(cfg config.GlobalConfig) {
 		return
 	}
 
-	defaultRoutes := make(map[uint32]bool)
-	if gConf.Defaultv4Route {
-		defaultRoutes[packet.GetProtocolFamily(packet.AfiIP, packet.SafiUnicast)] = true
-	}
-	if gConf.Defaultv6Route {
-		defaultRoutes[packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)] = true
-	}
-
-	if len(defaultRoutes) > 0 {
-		s.UpdateDefaultRoutes(defaultRoutes)
-	}
+	s.ConstructPathsForLocalRoutes(&s.BgpConfig.Global.Config)
+	s.ConstructDefaultRoutes(&s.BgpConfig.Global.Config)
 
 	add, remove := s.routeMgr.GetRoutes()
 	if add != nil && remove != nil {
@@ -2432,6 +2427,32 @@ func (s *BGPServer) GetIntfObjects() {
 	s.logger.Info("After ProcessIntfMapUpdates for logicalIntfs")
 }
 
+func (s *BGPServer) ConstructPathsForLocalRoutes(gConf *config.GlobalConfig) {
+	pathAttrs := packet.ConstructPathAttrForConnRoutes(gConf.AS, gConf.DefaultMED)
+	protoFamily := packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
+	ipv6MPReach := packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
+	s.ConnRoutesPath = bgprib.NewPath(s.LocRib, nil, pathAttrs, ipv6MPReach, bgprib.RouteTypeConnected)
+
+	pathAttrs = packet.ConstructPathAttrForDefaultRoute(gConf.AS, gConf.DefaultMED)
+	protoFamily = packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
+	ipv6MPReach = packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
+	s.DefaultRoutesPath = bgprib.NewPath(s.LocRib, nil, pathAttrs, ipv6MPReach, bgprib.RouteTypeDefault)
+}
+
+func (s *BGPServer) ConstructDefaultRoutes(gConf *config.GlobalConfig) {
+	defaultRoutes := make(map[uint32]bool)
+	if gConf.Defaultv4Route {
+		defaultRoutes[packet.GetProtocolFamily(packet.AfiIP, packet.SafiUnicast)] = true
+	}
+	if gConf.Defaultv6Route {
+		defaultRoutes[packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)] = true
+	}
+
+	if len(defaultRoutes) > 0 {
+		s.UpdateDefaultRoutes(defaultRoutes)
+	}
+}
+
 func (s *BGPServer) StartServer() {
 	// Initialize Event Handler
 	s.InitBGPEvent()
@@ -2448,27 +2469,8 @@ func (s *BGPServer) StartServer() {
 	s.constructBGPGlobalState(&gConf)
 	s.BgpConfig.PeerGroups = make(map[uint32]map[string]*config.PeerGroup)
 
-	pathAttrs := packet.ConstructPathAttrForConnRoutes(gConf.AS)
-	protoFamily := packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
-	ipv6MPReach := packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
-	s.ConnRoutesPath = bgprib.NewPath(s.LocRib, nil, pathAttrs, ipv6MPReach, bgprib.RouteTypeConnected)
-
-	pathAttrs = packet.ConstructPathAttrForDefaultRoute(gConf.AS)
-	protoFamily = packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
-	ipv6MPReach = packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
-	s.DefaultRoutesPath = bgprib.NewPath(s.LocRib, nil, pathAttrs, ipv6MPReach, bgprib.RouteTypeDefault)
-
-	defaultRoutes := make(map[uint32]bool)
-	if gConf.Defaultv4Route {
-		defaultRoutes[packet.GetProtocolFamily(packet.AfiIP, packet.SafiUnicast)] = true
-	}
-	if gConf.Defaultv6Route {
-		defaultRoutes[packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)] = true
-	}
-
-	if len(defaultRoutes) > 0 {
-		s.UpdateDefaultRoutes(defaultRoutes)
-	}
+	s.ConstructPathsForLocalRoutes(&s.BgpConfig.Global.Config)
+	s.ConstructDefaultRoutes(&s.BgpConfig.Global.Config)
 
 	s.logger.Info("Setting up Peer connections")
 	// channel for accepting connections

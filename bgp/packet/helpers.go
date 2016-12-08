@@ -659,7 +659,7 @@ func ConstructMPReachNLRIForAggRoutes(protoFamily uint32) *BGPPathAttrMPReachNLR
 	return pa
 }
 
-func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as uint32) []BGPPathAttr {
+func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as, med uint32) []BGPPathAttr {
 	pathAttrs := make([]BGPPathAttr, 0)
 
 	origin := NewBGPPathAttrOrigin(originType)
@@ -672,15 +672,27 @@ func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as uint32
 	nextHop.Value = net.IPv4zero
 	pathAttrs = append(pathAttrs, nextHop)
 
+	paMED := NewBGPPathAttrMultiExitDisc()
+	paMED.Value = med
+	pathAttrs = append(pathAttrs, paMED)
+
 	return pathAttrs
 }
 
-func ConstructPathAttrForConnRoutes(as uint32) []BGPPathAttr {
-	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginIncomplete, as)
+func ConstructPathAttrForConnRoutes(as, med uint32) []BGPPathAttr {
+	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginIncomplete, as, med)
 }
 
-func ConstructPathAttrForDefaultRoute(as uint32) []BGPPathAttr {
-	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginEGP, as)
+func ConstructPathAttrForDefaultRoute(as, med uint32) []BGPPathAttr {
+	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginEGP, as, med)
+}
+
+func ClonePathAttrs(pathAttrs []BGPPathAttr) []BGPPathAttr {
+	newPathAttrs := make([]BGPPathAttr, len(pathAttrs))
+	for idx := range pathAttrs {
+		newPathAttrs[idx] = pathAttrs[idx].Clone()
+	}
+	return newPathAttrs
 }
 
 func CopyPathAttrs(pathAttrs []BGPPathAttr) []BGPPathAttr {
