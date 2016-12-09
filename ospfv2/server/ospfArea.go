@@ -169,15 +169,15 @@ func (server *OSPFV2Server) deleteArea(cfg *objects.Ospfv2Area) (bool, error) {
 		server.logger.Err("Unable to Delete Area doesnot exist")
 		return false, errors.New("Unable to delete area doesnot exist")
 	}
-	if areaEnt.AdminState == true {
-		//This will cause Nbrs to be deleted from NbrFSM
-		server.StopAreaIntfFSM(cfg.AreaId)
-		// This will cause area Lsdb to be flushed and Flush Routes also
-		server.FlushAreaLsdb(cfg.AreaId)
-	}
 	if len(areaEnt.IntfMap) > 0 {
 		server.logger.Err("Unable to delete Area as there are interface configured in this area")
 		return false, errors.New("Unable to delete Area as there are interface configured in this area")
+	}
+	if areaEnt.AdminState == true {
+		//This will cause Nbrs to be deleted from NbrFSM
+		//server.StopAreaIntfFSM(cfg.AreaId)
+		// This will cause area Lsdb to be flushed and Flush Routes also
+		server.FlushAreaLsdb(cfg.AreaId)
 	}
 	delete(server.AreaConfMap, cfg.AreaId)
 	server.globalData.AreaBdrRtrStatus = server.isAreaBDR()
