@@ -1238,7 +1238,7 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 			for protoFamily, nlriList := range pfNLRIMap {
 				if len(nlriList) > 0 {
 					mpReachNLRI := packet.ConstructIPv6MPReachNLRI(protoFamily, localAddress, nil, nlriList)
-					pa := packet.CopyPathAttrs(path.PathAttrs)
+					pa := packet.ClonePathAttrs(path.PathAttrs)
 					pa = packet.AddMPReachNLRIToPathAttrs(pa, mpReachNLRI)
 					medUpdated := false
 					if policyStmt, ok := policyStmts[stmt]; ok {
@@ -1257,7 +1257,7 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 			if ipv4List != nil {
 				p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 					p.NeighborConf.Neighbor.NeighborAddress, ipv4List, path.PathAttrs)
-				pa := packet.CopyPathAttrs(path.PathAttrs)
+				pa := packet.ClonePathAttrs(path.PathAttrs)
 				medUpdated := false
 				if policyStmt, ok := policyStmts[stmt]; ok {
 					p.logger.Infof("Neighbor %s: apply policy stmt %+v to path attrs",
@@ -1326,7 +1326,7 @@ func (p *Peer) AdjRIBOutPolicyUpdated(data interface{}, updateFunc utilspolicy.P
 			if len(routesMap.Add) > 0 || len(routesMap.Remove) > 0 {
 				var pa []packet.BGPPathAttr
 				if len(routesMap.Add) > 0 {
-					pa = packet.CopyPathAttrs(path.PathAttrs)
+					pa = packet.ClonePathAttrs(path.PathAttrs)
 					mpReachNLRI := packet.ConstructIPv6MPReachNLRI(protoFamily, localAddress, nil, routesMap.Add)
 					pa = packet.AddMPReachNLRIToPathAttrs(pa, mpReachNLRI)
 				}
