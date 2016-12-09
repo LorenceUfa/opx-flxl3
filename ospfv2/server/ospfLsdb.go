@@ -127,9 +127,9 @@ func (server *OSPFV2Server) StopLsdbRoutine() {
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
 			cnt = cnt + 1
-			if cnt == 100 {
-				server.logger.Err("Unable to stop the ProcessLsdb routine")
-				return
+			if cnt%1000 == 0 {
+				server.logger.Err("Trying to stop the ProcessLsdb routine")
+				//return
 			}
 		}
 	}
