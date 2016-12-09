@@ -524,8 +524,8 @@ func (s *BGPServer) setUpdatedWithAggPaths(policyParams *PolicyParams,
 	s.setUpdatedAddPaths(policyParams, updatedAddPaths)
 }
 
-func (s *BGPServer) UndoAggregateAction(actionInfo interface{},
-	conditionList []interface{}, params interface{}, policyStmt utilspolicy.PolicyStmt) {
+func (s *BGPServer) UndoAggregateAction(actionInfo interface{}, conditionList []interface{},
+	policy utilspolicy.Policy, params interface{}, policyStmt utilspolicy.PolicyStmt) {
 	policyParams := params.(PolicyParams)
 	ipPrefix := packet.NewIPPrefix(net.ParseIP(policyParams.route.Dest.BGPRouteState.GetNetwork()),
 		uint8(policyParams.route.Dest.BGPRouteState.GetCIDRLen()))
@@ -556,8 +556,8 @@ func (s *BGPServer) UndoAggregateAction(actionInfo interface{},
 	return
 }
 
-func (s *BGPServer) ApplyAggregateAction(actionInfo interface{}, conditionInfo []interface{}, params interface{},
-	policyStmt utilspolicy.PolicyStmt) {
+func (s *BGPServer) ApplyAggregateAction(actionInfo interface{}, conditionInfo []interface{},
+	policy utilspolicy.Policy, params interface{}, policyStmt utilspolicy.PolicyStmt) {
 	policyParams := params.(PolicyParams)
 	ipPrefix := packet.NewIPPrefix(net.ParseIP(policyParams.route.Dest.BGPRouteState.GetNetwork()),
 		uint8(policyParams.route.Dest.BGPRouteState.GetCIDRLen()))
@@ -851,8 +851,8 @@ func (s *BGPServer) DoesAdjRIBOutRouteExist(params interface{}) bool {
 	return s.DoesAdjRIBRouteExist(params, bgprib.AdjRIBDirOut)
 }
 
-func (s *BGPServer) ApplyAdjRIBAction(actionInfo interface{}, conditionInfo []interface{}, params interface{},
-	policyStmt utilspolicy.PolicyStmt) {
+func (s *BGPServer) ApplyAdjRIBAction(actionInfo interface{}, conditionInfo []interface{}, policy utilspolicy.Policy,
+	params interface{}, policyStmt utilspolicy.PolicyStmt) {
 	policyParams := params.(*AdjRIBPolicyParams)
 	policyParams.PolicyStmt = policyStmt
 	s.logger.Infof("BGPServer:ApplyAdjRIBAction - actionInfo=%+v, conditionInfo=%+v, policyParams=%+v, policyStmt=%+v\n",
@@ -876,8 +876,8 @@ func (s *BGPServer) ApplyAdjRIBAction(actionInfo interface{}, conditionInfo []in
 	}
 }
 
-func (s *BGPServer) UndoAdjRIBAction(actionInfo interface{}, conditionInfo []interface{}, params interface{},
-	policyStmt utilspolicy.PolicyStmt) {
+func (s *BGPServer) UndoAdjRIBAction(actionInfo interface{}, conditionInfo []interface{}, policy utilspolicy.Policy,
+	params interface{}, policyStmt utilspolicy.PolicyStmt) {
 	policyParams := params.(*AdjRIBPolicyParams)
 	s.logger.Infof("BGPServer:UndoAdjRIBAction - actionInfo=%+v, conditionInfo=%+v, policyParams=%+v policyStmt=%+v\n",
 		actionInfo, conditionInfo, policyParams, policyStmt)
