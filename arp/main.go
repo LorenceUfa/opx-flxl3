@@ -24,12 +24,13 @@
 package main
 
 import (
+	"asicd/fsAsicdClnt"
 	"flag"
 	"fmt"
 	"l3/arp/asicdMgr"
 	"l3/arp/rpc"
 	"l3/arp/server"
-	"utils/asicdClient"
+	"utils/clntUtils"
 	"utils/commonDefs"
 	"utils/keepalive"
 	"utils/logging"
@@ -62,7 +63,16 @@ func main() {
 		NHdl:   nHdl,
 		NMap:   nMap,
 	}
-	asicdPlugin := asicdClient.NewAsicdClientInit(pluginName, clientInfoFile, asicdHdl)
+	var asicdPlugin clntUtils.AsicdClntIntf
+	switch pluginName {
+	case "Flexswitch":
+		asicdPlugin, err = fsAsicdClnt.NewAsicdClntInit(clientInfoFile, asicdHdl)
+	default:
+		asicdPlugin, err = fsAsicdClnt.NewAsicdClntInit(clientInfoFile, asicdHdl)
+	}
+	if err != nil {
+		panic(err)
+	}
 	go arpServer.StartServer(asicdPlugin)
 
 	<-arpServer.InitDone
