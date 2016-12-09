@@ -424,9 +424,8 @@ func (server *OSPFV2Server) StopOspfRecvPkts(key IntfConfKey) {
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
 			cnt = cnt + 1
-			if cnt == 1000 {
-				server.logger.Err("Unable to stop the Rx thread")
-				return
+			if cnt%1000 == 0 {
+				server.logger.Err("Trying to stop the Rx thread")
 			}
 		}
 	}
