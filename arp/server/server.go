@@ -29,7 +29,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	"utils/clntUtils"
+	"utils/clntUtils/clntIntfs"
 	"utils/commonDefs"
 	"utils/dbutils"
 	"utils/eventUtils"
@@ -124,7 +124,7 @@ type ARPServer struct {
 	arpDeleteArpEntryFromRibCh chan string
 	arpDeleteArpEntryIntCh     chan string
 
-	AsicdPlugin clntUtils.AsicdClntIntf
+	AsicdPlugin clntIntfs.AsicdClntIntf
 }
 
 func NewARPServer(logger *logging.Writer) *ARPServer {
@@ -206,7 +206,7 @@ func (server *ARPServer) initializeEvents() error {
 	return eventUtils.InitEvents("ARPD", server.eventDbHdl, server.eventDbHdl, server.logger, 1000)
 }
 
-func (server *ARPServer) InitServer(asicdPlugin clntUtils.AsicdClntIntf) {
+func (server *ARPServer) InitServer(asicdPlugin clntIntfs.AsicdClntIntf) {
 	server.initArpParams()
 
 	server.logger.Debug("Starting Arp Server")
@@ -246,7 +246,7 @@ func (server *ARPServer) InitServer(asicdPlugin clntUtils.AsicdClntIntf) {
 	go server.arpCacheTimeout()
 }
 
-func (server *ARPServer) StartServer(asicdPlugin clntUtils.AsicdClntIntf) {
+func (server *ARPServer) StartServer(asicdPlugin clntIntfs.AsicdClntIntf) {
 	server.InitServer(asicdPlugin)
 	server.InitDone <- true
 	for {
