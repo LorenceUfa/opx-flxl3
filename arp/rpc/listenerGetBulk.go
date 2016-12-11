@@ -13,19 +13,18 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 package rpc
 
 import (
 	"arpd"
-	"asicd/asicdCommonDefs"
 	"errors"
 	"fmt"
 	"l3/arp/server"
@@ -36,7 +35,7 @@ func (h *ARPHandler) convertArpEntryToThrift(arpState server.ArpState) *arpd.Arp
 	arpEnt := arpd.NewArpEntryState()
 	arpEnt.IpAddr = arpState.IpAddr
 	arpEnt.MacAddr = arpState.MacAddr
-	if arpState.VlanId == asicdCommonDefs.SYS_RSVD_VLAN {
+	if arpState.VlanId == h.server.SysRsvdVlan {
 		arpEnt.Vlan = "Internal Vlan"
 	} else {
 		arpEnt.Vlan = strconv.Itoa((arpState.VlanId))

@@ -24,10 +24,10 @@
 package server
 
 import (
-	"asicd/asicdCommonDefs"
 	"fmt"
 	"github.com/google/gopacket/pcap"
 	"net"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 	"utils/commonDefs"
 )
 
@@ -128,45 +128,45 @@ func (server *ARPServer) constructPortInfra() {
 }
 
 func (server *ARPServer) GetMacAddr(l3IfIdx int) string {
-	ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(l3IfIdx))
+	ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(l3IfIdx))
 	switch ifType {
-	case commonDefs.IfTypeVlan:
+	case asicdClntDefs.IfTypeVlan:
 		vlanEnt, _ := server.vlanPropMap[l3IfIdx]
 		for uIfIdx, _ := range vlanEnt.UntagIfIdxMap {
-			uIfType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(uIfIdx))
+			uIfType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(uIfIdx))
 			switch uIfType {
-			case commonDefs.IfTypeLag:
+			case asicdClntDefs.IfTypeLag:
 				lagEnt, _ := server.lagPropMap[uIfIdx]
 				for portIfIdx, _ := range lagEnt.PortMap {
 					portEnt, _ := server.portPropMap[portIfIdx]
 					return portEnt.MacAddr
 				}
-			case commonDefs.IfTypePort:
+			case asicdClntDefs.IfTypePort:
 				portEnt, _ := server.portPropMap[uIfIdx]
 				return portEnt.MacAddr
 			}
 		}
 		for tIfIdx, _ := range vlanEnt.TagIfIdxMap {
-			tIfType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(tIfIdx))
+			tIfType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(tIfIdx))
 			switch tIfType {
-			case commonDefs.IfTypeLag:
+			case asicdClntDefs.IfTypeLag:
 				lagEnt, _ := server.lagPropMap[tIfIdx]
 				for portIfIdx, _ := range lagEnt.PortMap {
 					portEnt, _ := server.portPropMap[portIfIdx]
 					return portEnt.MacAddr
 				}
-			case commonDefs.IfTypePort:
+			case asicdClntDefs.IfTypePort:
 				portEnt, _ := server.portPropMap[tIfIdx]
 				return portEnt.MacAddr
 			}
 		}
-	case commonDefs.IfTypeLag:
+	case asicdClntDefs.IfTypeLag:
 		lagEnt, _ := server.lagPropMap[l3IfIdx]
 		for portIfIdx, _ := range lagEnt.PortMap {
 			portEnt, _ := server.portPropMap[portIfIdx]
 			return portEnt.MacAddr
 		}
-	case commonDefs.IfTypePort:
+	case asicdClntDefs.IfTypePort:
 		portEnt, _ := server.portPropMap[l3IfIdx]
 		return portEnt.MacAddr
 	}
@@ -174,7 +174,7 @@ func (server *ARPServer) GetMacAddr(l3IfIdx int) string {
 }
 
 func (server *ARPServer) getBulkPortState() {
-	curMark := int(asicdCommonDefs.MIN_SYS_PORTS)
+	curMark := server.AsicdPlugin.GetMinSysPort()
 	server.logger.Debug("Calling Asicd for getting Port Property")
 	count := 100
 	for {
@@ -189,7 +189,7 @@ func (server *ARPServer) getBulkPortState() {
 			ifIndex := int(bulkInfo.PortStateList[i].IfIndex)
 			ent := server.portPropMap[ifIndex]
 			ent.IfName = bulkInfo.PortStateList[i].Name
-			ent.UntagVlanId = asicdCommonDefs.SYS_RSVD_VLAN
+			ent.UntagVlanId = server.SysRsvdVlan
 			ent.L3PortPropMap = make(map[int]L3PortProp)
 			ent.PcapHdl = nil
 			switch bulkInfo.PortStateList[i].OperState {
@@ -210,7 +210,7 @@ func (server *ARPServer) getBulkPortState() {
 }
 
 func (server *ARPServer) getBulkPortConfig() {
-	curMark := int(asicdCommonDefs.MIN_SYS_PORTS)
+	curMark := server.AsicdPlugin.GetMinSysPort()
 	server.logger.Debug("Calling Asicd for getting Port Property")
 	count := 100
 	for {
@@ -253,7 +253,7 @@ func (server *ARPServer) constructLagInfra() {
 			lagEnt.IfName = bulkLagInfo.LagList[i].LagName
 			lagEnt.PortMap = make(map[int]bool)
 			lagEnt.VlanIdMap = make(map[int]bool)
-			lagEnt.UntagVlanId = asicdCommonDefs.SYS_RSVD_VLAN
+			lagEnt.UntagVlanId = server.SysRsvdVlan
 			ifIndexList := bulkLagInfo.LagList[i].IfIndexList
 			for idx := 0; idx < len(ifIndexList); idx++ {
 				ifIdx := int(ifIndexList[idx])
@@ -289,14 +289,14 @@ func (server *ARPServer) constructVlanInfra() {
 		curMark = int(bulkVlanInfo.EndIdx)
 		for idx := 0; idx < objCnt; idx++ {
 			vlanIfIdx := int(bulkVlanStateInfo.VlanStateList[idx].IfIndex)
-			vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
+			vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 			vlanEnt := server.vlanPropMap[vlanIfIdx]
 			vlanEnt.IfName = bulkVlanStateInfo.VlanStateList[idx].VlanName
 			uIfIdxList := bulkVlanInfo.VlanList[idx].UntagIfIndexList
 			vlanEnt.UntagIfIdxMap = make(map[int]bool)
 			for i := 0; i < len(uIfIdxList); i++ {
-				ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(uIfIdxList[i])
-				if ifType == commonDefs.IfTypeLag {
+				ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(uIfIdxList[i])
+				if ifType == asicdClntDefs.IfTypeLag {
 					server.updateLagForVlan(int(uIfIdxList[i]), vlanId, UNTAGGED, true)
 				}
 				vlanEnt.UntagIfIdxMap[int(uIfIdxList[i])] = true
@@ -304,8 +304,8 @@ func (server *ARPServer) constructVlanInfra() {
 			tIfIdxList := bulkVlanInfo.VlanList[idx].IfIndexList
 			vlanEnt.TagIfIdxMap = make(map[int]bool)
 			for i := 0; i < len(tIfIdxList); i++ {
-				ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(tIfIdxList[i])
-				if ifType == commonDefs.IfTypeLag {
+				ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(tIfIdxList[i])
+				if ifType == asicdClntDefs.IfTypeLag {
 					server.updateLagForVlan(int(tIfIdxList[i]), vlanId, TAGGED, true)
 				}
 				vlanEnt.TagIfIdxMap[int(tIfIdxList[i])] = true
@@ -353,19 +353,19 @@ func (server *ARPServer) constructL3Infra() {
 
 func (server *ARPServer) updateVlanWithL3(l3Vlan L3VlanStruct) string {
 	vlanEnt := server.vlanPropMap[l3Vlan.L3IfIdx]
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(l3Vlan.L3IfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(l3Vlan.L3IfIdx))
 	l3Lag := L3LagStruct{
 		L3Vlan: l3Vlan,
 		VlanId: vlanId,
 	}
 	for uIfIdx, _ := range vlanEnt.UntagIfIdxMap {
 		l3Lag.TagFlag = UNTAGGED
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(uIfIdx))
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(uIfIdx))
 		switch ifType {
-		case commonDefs.IfTypeLag:
+		case asicdClntDefs.IfTypeLag:
 			l3Lag.LagIfIdx = uIfIdx
 			server.updateLagWithL3(l3Lag)
-		case commonDefs.IfTypePort:
+		case asicdClntDefs.IfTypePort:
 			l3Lag.LagIfIdx = -1
 			l3Port := L3PortStruct{
 				L3Lag:     l3Lag,
@@ -376,12 +376,12 @@ func (server *ARPServer) updateVlanWithL3(l3Vlan L3VlanStruct) string {
 	}
 	for tIfIdx, _ := range vlanEnt.TagIfIdxMap {
 		l3Lag.TagFlag = TAGGED
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(tIfIdx))
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(tIfIdx))
 		switch ifType {
-		case commonDefs.IfTypeLag:
+		case asicdClntDefs.IfTypeLag:
 			l3Lag.LagIfIdx = tIfIdx
 			server.updateLagWithL3(l3Lag)
-		case commonDefs.IfTypePort:
+		case asicdClntDefs.IfTypePort:
 			l3Lag.LagIfIdx = -1
 			l3Port := L3PortStruct{
 				L3Lag:     l3Lag,
@@ -422,20 +422,20 @@ func (server *ARPServer) updatePortWithL3(l3Port L3PortStruct) string {
 	return ifName
 }
 
-func (server *ARPServer) processIPv4NbrMacMove(msg commonDefs.IPv4NbrMacMoveNotifyMsg) {
+func (server *ARPServer) processIPv4NbrMacMove(msg asicdClntDefs.IPv4NbrMacMoveNotifyMsg) {
 	server.arpEntryMacMoveCh <- msg
 }
 
-func (server *ARPServer) updateIPv4Infra(msg commonDefs.IPv4IntfNotifyMsg) {
-	if msg.MsgType == commonDefs.NOTIFY_IPV4INTF_CREATE {
+func (server *ARPServer) updateIPv4Infra(msg asicdClntDefs.IPv4IntfNotifyMsg) {
+	if msg.MsgType == asicdClntDefs.NOTIFY_IPV4INTF_CREATE {
 		server.processIPv4IntfCreate(msg.IpAddr, msg.IfIndex)
 	} else {
 		server.processIPv4IntfDelete(msg.IpAddr, msg.IfIndex)
 	}
 }
 
-func (server *ARPServer) processVirtualIntfEvent(msg commonDefs.IPv4VirtualIntfNotifyMsg) {
-	if msg.MsgType == commonDefs.NOTIFY_IPV4VIRTUAL_INTF_CREATE {
+func (server *ARPServer) processVirtualIntfEvent(msg asicdClntDefs.IPv4VirtualIntfNotifyMsg) {
+	if msg.MsgType == asicdClntDefs.NOTIFY_IPV4VIRTUAL_INTF_CREATE {
 		virEntry := server.virtualIntfPropMap[msg.IfIndex]
 		virEntry.IfIndex = msg.IfIndex
 		virEntry.ParentIfIndex = msg.ParentIfIndex
@@ -452,7 +452,7 @@ func (server *ARPServer) processIPv4IntfCreate(IpAddr string, IfIndex int32) {
 	var ifName string
 	ip, ipNet, _ := net.ParseCIDR(IpAddr)
 	l3IfIdx := int(IfIndex)
-	ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(IfIndex)
+	ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(IfIndex)
 	ipAddr := ip.String()
 	l3Vlan := L3VlanStruct{
 		IpAddr:  ipAddr,
@@ -460,21 +460,21 @@ func (server *ARPServer) processIPv4IntfCreate(IpAddr string, IfIndex int32) {
 		L3IfIdx: l3IfIdx,
 	}
 	switch ifType {
-	case commonDefs.IfTypeVlan:
+	case asicdClntDefs.IfTypeVlan:
 		ifName = server.updateVlanWithL3(l3Vlan)
-	case commonDefs.IfTypeLag:
+	case asicdClntDefs.IfTypeLag:
 		l3Lag := L3LagStruct{
 			L3Vlan:   l3Vlan,
 			LagIfIdx: l3IfIdx,
-			VlanId:   asicdCommonDefs.SYS_RSVD_VLAN,
+			VlanId:   server.SysRsvdVlan,
 			TagFlag:  UNTAGGED,
 		}
 		ifName = server.updateLagWithL3(l3Lag)
-	case commonDefs.IfTypePort:
+	case asicdClntDefs.IfTypePort:
 		l3Lag := L3LagStruct{
 			L3Vlan:   l3Vlan,
 			LagIfIdx: -1,
-			VlanId:   asicdCommonDefs.SYS_RSVD_VLAN,
+			VlanId:   server.SysRsvdVlan,
 			TagFlag:  UNTAGGED,
 		}
 		l3Port := L3PortStruct{
@@ -492,32 +492,32 @@ func (server *ARPServer) processIPv4IntfCreate(IpAddr string, IfIndex int32) {
 
 func (server *ARPServer) processIPv4IntfDelete(IpAddr string, IfIndex int32) {
 	l3IfIdx := int(IfIndex)
-	ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(IfIndex)
+	ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(IfIndex)
 	switch ifType {
-	case commonDefs.IfTypeVlan:
+	case asicdClntDefs.IfTypeVlan:
 		server.updateVlanForL3Delete(l3IfIdx)
-	case commonDefs.IfTypeLag:
-		server.updateLagForL3Delete(l3IfIdx, asicdCommonDefs.SYS_RSVD_VLAN, l3IfIdx)
-	case commonDefs.IfTypePort:
-		server.updatePortForL3Delete(l3IfIdx, asicdCommonDefs.SYS_RSVD_VLAN, -1, l3IfIdx)
+	case asicdClntDefs.IfTypeLag:
+		server.updateLagForL3Delete(l3IfIdx, server.SysRsvdVlan, l3IfIdx)
+	case asicdClntDefs.IfTypePort:
+		server.updatePortForL3Delete(l3IfIdx, server.SysRsvdVlan, -1, l3IfIdx)
 	}
 	delete(server.l3IntfPropMap, l3IfIdx)
 }
 
 func (server *ARPServer) updateVlanForL3Delete(vlanIfIdx int) {
 	vlanEnt := server.vlanPropMap[vlanIfIdx]
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 	for uIfIdx, _ := range vlanEnt.UntagIfIdxMap {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(uIfIdx))
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(uIfIdx))
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.updateLagForL3Delete(vlanIfIdx, vlanId, uIfIdx)
 		} else {
 			server.updatePortForL3Delete(vlanIfIdx, vlanId, -1, uIfIdx)
 		}
 	}
 	for tIfIdx, _ := range vlanEnt.TagIfIdxMap {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(int32(tIfIdx))
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(int32(tIfIdx))
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.updateLagForL3Delete(vlanIfIdx, vlanId, tIfIdx)
 		} else {
 			server.updatePortForL3Delete(vlanIfIdx, vlanId, -1, tIfIdx)
@@ -539,7 +539,7 @@ func (server *ARPServer) updatePortForL3Delete(l3IfIdx, vlanId, lagIfIdx, portIf
 	server.portPropMap[portIfIdx] = portEnt
 }
 
-func (server *ARPServer) processIPv4L3StateChange(msg commonDefs.IPv4L3IntfStateNotifyMsg) {
+func (server *ARPServer) processIPv4L3StateChange(msg asicdClntDefs.IPv4L3IntfStateNotifyMsg) {
 	ifIdx := int(msg.IfIndex)
 	if msg.IfState == 0 {
 		server.DisableArpOnL3(ifIdx)
@@ -560,7 +560,7 @@ func (server *ARPServer) sendVipGarp(ifIndex int32) {
 	}
 }
 
-func (server *ARPServer) processVirtualIntfStateEvent(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) {
+func (server *ARPServer) processVirtualIntfStateEvent(msg asicdClntDefs.IPv4VirtualIntfStateNotifyMsg) {
 	if msg.IfState == 0 {
 		server.RestoreBPFFilter(msg)
 	} else {
@@ -569,22 +569,22 @@ func (server *ARPServer) processVirtualIntfStateEvent(msg commonDefs.IPv4Virtual
 	}
 }
 
-func (server *ARPServer) processL2StateChange(msg commonDefs.L2IntfStateNotifyMsg) {
+func (server *ARPServer) processL2StateChange(msg asicdClntDefs.L2IntfStateNotifyMsg) {
 	ifIdx := int(msg.IfIndex)
-	ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(msg.IfIndex)
+	ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(msg.IfIndex)
 	if msg.IfState == 0 {
 		switch ifType {
-		case commonDefs.IfTypeVlan:
+		case asicdClntDefs.IfTypeVlan:
 			//server.DisableArpOnVlan(ifIdx)
-		case commonDefs.IfTypeLag:
+		case asicdClntDefs.IfTypeLag:
 			//server.DisableArpOnLag(ifIdx)
-		case commonDefs.IfTypePort:
+		case asicdClntDefs.IfTypePort:
 			server.DisableRxOnPort(ifIdx)
 			server.DisablePort(ifIdx)
 		}
 	} else {
 		switch ifType {
-		case commonDefs.IfTypePort:
+		case asicdClntDefs.IfTypePort:
 			server.EnablePort(ifIdx)
 			server.EnableRxOnPort(ifIdx)
 		}
@@ -601,7 +601,7 @@ func (server *ARPServer) DisableArpOnL3(l3IfIdx int) {
 
 /*
 func (server *ARPServer) DisableArpOnVlan(l3IfIdx int) {
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(l3IfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(l3IfIdx))
 	server.arpEntryDeleteCh <- DeleteArpEntryMsg{
 		Type:  DeleteBasedOnVlan,
 		IfIdx: vlanId,
@@ -680,24 +680,24 @@ func (server *ARPServer) DisableL3(l3IfIdx int) {
 	server.l3IntfPropMap[l3IfIdx] = l3Ent
 }
 
-func (server *ARPServer) updateVlanInfra(msg commonDefs.VlanNotifyMsg) {
+func (server *ARPServer) updateVlanInfra(msg asicdClntDefs.VlanNotifyMsg) {
 	vlanId := int(msg.VlanId)
-	vlanIfIdx := int(asicdCommonDefs.GetIfIndexFromIntfIdAndIntfType(vlanId, commonDefs.IfTypeVlan))
+	vlanIfIdx := int(server.AsicdPlugin.GetIfIndexFromIntfIdAndIntfType(vlanId, asicdClntDefs.IfTypeVlan))
 	uIfIdxList := msg.UntagPorts
 	tIfIdxList := msg.TagPorts
 	vlanName := msg.VlanName
-	if msg.MsgType == commonDefs.NOTIFY_VLAN_CREATE {
+	if msg.MsgType == asicdClntDefs.NOTIFY_VLAN_CREATE {
 		server.processVlanCreate(vlanName, vlanIfIdx, uIfIdxList, tIfIdxList, true)
-	} else if msg.MsgType == commonDefs.NOTIFY_VLAN_UPDATE {
+	} else if msg.MsgType == asicdClntDefs.NOTIFY_VLAN_UPDATE {
 		server.processVlanUpdate(vlanName, vlanIfIdx, uIfIdxList, tIfIdxList)
-	} else if msg.MsgType == commonDefs.NOTIFY_VLAN_DELETE {
+	} else if msg.MsgType == asicdClntDefs.NOTIFY_VLAN_DELETE {
 		server.processVlanDelete(vlanName, vlanIfIdx, uIfIdxList, tIfIdxList, true)
 	}
 }
 
 func (server *ARPServer) processVlanCreate(vlanName string, vlanIfIdx int, uIfIdxList, tIfIdxList []int32, flag bool) {
 	vlanEnt, _ := server.vlanPropMap[vlanIfIdx]
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 	if flag == true {
 		vlanEnt.UntagIfIdxMap = nil
 		vlanEnt.UntagIfIdxMap = make(map[int]bool)
@@ -705,15 +705,15 @@ func (server *ARPServer) processVlanCreate(vlanName string, vlanIfIdx int, uIfId
 		vlanEnt.TagIfIdxMap = make(map[int]bool)
 	}
 	for idx := 0; idx < len(uIfIdxList); idx++ {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(uIfIdxList[idx])
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(uIfIdxList[idx])
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.updateLagForVlan(int(uIfIdxList[idx]), vlanId, UNTAGGED, true)
 		}
 		vlanEnt.UntagIfIdxMap[int(uIfIdxList[idx])] = true
 	}
 	for idx := 0; idx < len(tIfIdxList); idx++ {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(tIfIdxList[idx])
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(tIfIdxList[idx])
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.updateLagForVlan(int(tIfIdxList[idx]), vlanId, TAGGED, true)
 		}
 		vlanEnt.TagIfIdxMap[int(tIfIdxList[idx])] = true
@@ -731,7 +731,7 @@ func (server *ARPServer) updateLagForVlan(lagIfIdx, vlanId int, TagFlag, create 
 		lagEnt.VlanIdMap[vlanId] = true
 	} else {
 		if TagFlag == UNTAGGED {
-			lagEnt.UntagVlanId = asicdCommonDefs.SYS_RSVD_VLAN
+			lagEnt.UntagVlanId = server.SysRsvdVlan
 		}
 		delete(lagEnt.VlanIdMap, vlanId)
 	}
@@ -740,17 +740,17 @@ func (server *ARPServer) updateLagForVlan(lagIfIdx, vlanId int, TagFlag, create 
 
 func (server *ARPServer) processVlanDelete(vlanName string, vlanIfIdx int, uIfIdxList, tIfIdxList []int32, flag bool) {
 	vlanEnt, _ := server.vlanPropMap[vlanIfIdx]
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 	for _, uIfIdx := range uIfIdxList {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(uIfIdx)
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(uIfIdx)
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.updateLagForVlan(int(uIfIdx), vlanId, UNTAGGED, false)
 		}
 		delete(vlanEnt.UntagIfIdxMap, int(uIfIdx))
 	}
 	for _, tIfIdx := range tIfIdxList {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(tIfIdx)
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(tIfIdx)
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.updateLagForVlan(int(tIfIdx), vlanId, TAGGED, false)
 		}
 		delete(vlanEnt.TagIfIdxMap, int(tIfIdx))
@@ -808,32 +808,32 @@ func (server *ARPServer) processVlanUpdate(vlanName string, vlanIfIdx int, uIfId
 
 func (server *ARPServer) updateInfraWithL3VlanUpdate(vlanIfIdx int, uIfIdxDelList, tIfIdxDelList, uIfIdxCreateList, tIfIdxCreateList []int32) {
 	for _, uIfIdx := range uIfIdxDelList {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(uIfIdx)
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(uIfIdx)
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.deleteLagFromL3Vlan(vlanIfIdx, int(uIfIdx), UNTAGGED)
 		} else {
 			server.deletePortFromL3Vlan(vlanIfIdx, -1, int(uIfIdx), UNTAGGED)
 		}
 	}
 	for _, tIfIdx := range tIfIdxDelList {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(tIfIdx)
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(tIfIdx)
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.deleteLagFromL3Vlan(vlanIfIdx, int(tIfIdx), TAGGED)
 		} else {
 			server.deletePortFromL3Vlan(vlanIfIdx, -1, int(tIfIdx), TAGGED)
 		}
 	}
 	for _, uIfIdx := range uIfIdxCreateList {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(uIfIdx)
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(uIfIdx)
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.createLagFromL3Vlan(vlanIfIdx, int(uIfIdx), UNTAGGED)
 		} else {
 			server.createPortFromL3Vlan(vlanIfIdx, -1, int(uIfIdx), UNTAGGED)
 		}
 	}
 	for _, tIfIdx := range tIfIdxDelList {
-		ifType := asicdCommonDefs.GetIntfTypeFromIfIndex(tIfIdx)
-		if ifType == commonDefs.IfTypeLag {
+		ifType := server.AsicdPlugin.GetIntfTypeFromIfIndex(tIfIdx)
+		if ifType == asicdClntDefs.IfTypeLag {
 			server.createLagFromL3Vlan(vlanIfIdx, int(tIfIdx), TAGGED)
 		} else {
 			server.createPortFromL3Vlan(vlanIfIdx, -1, int(tIfIdx), TAGGED)
@@ -862,10 +862,10 @@ func (server *ARPServer) createLagFromL3Vlan(vlanIfIdx, lagIfIdx int, TagFlag bo
 }
 
 func (server *ARPServer) deletePortFromL3Vlan(vlanIfIdx, lagIfIdx, portIfIdx int, TagFlag bool) {
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 	portEnt, _ := server.portPropMap[portIfIdx]
 	if TagFlag == UNTAGGED {
-		portEnt.UntagVlanId = asicdCommonDefs.SYS_RSVD_VLAN
+		portEnt.UntagVlanId = server.SysRsvdVlan
 	}
 	delete(portEnt.L3PortPropMap, vlanId)
 	server.portPropMap[portIfIdx] = portEnt
@@ -876,7 +876,7 @@ func (server *ARPServer) deletePortFromL3Vlan(vlanIfIdx, lagIfIdx, portIfIdx int
 }
 
 func (server *ARPServer) createPortFromL3Vlan(vlanIfIdx, lagIfIdx, portIfIdx int, TagFlag bool) {
-	vlanId := asicdCommonDefs.GetIntfIdFromIfIndex(int32(vlanIfIdx))
+	vlanId := server.AsicdPlugin.GetIntfIdFromIfIndex(int32(vlanIfIdx))
 	l3Ent, _ := server.l3IntfPropMap[vlanIfIdx]
 	portEnt, _ := server.portPropMap[portIfIdx]
 	l3PortPropEnt, _ := portEnt.L3PortPropMap[vlanId]
@@ -891,14 +891,14 @@ func (server *ARPServer) createPortFromL3Vlan(vlanIfIdx, lagIfIdx, portIfIdx int
 	server.portPropMap[portIfIdx] = portEnt
 }
 
-func (server *ARPServer) updateLagInfra(msg commonDefs.LagNotifyMsg) {
+func (server *ARPServer) updateLagInfra(msg asicdClntDefs.LagNotifyMsg) {
 	lagIfIdx := int(msg.IfIndex)
 	portList := msg.IfIndexList
-	if msg.MsgType == commonDefs.NOTIFY_LAG_CREATE {
+	if msg.MsgType == asicdClntDefs.NOTIFY_LAG_CREATE {
 		server.processLagCreate(msg.LagName, lagIfIdx, portList, true)
-	} else if msg.MsgType == commonDefs.NOTIFY_LAG_UPDATE {
+	} else if msg.MsgType == asicdClntDefs.NOTIFY_LAG_UPDATE {
 		server.processLagUpdate(lagIfIdx, portList)
-	} else if msg.MsgType == commonDefs.NOTIFY_LAG_DELETE {
+	} else if msg.MsgType == asicdClntDefs.NOTIFY_LAG_DELETE {
 		server.processLagDelete(lagIfIdx, portList, true)
 	}
 }
@@ -965,14 +965,14 @@ func (server *ARPServer) updateInfraWithL3LagUpdate(lagIfIdx int, createPortList
 	_, exist := server.l3IntfPropMap[lagIfIdx]
 	if exist {
 		for _, portIfIdx := range createPortList {
-			server.createPortFromL3Lag(lagIfIdx, asicdCommonDefs.SYS_RSVD_VLAN, lagIfIdx, int(portIfIdx), UNTAGGED)
+			server.createPortFromL3Lag(lagIfIdx, server.SysRsvdVlan, lagIfIdx, int(portIfIdx), UNTAGGED)
 		}
 		for _, portIfIdx := range delPortList {
-			server.deletePortFromL3Lag(lagIfIdx, asicdCommonDefs.SYS_RSVD_VLAN, lagIfIdx, int(portIfIdx), UNTAGGED)
+			server.deletePortFromL3Lag(lagIfIdx, server.SysRsvdVlan, lagIfIdx, int(portIfIdx), UNTAGGED)
 		}
 	} else {
 		for vlanId, _ := range lagEnt.VlanIdMap {
-			vlanIfIdx := int(asicdCommonDefs.GetIfIndexFromIntfIdAndIntfType(vlanId, commonDefs.IfTypeVlan))
+			vlanIfIdx := int(server.AsicdPlugin.GetIfIndexFromIntfIdAndIntfType(vlanId, asicdClntDefs.IfTypeVlan))
 			_, exist := server.l3IntfPropMap[vlanIfIdx]
 			if exist {
 				if vlanId == lagEnt.UntagVlanId {
@@ -1051,7 +1051,7 @@ func (server *ARPServer) restoreVlanMembersFilters(vlanIfIndex int) error {
 	return nil
 }
 
-func (server *ARPServer) RestoreBPFFilter(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) error {
+func (server *ARPServer) RestoreBPFFilter(msg asicdClntDefs.IPv4VirtualIntfStateNotifyMsg) error {
 	virEntry, exists := server.virtualIntfPropMap[msg.IfIndex]
 	if !exists {
 		server.logger.Err("No entry found for virtual interface during state down and hence filter cannot be restored:", msg.IfIndex, msg.IpAddr)
@@ -1107,7 +1107,7 @@ func (server *ARPServer) updateFilter(ifIndex int, macAddr string) error {
 	return nil
 }
 
-func (server *ARPServer) UpdateBPFFilter(msg commonDefs.IPv4VirtualIntfStateNotifyMsg) error {
+func (server *ARPServer) UpdateBPFFilter(msg asicdClntDefs.IPv4VirtualIntfStateNotifyMsg) error {
 	virEntry, exists := server.virtualIntfPropMap[msg.IfIndex]
 	if !exists {
 		server.logger.Err("No entry found for virtual interface during state down and hence filter cannot be restored:", msg.IfIndex, msg.IpAddr)
