@@ -29,8 +29,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	"utils/clntUtils/clntIntfs"
-	"utils/commonDefs"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/eventUtils"
 	"utils/logging"
@@ -78,7 +78,7 @@ type GarpEntry struct {
 type ARPServer struct {
 	logger                  *logging.Writer
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
-	AsicdSubSocketCh        chan commonDefs.AsicdNotifyMsg
+	AsicdSubSocketCh        chan asicdClntDefs.AsicdNotifyMsg
 	dbHdl                   *dbutils.DBUtil
 	eventDbHdl              *dbutils.DBUtil
 	snapshotLen             int32
@@ -106,7 +106,7 @@ type ARPServer struct {
 	arpSlice                []string
 	arpEntryUpdateCh        chan UpdateArpEntryMsg
 	arpEntryDeleteCh        chan DeleteArpEntryMsg
-	arpEntryMacMoveCh       chan commonDefs.IPv4NbrMacMoveNotifyMsg
+	arpEntryMacMoveCh       chan asicdClntDefs.IPv4NbrMacMoveNotifyMsg
 	arpEntryCntUpdateCh     chan int
 	arpSliceRefreshStartCh  chan bool
 	arpSliceRefreshDoneCh   chan bool
@@ -123,15 +123,16 @@ type ARPServer struct {
 	ArpActionCh                chan ArpActionMsg
 	arpDeleteArpEntryFromRibCh chan string
 	arpDeleteArpEntryIntCh     chan string
+	SysRsvdVlan                int
 
-	AsicdPlugin clntIntfs.AsicdClntIntf
+	AsicdPlugin asicdClntIntfs.AsicdClntIntf
 }
 
 func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer := &ARPServer{}
 	arpServer.logger = logger
 	arpServer.arpCache = make(map[string]ArpEntry)
-	arpServer.AsicdSubSocketCh = make(chan commonDefs.AsicdNotifyMsg)
+	arpServer.AsicdSubSocketCh = make(chan asicdClntDefs.AsicdNotifyMsg)
 	arpServer.l3IntfPropMap = make(map[int]L3IntfProperty)
 	arpServer.lagPropMap = make(map[int]LagProperty)
 	arpServer.vlanPropMap = make(map[int]VlanProperty)
@@ -154,7 +155,7 @@ func NewARPServer(logger *logging.Writer) *ARPServer {
 	arpServer.ArpConfCh = make(chan ArpConf)
 	arpServer.InitDone = make(chan bool)
 	arpServer.ArpActionCh = make(chan ArpActionMsg)
-	arpServer.arpEntryMacMoveCh = make(chan commonDefs.IPv4NbrMacMoveNotifyMsg)
+	arpServer.arpEntryMacMoveCh = make(chan asicdClntDefs.IPv4NbrMacMoveNotifyMsg)
 	return arpServer
 }
 
@@ -206,7 +207,7 @@ func (server *ARPServer) initializeEvents() error {
 	return eventUtils.InitEvents("ARPD", server.eventDbHdl, server.eventDbHdl, server.logger, 1000)
 }
 
-func (server *ARPServer) InitServer(asicdPlugin clntIntfs.AsicdClntIntf) {
+func (server *ARPServer) InitServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
 	server.initArpParams()
 
 	server.logger.Debug("Starting Arp Server")
@@ -215,6 +216,7 @@ func (server *ARPServer) InitServer(asicdPlugin clntIntfs.AsicdClntIntf) {
 		server.logger.Err("Unable to instantiate Asicd Interface")
 		return
 	}
+	server.SysRsvdVlan = server.AsicdPlugin.GetSysRsvdVlan()
 	server.logger.Debug("Listen for ASICd updates")
 	server.buildArpInfra()
 
@@ -246,7 +248,7 @@ func (server *ARPServer) InitServer(asicdPlugin clntIntfs.AsicdClntIntf) {
 	go server.arpCacheTimeout()
 }
 
-func (server *ARPServer) StartServer(asicdPlugin clntIntfs.AsicdClntIntf) {
+func (server *ARPServer) StartServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
 	server.InitServer(asicdPlugin)
 	server.InitDone <- true
 	for {

@@ -25,7 +25,7 @@ package server
 
 import (
 	"errors"
-	"utils/commonDefs"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 )
 
 type AsicdMsgType uint8
@@ -43,44 +43,44 @@ type AsicdMsg struct {
 	IfIdx   int32
 }
 
-func (server *ARPServer) processAsicdNotification(msg commonDefs.AsicdNotifyMsg) {
+func (server *ARPServer) processAsicdNotification(msg asicdClntDefs.AsicdNotifyMsg) {
 	switch msg.(type) {
-	case commonDefs.L2IntfStateNotifyMsg:
-		l2Msg := msg.(commonDefs.L2IntfStateNotifyMsg)
+	case asicdClntDefs.L2IntfStateNotifyMsg:
+		l2Msg := msg.(asicdClntDefs.L2IntfStateNotifyMsg)
 		server.logger.Debug("L2IntfStateNotifyMsg:", l2Msg)
 		server.processL2StateChange(l2Msg)
 		server.dumpInfra()
-	case commonDefs.IPv4L3IntfStateNotifyMsg:
-		l3Msg := msg.(commonDefs.IPv4L3IntfStateNotifyMsg)
+	case asicdClntDefs.IPv4L3IntfStateNotifyMsg:
+		l3Msg := msg.(asicdClntDefs.IPv4L3IntfStateNotifyMsg)
 		server.dumpInfra()
 		server.logger.Debug("IPv4L3IntfStateNotifyMsg:", l3Msg)
 		server.processIPv4L3StateChange(l3Msg)
 		server.dumpInfra()
-	case commonDefs.VlanNotifyMsg:
-		vlanMsg := msg.(commonDefs.VlanNotifyMsg)
+	case asicdClntDefs.VlanNotifyMsg:
+		vlanMsg := msg.(asicdClntDefs.VlanNotifyMsg)
 		server.logger.Debug("VlanNotifyMsg:", vlanMsg)
 		server.updateVlanInfra(vlanMsg)
 		server.dumpInfra()
-	case commonDefs.LagNotifyMsg:
-		lagMsg := msg.(commonDefs.LagNotifyMsg)
+	case asicdClntDefs.LagNotifyMsg:
+		lagMsg := msg.(asicdClntDefs.LagNotifyMsg)
 		server.logger.Debug("LagNotifyMsg:", lagMsg)
 		server.updateLagInfra(lagMsg)
 		server.dumpInfra()
-	case commonDefs.IPv4IntfNotifyMsg:
-		ipv4Msg := msg.(commonDefs.IPv4IntfNotifyMsg)
+	case asicdClntDefs.IPv4IntfNotifyMsg:
+		ipv4Msg := msg.(asicdClntDefs.IPv4IntfNotifyMsg)
 		server.logger.Debug("IPv4IntfNotifyMsg:", ipv4Msg)
 		server.updateIPv4Infra(ipv4Msg)
 		server.dumpInfra()
-	case commonDefs.IPv4NbrMacMoveNotifyMsg:
-		macMoveMsg := msg.(commonDefs.IPv4NbrMacMoveNotifyMsg)
+	case asicdClntDefs.IPv4NbrMacMoveNotifyMsg:
+		macMoveMsg := msg.(asicdClntDefs.IPv4NbrMacMoveNotifyMsg)
 		server.processIPv4NbrMacMove(macMoveMsg)
 		server.dumpInfra()
-	case commonDefs.IPv4VirtualIntfNotifyMsg:
-		virIntfMsg := msg.(commonDefs.IPv4VirtualIntfNotifyMsg)
+	case asicdClntDefs.IPv4VirtualIntfNotifyMsg:
+		virIntfMsg := msg.(asicdClntDefs.IPv4VirtualIntfNotifyMsg)
 		server.logger.Info("Msg Virtual Intf:", virIntfMsg)
 		server.processVirtualIntfEvent(virIntfMsg)
-	case commonDefs.IPv4VirtualIntfStateNotifyMsg:
-		virStMsg := msg.(commonDefs.IPv4VirtualIntfStateNotifyMsg)
+	case asicdClntDefs.IPv4VirtualIntfStateNotifyMsg:
+		virStMsg := msg.(asicdClntDefs.IPv4VirtualIntfStateNotifyMsg)
 		server.logger.Info("Virtual Intf State Change Message:", virStMsg)
 		server.processVirtualIntfStateEvent(virStMsg)
 	}

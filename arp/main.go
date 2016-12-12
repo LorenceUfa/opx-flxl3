@@ -29,8 +29,8 @@ import (
 	"l3/arp/asicdMgr"
 	"l3/arp/rpc"
 	"l3/arp/server"
-	"utils/clntUtils/clntDefs"
-	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/keepalive"
 	"utils/logging"
 )
@@ -56,13 +56,13 @@ func main() {
 
 	clientInfoFile := fileName + "clients.json"
 	nHdl, nMap := asicdMgr.NewNotificationHdl(arpServer, logger)
-	asicdHdl := clntDefs.AsicdClientStruct{
+	asicdHdl := asicdClntDefs.AsicdClientStruct{
 		Logger: logger,
 		NHdl:   nHdl,
 		NMap:   nMap,
 	}
-	var asicdPlugin clntIntfs.AsicdClntIntf
-	asicdPlugin, err = clntIntfs.NewAsicdClntInit(clntIntfs.FS_ASICD_CLNT, clientInfoFile, asicdHdl)
+	var asicdPlugin asicdClntIntfs.AsicdClntIntf
+	asicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntIntfs.FS_ASICD_CLNT, clientInfoFile, asicdHdl)
 	if err != nil {
 		panic(err)
 	}
