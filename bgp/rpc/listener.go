@@ -92,6 +92,7 @@ func (h *BGPHandler) convertModelToBGPGlobalConfig(obj objects.BGPGlobal) (gConf
 			IBGPMaxPaths:        obj.IBGPMaxPaths,
 			Defaultv4Route:      obj.Defaultv4Route,
 			Defaultv6Route:      obj.Defaultv6Route,
+			DefaultMED:          obj.DefaultMED,
 		},
 	}
 
@@ -563,6 +564,7 @@ func (h *BGPHandler) validateBGPGlobal(bgpGlobal *bgpd.BGPGlobal) (gConf config.
 			IBGPMaxPaths:        uint32(bgpGlobal.IBGPMaxPaths),
 			Defaultv4Route:      bgpGlobal.Defaultv4Route,
 			Defaultv6Route:      bgpGlobal.Defaultv6Route,
+			DefaultMED:          uint32(bgpGlobal.DefaultMED),
 		},
 	}
 
@@ -608,6 +610,7 @@ func (h *BGPHandler) validateBGPGlobalForPatchUpdate(oldConfig *bgpd.BGPGlobal, 
 			IBGPMaxPaths:        uint32(oldConfig.IBGPMaxPaths),
 			Defaultv4Route:      oldConfig.Defaultv4Route,
 			Defaultv6Route:      oldConfig.Defaultv6Route,
+			DefaultMED:          uint32(oldConfig.DefaultMED),
 		},
 	}
 
@@ -681,6 +684,7 @@ func (h *BGPHandler) validateBGPGlobalForUpdate(oldConfig *bgpd.BGPGlobal, newCo
 			IBGPMaxPaths:        uint32(newConfig.IBGPMaxPaths),
 			Defaultv4Route:      newConfig.Defaultv4Route,
 			Defaultv6Route:      newConfig.Defaultv6Route,
+			DefaultMED:          uint32(newConfig.DefaultMED),
 		},
 	}
 
@@ -763,6 +767,7 @@ func (h *BGPHandler) GetBGPGlobalState(vrfId string) (*bgpd.BGPGlobalState, erro
 	bgpGlobalResponse.IBGPMaxPaths = int32(bgpGlobal.IBGPMaxPaths)
 	bgpGlobalResponse.Defaultv4Route = bgpGlobal.Defaultv4Route
 	bgpGlobalResponse.Defaultv6Route = bgpGlobal.Defaultv6Route
+	bgpGlobalResponse.DefaultMED = int32(bgpGlobal.DefaultMED)
 	bgpGlobalResponse.TotalPaths = int32(bgpGlobal.TotalPaths)
 	bgpGlobalResponse.Totalv4Prefixes = int32(bgpGlobal.Totalv4Prefixes)
 	bgpGlobalResponse.Totalv6Prefixes = int32(bgpGlobal.Totalv6Prefixes)

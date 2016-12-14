@@ -31,6 +31,7 @@ import (
 	"math"
 	"net"
 	"strconv"
+	"strings"
 )
 
 type BGPPktInfo struct {
@@ -1200,12 +1201,15 @@ type BGPASPathSegment interface {
 	Encode(pkt []byte) error
 	Decode(pkt []byte, data interface{}) error
 	PrependAS(as uint32) bool
+	PrependASList(asList []uint32) bool
 	AppendAS(as uint32) bool
 	TotalLen() uint16
 	GetType() BGPASPathSegmentType
 	GetLen() uint8
 	GetNumASes() uint8
+	GetMaxASes() int
 	String() string
+	ToStr() string
 }
 
 type BGPASPathSegmentBase struct {
@@ -1246,6 +1250,10 @@ func (ps *BGPASPathSegmentBase) GetType() BGPASPathSegmentType {
 
 func (ps *BGPASPathSegmentBase) GetLen() uint8 {
 	return ps.Length
+}
+
+func (ps *BGPASPathSegmentBase) GetMaxASes() int {
+	return 255
 }
 
 type BGPAS2PathSegment struct {
@@ -1312,6 +1320,22 @@ func (ps *BGPAS2PathSegment) PrependAS(as uint32) bool {
 	return true
 }
 
+func (ps *BGPAS2PathSegment) PrependASList(asList []uint32) bool {
+	asLen := len(asList)
+	if int(ps.Length)+asLen > 255 {
+		return false
+	}
+
+	ps.AS = append(ps.AS, make([]uint16, asLen)...)
+	copy(ps.AS[asLen:], ps.AS[0:])
+	for idx, asNum := range asList {
+		ps.AS[idx] = uint16(asNum)
+	}
+	ps.Length += uint8(asLen)
+	ps.BGPASPathSegmentLen += uint16(2 * asLen)
+	return true
+}
+
 func (ps *BGPAS2PathSegment) AppendAS(as uint32) bool {
 	if ps.Length >= 255 {
 		return false
@@ -1325,6 +1349,12 @@ func (ps *BGPAS2PathSegment) AppendAS(as uint32) bool {
 
 func (ps *BGPAS2PathSegment) String() string {
 	return fmt.Sprintf("%v", ps.AS)
+}
+
+func (ps *BGPAS2PathSegment) ToStr() string {
+	asPathsStr := fmt.Sprintf("%v", ps.AS)
+	asPathsStr = strings.Trim(asPathsStr, "[]")
+	return asPathsStr
 }
 
 func NewBGPAS2PathSegment(segType BGPASPathSegmentType) *BGPAS2PathSegment {
@@ -1431,6 +1461,26 @@ func (ps *BGPAS4PathSegment) PrependAS(as uint32) bool {
 	return true
 }
 
+func (ps *BGPAS4PathSegment) PrependASList(asList []uint32) bool {
+	asLen := len(asList)
+	if asLen == 0 {
+		return true
+	}
+
+	if int(ps.Length)+asLen >= 255 {
+		return false
+	}
+
+	ps.AS = append(ps.AS, asList...)
+	copy(ps.AS[asLen:], ps.AS[0:])
+	for idx, as := range asList {
+		ps.AS[idx] = as
+	}
+	ps.Length += uint8(asLen)
+	ps.BGPASPathSegmentLen += uint16(4 * asLen)
+	return true
+}
+
 func (ps *BGPAS4PathSegment) AppendAS(as uint32) bool {
 	if ps.Length >= 255 {
 		return false
@@ -1444,6 +1494,12 @@ func (ps *BGPAS4PathSegment) AppendAS(as uint32) bool {
 
 func (ps *BGPAS4PathSegment) String() string {
 	return fmt.Sprintf("%v", ps.AS)
+}
+
+func (ps *BGPAS4PathSegment) ToStr() string {
+	asPathsStr := fmt.Sprintf("%v", ps.AS)
+	asPathsStr = strings.Trim(asPathsStr, "[]")
+	return asPathsStr
 }
 
 func NewBGPAS4PathSegment(segType BGPASPathSegmentType) *BGPAS4PathSegment {

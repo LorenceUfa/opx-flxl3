@@ -206,7 +206,8 @@ func (server *OSPFV2Server) CreateNewNbr(nbrData NbrHelloEventMsg) {
 	}
 	server.ProcessNbrDead(nbrKey)
 	//	server.ProcessNbrFsmStart(nbrKey, nbrConf)
-	server.GetBulkData.NbrConfSlice = append(server.GetBulkData.NbrConfSlice, nbrKey)
+	server.logger.Debug("Nbr : Add to slice ", nbrKey)
+	server.addNbrToSlice(nbrKey)
 }
 
 func (server *OSPFV2Server) ProcessNbrFsmStart(nbrKey NbrConfKey) {
@@ -280,13 +281,14 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 			negotiationDone = true
 			nbrConf.State = NbrExchange
 		}
-		if nbrDbPkt.msbit && nbrConf.NbrRtrId > server.globalData.RouterId {
-			server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
-			nbrConf.isMaster = true
-			server.logger.Debug("NBREVENT: Negotiation done..")
-			negotiationDone = true
-			nbrConf.State = NbrExchange
-		}
+		/*
+			if nbrDbPkt.msbit && nbrConf.NbrRtrId > server.globalData.RouterId {
+				server.logger.Debug("DBD: (ExStart/slave) SLAVE = self,  MASTER = ", nbrKey.NbrIdentity)
+				nbrConf.isMaster = true
+				server.logger.Debug("NBREVENT: Negotiation done..")
+				negotiationDone = true
+				nbrConf.State = NbrExchange
+			} */
 
 		/*   The initialize(I) and master(MS) bits are off, the
 		     packet's DD sequence number equals the neighbor data
@@ -329,6 +331,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 		server.logger.Debug("Nbr: received nbr req len ", len(req_list))
 		nbrConf.NbrReqList = req_list
 	} else { // negotiation not done
+		server.logger.Debug("Nbr: Negotiation not done. ", nbrConf.NbrIP)
 		nbrConf.State = NbrExchangeStart
 		if nbrConf.isMaster &&
 			nbrConf.NbrRtrId > server.globalData.RouterId {
@@ -336,10 +339,7 @@ func (server *OSPFV2Server) ProcessNbrExstart(nbrKey NbrConfKey, nbrConf NbrConf
 			dbd_mdata, _ = server.ConstructDbdMdata(nbrKey, true, true, true,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false)
 			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
-			dbd_mdata.dd_sequence_number++
 		} else {
-			//start with new seq number
-			dbd_mdata.dd_sequence_number = uint32(time.Now().Nanosecond()) //nbrConf.dd_sequence_number
 			dbd_mdata, _ = server.ConstructDbdMdata(nbrKey, true, true, true,
 				nbrDbPkt.options, nbrDbPkt.dd_sequence_number, false, false)
 			server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
@@ -411,7 +411,6 @@ func (server *OSPFV2Server) ProcessNbrExchange(nbrKey NbrConfKey, nbrConf NbrCon
 }
 
 func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf, nbrDbPkt NbrDbdData) {
-	var dbd_mdata NbrDbdData
 	var seq_num uint32
 	server.logger.Debug(fmt.Sprintln("DBD: Loading . Nbr ", nbrKey.NbrIdentity))
 	isDiscard := server.NbrDbPacketDiscardCheck(nbrDbPkt, nbrConf)
@@ -424,10 +423,14 @@ func (server *OSPFV2Server) ProcessNbrLoading(nbrKey NbrConfKey, nbrConf NbrConf
 
 		nbrConf.State = NbrExchangeStart
 		nbrConf.isMaster = false
+		/*
 		dbd_mdata, _ = server.ConstructDbdMdata(nbrKey, true, true, true,
 			nbrDbPkt.options, nbrConf.DDSequenceNum+1, false, false)
 		server.BuildAndSendDdBDPkt(nbrConf, dbd_mdata)
-		seq_num = dbd_mdata.dd_sequence_number
+		seq_num = dbd_mdata.dd_sequence_number */
+		nbrConf.State = NbrExchangeStart
+                server.ProcessNbrExstart(nbrKey, nbrConf, nbrDbPkt)
+
 	} else if !isDuplicate {
 		/*
 		   slave - Send the old dbd packet.
@@ -461,6 +464,7 @@ func (server *OSPFV2Server) ProcessNbrFull(nbrKey NbrConfKey) {
 		server.logger.Err("Nbr : Intf does not exist. ", nbrKey)
 		return
 	}
+	server.logger.Debug("Nbr : intf rtr ", intf.DRtrId, " global rtr ", server.globalData.RouterId)
 	if intf.DRtrId == server.globalData.RouterId {
 		server.logger.Debug("Nbr : Send message to lsdb to generate nw lsa ", nbrConf.NbrIP)
 		nbrList := []uint32{}
@@ -549,6 +553,7 @@ func (server *OSPFV2Server) ProcessNbrDeadFromIntf(key IntfConfKey) {
 		nbrConf.NbrRetxList = nil
 		nbrConf.NbrDBSummaryList = nil
 		delete(server.NbrConfMap, nbr)
+		server.delNbrFromSlice(nbr)
 		server.logger.Info("Nbr: Deleted", nbr)
 	}
 

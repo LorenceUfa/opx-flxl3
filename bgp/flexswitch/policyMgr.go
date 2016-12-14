@@ -93,14 +93,19 @@ func convertModelsToPolicyConditionConfig(cfg *objects.PolicyCondition) *utilspo
 			MasklengthRange: cfg.MaskLengthRange,
 		},
 	}
-	matchExtendedCommunityInfo := utilspolicy.PolicyExtendedCommunityInfo{cfg.ExtendedCommunityType, cfg.ExtendedCommunityValue}
+	matchExtendedCommunityInfo := utilspolicy.PolicyExtendedCommunityInfo{cfg.ExtendedCommunityType,
+		cfg.ExtendedCommunityValue}
 
 	return &utilspolicy.PolicyConditionConfig{
-		Name:                                cfg.Name,
-		ConditionType:                       cfg.ConditionType,
-		MatchDstIpPrefixConditionInfo:       destIPMatch,
-		MatchCommunityConditionInfo:         utilspolicy.PolicyMatchCommunitySetCondition{cfg.Community, cfg.CommunitySet},
-		MatchExtendedCommunityConditionInfo: utilspolicy.PolicyMatchExtendedCommunitySetCondition{ExtendedCommunity: matchExtendedCommunityInfo, ExtendedCommunitySet: cfg.ExtendedCommunitySet},
+		Name:                          cfg.Name,
+		ConditionType:                 cfg.ConditionType,
+		MatchDstIpPrefixConditionInfo: destIPMatch,
+		MatchCommunityConditionInfo:   utilspolicy.PolicyMatchCommunitySetCondition{cfg.Community, cfg.CommunitySet},
+		MatchASPathConditionInfo:      utilspolicy.PolicyMatchASPathSetCondition{cfg.ASPath, cfg.ASPathSet},
+		MatchLocalPrefConditionInfo:   cfg.LocalPref,
+		MatchMEDConditionInfo:         cfg.MED,
+		MatchExtendedCommunityConditionInfo: utilspolicy.PolicyMatchExtendedCommunitySetCondition{
+			ExtendedCommunity: matchExtendedCommunityInfo, ExtendedCommunitySet: cfg.ExtendedCommunitySet},
 	}
 }
 
@@ -156,6 +161,8 @@ func convertModelsToPolicyStmtConfig(cfg *objects.PolicyStmt) *utilspolicy.Polic
 			Community:         setAction.Community,
 			ExtendedCommunity: utilspolicy.PolicyExtendedCommunityInfo{setAction.ExtendedCommunityType, setAction.ExtendedCommunityValue},
 			LocalPref:         setAction.LocalPref,
+			MED:               setAction.MED,
+			PrependASPath:     setAction.PrependASPath,
 		})
 	}
 	return &utilspolicy.PolicyStmtConfig{

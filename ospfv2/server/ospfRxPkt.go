@@ -172,8 +172,11 @@ func (server *OSPFV2Server) processOspfHeader(ospfPkt []byte, key IntfConfKey, m
 				return err
 			}
 		} else if ent.Type == objects.INTF_TYPE_POINT2POINT {
+			/* For future - For unnumbered P2P the identity will be
+			   router id. */
+
 			nbrKey := NbrConfKey{
-				NbrIdentity:         ospfHdr.RouterId,
+				NbrIdentity:         ipHdrMd.SrcIP,
 				NbrAddressLessIfIdx: key.IntfIdx,
 			}
 			_, exist := ent.NbrMap[nbrKey]
@@ -283,7 +286,9 @@ func (server *OSPFV2Server) ProcessOspfRecvLsaAndDbdPkt(recvPktData OspfLsaAndDb
 		select {
 		case msg := <-recvPktData.OspfRecvLsaAndDbdPktCh:
 			if ent.Type == objects.INTF_TYPE_POINT2POINT {
-				nbrIdentity = msg.OspfHdrMd.RouterId
+				/* For future - add routerId as identity
+				for unnumbered p2p */
+				nbrIdentity = msg.IpHdrMd.SrcIP
 			} else {
 				nbrIdentity = msg.IpHdrMd.SrcIP
 			}
@@ -419,9 +424,8 @@ func (server *OSPFV2Server) StopOspfRecvPkts(key IntfConfKey) {
 		default:
 			time.Sleep(time.Duration(10) * time.Millisecond)
 			cnt = cnt + 1
-			if cnt == 1000 {
-				server.logger.Err("Unable to stop the Rx thread")
-				return
+			if cnt%1000 == 0 {
+				server.logger.Err("Trying to stop the Rx thread")
 			}
 		}
 	}

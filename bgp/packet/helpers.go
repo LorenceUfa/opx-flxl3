@@ -25,11 +25,13 @@
 package packet
 
 import (
+	"errors"
 	_ "fmt"
 	"l3/bgp/utils"
 	"math"
 	"net"
 	"sort"
+	"strings"
 )
 
 func PrependAS(updateMsg *BGPMessage, AS uint32, asSize uint8) {
@@ -69,6 +71,60 @@ func PrependAS(updateMsg *BGPMessage, AS uint32, asSize uint8) {
 	}
 }
 
+func PrependASList(pathAttrs []BGPPathAttr, asList []uint32, asSize uint8) []BGPPathAttr {
+	newASes := 0
+	for _, pa := range pathAttrs {
+		if pa.GetCode() == BGPPathAttrTypeASPath {
+			asPathSegments := pa.(*BGPPathAttrASPath).Value
+			var newASPathSegment BGPASPathSegment
+			if len(asPathSegments) == 0 || asPathSegments[0].GetType() == BGPASPathSegmentSet || asPathSegments[0].GetLen() >= 255 {
+				if asSize == 4 {
+					newASPathSegment = NewBGPAS4PathSegmentSeq()
+				} else {
+					newASPathSegment = NewBGPAS2PathSegmentSeq()
+					if asSize == 2 {
+						for idx, as := range asList {
+							if as > math.MaxUint16 {
+								asList[idx] = uint32(BGPASTrans)
+							}
+						}
+					}
+				}
+				pa.(*BGPPathAttrASPath).PrependASPathSegment(newASPathSegment)
+			}
+			asPathSegments = pa.(*BGPPathAttrASPath).Value
+			numASes := int(asPathSegments[0].GetLen())
+			newASes = len(asList)
+			if newASes > (asPathSegments[0].GetMaxASes() - numASes) {
+				newASes = (asPathSegments[0].GetMaxASes() - numASes)
+			}
+			asPathSegments[0].PrependASList(asList[:newASes])
+			pa.(*BGPPathAttrASPath).BGPPathAttrBase.Length += uint16(int(asSize) * newASes)
+		} else if pa.GetCode() == BGPPathAttrTypeAS4Path {
+			asPathSegments := pa.(*BGPPathAttrAS4Path).Value
+			var newAS4PathSegment *BGPAS4PathSegment
+			if len(asPathSegments) == 0 || asPathSegments[0].GetType() == BGPASPathSegmentSet || asPathSegments[0].GetLen() >= 255 {
+				newAS4PathSegment = NewBGPAS4PathSegmentSeq()
+				pa.(*BGPPathAttrAS4Path).AddASPathSegment(newAS4PathSegment)
+			}
+			asPathSegments = pa.(*BGPPathAttrAS4Path).Value
+			numASes := int(asPathSegments[0].GetLen())
+			newASes = len(asList)
+			if newASes > (asPathSegments[0].GetMaxASes() - numASes) {
+				newASes = (asPathSegments[0].GetMaxASes() - numASes)
+			}
+			asPathSegments[0].PrependASList(asList[:newASes])
+			pa.(*BGPPathAttrASPath).BGPPathAttrBase.Length += uint16(int(asSize) * newASes)
+		}
+	}
+
+	if newASes > 0 {
+		pathAttrs = PrependASList(pathAttrs, asList[newASes:], asSize)
+	}
+
+	return pathAttrs
+}
+
 func AppendASToAS4PathSeg(asPath *BGPPathAttrASPath, pathSeg BGPASPathSegment, asPathType BGPASPathSegmentType,
 	asNum uint32) BGPASPathSegment {
 	if pathSeg == nil {
@@ -84,6 +140,43 @@ func AppendASToAS4PathSeg(asPath *BGPPathAttrASPath, pathSeg BGPASPathSegment, a
 	}
 
 	return pathSeg
+}
+
+func GetASPathAsString(pathAttrs []BGPPathAttr) (asPathStr string, err error) {
+	err = errors.New("AS path not found")
+	paASPath := getTypeFromPathAttrs(pathAttrs, BGPPathAttrTypeASPath)
+	if paASPath != nil {
+		asPath := paASPath.(*BGPPathAttrASPath)
+		for _, asSeg := range asPath.Value {
+			asSegStr := asSeg.String()
+			utils.Logger.Infof("GetASPathAsString - asSegStr {%s}", asSegStr)
+			asSegStr = strings.TrimLeft(asSegStr, "[ ")
+			asSegStr = strings.TrimRight(asSegStr, "] ")
+			utils.Logger.Infof("GetASPathAsString - asSegStr after trim {%s}", asSegStr)
+			asPathStr = asPathStr + asSegStr + " "
+			utils.Logger.Infof("GetASPathAsString - asPathStr {%s}", asPathStr)
+		}
+		asPathStr = strings.TrimSpace(asPathStr)
+		err = nil
+	} else {
+		paASPath = getTypeFromPathAttrs(pathAttrs, BGPPathAttrTypeAS4Path)
+		if paASPath != nil {
+			asPath := paASPath.(*BGPPathAttrAS4Path)
+			for _, asSeg := range asPath.Value {
+				asSegStr := asSeg.String()
+				utils.Logger.Infof("GetASPathAsString - asSegStr {%s}", asSegStr)
+				asSegStr = strings.TrimLeft(asSegStr, "[ ")
+				asSegStr = strings.TrimRight(asSegStr, "] ")
+				utils.Logger.Infof("GetASPathAsString - asSegStr after trim {%s}", asSegStr)
+				asPathStr = asPathStr + asSegStr + " "
+				utils.Logger.Infof("GetASPathAsString - asPathStr {%s}", asPathStr)
+			}
+			asPathStr = strings.TrimSpace(asPathStr)
+			err = nil
+		}
+	}
+	utils.Logger.Infof("GetASPathAsString - final asPathStr {%s}", asPathStr)
+	return asPathStr, err
 }
 
 func AddPathAttrToPathAttrsByCode(pathAttrs []BGPPathAttr, code BGPPathAttrType, attr BGPPathAttr) []BGPPathAttr {
@@ -236,6 +329,45 @@ func SetLocalPref(updateMsg *BGPMessage, pref uint32, overwrite bool) {
 	body.PathAttributes = SetLocalPrefToPathAttrs(body.PathAttributes, pref, overwrite)
 }
 
+func SetMEDToPathAttrs(pathAttrs []BGPPathAttr, med uint32, overwrite bool) []BGPPathAttr {
+	var idx int
+	var pa BGPPathAttr
+	for idx, pa = range pathAttrs {
+		if pa.GetCode() == BGPPathAttrTypeMultiExitDisc {
+			if overwrite {
+				pathAttrs[idx].(*BGPPathAttrMultiExitDisc).Value = med
+			}
+			return pathAttrs
+		}
+	}
+
+	idx = -1
+	for idx, pa = range pathAttrs {
+		if pa.GetCode() > BGPPathAttrTypeMultiExitDisc {
+			break
+		} else if idx == len(pathAttrs)-1 {
+			idx += 1
+		}
+	}
+
+	if idx >= 0 {
+		paMED := NewBGPPathAttrMultiExitDisc()
+		paMED.Value = med
+		pathAttrs = append(pathAttrs, paMED)
+		if idx < len(pathAttrs)-1 {
+			copy(pathAttrs[idx+1:], pathAttrs[idx:])
+			pathAttrs[idx] = paMED
+		}
+	}
+
+	return pathAttrs
+}
+
+func SetMED(updateMsg *BGPMessage, med uint32, overwrite bool) {
+	body := updateMsg.Body.(*BGPUpdate)
+	body.PathAttributes = SetMEDToPathAttrs(body.PathAttributes, med, overwrite)
+}
+
 func SetNextHop(updateMsg *BGPMessage, nextHop net.IP) {
 	body := updateMsg.Body.(*BGPUpdate)
 	SetNextHopPathAttrs(body.PathAttributes, nextHop)
@@ -349,6 +481,16 @@ func GetMED(pathAttrs []BGPPathAttr) (uint32, bool) {
 	}
 
 	return uint32(0), false
+}
+
+func GetLocalPref(pathAttrs []BGPPathAttr) (uint32, error) {
+	pa := getTypeFromPathAttrs(pathAttrs, BGPPathAttrTypeLocalPref)
+	if pa != nil {
+		localPrefPathAttr := pa.(*BGPPathAttrLocalPref)
+		return localPrefPathAttr.Value, nil
+	}
+
+	return 0, errors.New("Local Pref path attr not found")
 }
 
 func GetNextHop(pathAttrs []BGPPathAttr) net.IP {
@@ -517,7 +659,7 @@ func ConstructMPReachNLRIForAggRoutes(protoFamily uint32) *BGPPathAttrMPReachNLR
 	return pa
 }
 
-func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as uint32) []BGPPathAttr {
+func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as, med uint32) []BGPPathAttr {
 	pathAttrs := make([]BGPPathAttr, 0)
 
 	origin := NewBGPPathAttrOrigin(originType)
@@ -530,15 +672,27 @@ func ConstructPathAttrForLocalRoutes(originType BGPPathAttrOriginType, as uint32
 	nextHop.Value = net.IPv4zero
 	pathAttrs = append(pathAttrs, nextHop)
 
+	paMED := NewBGPPathAttrMultiExitDisc()
+	paMED.Value = med
+	pathAttrs = append(pathAttrs, paMED)
+
 	return pathAttrs
 }
 
-func ConstructPathAttrForConnRoutes(as uint32) []BGPPathAttr {
-	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginIncomplete, as)
+func ConstructPathAttrForConnRoutes(as, med uint32) []BGPPathAttr {
+	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginIncomplete, as, med)
 }
 
-func ConstructPathAttrForDefaultRoute(as uint32) []BGPPathAttr {
-	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginEGP, as)
+func ConstructPathAttrForDefaultRoute(as, med uint32) []BGPPathAttr {
+	return ConstructPathAttrForLocalRoutes(BGPPathAttrOriginEGP, as, med)
+}
+
+func ClonePathAttrs(pathAttrs []BGPPathAttr) []BGPPathAttr {
+	newPathAttrs := make([]BGPPathAttr, len(pathAttrs))
+	for idx := range pathAttrs {
+		newPathAttrs[idx] = pathAttrs[idx].Clone()
+	}
+	return newPathAttrs
 }
 
 func CopyPathAttrs(pathAttrs []BGPPathAttr) []BGPPathAttr {

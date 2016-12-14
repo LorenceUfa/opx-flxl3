@@ -45,6 +45,7 @@ type GlobalBase struct {
 	IBGPMaxPaths        uint32
 	Defaultv4Route      bool
 	Defaultv6Route      bool
+	DefaultMED          uint32
 }
 
 type GlobalConfig struct {

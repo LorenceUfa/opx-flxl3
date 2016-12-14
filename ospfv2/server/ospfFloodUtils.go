@@ -308,8 +308,8 @@ func (server *OSPFV2Server) GetDestIpForFlood(intfKey IntfConfKey, nbrIP uint32,
 		}
 		destMac, _ = net.ParseMAC(McastMAC)
 	} else if intf.Type == objects.INTF_TYPE_POINT2POINT {
-		destIp = net.ParseIP(convertUint32ToDotNotation(nbrIP))
-		destMac = nbrMac
+		destIp = net.ParseIP(AllSPFRouters)
+		destMac, _ = net.ParseMAC(ALLSPFROUTERMAC)
 	}
 
 	return destIp, destMac, nil

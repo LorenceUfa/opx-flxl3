@@ -28,6 +28,7 @@ import (
 	"infra/sysd/sysdCommonDefs"
 	"log/syslog"
 	"testing"
+	"utils/asicdClient/mock"
 	"utils/logging"
 )
 
@@ -48,7 +49,7 @@ func initTestServer() {
 	fmt.Println("Initializing BFD UT params")
 	logger := BfdTestNewLogger()
 	bfdTestServer = NewBFDServer(logger)
-	bfdTestServer.InitServer(paramFile)
+	bfdTestServer.InitServer(paramFile, &mockasicdclientplugin.MockAsicdClientMgr{})
 	initSessionHandlingChans()
 	return
 }
@@ -68,8 +69,8 @@ func startTestServerChans() {
 		select {
 		case <-bfdTestServer.ServerStartedCh:
 		case <-bfdTestServer.GlobalConfigCh:
-		case <-bfdTestServer.asicdSubSocketCh:
-		case <-bfdTestServer.asicdSubSocketErrCh:
+		//case <-bfdTestServer.asicdSubSocketCh:
+		//case <-bfdTestServer.asicdSubSocketErrCh:
 		case <-bfdTestServer.ribdSubSocketCh:
 		case <-bfdTestServer.ribdSubSocketErrCh:
 		case <-bfdTestServer.CreateSessionCh:
@@ -108,7 +109,7 @@ func TestBuildPortPropertyMap(t *testing.T) {
 }
 
 func TestCreateASICdSubscriber(t *testing.T) {
-	go bfdTestServer.CreateASICdSubscriber()
+	//go bfdTestServer.CreateASICdSubscriber()
 	t.Log("Created asicd subscriber go routine")
 }
 

@@ -532,7 +532,8 @@ func (p *Peer) processWithdraws(protoFamily uint32, nlris *[]packet.NLRI) {
 		if !route.DoesPathsExist() {
 			p.logger.Infof("Neighbor %s: remove nlri %s protocol family %s from RIB-In",
 				p.NeighborConf.RunningConf.NeighborAddress, ip, protoFamily)
-			p.checkRIBInFilter(nlri, pathIdRoute, false)
+			peEntity := bgppolicy.GetPolicyEngineFilterEntity(pathIdRoute.Path)
+			p.checkRIBInFilter(nlri, pathIdRoute, peEntity, false)
 			delete(p.ribIn[protoFamily], ip)
 		}
 
@@ -550,13 +551,12 @@ func (p *Peer) processWithdraws(protoFamily uint32, nlris *[]packet.NLRI) {
 	(*nlris) = (*nlris)[:idx]
 }
 
-func (p *Peer) checkAdjRIBFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRoute, pe *bgppolicy.AdjRibPPolicyEngine,
+func (p *Peer) checkAdjRIBFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRoute,
+	peEntity *utilspolicy.PolicyEngineFilterEntityParams, pe *bgppolicy.AdjRibPPolicyEngine,
 	policyDir int, create bool) (bool, *AdjRIBPolicyParams) {
 	if route != nil {
-		peEntity := utilspolicy.PolicyEngineFilterEntityParams{
-			DestNetIp: route.NLRI.GetCIDR(),
-			Neighbor:  p.NeighborConf.RunningConf.NeighborAddress.String(),
-		}
+		peEntity.DestNetIp = route.NLRI.GetCIDR()
+		peEntity.Neighbor = p.NeighborConf.RunningConf.NeighborAddress.String()
 
 		callbackInfo := &AdjRIBPolicyParams{
 			Peer:  p,
@@ -573,7 +573,7 @@ func (p *Peer) checkAdjRIBFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRou
 			callbackInfo.DeleteType = utilspolicy.Valid
 		}
 
-		pe.PolicyEngine.PolicyEngineFilter(peEntity, policyDir, callbackInfo)
+		pe.PolicyEngine.PolicyEngineFilter(*peEntity, policyDir, callbackInfo)
 		p.logger.Infof("checkAdjRIBFilter - NLRI %s policylist %v hit %v after applying create policy, callbackInfo=%+v",
 			nlri.GetCIDR(), route.PolicyList, route.PolicyHitCounter, callbackInfo)
 		return callbackInfo.Accept == Accept, callbackInfo
@@ -581,24 +581,26 @@ func (p *Peer) checkAdjRIBFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRou
 	return false, nil
 }
 
-func (p *Peer) checkRIBInFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRoute, create bool) (bool,
+func (p *Peer) checkRIBInFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRoute,
+	peEntity *utilspolicy.PolicyEngineFilterEntityParams, create bool) (bool,
 	*AdjRIBPolicyParams) {
 	if p.NeighborConf.Neighbor.Config.AdjRIBInFilter == "" {
 		p.logger.Debugf("Peer %s - RIB In filter is not set", p.NeighborConf.Neighbor.NeighborAddress)
 		return true, nil
 	}
 
-	return p.checkAdjRIBFilter(nlri, route, p.server.ribInPE, policyCommonDefs.PolicyPath_Import, create)
+	return p.checkAdjRIBFilter(nlri, route, peEntity, p.server.ribInPE, policyCommonDefs.PolicyPath_Import, create)
 }
 
-func (p *Peer) checkRIBOutFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRoute, create bool) (bool,
+func (p *Peer) checkRIBOutFilter(nlri packet.NLRI, route *bgprib.AdjRIBPathIdRoute,
+	peEntity *utilspolicy.PolicyEngineFilterEntityParams, create bool) (bool,
 	*AdjRIBPolicyParams) {
 	if p.NeighborConf.Neighbor.Config.AdjRIBOutFilter == "" {
 		p.logger.Debugf("Peer %s - RIB Out filter is not set", p.NeighborConf.Neighbor.NeighborAddress)
 		return true, nil
 	}
 
-	return p.checkAdjRIBFilter(nlri, route, p.server.ribOutPE, policyCommonDefs.PolicyPath_Export, create)
+	return p.checkAdjRIBFilter(nlri, route, peEntity, p.server.ribOutPE, policyCommonDefs.PolicyPath_Export, create)
 }
 
 func (p *Peer) processUpdates(protoFamily uint32, nlris *[]packet.NLRI, path *bgprib.Path) {
@@ -608,6 +610,9 @@ func (p *Peer) processUpdates(protoFamily uint32, nlris *[]packet.NLRI, path *bg
 	total := len(*nlris)
 	last := total - 1
 	idx := 0
+
+	peEntity := bgppolicy.GetPolicyEngineFilterEntity(path)
+
 	for i := 0; i < total; i++ {
 		nlri := (*nlris)[idx]
 		if nlri == nil {
@@ -631,7 +636,7 @@ func (p *Peer) processUpdates(protoFamily uint32, nlris *[]packet.NLRI, path *bg
 		p.logger.Infof("Neighbor %s: add path id %d for nlri %s protocol family %d to RIB-In %+v",
 			p.NeighborConf.RunningConf.NeighborAddress, nlri.GetPathId(), ip, protoFamily, p.ribIn[protoFamily])
 
-		accept, _ := p.checkRIBInFilter(nlri, pathIdRoute, true)
+		accept, _ := p.checkRIBInFilter(nlri, pathIdRoute, peEntity, true)
 		pathIdRoute.Accept = accept
 		if !accept {
 			p.logger.Infof("Neighbor %s: filter nlri %s", p.NeighborConf.RunningConf.NeighborAddress, ip)
@@ -800,7 +805,7 @@ func (p *Peer) ReceiveUpdate(pktInfo *packet.BGPPktSrc) (map[uint32]map[*bgprib.
 	return updated, withdrawn, updatedAddPaths
 }
 
-func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) bool {
+func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path, medUpdated bool) bool {
 	if p.NeighborConf.Neighbor.Transport.Config.LocalAddress == nil {
 		p.logger.Errf("Neighbor %s: Can't send Update message, FSM is not in Established state",
 			p.NeighborConf.Neighbor.NeighborAddress)
@@ -837,7 +842,7 @@ func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) boo
 		}
 	} else {
 		// Do change these path attrs for local routes
-		if path.NeighborConf != nil {
+		if path.NeighborConf != nil && !medUpdated {
 			packet.RemoveMultiExitDisc(bgpMsg)
 		}
 		packet.PrependAS(bgpMsg, p.NeighborConf.RunningConf.LocalAS, p.NeighborConf.ASSize)
@@ -857,7 +862,7 @@ func (p *Peer) updatePathAttrs(bgpMsg *packet.BGPMessage, path *bgprib.Path) boo
 	return true
 }
 
-func (p *Peer) sendUpdateMsg(msg *packet.BGPMessage, path *bgprib.Path) {
+func (p *Peer) sendUpdateMsg(msg *packet.BGPMessage, path *bgprib.Path, medUpdated bool) {
 	if p.fsmManager == nil {
 		p.logger.Errf("Can't send update, FSM Manager is not instantiated for neighbor %s",
 			p.NeighborConf.Neighbor.NeighborAddress)
@@ -880,11 +885,10 @@ func (p *Peer) sendUpdateMsg(msg *packet.BGPMessage, path *bgprib.Path) {
 		}
 	}
 
-	if p.updatePathAttrs(msg, path) {
+	if p.updatePathAttrs(msg, path, medUpdated) {
 		atomic.AddUint32(&p.NeighborConf.Neighbor.State.Queues.Output, 1)
 		p.fsmManager.SendUpdateMsg(msg)
 	}
-
 }
 
 func (p *Peer) isAdvertisable(path *bgprib.Path) bool {
@@ -957,7 +961,8 @@ func (p *Peer) calculateAddPathsAdvertisements(dest *bgprib.Destination, path *b
 		route := dest.LocRibPathRoute
 		if path != nil { // Loc-RIB path changed
 			pathIdRoute := ribOutRoute.AddPath(route.OutPathId, path)
-			if accept, policyParams := p.checkRIBOutFilter(dest.NLRI, pathIdRoute, true); accept {
+			peEntity := bgppolicy.GetPolicyEngineFilterEntity(path)
+			if accept, policyParams := p.checkRIBOutFilter(dest.NLRI, pathIdRoute, peEntity, true); accept {
 				stmt := ""
 				if policyParams != nil {
 					stmt = policyParams.PolicyStmt.Name
@@ -994,7 +999,8 @@ func (p *Peer) calculateAddPathsAdvertisements(dest *bgprib.Destination, path *b
 			delete(pathIdMap, ribOutPathId)
 		} else if ribOutPath != path {
 			pathIdRoute := ribOutRoute.AddPath(ribOutPathId, path)
-			if accept, policyParams := p.checkRIBOutFilter(dest.NLRI, pathIdRoute, true); accept {
+			peEntity := bgppolicy.GetPolicyEngineFilterEntity(path)
+			if accept, policyParams := p.checkRIBOutFilter(dest.NLRI, pathIdRoute, peEntity, true); accept {
 				stmt := ""
 				if policyParams != nil {
 					stmt = policyParams.PolicyStmt.Name
@@ -1013,7 +1019,8 @@ func (p *Peer) calculateAddPathsAdvertisements(dest *bgprib.Destination, path *b
 
 	for pathId, path := range pathIdMap {
 		pathIdRoute := ribOutRoute.AddPath(pathId, path)
-		if accept, policyParams := p.checkRIBOutFilter(dest.NLRI, pathIdRoute, true); accept {
+		peEntity := bgppolicy.GetPolicyEngineFilterEntity(path)
+		if accept, policyParams := p.checkRIBOutFilter(dest.NLRI, pathIdRoute, peEntity, true); accept {
 			stmt := ""
 			if policyParams != nil {
 				stmt = policyParams.PolicyStmt.Name
@@ -1111,6 +1118,7 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 			withdrawList[protoFamily] = make([]packet.NLRI, 0)
 		}
 		for path, destinations := range pathDestMap {
+			peEntity := bgppolicy.GetPolicyEngineFilterEntity(path)
 			for _, dest := range destinations {
 				if dest == nil {
 					continue
@@ -1149,7 +1157,7 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 						if ribOutPath := ribOutRoute.GetPath(pathId); ribOutPath == nil || ribOutPath != path {
 							ribOutRoute.AddPath(pathId, path)
 							if accept, policyParams := p.checkRIBOutFilter(dest.NLRI,
-								ribOutRoute.GetPathIdRoute(pathId), true); accept {
+								ribOutRoute.GetPathIdRoute(pathId), peEntity, true); accept {
 								stmt := ""
 								if policyParams != nil {
 									stmt = policyParams.PolicyStmt.Name
@@ -1202,13 +1210,13 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 				pathAtts := make([]packet.BGPPathAttr, 0)
 				pathAtts = append(pathAtts, mpUnreachNLRI)
 				updateMsg = packet.NewBGPUpdateMessage(ipv4List, pathAtts, nil)
-				p.sendUpdateMsg(updateMsg.Clone(), nil)
+				p.sendUpdateMsg(updateMsg.Clone(), nil, false)
 				ipv4List = nil
 			}
 		}
 		if ipv4List != nil {
 			updateMsg = packet.NewBGPUpdateMessage(ipv4List, nil, nil)
-			p.sendUpdateMsg(updateMsg.Clone(), nil)
+			p.sendUpdateMsg(updateMsg.Clone(), nil, false)
 		}
 	}
 
@@ -1230,17 +1238,18 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 			for protoFamily, nlriList := range pfNLRIMap {
 				if len(nlriList) > 0 {
 					mpReachNLRI := packet.ConstructIPv6MPReachNLRI(protoFamily, localAddress, nil, nlriList)
-					pa := packet.CopyPathAttrs(path.PathAttrs)
+					pa := packet.ClonePathAttrs(path.PathAttrs)
 					pa = packet.AddMPReachNLRIToPathAttrs(pa, mpReachNLRI)
+					medUpdated := false
 					if policyStmt, ok := policyStmts[stmt]; ok {
 						p.logger.Infof("Neighbor %s: apply policy stmt %+v to path attrs",
 							p.NeighborConf.Neighbor.NeighborAddress, policyStmt)
-						pa = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
+						pa, medUpdated = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
 					}
 					updateMsg = packet.NewBGPUpdateMessage(nil, pa, ipv4List)
 					p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 						p.NeighborConf.Neighbor.NeighborAddress, nlriList, path.PathAttrs)
-					p.sendUpdateMsg(updateMsg.Clone(), path)
+					p.sendUpdateMsg(updateMsg.Clone(), path, medUpdated)
 					ipv4List = nil
 				}
 			}
@@ -1248,14 +1257,15 @@ func (p *Peer) SendUpdate(updated map[uint32]map[*bgprib.Path][]*bgprib.Destinat
 			if ipv4List != nil {
 				p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 					p.NeighborConf.Neighbor.NeighborAddress, ipv4List, path.PathAttrs)
-				pa := packet.CopyPathAttrs(path.PathAttrs)
+				pa := packet.ClonePathAttrs(path.PathAttrs)
+				medUpdated := false
 				if policyStmt, ok := policyStmts[stmt]; ok {
 					p.logger.Infof("Neighbor %s: apply policy stmt %+v to path attrs",
 						p.NeighborConf.Neighbor.NeighborAddress, policyStmt)
-					pa = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
+					pa, medUpdated = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
 				}
 				updateMsg := packet.NewBGPUpdateMessage(make([]packet.NLRI, 0), pa, ipv4List)
-				p.sendUpdateMsg(updateMsg.Clone(), path)
+				p.sendUpdateMsg(updateMsg.Clone(), path, medUpdated)
 			}
 		}
 	}
@@ -1316,7 +1326,7 @@ func (p *Peer) AdjRIBOutPolicyUpdated(data interface{}, updateFunc utilspolicy.P
 			if len(routesMap.Add) > 0 || len(routesMap.Remove) > 0 {
 				var pa []packet.BGPPathAttr
 				if len(routesMap.Add) > 0 {
-					pa = packet.CopyPathAttrs(path.PathAttrs)
+					pa = packet.ClonePathAttrs(path.PathAttrs)
 					mpReachNLRI := packet.ConstructIPv6MPReachNLRI(protoFamily, localAddress, nil, routesMap.Add)
 					pa = packet.AddMPReachNLRIToPathAttrs(pa, mpReachNLRI)
 				}
@@ -1333,7 +1343,7 @@ func (p *Peer) AdjRIBOutPolicyUpdated(data interface{}, updateFunc utilspolicy.P
 				updateMsg = packet.NewBGPUpdateMessage(withdrawList, pa, updateList)
 				p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 					p.NeighborConf.Neighbor.NeighborAddress, updateList, path.PathAttrs)
-				p.sendUpdateMsg(updateMsg.Clone(), path)
+				p.sendUpdateMsg(updateMsg.Clone(), path, false)
 				updateList = nil
 				withdrawList = nil
 			}
@@ -1343,7 +1353,7 @@ func (p *Peer) AdjRIBOutPolicyUpdated(data interface{}, updateFunc utilspolicy.P
 			p.logger.Infof("Neighbor %s: Send update message valid routes:%+v, path attrs:%+v",
 				p.NeighborConf.Neighbor.NeighborAddress, updateList, path.PathAttrs)
 			updateMsg := packet.NewBGPUpdateMessage(withdrawList, path.PathAttrs, updateList)
-			p.sendUpdateMsg(updateMsg.Clone(), path)
+			p.sendUpdateMsg(updateMsg.Clone(), path, false)
 		}
 	}
 

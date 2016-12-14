@@ -70,7 +70,6 @@ func (server *OSPFV2Server) generateDbSummaryList(nbrConfKey NbrConfKey) {
 
 	for networkKey, _ := range network_lsa {
 		// check if lsa instance is marked true
-		//if nbrMdata.isDR {
 		dnlsa, ret := server.getNetworkLsaFromLsdb(areaId, networkKey)
 		if ret == LsdbEntryNotFound {
 			continue

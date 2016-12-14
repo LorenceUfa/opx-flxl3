@@ -574,8 +574,10 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 			entry, exist := server.SPFData.AreaGraph[verKey]
 			server.logger.Debug("Neighboring Vertex Number :", i, "verKey", verKey, "cost:", cost, "entry:", entry)
 			if !exist {
+				
 				server.logger.Err("Something is wrong in SPF Calculation: Entry should exist in Area Graph")
 				err := errors.New("Something is wrong in SPF Calculation: Entry should exist in Area Graph")
+				continue
 				return err
 			}
 			tEnt, exist := server.SPFData.SPFTree[verKey]
@@ -592,6 +594,7 @@ func (server *OSPFV2Server) ExecuteDijkstra(vKey VertexKey, areaId uint32) error
 			if !exist {
 				server.logger.Err("Something is wrong is SPF Calculation")
 				err := errors.New("Something is wrong is SPF Calculation")
+				continue
 				return err
 			}
 			server.logger.Debug("Parent Node:", treeVSlice[j].vKey, tEntry)
@@ -716,7 +719,7 @@ func dumpLsaKey(key LsaKey) string {
 	return fmt.Sprintln("LSA Type:", Type, "LSId:", LSId, "AdvRtr:", AdvRtr)
 }
 
-/*
+
 func (server *OSPFV2Server) dumpAreaStubs() {
 	server.logger.Info("=======================Dump Area Stubs======================")
 	for key, ent := range server.SPFData.AreaStubs {
@@ -778,7 +781,6 @@ func (server *OSPFV2Server) dumpSPFTree() {
 
 	}
 }
-*/
 
 func (server *OSPFV2Server) UpdateRoutingTbl(vKey VertexKey, areaId uint32) {
 	areaIdKey := AreaIdKey{
@@ -837,10 +839,10 @@ func (server *OSPFV2Server) SPFCalculation() {
 			//flag = true
 			continue
 		}
-		//server.logger.Info("Start before Dijkstra")
+		server.logger.Info("Start before Dijkstra")
 		//server.dumpAreaGraph()
 		//server.dumpAreaStubs()
-		//server.logger.Info("End before Dijkstra")
+		server.logger.Info("End before Dijkstra")
 		//server.printRouterLsa()
 		err = server.ExecuteDijkstra(vKey, areaId)
 		if err != nil {
@@ -848,11 +850,11 @@ func (server *OSPFV2Server) SPFCalculation() {
 			//flag = true
 			continue
 		}
-		//server.logger.Info("Start after Dijkstra")
-		//	server.dumpAreaGraph()
-		//	server.dumpAreaStubs()
-		//	server.dumpSPFTree()
-		//server.logger.Info("End after Dijkstra")
+		server.logger.Info("Start after Dijkstra")
+			//server.dumpAreaGraph()
+		//server.dumpAreaStubs()
+			//server.dumpSPFTree()
+		server.logger.Info("End after Dijkstra")
 		server.UpdateRoutingTbl(vKey, areaId)
 		server.logger.Info("Handling Stub links...")
 		server.HandleStubs(vKey, areaId)
@@ -861,7 +863,7 @@ func (server *OSPFV2Server) SPFCalculation() {
 		server.SPFData.AreaStubs = nil
 		server.SPFData.SPFTree = nil
 	}
-	// server.dumpRoutingTbl()
+	 //server.dumpRoutingTbl()
 	server.RoutingTblData.TempGlobalRoutingTbl = nil
 	server.RoutingTblData.TempGlobalRoutingTbl = make(map[RoutingTblEntryKey]GlobalRoutingTblEntry)
 	/* Summarize and Install/Delete Routes In Routing Table */
@@ -870,7 +872,7 @@ func (server *OSPFV2Server) SPFCalculation() {
 	server.RoutingTblData.GlobalRoutingTbl = nil
 	server.RoutingTblData.GlobalRoutingTbl = make(map[RoutingTblEntryKey]GlobalRoutingTblEntry)
 	server.RoutingTblData.GlobalRoutingTbl = server.RoutingTblData.TempGlobalRoutingTbl
-	//server.dumpGlobalRoutingTbl()
+	server.dumpGlobalRoutingTbl()
 	for areaId, _ := range server.AreaConfMap {
 		areaIdKey := AreaIdKey{
 			AreaId: areaId,
