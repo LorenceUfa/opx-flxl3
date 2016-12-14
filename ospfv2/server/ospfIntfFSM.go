@@ -128,9 +128,9 @@ func (server *OSPFV2Server) StopIntfFSM(key IntfConfKey) {
 				default:
 					time.Sleep(time.Duration(10) * time.Millisecond)
 					cnt = cnt + 1
-					if cnt == 100 {
-						server.logger.Err("Unable to stop the Tx thread")
-						return
+					if cnt%1000 == 0 {
+						server.logger.Err("Trying to stop the Tx thread")
+						//return
 					}
 				}
 			}
@@ -212,7 +212,7 @@ func (server *OSPFV2Server) StartOspfP2PIntfFSM(key IntfConfKey) {
 				ent.NbrMap[nbrKey] = nbrEntry
 				server.IntfConfMap[key] = ent
 				server.SendMsgToGenerateRouterLSA(ent.AreaId)
-			} 
+			}
 		case changeMsg := <-ent.NbrChangeCh:
 			if changeMsg.DRtrIpAddr != 0 ||
 				changeMsg.BDRtrIpAddr != 0 {
