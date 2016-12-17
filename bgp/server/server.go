@@ -1962,25 +1962,23 @@ func (s *BGPServer) constructBGPGlobalState(gConf *config.GlobalConfig) {
 	s.BgpConfig.Global.State.DefaultMED = gConf.DefaultMED
 }
 
-func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
+func (s *BGPServer) SetupRedistribution(newConf config.GlobalConfig) {
 	s.logger.Info("SetUpRedistribution")
-	if gConf.Redistribution == nil || len(gConf.Redistribution) == 0 {
-		s.logger.Info("No redistribution policies configured")
-		return
-	}
 	if s.RedistributionMap == nil {
 		s.RedistributionMap = make(map[string]string)
 	}
+	currentRedistMap := make(map[string]bool)
 	applyList := make([]*config.ApplyPolicyInfo, 0)
 	undoApplyList := make([]*config.ApplyPolicyInfo, 0)
 	applyIndex := 0
 	undoIndex := 0
 	source := ""
-	for i := 0; i < len(gConf.Redistribution); i++ {
-		s.logger.Info("Sources: ", gConf.Redistribution[i].Sources)
+
+	for i := 0; i < len(newConf.Redistribution); i++ {
+		s.logger.Info("Sources: ", newConf.Redistribution[i].Sources)
 		sources := make([]string, 0)
-		sources = strings.Split(gConf.Redistribution[i].Sources, ",")
-		s.logger.Infof("Setting up %s as redistribution policy for source(s): ", gConf.Redistribution[i].Policy)
+		sources = strings.Split(newConf.Redistribution[i].Sources, ",")
+		s.logger.Infof("Setting up %s as redistribution policy for source(s): ", newConf.Redistribution[i].Policy)
 		for j := 0; j < len(sources); j++ {
 			source = sources[j]
 			s.logger.Info("source: ", source)
@@ -1990,12 +1988,13 @@ func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
 				condition = &config.ConditionInfo{ConditionType: "MatchProtocol", Protocol: source}
 			}
 			_, ok := s.RedistributionMap[source]
+			currentRedistMap[source] = true
 			if !ok {
 				s.logger.Info("No policy applied for this source so far")
-				s.RedistributionMap[source] = gConf.Redistribution[i].Policy
+				s.RedistributionMap[source] = newConf.Redistribution[i].Policy
 				applyList = append(applyList, &config.ApplyPolicyInfo{
 					Protocol: "BGP",
-					Policy:   gConf.Redistribution[i].Policy,
+					Policy:   newConf.Redistribution[i].Policy,
 					Action:   "Redistribution"})
 				if condition != nil {
 					if applyList[applyIndex].Conditions == nil {
@@ -2004,14 +2003,14 @@ func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
 					applyList[applyIndex].Conditions = append(applyList[applyIndex].Conditions, condition)
 				}
 				applyIndex++
-			} else if s.RedistributionMap[source] == gConf.Redistribution[i].Policy {
+			} else if s.RedistributionMap[source] == newConf.Redistribution[i].Policy {
 				s.logger.Info("Policy unchanged for source ", source)
 				continue
 			} else {
 				s.logger.Info("Another policy:", s.RedistributionMap[source], " already applied for source :", source)
 				applyList = append(applyList, &config.ApplyPolicyInfo{
 					Protocol: "BGP",
-					Policy:   gConf.Redistribution[i].Policy,
+					Policy:   newConf.Redistribution[i].Policy,
 					Action:   "Redistribution"})
 				if condition != nil {
 					if applyList[applyIndex].Conditions == nil {
@@ -2034,10 +2033,30 @@ func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
 					undoIndex++
 				}
 
-				s.RedistributionMap[source] = gConf.Redistribution[i].Policy
+				s.RedistributionMap[source] = newConf.Redistribution[i].Policy
 			}
 		}
 	}
+
+	for source, policy := range s.RedistributionMap {
+		if !currentRedistMap[source] {
+			var condition *config.ConditionInfo
+			if policy != "" {
+				condition = &config.ConditionInfo{ConditionType: "MatchProtocol", Protocol: source}
+				undoApplyList = append(undoApplyList, &config.ApplyPolicyInfo{
+					Protocol: "BGP",
+					Policy:   s.RedistributionMap[source],
+					Action:   "Redistribution"})
+				if undoApplyList[undoIndex].Conditions == nil {
+					undoApplyList[undoIndex].Conditions = make([]*config.ConditionInfo, 0)
+				}
+				undoApplyList[undoIndex].Conditions = append(undoApplyList[undoIndex].Conditions, condition)
+				undoIndex++
+			}
+			delete(s.RedistributionMap, source)
+		}
+	}
+
 	if len(applyList) > 0 || len(undoApplyList) > 0 {
 		s.routeMgr.ApplyPolicy(applyList, undoApplyList)
 	}
@@ -2162,10 +2181,6 @@ func (s *BGPServer) UpdateGlobal(bgpGlobal *bgpd.BGPGlobal, oldConfig, newConfig
 			if attrSet[i] {
 				s.logger.Debug("UpdateGlobal: changed ", objName)
 				if objName == "Redistribution" {
-					if len(newConfig.Redistribution) == 0 {
-						s.logger.Err("Must specify redistribution")
-						return
-					}
 					s.SetupRedistribution(newConfig)
 				} else if objName == "Defaultv4Route" {
 					protoFamily := packet.GetProtocolFamily(packet.AfiIP, packet.SafiUnicast)
