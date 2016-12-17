@@ -110,6 +110,15 @@ func GetAddressLengthForFamily(protoFamily uint32) int {
 	return -1
 }
 
+func GetProtocolFamilyFromAddressLen(bytes int) uint32 {
+	for afi, length := range AFINextHopLenMap {
+		if length == bytes {
+			return GetProtocolFamily(afi, SafiUnicast)
+		}
+	}
+	return 0
+}
+
 func GetZeroNextHopForFamily(protoFamily uint32) net.IP {
 	afi, _ := GetAfiSafi(protoFamily)
 	if nh, ok := AFINextHop[afi]; ok {
