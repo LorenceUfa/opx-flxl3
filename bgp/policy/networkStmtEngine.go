@@ -21,35 +21,34 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package main
+// adjRibEngine.go
+package policy
 
 import (
-	"fmt"
-	"l3/dummyDmn/server"
-	"utils/dmnBase"
+	"l3/bgp/config"
+	"utils/logging"
+	utilspolicy "utils/policy"
 )
 
-var DummyDmn dmnBase.L3Daemon
+type NetworkStmtPolicyExtensions struct {
+	HitCounter     int
+	PrefixList     []string
+	PrefixInfoList []*config.BGPNetworkStatement
+}
 
-func main() {
-	status := DummyDmn.Init("dmnd", "DUMMY")
-	DummyDmn.Logger.Info(fmt.Sprintln("Init done with status", status))
-	if status == false {
-		fmt.Println("Init failed")
-		return
+type NetworkStmtPolicyEngine struct {
+	BasePolicyEngine
+}
+
+func NewNetworkStmtPolicyEngine(logger *logging.Writer) *NetworkStmtPolicyEngine {
+	policyEngine := &NetworkStmtPolicyEngine{
+		BasePolicyEngine: NewBasePolicyEngine(logger, utilspolicy.NewPolicyEngineDB(logger)),
 	}
-	dummyServer := server.NewDummyServer(DummyDmn)
+	policyEngine.SetGetPolicyEntityMapIndexFunc(getPolicyEnityKey)
+	return policyEngine
+}
 
-	go dummyServer.StartServer()
-	<-dummyServer.ServerStartedCh
-
-	DummyDmn.Logger.Info("Dummy server started")
-
-	// Start keepalive routine
-	DummyDmn.Logger.Println("Starting KeepAlive")
-	DummyDmn.StartKeepAlive()
-
-	//simulate rpc.StartServer()
-	for {
-	}
+func (eng *NetworkStmtPolicyEngine) CreatePolicyDefinition(defCfg utilspolicy.PolicyDefinitionConfig) error {
+	defCfg.Extensions = NetworkStmtPolicyExtensions{}
+	return eng.PolicyEngine.CreatePolicyDefinition(defCfg)
 }

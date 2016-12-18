@@ -210,6 +210,7 @@ func (st *IdleState) enter() {
 	st.fsm.StopKeepAliveTimer()
 	st.fsm.StopHoldTimer()
 	st.fsm.RejectPeerConn()
+	st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime, st.fsm.neighborConf.RunningConf.KeepaliveTime)
 	st.fsm.ApplyAutomaticStart()
 }
 
@@ -262,8 +263,7 @@ func (st *ConnectState) processEvent(event BGPFSMEvent, data interface{}) {
 		st.fsm.StopConnectRetryTimer()
 		st.fsm.SetPeerConn(data)
 		st.fsm.sendOpenMessage()
-		st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime,
-			st.fsm.neighborConf.RunningConf.KeepaliveTime)
+		st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime, st.fsm.neighborConf.RunningConf.KeepaliveTime)
 		st.fsm.StartHoldTimer()
 		st.BaseState.fsm.ChangeState(NewOpenSentState(st.BaseState.fsm))
 
@@ -358,8 +358,7 @@ func (st *ActiveState) processEvent(event BGPFSMEvent, data interface{}) {
 		st.fsm.StopConnectRetryTimer()
 		st.fsm.SetPeerConn(data)
 		st.fsm.sendOpenMessage()
-		st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime,
-			st.fsm.neighborConf.RunningConf.KeepaliveTime)
+		st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime, st.fsm.neighborConf.RunningConf.KeepaliveTime)
 		st.fsm.StartHoldTimer()
 		st.fsm.ChangeState(NewOpenSentState(st.fsm))
 
@@ -627,8 +626,6 @@ func (st *OpenConfirmState) enter() {
 
 func (st *OpenConfirmState) leave() {
 	st.logger.Info("Neighbor:", st.fsm.pConf.NeighborAddress, "FSM:", st.fsm.id, "State: OpenConfirm - leave")
-	st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime,
-		st.fsm.neighborConf.RunningConf.KeepaliveTime)
 }
 
 func (st *OpenConfirmState) state() config.BGPFSMState {
@@ -742,8 +739,7 @@ func (st *EstablishedState) enter() {
 
 func (st *EstablishedState) leave() {
 	st.logger.Info("Neighbor:", st.fsm.pConf.NeighborAddress, "FSM:", st.fsm.id, "State: Established - leave")
-	st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime,
-		st.fsm.neighborConf.RunningConf.KeepaliveTime)
+	st.fsm.SetHoldTime(st.fsm.neighborConf.RunningConf.HoldTime, st.fsm.neighborConf.RunningConf.KeepaliveTime)
 }
 
 func (st *EstablishedState) state() config.BGPFSMState {

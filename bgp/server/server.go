@@ -83,6 +83,12 @@ type AggUpdate struct {
 	AttrSet []bool
 }
 
+type NSUpdate struct {
+	OldNS   config.BGPNetworkStatement
+	NewNS   config.BGPNetworkStatement
+	AttrSet []bool
+}
+
 type PolicyParams struct {
 	CreateType      int
 	DeleteType      int
@@ -91,6 +97,17 @@ type PolicyParams struct {
 	updated         *(map[uint32]map[*bgprib.Path][]*bgprib.Destination)
 	withdrawn       *([]*bgprib.Destination)
 	updatedAddPaths *([]*bgprib.Destination)
+}
+
+type NSPolicyParams struct {
+	CreateType       int
+	DeleteType       int
+	Traverse         bool
+	TraverseRev      bool
+	NS               *config.BGPNetworkStatement
+	Accept           int
+	AddPolicyStmt    []utilspolicy.PolicyStmt
+	RemovePolicyStmt []utilspolicy.PolicyStmt
 }
 
 type IntfEntry struct {
@@ -103,6 +120,7 @@ type BGPServer struct {
 	locRibPE         map[uint32]*bgppolicy.LocRibPolicyEngine
 	ribInPE          *bgppolicy.AdjRibPPolicyEngine
 	ribOutPE         *bgppolicy.AdjRibPPolicyEngine
+	networkStmtPE    *bgppolicy.NetworkStmtPolicyEngine
 	listener         *net.TCPListener
 	listenerIPv6     *net.TCPListener
 	ifaceMgr         *utils.InterfaceMgr
@@ -114,6 +132,8 @@ type BGPServer struct {
 	RemPeerGroupCh   chan config.PeerGroupConfig
 	AddAggCh         chan AggUpdate
 	RemAggCh         chan config.BGPAggregate
+	AddNSCh          chan NSUpdate
+	RemNSCh          chan config.BGPNetworkStatement
 	PeerFSMConnCh    chan fsm.PeerFSMConn
 	PeerConnEstCh    chan string
 	PeerConnBrokenCh chan string
@@ -135,6 +155,9 @@ type BGPServer struct {
 	LocRib            *bgprib.LocRib
 	ConnRoutesPath    *bgprib.Path
 	DefaultRoutesPath *bgprib.Path
+	NSRoutesPathMap   map[string]*bgprib.Path
+	NSRoutes          []*config.BGPNetworkStatement
+	NSRoutesMutex     sync.RWMutex
 	IfIndexPeerMap    map[int32][]string
 	IntfIdNameMap     map[int32]IntfEntry
 	IfNameToIfIndex   map[string]int32
@@ -163,6 +186,8 @@ func NewBGPServer(logger *logging.Writer, policyManager *bgppolicy.BGPPolicyMana
 	bgpServer.RemPeerGroupCh = make(chan config.PeerGroupConfig)
 	bgpServer.AddAggCh = make(chan AggUpdate)
 	bgpServer.RemAggCh = make(chan config.BGPAggregate)
+	bgpServer.AddNSCh = make(chan NSUpdate)
+	bgpServer.RemNSCh = make(chan config.BGPNetworkStatement)
 	bgpServer.PeerFSMConnCh = make(chan fsm.PeerFSMConn, 50)
 	bgpServer.PeerConnEstCh = make(chan string)
 	bgpServer.PeerConnBrokenCh = make(chan string)
@@ -177,6 +202,9 @@ func NewBGPServer(logger *logging.Writer, policyManager *bgppolicy.BGPPolicyMana
 
 	bgpServer.NeighborMutex = sync.RWMutex{}
 	bgpServer.PeerMap = make(map[string]*Peer)
+	bgpServer.NSRoutesPathMap = make(map[string]*bgprib.Path)
+	bgpServer.NSRoutes = make([]*config.BGPNetworkStatement, 0)
+	bgpServer.NSRoutesMutex = sync.RWMutex{}
 	bgpServer.ifaceNeighbors = make(map[config.PeerAddressType]map[int32]*Peer)
 	bgpServer.ifaceNeighbors[config.PeerAddressV4] = make(map[int32]*Peer)
 	bgpServer.ifaceNeighbors[config.PeerAddressV6] = make(map[int32]*Peer)
@@ -260,6 +288,19 @@ func (s *BGPServer) initPolicyEngines() {
 	s.ribOutPE.SetActionFuncs(actionFuncMap)
 	s.ribOutPE.SetTraverseFuncs(s.TraverseAndApplyAdjRibOut, s.TraverseAndReverseAdjRIBOut)
 	s.policyManager.AddPolicyEngine(s.ribOutPE)
+
+	s.networkStmtPE = bgppolicy.NewNetworkStmtPolicyEngine(s.logger)
+
+	actionFunc.ApplyFunc = s.ApplyNSAction
+	actionFunc.UndoFunc = s.UndoNSAction
+
+	s.networkStmtPE.SetEntityUpdateFunc(s.UpdateNSAndPolicyDB)
+	s.networkStmtPE.SetIsEntityPresentFunc(s.DoesNSExist)
+	actionFuncMap = make(map[int]bgppolicy.PolicyActionFunc)
+	actionFuncMap[policyCommonDefs.PolicyActionTypeNetworkStatementAdvertise] = actionFunc
+	s.networkStmtPE.SetActionFuncs(actionFuncMap)
+	s.networkStmtPE.SetTraverseFuncs(s.TraverseAndApplyNS, s.TraverseAndReverseNS)
+	s.policyManager.AddPolicyEngine(s.networkStmtPE)
 }
 
 func (s *BGPServer) createListener(proto string) (*net.TCPListener, error) {
@@ -1360,6 +1401,486 @@ func (s *BGPServer) UpdateAggPolicy(policyName string, pe *bgppolicy.LocRibPolic
 	return err
 }
 
+func (s *BGPServer) UndoNSAction(actionInfo interface{}, conditionList []interface{}, policy utilspolicy.Policy,
+	params interface{}, policyStmt utilspolicy.PolicyStmt) {
+	policyParams := params.(*NSPolicyParams)
+	s.logger.Infof("UndoNSAction: ipPrefix=%s, policy=%s, statement=%s", policyParams.NS.IPPrefix, policy.Name,
+		policyStmt.Name)
+	s.logger.Infof("UndoNSAction - actionInfo=%+v, conditionInfo=%+v, policyParams=%+v, policyStmt=%+v\n",
+		actionInfo, conditionList, policyParams, policyStmt)
+	if len(policyStmt.Actions) > 0 {
+		for _, action := range policyStmt.Actions {
+			if action == "permit" {
+				s.logger.Infof("UndoNSAction - policyParams=%+v, policyStmt=%+v, action permit\n",
+					policyParams, policyStmt)
+				policyParams.Accept = Accept
+				if policyParams.RemovePolicyStmt == nil {
+					policyParams.RemovePolicyStmt = make([]utilspolicy.PolicyStmt, 0)
+				}
+				policyParams.RemovePolicyStmt = append(policyParams.RemovePolicyStmt, policyStmt)
+				break
+			} else if action == "deny" {
+				s.logger.Infof("UndoNSAction - policyParams=%+v, policyStmt=%+v, action deny\n",
+					policyParams, policyStmt)
+				policyParams.Accept = Accept
+				break
+			} else {
+				s.logger.Errf("UndoNSAction - policyParams=%+v, policyStmt=%+v, unknown action=%s\n",
+					policyParams, policyStmt, action)
+			}
+		}
+	}
+}
+
+func (s *BGPServer) ApplyNSAction(actionInfo interface{}, conditionInfo []interface{}, policy utilspolicy.Policy,
+	params interface{}, policyStmt utilspolicy.PolicyStmt) {
+	policyParams := params.(*NSPolicyParams)
+
+	s.logger.Infof("ApplyNSAction: ipPrefix=%s, policy=%s, statement=%s", policyParams.NS.IPPrefix, policy.Name,
+		policyStmt.Name)
+	s.logger.Infof("ApplyNSAction - actionInfo=%+v, conditionInfo=%+v, policyParams=%+v, policyStmt=%+v\n",
+		actionInfo, conditionInfo, policyParams, policyStmt)
+	if len(policyStmt.Actions) > 0 {
+		for _, action := range policyStmt.Actions {
+			if action == "permit" {
+				s.logger.Infof("ApplyNSAction - policyParams=%+v, policyStmt=%+v, action permit\n",
+					policyParams, policyStmt)
+				policyParams.Accept = Accept
+				if policyParams.AddPolicyStmt == nil {
+					policyParams.AddPolicyStmt = make([]utilspolicy.PolicyStmt, 0)
+				}
+				policyParams.AddPolicyStmt = append(policyParams.AddPolicyStmt, policyStmt)
+				break
+			} else if action == "deny" {
+				s.logger.Infof("ApplyNSAction - policyParams=%+v, policyStmt=%+v, action deny\n",
+					policyParams, policyStmt)
+				policyParams.Accept = Reject
+				break
+			} else {
+				s.logger.Errf("ApplyNSAction - policyParams=%+v, policyStmt=%+v, unknown action=%s\n",
+					policyParams, policyStmt, action)
+			}
+		}
+	}
+}
+
+func (s *BGPServer) UpdateNSAndPolicyDB(policyDetails utilspolicy.PolicyDetails, params interface{}) {
+	var op int
+	policyParams := params.(*NSPolicyParams)
+	s.logger.Infof("UpdateNSAndPolicyDB - ns=%+v", policyParams.NS)
+
+	if policyParams.DeleteType != bgppolicy.Invalid {
+		op = bgppolicy.Del
+	} else {
+		if policyDetails.EntityDeleted == false {
+			s.logger.Info("Reject action was not applied, so add this policy to the route")
+			op = bgppolicy.Add
+			bgppolicy.UpdateNSPolicyState(policyParams.NS, op, policyDetails.Policy, policyDetails.PolicyStmt)
+		}
+		policyParams.NS.PolicyHitCounter++
+	}
+	s.networkStmtPE.UpdatePolicyNSMap(policyParams.NS, policyDetails.Policy, op)
+}
+
+func (s *BGPServer) DoesNSExist(params interface{}) bool {
+	policyParams := params.(*NSPolicyParams)
+	s.logger.Infof("DoesNSExist - ns=%+v", policyParams.NS)
+	if af, ok := s.BgpConfig.Afs[policyParams.NS.AddressFamily]; ok {
+		if _, ok := af.BgpNetworkStmts[policyParams.NS.IPPrefix]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *BGPServer) getPrefixFromNSPolicy(data interface{}) (string, uint32) {
+	s.logger.Infof("getPrefixFromNSPolicy - start")
+	policyInfo := data.(utilspolicy.PolicyEngineApplyInfo)
+	conditionsDB := s.networkStmtPE.PolicyEngine.PolicyConditionsDB
+	var ipPrefix string
+	var protoFamily uint32
+
+	for _, condition := range policyInfo.ApplyPolicy.Conditions {
+		s.logger.Infof("getPrefixFromNSPolicy - condition:%+v", condition)
+		nodeGet := conditionsDB.Get(patriciaDB.Prefix(condition))
+		if nodeGet == nil {
+			s.logger.Err("Condition", condition, "not defined")
+			return ipPrefix, 0
+		}
+		node := nodeGet.(utilspolicy.PolicyCondition)
+		if node.ConditionType == policyCommonDefs.PolicyConditionTypeDstIpPrefixMatch {
+			destIPCondition := node.ConditionInfo.(utilspolicy.MatchPrefixConditionInfo)
+			prefix := destIPCondition.Prefix
+			items := strings.Split(prefix.MasklengthRange, "-")
+			if len(items) != 2 {
+				s.logger.Err("IP prefix", destIPCondition.Prefix, "mask", prefix.MasklengthRange, "is not valid")
+				return ipPrefix, 0
+			}
+
+			/*
+				if _, err := strconv.Atoi(items[0]); err != nil {
+					s.logger.Errf("Failed to convert prefex len %s to int with error %s", items[0], err)
+					return ipPrefix, 0
+				}
+			*/
+
+			totalBits, err := strconv.Atoi(items[1])
+			if err != nil {
+				s.logger.Errf("Failed to convert prefix max len %s to int with error %s", items[1], err)
+				return ipPrefix, 0
+			}
+
+			protoFamily = packet.GetProtocolFamilyFromAddressLen(totalBits / 8)
+			if protoFamily == 0 {
+				s.logger.Errf("Failed to get protocol family from prefix max bits %d", totalBits)
+				return ipPrefix, 0
+			}
+
+			ipPrefix = prefix.IpPrefix
+		}
+	}
+
+	return ipPrefix, protoFamily
+}
+
+func (s *BGPServer) SetActionToNS(policyParams *NSPolicyParams) (*bgprib.Path, bool) {
+	var path *bgprib.Path
+	var accept, ok bool
+
+	if policyParams.Accept == Accept {
+		policyParams.NS.Accept = true
+		accept = true
+		key := ""
+		if len(policyParams.RemovePolicyStmt) > 0 {
+			s.logger.Infof("SetActionToNS - remove stmt=%+v, ns.policy stmt=%+v", policyParams.RemovePolicyStmt,
+				policyParams.NS.PolicyStmtList)
+			for _, policyStmt := range policyParams.RemovePolicyStmt {
+				for idx, nsPolicyStmt := range policyParams.NS.PolicyStmtList {
+					if policyStmt.Name == nsPolicyStmt {
+						policyParams.NS.PolicyStmtList = append(policyParams.NS.PolicyStmtList[:idx],
+							policyParams.NS.PolicyStmtList[idx+1:]...)
+						break
+					}
+				}
+			}
+			s.logger.Infof("SetActionToNS - after mod, ns.policy stmt=%+v", policyParams.NS.PolicyStmtList)
+		}
+
+		if len(policyParams.AddPolicyStmt) > 0 {
+			if policyParams.NS.PolicyStmtList == nil {
+				policyParams.NS.PolicyStmtList = make([]string, 0)
+			}
+			for _, policyStmt := range policyParams.AddPolicyStmt {
+				found := false
+				for _, nsPolicyStmt := range policyParams.NS.PolicyStmtList {
+					if policyStmt.Name == nsPolicyStmt {
+						found = true
+						break
+					}
+				}
+				if !found {
+					policyParams.NS.PolicyStmtList = append(policyParams.NS.PolicyStmtList, policyStmt.Name)
+				}
+			}
+		}
+
+		first := true
+		for _, nsPolicyStmt := range policyParams.NS.PolicyStmtList {
+			if !first {
+				key = key + "+" + nsPolicyStmt
+			} else {
+				key = nsPolicyStmt
+				first = false
+			}
+		}
+
+		path, ok = s.NSRoutesPathMap[key]
+		if !ok {
+			pa := s.ConstructPathAttrsForNSRoutes()
+			for _, policyStmt := range policyParams.AddPolicyStmt {
+				pa, _ = bgppolicy.ApplyActionsToPacket(pa, policyStmt)
+			}
+			protoFamily := packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
+			ipv6MPReach := packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
+			path = bgprib.NewPath(s.LocRib, nil, pa, ipv6MPReach, bgprib.RouteTypeStatic)
+			s.NSRoutesPathMap[key] = path
+		}
+	} else {
+		policyParams.NS.Accept = false
+		accept = false
+		path, ok = s.NSRoutesPathMap[""]
+		if !ok {
+			path = s.ConstructPathsForNSRoutes(&s.BgpConfig.Global.Config)
+		}
+	}
+	return path, accept
+}
+
+func (s *BGPServer) GetNLRIForNSRoute(ns *config.BGPNetworkStatement, accept bool) (add,
+	remove map[uint32][]packet.NLRI) {
+	nlri, err := packet.ConstructIPPrefixFromCIDR(ns.IPPrefix)
+	if err != nil {
+		s.logger.Err("ProcessNSRoute - Could not convert prefix", ns.IPPrefix, "to NLRI")
+		return add, remove
+	}
+	afNLRI := make(map[uint32][]packet.NLRI)
+	afNLRI[ns.AddressFamily] = make([]packet.NLRI, 1)
+	afNLRI[ns.AddressFamily][0] = nlri
+	if accept {
+		add = afNLRI
+	} else {
+		remove = afNLRI
+	}
+	return add, remove
+}
+
+func (s *BGPServer) TraverseAndApplyNS(data interface{}, updateFunc utilspolicy.PolicyApplyfunc) {
+	s.logger.Infof("TraverseAndApplyNS - start")
+
+	ipPrefix, protoFamily := s.getPrefixFromNSPolicy(data)
+	s.logger.Infof("TraverseAndApplyNS - ipPrefix=%v, protoFamily=%v, s.BgpConfig.Afs=%+v", ipPrefix, protoFamily, s.BgpConfig.Afs)
+	if bgpAFconfigs, ok := s.BgpConfig.Afs[protoFamily]; ok {
+		s.logger.Infof("TraverseAndApplyNS - bgpAFconfigs=%+v", bgpAFconfigs)
+		if ns, ok := bgpAFconfigs.BgpNetworkStmts[ipPrefix]; ok {
+			peEntity := utilspolicy.PolicyEngineFilterEntityParams{
+				DestNetIp:  ns.IPPrefix,
+				PolicyList: ns.PolicyList,
+			}
+
+			callbackInfo := &NSPolicyParams{
+				CreateType: utilspolicy.Invalid,
+				DeleteType: utilspolicy.Invalid,
+				Traverse:   true,
+				NS:         ns,
+				Accept:     Accept,
+			}
+
+			updateFunc(peEntity, data, callbackInfo)
+			path, accept := s.SetActionToNS(callbackInfo)
+			add, remove := s.GetNLRIForNSRoute(ns, accept)
+			routerId := s.BgpConfig.Global.Config.RouterId.String()
+			updated, withdrawn, updatedAddPaths := s.LocRib.ProcessConnectedRoutes(routerId, path, add, remove,
+				s.AddPathCount)
+			updated, withdrawn, updatedAddPaths = s.CheckForAggregation(updated, withdrawn, updatedAddPaths)
+			s.SendUpdate(updated, withdrawn, updatedAddPaths)
+		}
+	}
+}
+
+func (s *BGPServer) TraverseAndReverseNS(policyData interface{}) {
+	updateInfo := policyData.(utilspolicy.PolicyEngineApplyInfo)
+	applyPolicyInfo := updateInfo.ApplyPolicy
+	policy := applyPolicyInfo.ApplyPolicy
+	s.logger.Info("TraverseAndReverseNS - policy", policy.Name)
+	policyExtensions := policy.Extensions.(bgppolicy.NetworkStmtPolicyExtensions)
+	s.logger.Info("TraverseAndReverseNS - policy extensions = %+v", policyExtensions)
+
+	//	policyInfo := s.networkStmtPE.PolicyEngine.PolicyDB.Get(patriciaDB.Prefix(policy.Name))
+	//	if policyInfo == nil {
+	//		utils.Logger.Info("Unexpected:policyInfo nil for policy ", policy.Name)
+	//		return
+	//	}
+	//	tempPolicy := policyInfo.(utilspolicy.Policy)
+	//	policyExtensions = tempPolicy.Extensions.(bgppolicy.NetworkStmtPolicyExtensions)
+	//	s.logger.Info("TraverseAndReverseNS - policy extensions = %+v", policyExtensions)
+
+	if len(policyExtensions.PrefixList) == 0 {
+		s.logger.Info("No route affected by this policy, so nothing to do")
+		return
+	}
+
+	var ns *config.BGPNetworkStatement
+
+	nsPolicyExtensions := make([]*config.BGPNetworkStatement, len(policyExtensions.PrefixInfoList))
+	copy(nsPolicyExtensions, policyExtensions.PrefixInfoList)
+	for idx := 0; idx < len(nsPolicyExtensions); idx++ {
+		ns = nsPolicyExtensions[idx]
+
+		callbackInfo := &NSPolicyParams{
+			CreateType:  utilspolicy.Invalid,
+			DeleteType:  utilspolicy.Invalid,
+			TraverseRev: true,
+			NS:          ns,
+		}
+
+		peEntity := utilspolicy.PolicyEngineFilterEntityParams{
+			DestNetIp:  ns.IPPrefix,
+			PolicyList: ns.PolicyList,
+		}
+
+		s.networkStmtPE.PolicyEngine.PolicyEngineUndoApplyPolicyForEntity(peEntity, updateInfo, callbackInfo)
+		path, accept := s.SetActionToNS(callbackInfo)
+		if !s.DoesNSExist(callbackInfo) {
+			accept = false
+		}
+		add, remove := s.GetNLRIForNSRoute(ns, accept)
+		routerId := s.BgpConfig.Global.Config.RouterId.String()
+		updated, withdrawn, updatedAddPaths := s.LocRib.ProcessConnectedRoutes(routerId, path, add, remove,
+			s.AddPathCount)
+		updated, withdrawn, updatedAddPaths = s.CheckForAggregation(updated, withdrawn, updatedAddPaths)
+		s.SendUpdate(updated, withdrawn, updatedAddPaths)
+
+		s.networkStmtPE.DeleteNSPolicyState(ns, policy.Name)
+		s.networkStmtPE.PolicyEngine.DeletePolicyEntityMapEntry(peEntity, policy.Name)
+	}
+}
+
+func (s *BGPServer) UpdateNSPolicy(nsConf *config.BGPNetworkStatement) error {
+	s.logger.Debug("UpdateNSPolicy")
+	var err error
+	var policyAction utilspolicy.PolicyAction
+
+	if len(nsConf.Policy) != 0 {
+		policyEngine := s.networkStmtPE.GetPolicyEngine()
+		policyDB := policyEngine.PolicyDB
+
+		nodeGet := policyDB.Get(patriciaDB.Prefix(nsConf.Policy))
+		if nodeGet == nil {
+			s.logger.Err("Policy ", nsConf.Policy, " not defined")
+			return errors.New(fmt.Sprintf("Policy %s not found in policy engine", nsConf.Policy))
+		}
+		node := nodeGet.(utilspolicy.Policy)
+
+		bytes := packet.GetAddressLengthForFamily(nsConf.AddressFamily)
+		if bytes == -1 {
+			s.logger.Err("Could not find number of bytes for aggregate prefix family", nsConf.AddressFamily)
+			return errors.New(fmt.Sprintf("Could not find number of bytes for aggregate prefix family",
+				nsConf.AddressFamily))
+		}
+		strBits := strconv.Itoa(bytes * 8)
+		s.logger.Infof("AddOrUpdateAgg: agg = %s, bytes = %d, bits =%s", nsConf.IPPrefix, bytes, strBits)
+
+		name := "NS+" + nsConf.IPPrefix
+		tokens := strings.Split(nsConf.IPPrefix, "/")
+		prefixLen := tokens[1]
+		_, err = strconv.Atoi(prefixLen)
+		if err != nil {
+			s.logger.Errf("Failed to convert prefex len %s to int with error %s", prefixLen, err)
+			return err
+		}
+
+		ipPrefix := nsConf.IPPrefix
+		cond := utilspolicy.PolicyConditionConfig{
+			Name:          name,
+			ConditionType: "MatchDstIpPrefix",
+			MatchDstIpPrefixConditionInfo: utilspolicy.PolicyDstIpMatchPrefixSetCondition{
+				Prefix: utilspolicy.PolicyPrefix{
+					IpPrefix:        ipPrefix,
+					MasklengthRange: prefixLen + "-" + strBits,
+				},
+			},
+		}
+
+		_, err = s.networkStmtPE.CreatePolicyCondition(cond)
+		if err != nil {
+			s.logger.Errf("Failed to create policy condition to match ip prefix %s with error %s", ipPrefix, err)
+			return err
+		}
+
+		conditionNameList := make([]string, 1)
+		conditionNameList[0] = name
+
+		policyAction = utilspolicy.PolicyAction{
+			Name:       name,
+			ActionType: policyCommonDefs.PolicyActionTypeNetworkStatementAdvertise,
+		}
+
+		s.logger.Debug("Calling applypolicy with conditionNameList: ", conditionNameList)
+		s.networkStmtPE.UpdateApplyPolicy(utilspolicy.ApplyPolicyInfo{node, policyAction, conditionNameList}, true)
+	} else {
+		nsConf.Accept = true
+		accept := true
+		path, ok := s.NSRoutesPathMap[""]
+		if !ok {
+			path = s.ConstructPathsForNSRoutes(&s.BgpConfig.Global.Config)
+		}
+		add, remove := s.GetNLRIForNSRoute(nsConf, accept)
+		routerId := s.BgpConfig.Global.Config.RouterId.String()
+		updated, withdrawn, updatedAddPaths := s.LocRib.ProcessConnectedRoutes(routerId, path, add,
+			remove, s.AddPathCount)
+		updated, withdrawn, updatedAddPaths = s.CheckForAggregation(updated, withdrawn, updatedAddPaths)
+		s.SendUpdate(updated, withdrawn, updatedAddPaths)
+	}
+	return nil
+}
+
+func (s *BGPServer) DeleteNS(nsConf *config.BGPNetworkStatement) error {
+	policyEngine := s.networkStmtPE.GetPolicyEngine()
+	policyDB := policyEngine.PolicyDB
+
+	if pfNSMap, ok := s.BgpConfig.Afs[nsConf.AddressFamily]; ok {
+		if ns, ok := pfNSMap.BgpNetworkStmts[nsConf.IPPrefix]; ok {
+			delete(s.BgpConfig.Afs[nsConf.AddressFamily].BgpNetworkStmts, nsConf.IPPrefix)
+			s.NSRoutesMutex.Lock()
+			s.NSRoutes[ns.Idx] = s.NSRoutes[len(s.NSRoutes)-1]
+			s.NSRoutes[ns.Idx].Idx = ns.Idx
+			s.NSRoutes[len(s.NSRoutes)-1] = nil
+			s.NSRoutes = s.NSRoutes[:len(s.NSRoutes)-1]
+			s.NSRoutesMutex.Unlock()
+		}
+	} else {
+		s.logger.Err("DeleteNS: Address family", nsConf.AddressFamily, "not found BGP config address families")
+	}
+
+	nodeGet := policyDB.Get(patriciaDB.Prefix(nsConf.Policy))
+	if nodeGet == nil {
+		s.logger.Err("NS ", nsConf, " not created yet")
+		return errors.New(fmt.Sprintf("Policy %s not found in policy engine", nsConf.IPPrefix))
+	}
+	node := nodeGet.(utilspolicy.Policy)
+
+	name := "NS+" + nsConf.IPPrefix
+	conditionNameList := make([]string, 1)
+	conditionNameList[0] = name
+	policyAction := utilspolicy.PolicyAction{
+		Name:       name,
+		ActionType: policyCommonDefs.PolicyActionTypeNetworkStatementAdvertise,
+	}
+
+	s.networkStmtPE.UpdateUndoApplyPolicy(utilspolicy.ApplyPolicyInfo{node, policyAction, conditionNameList}, true)
+	s.networkStmtPE.DeletePolicyCondition(name)
+	return nil
+}
+
+func (s *BGPServer) AddOrUpdateNS(oldConf config.BGPNetworkStatement, newConf config.BGPNetworkStatement,
+	attrSet []bool) error {
+	s.logger.Info("AddOrUpdateNS")
+	var err error
+
+	bytes := packet.GetAddressLengthForFamily(newConf.AddressFamily)
+	if bytes == -1 {
+		s.logger.Err("Could not find number of bytes for aggregate prefix family", newConf.AddressFamily)
+		return errors.New(fmt.Sprintf("Could not find number of bytes for aggregate prefix family",
+			newConf.AddressFamily))
+	}
+	strBits := strconv.Itoa(bytes * 8)
+	s.logger.Infof("AddOrUpdateNS: agg = %s, bytes = %d, bits =%s", newConf.IPPrefix, bytes, strBits)
+
+	if oldConf.IPPrefix != "" {
+		// Delete the policy
+		s.DeleteNS(&oldConf)
+	}
+
+	if newConf.IPPrefix != "" {
+		if _, ok := s.BgpConfig.Afs[newConf.AddressFamily]; !ok {
+			s.BgpConfig.Afs[newConf.AddressFamily] = &config.AddressFamily{}
+		}
+		if s.BgpConfig.Afs[newConf.AddressFamily].BgpNetworkStmts == nil {
+			s.BgpConfig.Afs[newConf.AddressFamily].BgpNetworkStmts = make(map[string]*config.BGPNetworkStatement)
+		}
+		s.BgpConfig.Afs[newConf.AddressFamily].BgpNetworkStmts[newConf.IPPrefix] = &newConf
+		s.NSRoutesMutex.Lock()
+		idx := len(s.NSRoutes)
+		s.NSRoutes = append(s.NSRoutes, &newConf)
+		newConf.Idx = idx
+		s.NSRoutesMutex.Unlock()
+		err = s.UpdateNSPolicy(&newConf)
+		return err
+	}
+	return err
+}
+
 func (s *BGPServer) copyGlobalConf(gConf config.GlobalConfig) {
 	// Don't create a new Global object. Peers have reference to the global object.
 	s.BgpConfig.Global.Config.Vrf = gConf.Vrf
@@ -1441,25 +1962,23 @@ func (s *BGPServer) constructBGPGlobalState(gConf *config.GlobalConfig) {
 	s.BgpConfig.Global.State.DefaultMED = gConf.DefaultMED
 }
 
-func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
+func (s *BGPServer) SetupRedistribution(newConf config.GlobalConfig) {
 	s.logger.Info("SetUpRedistribution")
-	if gConf.Redistribution == nil || len(gConf.Redistribution) == 0 {
-		s.logger.Info("No redistribution policies configured")
-		return
-	}
 	if s.RedistributionMap == nil {
 		s.RedistributionMap = make(map[string]string)
 	}
+	currentRedistMap := make(map[string]bool)
 	applyList := make([]*config.ApplyPolicyInfo, 0)
 	undoApplyList := make([]*config.ApplyPolicyInfo, 0)
 	applyIndex := 0
 	undoIndex := 0
 	source := ""
-	for i := 0; i < len(gConf.Redistribution); i++ {
-		s.logger.Info("Sources: ", gConf.Redistribution[i].Sources)
+
+	for i := 0; i < len(newConf.Redistribution); i++ {
+		s.logger.Info("Sources: ", newConf.Redistribution[i].Sources)
 		sources := make([]string, 0)
-		sources = strings.Split(gConf.Redistribution[i].Sources, ",")
-		s.logger.Infof("Setting up %s as redistribution policy for source(s): ", gConf.Redistribution[i].Policy)
+		sources = strings.Split(newConf.Redistribution[i].Sources, ",")
+		s.logger.Infof("Setting up %s as redistribution policy for source(s): ", newConf.Redistribution[i].Policy)
 		for j := 0; j < len(sources); j++ {
 			source = sources[j]
 			s.logger.Info("source: ", source)
@@ -1469,12 +1988,13 @@ func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
 				condition = &config.ConditionInfo{ConditionType: "MatchProtocol", Protocol: source}
 			}
 			_, ok := s.RedistributionMap[source]
+			currentRedistMap[source] = true
 			if !ok {
 				s.logger.Info("No policy applied for this source so far")
-				s.RedistributionMap[source] = gConf.Redistribution[i].Policy
+				s.RedistributionMap[source] = newConf.Redistribution[i].Policy
 				applyList = append(applyList, &config.ApplyPolicyInfo{
 					Protocol: "BGP",
-					Policy:   gConf.Redistribution[i].Policy,
+					Policy:   newConf.Redistribution[i].Policy,
 					Action:   "Redistribution"})
 				if condition != nil {
 					if applyList[applyIndex].Conditions == nil {
@@ -1483,14 +2003,14 @@ func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
 					applyList[applyIndex].Conditions = append(applyList[applyIndex].Conditions, condition)
 				}
 				applyIndex++
-			} else if s.RedistributionMap[source] == gConf.Redistribution[i].Policy {
+			} else if s.RedistributionMap[source] == newConf.Redistribution[i].Policy {
 				s.logger.Info("Policy unchanged for source ", source)
 				continue
 			} else {
 				s.logger.Info("Another policy:", s.RedistributionMap[source], " already applied for source :", source)
 				applyList = append(applyList, &config.ApplyPolicyInfo{
 					Protocol: "BGP",
-					Policy:   gConf.Redistribution[i].Policy,
+					Policy:   newConf.Redistribution[i].Policy,
 					Action:   "Redistribution"})
 				if condition != nil {
 					if applyList[applyIndex].Conditions == nil {
@@ -1513,10 +2033,30 @@ func (s *BGPServer) SetupRedistribution(gConf config.GlobalConfig) {
 					undoIndex++
 				}
 
-				s.RedistributionMap[source] = gConf.Redistribution[i].Policy
+				s.RedistributionMap[source] = newConf.Redistribution[i].Policy
 			}
 		}
 	}
+
+	for source, policy := range s.RedistributionMap {
+		if !currentRedistMap[source] {
+			var condition *config.ConditionInfo
+			if policy != "" {
+				condition = &config.ConditionInfo{ConditionType: "MatchProtocol", Protocol: source}
+				undoApplyList = append(undoApplyList, &config.ApplyPolicyInfo{
+					Protocol: "BGP",
+					Policy:   s.RedistributionMap[source],
+					Action:   "Redistribution"})
+				if undoApplyList[undoIndex].Conditions == nil {
+					undoApplyList[undoIndex].Conditions = make([]*config.ConditionInfo, 0)
+				}
+				undoApplyList[undoIndex].Conditions = append(undoApplyList[undoIndex].Conditions, condition)
+				undoIndex++
+			}
+			delete(s.RedistributionMap, source)
+		}
+	}
+
 	if len(applyList) > 0 || len(undoApplyList) > 0 {
 		s.routeMgr.ApplyPolicy(applyList, undoApplyList)
 	}
@@ -1641,10 +2181,6 @@ func (s *BGPServer) UpdateGlobal(bgpGlobal *bgpd.BGPGlobal, oldConfig, newConfig
 			if attrSet[i] {
 				s.logger.Debug("UpdateGlobal: changed ", objName)
 				if objName == "Redistribution" {
-					if len(newConfig.Redistribution) == 0 {
-						s.logger.Err("Must specify redistribution")
-						return
-					}
 					s.SetupRedistribution(newConfig)
 				} else if objName == "Defaultv4Route" {
 					protoFamily := packet.GetProtocolFamily(packet.AfiIP, packet.SafiUnicast)
@@ -2208,6 +2744,16 @@ func (s *BGPServer) listenChannelUpdates() {
 		case aggConf := <-s.RemAggCh:
 			s.DeleteAgg(aggConf)
 
+		case nsUpdate := <-s.AddNSCh:
+			oldNS := nsUpdate.OldNS
+			newNS := nsUpdate.NewNS
+			if newNS.IPPrefix != "" {
+				s.AddOrUpdateNS(oldNS, newNS, nsUpdate.AttrSet)
+			}
+
+		case nsConf := <-s.RemNSCh:
+			s.DeleteNS(&nsConf)
+
 		case tcpConn := <-s.acceptCh:
 			s.logger.Info("Connected to", tcpConn.RemoteAddr().String())
 			host, _, _ := net.SplitHostPort(tcpConn.RemoteAddr().String())
@@ -2427,6 +2973,28 @@ func (s *BGPServer) GetIntfObjects() {
 	s.logger.Info("After ProcessIntfMapUpdates for logicalIntfs")
 }
 
+func (s *BGPServer) ConstructPathAttrsForNSRoutes() []packet.BGPPathAttr {
+	defaultPath, ok := s.NSRoutesPathMap[""]
+	if !ok {
+		defaultPath = s.ConstructPathsForNSRoutes(&s.BgpConfig.Global.Config)
+	}
+	newPathAttrs := packet.ClonePathAttrs(defaultPath.PathAttrs)
+	return newPathAttrs
+}
+
+func (s *BGPServer) ConstructPathsForNSRoutes(gConf *config.GlobalConfig) *bgprib.Path {
+	path, ok := s.NSRoutesPathMap[""]
+	if !ok {
+		pathAttrs := packet.ConstructPathAttrForDefaultRoute(gConf.AS, gConf.DefaultMED)
+		protoFamily := packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
+		ipv6MPReach := packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
+		path = bgprib.NewPath(s.LocRib, nil, pathAttrs, ipv6MPReach, bgprib.RouteTypeStatic)
+		s.NSRoutesPathMap[""] = path
+	}
+
+	return path
+}
+
 func (s *BGPServer) ConstructPathsForLocalRoutes(gConf *config.GlobalConfig) {
 	pathAttrs := packet.ConstructPathAttrForConnRoutes(gConf.AS, gConf.DefaultMED)
 	protoFamily := packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
@@ -2437,6 +3005,8 @@ func (s *BGPServer) ConstructPathsForLocalRoutes(gConf *config.GlobalConfig) {
 	protoFamily = packet.GetProtocolFamily(packet.AfiIP6, packet.SafiUnicast)
 	ipv6MPReach = packet.ConstructIPv6MPReachNLRIForConnRoutes(protoFamily)
 	s.DefaultRoutesPath = bgprib.NewPath(s.LocRib, nil, pathAttrs, ipv6MPReach, bgprib.RouteTypeDefault)
+
+	s.ConstructPathsForNSRoutes(gConf)
 }
 
 func (s *BGPServer) ConstructDefaultRoutes(gConf *config.GlobalConfig) {
@@ -2563,6 +3133,53 @@ func (s *BGPServer) BulkGetBGPv4Neighbors(index int, count int) (int, int, []*co
 
 func (s *BGPServer) BulkGetBGPv6Neighbors(index int, count int) (int, int, []*config.NeighborState) {
 	return s.bulkGetBGPNeighbors(index, count, config.PeerAddressV6)
+}
+
+func (s *BGPServer) GetBGPNetworkStatementState(ipPrefix string) *config.BGPNetworkStatement {
+	ip, _, err := net.ParseCIDR(ipPrefix)
+	if err != nil {
+		s.logger.Info("BGPNetworkStatement: IP", ipPrefix, "is not valid")
+		return nil
+	}
+
+	var afi packet.AFI
+	if ip.To4() != nil {
+		afi = packet.AfiIP
+	} else if ip.To16() != nil {
+		afi = packet.AfiIP6
+	} else {
+		s.logger.Info("BGPNetworkStatement: IP", ipPrefix, "is not a valid v4 or v6 address")
+		return nil
+	}
+
+	protoFamily := packet.GetProtocolFamily(afi, packet.SafiUnicast)
+	if pfNSMap, ok := s.BgpConfig.Afs[protoFamily]; ok {
+		if ns, ok := pfNSMap.BgpNetworkStmts[ipPrefix]; ok {
+			return ns
+		}
+	}
+	return nil
+}
+
+func (s *BGPServer) BulkGetBGPNetworkStatements(index int, count int) (int, int, []*config.BGPNetworkStatement) {
+	s.NSRoutesMutex.RLock()
+	defer s.NSRoutesMutex.RUnlock()
+
+	num := count
+	if index+count > len(s.NSRoutes) {
+		num = len(s.NSRoutes) - index
+	}
+
+	result := make([]*config.BGPNetworkStatement, num)
+	copy(result, s.NSRoutes[index:index+num])
+
+	if index+count >= len(s.NSRoutes) {
+		index = 0
+		count = num
+	} else {
+		index += count
+	}
+	return index, count, result
 }
 
 func (s *BGPServer) VerifyBgpGlobalConfig() bool {
