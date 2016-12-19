@@ -76,7 +76,7 @@ type GarpEntry struct {
 }
 
 type ARPServer struct {
-	logger                  *logging.Writer
+	logger                  logging.LoggerIntf
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
 	AsicdSubSocketCh        chan asicdClntDefs.AsicdNotifyMsg
 	dbHdl                   *dbutils.DBUtil
@@ -128,7 +128,7 @@ type ARPServer struct {
 	AsicdPlugin asicdClntIntfs.AsicdClntIntf
 }
 
-func NewARPServer(logger *logging.Writer) *ARPServer {
+func NewARPServer(logger logging.LoggerIntf) *ARPServer {
 	arpServer := &ARPServer{}
 	arpServer.logger = logger
 	arpServer.arpCache = make(map[string]ArpEntry)

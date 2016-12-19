@@ -36,6 +36,8 @@ import (
 	//"os"
 	//"runtime"
 	//"runtime/pprof"
+	"utils/clntUtils/clntDefs/arpdClntDefs"
+	"utils/clntUtils/clntIntfs/arpdClntIntfs"
 	"utils/dbutils"
 	"utils/keepalive"
 	"utils/logging"
@@ -118,7 +120,18 @@ func main() {
 		logger.Println("routeServer nil")
 		return
 	}
-	go routeServer.StartServer(*paramsDir)
+
+	clientInfoFile := fileName + "clients.json"
+	arpdHdl := arpdClntDefs.ArpdClientStruct{
+		Logger: logger,
+	}
+	var arpdPlugin arpdClntIntfs.ArpdClntIntf
+	arpdPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntIntfs.FS_ARPD_CLNT, clientInfoFile, arpdHdl)
+	if err != nil {
+		panic(err)
+	}
+
+	go routeServer.StartServer(*paramsDir, arpdPlugin)
 	up := <-routeServer.ServerUpCh
 	//dbHdl.Close()
 	logger.Info(fmt.Sprintln("RIBD server is up: ", up))

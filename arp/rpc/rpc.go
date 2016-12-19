@@ -13,13 +13,13 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 package rpc
 
@@ -38,7 +38,7 @@ type ClientJson struct {
 	Port int    `json:Port`
 }
 
-func getClient(logger *logging.Writer, fileName string, process string) (*ClientJson, error) {
+func getClient(logger logging.LoggerIntf, fileName string, process string) (*ClientJson, error) {
 	var allClients []ClientJson
 
 	data, err := ioutil.ReadFile(fileName)
@@ -58,7 +58,7 @@ func getClient(logger *logging.Writer, fileName string, process string) (*Client
 	return nil, nil
 }
 
-func StartServer(logger *logging.Writer, handler *ARPHandler, paramDir string) {
+func StartServer(logger logging.LoggerIntf, handler *ARPHandler, paramDir string) {
 	fileName := paramDir
 	if fileName[len(fileName)-1] != '/' {
 		fileName = fileName + "/"

@@ -51,7 +51,7 @@ func initAsicdNotification() asicdClntDefs.AsicdNotification {
 	return nMap
 }
 
-func NewNotificationHdl(server *server.ARPServer, logger *logging.Writer) (asicdClntDefs.AsicdNotificationHdl, asicdClntDefs.AsicdNotification) {
+func NewNotificationHdl(server *server.ARPServer, logger logging.LoggerIntf) (asicdClntDefs.AsicdNotificationHdl, asicdClntDefs.AsicdNotification) {
 	nMap := initAsicdNotification()
 	return &NotificationHdl{server}, nMap
 }
