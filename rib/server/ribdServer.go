@@ -628,7 +628,7 @@ func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string) {
 		ribdServiceHandler.UpdateApplyPolicyList(list.ApplyList, list.UndoList, true, PolicyEngineDB)
 		ribdServiceHandler.PolicyUpdateApplyCh <- list)*/
 		case info := <-ribdServiceHandler.TrackReachabilityCh:
-			//logger.Debug("received message on TrackReachabilityCh channel")
+			logger.Debug("received message on TrackReachabilityCh channel")
 			ribdServiceHandler.TrackReachabilityStatus(info.IpAddr, info.Protocol, info.Op)
 		}
 	}
