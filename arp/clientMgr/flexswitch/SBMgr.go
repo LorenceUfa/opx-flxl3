@@ -75,7 +75,7 @@ func GetArpdThriftClientHdl(paramsFile string, clients []commonDefs.ClientJson) 
 }
 
 func (p *FSArpdClientMgr) ResolveArpIPV4(destNetIp string, vlanid int32) (err error) {
-	return p.ClientHandle.ResolveArpIPV4(destNetIp, arpdInt.Int(vlanid))
+	return p.ClientHandle.ResolveArpIPv4(destNetIp, arpdInt.Int(vlanid))
 }
 
 func (p *FSArpdClientMgr) DeleteResolveArpIPv4(NbrIP string) (err error) {

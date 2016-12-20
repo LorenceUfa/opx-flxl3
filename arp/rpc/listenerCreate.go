@@ -51,7 +51,7 @@ func (h *ARPHandler) SendSetArpGlobalConfig(refTimeout int) error {
 	return err
 }
 
-func (h *ARPHandler) ResolveArpIPV4(targetIp string, ifId arpdInt.Int) error {
+func (h *ARPHandler) ResolveArpIPv4(targetIp string, ifId arpdInt.Int) error {
 	h.logger.Info(fmt.Sprintln("Received ResolveArpIPV4 call with targetIp:", targetIp, "ifId:", ifId))
 	h.SendResolveArpIPv4(targetIp, ifId)
 	return nil

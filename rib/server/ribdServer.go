@@ -37,6 +37,7 @@ import (
 	"ribdInt"
 	//	"syscall"
 	"strconv"
+	"utils/clntUtils/clntIntfs/arpdClntIntfs"
 	"utils/dbutils"
 	"utils/logging"
 	"utils/patriciaDB"
@@ -602,7 +603,7 @@ func (s *RIBDServer) InitServer() {
 	go s.StartArpdServer()
 
 }
-func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string) {
+func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string, arpdPlugin arpdClntIntfs.ArpdClntIntf) {
 	ribdServiceHandler.InitServer()
 	logger.Info("Starting RIB server comment out logger. calls")
 	DummyRouteInfoRecord.protocol = PROTOCOL_NONE

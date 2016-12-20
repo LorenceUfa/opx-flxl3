@@ -92,6 +92,7 @@ func (h *BGPHandler) convertModelToBGPGlobalConfig(obj objects.BGPGlobal) (gConf
 			IBGPMaxPaths:        obj.IBGPMaxPaths,
 			Defaultv4Route:      obj.Defaultv4Route,
 			Defaultv6Route:      obj.Defaultv6Route,
+			DefaultMED:          obj.DefaultMED,
 		},
 	}
 
@@ -563,6 +564,7 @@ func (h *BGPHandler) validateBGPGlobal(bgpGlobal *bgpd.BGPGlobal) (gConf config.
 			IBGPMaxPaths:        uint32(bgpGlobal.IBGPMaxPaths),
 			Defaultv4Route:      bgpGlobal.Defaultv4Route,
 			Defaultv6Route:      bgpGlobal.Defaultv6Route,
+			DefaultMED:          uint32(bgpGlobal.DefaultMED),
 		},
 	}
 
@@ -608,6 +610,7 @@ func (h *BGPHandler) validateBGPGlobalForPatchUpdate(oldConfig *bgpd.BGPGlobal, 
 			IBGPMaxPaths:        uint32(oldConfig.IBGPMaxPaths),
 			Defaultv4Route:      oldConfig.Defaultv4Route,
 			Defaultv6Route:      oldConfig.Defaultv6Route,
+			DefaultMED:          uint32(oldConfig.DefaultMED),
 		},
 	}
 
@@ -681,6 +684,7 @@ func (h *BGPHandler) validateBGPGlobalForUpdate(oldConfig *bgpd.BGPGlobal, newCo
 			IBGPMaxPaths:        uint32(newConfig.IBGPMaxPaths),
 			Defaultv4Route:      newConfig.Defaultv4Route,
 			Defaultv6Route:      newConfig.Defaultv6Route,
+			DefaultMED:          uint32(newConfig.DefaultMED),
 		},
 	}
 
@@ -763,6 +767,7 @@ func (h *BGPHandler) GetBGPGlobalState(vrfId string) (*bgpd.BGPGlobalState, erro
 	bgpGlobalResponse.IBGPMaxPaths = int32(bgpGlobal.IBGPMaxPaths)
 	bgpGlobalResponse.Defaultv4Route = bgpGlobal.Defaultv4Route
 	bgpGlobalResponse.Defaultv6Route = bgpGlobal.Defaultv6Route
+	bgpGlobalResponse.DefaultMED = int32(bgpGlobal.DefaultMED)
 	bgpGlobalResponse.TotalPaths = int32(bgpGlobal.TotalPaths)
 	bgpGlobalResponse.Totalv4Prefixes = int32(bgpGlobal.Totalv4Prefixes)
 	bgpGlobalResponse.Totalv6Prefixes = int32(bgpGlobal.Totalv6Prefixes)
@@ -1772,6 +1777,119 @@ func (h *BGPHandler) DeleteBGPv6Aggregate(bgpAgg *bgpd.BGPv6Aggregate) (bool, er
 	agg, _ := h.validateBGPv6Aggregate(bgpAgg)
 	h.server.RemAggCh <- agg
 	return true, nil
+}
+
+func (h *BGPHandler) validateBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement) (nsConf config.BGPNetworkStatement,
+	err error) {
+	if bgpNS == nil {
+		return nsConf, err
+	}
+	var ip net.IP
+
+	ip, _, err = net.ParseCIDR(bgpNS.IpPrefix)
+	if err != nil {
+		err = errors.New(fmt.Sprintf("BGPNetworkStatement: IP %s is not valid", bgpNS.IpPrefix))
+		h.logger.Info("BGPNetworkStatement: IP", bgpNS.IpPrefix, "is not valid")
+		return nsConf, err
+	}
+
+	var afi packet.AFI
+	if ip.To4() != nil {
+		afi = packet.AfiIP
+	} else if ip.To16() != nil {
+		afi = packet.AfiIP6
+	} else {
+		err = errors.New(fmt.Sprintf("BGPNetworkStatement: IP %s is not a valid v4 or v6 address", bgpNS.IpPrefix))
+		h.logger.Info("BGPNetworkStatement: IP", bgpNS.IpPrefix, "is not a valid v4 or v6 address")
+		return nsConf, err
+	}
+
+	nsConf = config.BGPNetworkStatement{
+		IPPrefix:      bgpNS.IpPrefix,
+		Policy:        bgpNS.Policy,
+		AddressFamily: packet.GetProtocolFamily(afi, packet.SafiUnicast),
+	}
+	return nsConf, nil
+}
+
+func (h *BGPHandler) SendBGPNetworkStatement(oldConfig *bgpd.BGPNetworkStatement, newConfig *bgpd.BGPNetworkStatement,
+	attrSet []bool) (
+	bool, error) {
+	if err := h.checkBGPGlobal(); err != nil {
+		return false, err
+	}
+
+	oldAgg, err := h.validateBGPNetworkStatement(oldConfig)
+	if err != nil {
+		return false, err
+	}
+
+	newAgg, err := h.validateBGPNetworkStatement(newConfig)
+	if err != nil {
+		return false, err
+	}
+
+	h.server.AddNSCh <- server.NSUpdate{oldAgg, newAgg, attrSet}
+	return true, err
+}
+
+func (h *BGPHandler) CreateBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement) (bool, error) {
+	h.logger.Info("Create BGP network statement:", bgpNS)
+	return h.SendBGPNetworkStatement(nil, bgpNS, make([]bool, 0))
+}
+
+func (h *BGPHandler) UpdateBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement, updatedNS *bgpd.BGPNetworkStatement,
+	attrSet []bool, op []*bgpd.PatchOpInfo) (bool, error) {
+	h.logger.Info("Update BGP network statement:", updatedNS, "old:", bgpNS)
+	return h.SendBGPNetworkStatement(bgpNS, updatedNS, attrSet)
+}
+
+func (h *BGPHandler) DeleteBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement) (bool, error) {
+	h.logger.Info("Delete BGP network statement:", bgpNS)
+	if err := h.checkBGPGlobal(); err != nil {
+		return false, err
+	}
+
+	nsConf, _ := h.validateBGPNetworkStatement(bgpNS)
+	h.server.RemNSCh <- nsConf
+	return true, nil
+}
+
+func (h *BGPHandler) ConvertBGPNetworkStateToThriftObject(ns *config.BGPNetworkStatement) *bgpd.BGPNetworkStatementState {
+	return &bgpd.BGPNetworkStatementState{
+		IpPrefix:       ns.IPPrefix,
+		Policy:         ns.Policy,
+		PolicyStmtList: ns.PolicyStmtList,
+	}
+}
+
+func (h *BGPHandler) GetBGPNetworkStatementState(ipPrefix string) (*bgpd.BGPNetworkStatementState, error) {
+	var err error = nil
+	var bgpNS *bgpd.BGPNetworkStatementState
+
+	ns := h.server.GetBGPNetworkStatementState(ipPrefix)
+	if ns == nil {
+		err = errors.New(fmt.Sprintf("Network statement not found for prefix %s", ipPrefix))
+	} else {
+		bgpNS = h.ConvertBGPNetworkStateToThriftObject(ns)
+	}
+	return bgpNS, err
+}
+
+func (h *BGPHandler) GetBulkBGPNetworkStatementState(index bgpd.Int, count bgpd.Int) (
+	*bgpd.BGPNetworkStatementStateGetInfo, error) {
+	nextIdx, currCount, nsRoutes := h.server.BulkGetBGPNetworkStatements(int(index), int(count))
+	bgpdNSRoutes := make([]*bgpd.BGPNetworkStatementState, len(nsRoutes))
+	for idx, nsRoute := range nsRoutes {
+		bgpdNSRoutes[idx] = h.ConvertBGPNetworkStateToThriftObject(nsRoute)
+	}
+	bgpRoutesBulk := bgpd.NewBGPNetworkStatementStateGetInfo()
+	bgpRoutesBulk.EndIdx = bgpd.Int(nextIdx)
+	bgpRoutesBulk.Count = bgpd.Int(currCount)
+	bgpRoutesBulk.More = (nextIdx != 0)
+	bgpRoutesBulk.BGPNetworkStatementStateList = bgpdNSRoutes
+
+	return bgpRoutesBulk, nil
 }
 
 func (h *BGPHandler) ExecuteActionResetBGPv4NeighborByIPAddr(resetIP *bgpd.ResetBGPv4NeighborByIPAddr) (bool, error) {
