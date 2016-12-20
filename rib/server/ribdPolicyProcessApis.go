@@ -59,6 +59,7 @@ func (m RIBDServer) ProcessPolicyConditionConfigCreate(cfg *ribd.PolicyCondition
 	logger.Debug("ProcessPolicyConditionConfigCreate:CreatePolicyConditioncfg: ", cfg.Name, " cfg:", *cfg)
 	newPolicy := policy.PolicyConditionConfig{Name: cfg.Name,
 		ConditionType:               cfg.ConditionType,
+		MatchProtocolConditionInfo:  cfg.Protocol,
 		MatchLocalPrefConditionInfo: uint32(cfg.LocalPref),
 		MatchMEDConditionInfo:       uint32(cfg.MED),
 	}
@@ -100,7 +101,18 @@ func (m RIBDServer) ProcessPolicyConditionConfigUpdate(origCfg *ribd.PolicyCondi
 		for i := 0; i < objTyp.NumField(); i++ {
 			objName := objTyp.Field(i).Name
 			if attrset[i] {
-				if objName == "IpPrefix" {
+				if objName == "Protocol" {
+					logger.Debug(func_msg, " Attr to be updated is Protocol")
+					newPolicyCfg := policy.PolicyConditionConfig{
+						Name: origCfg.Name,
+						MatchProtocolConditionInfo: newCfg.Protocol,
+					}
+					err = db.UpdatePolicyCondition(newPolicyCfg, "Protocol")
+					if err != nil {
+						db.Logger.Err(func_msg, " policylib returned err:", err, " for Protocol attribute")
+						return err
+					}
+				} else if objName == "IpPrefix" {
 					logger.Debug(func_msg, " Attr to be updated is IpPrefix")
 					matchPrefix := policy.PolicyPrefix{IpPrefix: newCfg.IpPrefix}
 					newPolicyCfg := policy.PolicyConditionConfig{
@@ -702,7 +714,7 @@ func (m RIBDServer) UpdateApplyPolicy(info *ribdInt.ApplyPolicyInfo, apply bool,
 			ok := policyConditionsDB.Match(patriciaDB.Prefix(conditionName))
 			if !ok {
 				logger.Debug("Define condition ", conditionName)
-				policyCondition := ribd.PolicyCondition{Name: conditionName, ConditionType: conditions[j].ConditionType}
+				policyCondition := ribd.PolicyCondition{Name: conditionName, ConditionType: conditions[j].ConditionType, Protocol: conditions[j].Protocol}
 				_, err = m.ProcessPolicyConditionConfigCreate(&policyCondition, db)
 			}
 		case "MatchDstIpPrefix":
