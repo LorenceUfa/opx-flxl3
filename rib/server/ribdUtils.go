@@ -644,7 +644,7 @@ func RedistributionNotificationSend(PUB *nanomsg.PubSocket, route ribdInt.Routes
 	RouteServiceHandler.NotificationChannel <- NotificationMsg{PUB, buf, eventInfo}
 }
 func RouteReachabilityStatusNotificationSend(targetProtocol string, info RouteReachabilityStatusInfo) {
-	//logger.Info("RouteReachabilityStatusNotificationSend for protocol ", targetProtocol)
+	logger.Info("RouteReachabilityStatusNotificationSend for protocol ", targetProtocol)
 	publisherInfo, ok := PublisherInfoMap[targetProtocol]
 	if !ok {
 		logger.Info("Publisher not found for protocol ", targetProtocol)
@@ -674,7 +674,7 @@ func RouteReachabilityStatusNotificationSend(targetProtocol string, info RouteRe
 	RouteServiceHandler.NotificationChannel <- NotificationMsg{PUB, buf, eventInfo}
 }
 func RouteReachabilityStatusUpdate(targetProtocol string, info RouteReachabilityStatusInfo) {
-	//logger.Info("RouteReachabilityStatusUpdate targetProtocol ", targetProtocol)
+	logger.Info("RouteReachabilityStatusUpdate targetProtocol ", targetProtocol, " info:", info)
 	if targetProtocol != "NONE" {
 		RouteReachabilityStatusNotificationSend(targetProtocol, info)
 	}
@@ -693,16 +693,18 @@ func RouteReachabilityStatusUpdate(targetProtocol string, info RouteReachability
 		logger.Err("Error getting ip prefix for ip:", ipAddrStr, " mask:", ipMaskStr)
 		return
 	}
+	logger.Info("RouteReachabilityStatusUpdate(), destIpPrefix:", destIpPrefix)
 	//check the TrackReachabilityMap to see if any other protocols are interested in receiving updates for this network
 	for k, list := range TrackReachabilityMap {
 		prefix, err := getNetowrkPrefixFromStrings(k, ipMaskStr)
 		if err != nil {
 			logger.Err("Error getting ip prefix for ip:", k, " mask:", ipMaskStr)
-			return
+			continue
 		}
+		logger.Info("RouteReachabilityStatusUpdate(), prefix:", prefix, " for k:", k, " list:", list)
 		if bytes.Equal(destIpPrefix, prefix) {
 			for idx := 0; idx < len(list); idx++ {
-				//logger.Info(" protocol ", list[idx], " interested in receving reachability updates for ipAddr ", info.destNet)
+				logger.Info(" protocol ", list[idx], " interested in receving reachability updates for ipAddr ", info.destNet)
 				info.destNet = k
 				RouteReachabilityStatusNotificationSend(list[idx], info)
 			}

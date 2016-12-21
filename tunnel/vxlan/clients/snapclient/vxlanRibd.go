@@ -154,7 +154,7 @@ func (intf VXLANSnapClient) GetNextHopInfo(ip net.IP, vtepnexthopchan chan<- vxl
 func (intf VXLANSnapClient) UnRegisterReachability(ip net.IP) {
 	if ribdclnt.ClientHdl != nil {
 		intf.thriftmutex.Lock()
-		ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAND", "del")
+		ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAN", "del")
 		intf.thriftmutex.Unlock()
 	}
 }
@@ -162,7 +162,7 @@ func (intf VXLANSnapClient) UnRegisterReachability(ip net.IP) {
 func (intf VXLANSnapClient) RegisterReachability(ip net.IP) {
 	if ribdclnt.ClientHdl != nil {
 		intf.thriftmutex.Lock()
-		ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAND", "add")
+		ribdclnt.ClientHdl.TrackReachabilityStatus(ip.String(), "VXLAN", "add")
 		intf.thriftmutex.Unlock()
 	}
 }
