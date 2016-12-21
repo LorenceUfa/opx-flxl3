@@ -25,6 +25,7 @@ package rpc
 
 import (
 	"arpd"
+	"errors"
 	"l3/arp/server"
 )
 
@@ -44,12 +45,18 @@ func (h *ARPHandler) DeleteArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
 
 func (h *ARPHandler) DeleteResolveArpIPv4(NextHopIp string) error {
 	h.logger.Info("Received DeleteResolveArpIPv4 call with NextHopIp:", NextHopIp)
+	if h.server.IsLinuxOnly {
+		return nil
+	}
 	h.SendDeleteResolveArpIPv4(NextHopIp)
 	return nil
 }
 
 func (h *ARPHandler) DeleteArpEntry(ipAddr string) error {
 	h.logger.Info("Received Delete Arp Entry for:", ipAddr)
+	if h.server.IsLinuxOnly {
+		return errors.New("Not supported for linux only plugin")
+	}
 	h.server.DeleteArpEntryCh <- &server.DeleteArpEntry{ipAddr}
 	return nil
 }
