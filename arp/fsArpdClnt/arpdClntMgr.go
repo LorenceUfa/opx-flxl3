@@ -24,19 +24,22 @@ package fsArpdClnt
 import (
 	"arpd"
 	"errors"
-	"utils/clntUtils/clntDefs/arpdClntDefs"
+	"fmt"
+	"utils/clntUtils/clntIntfs"
 )
 
 type FSArpdClntMgr struct {
 	ClientHdl *arpd.ARPDServicesClient
 }
 
-func NewArpdClntInit(paramsFile string, arpdHdl arpdClntDefs.ArpdClientStruct) (*FSArpdClntMgr, error) {
+func NewArpdClntInit(clntInitParams clntIntfs.BaseClnt) (*FSArpdClntMgr, error) {
 	var fsArpdClntMgr FSArpdClntMgr
-	fsArpdClntMgr.ClientHdl = GetArpdThriftClientHdl(paramsFile, arpdHdl.Logger)
-	if fsArpdClntMgr.ClientHdl == nil {
-		arpdHdl.Logger.Err("Unable Initialize Arpd Client")
-		return nil, errors.New("Unable Initialize Arpd Client")
+	var err error
+	fsArpdClntMgr.ClientHdl, err = GetArpdThriftClientHdl(clntInitParams)
+	if fsArpdClntMgr.ClientHdl == nil || err != nil {
+		clntInitParams.Logger.Err("Unable Initialize Arpd Client", err)
+		return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
 	}
+	InitFSArpdSubscriber(clntInitParams)
 	return &fsArpdClntMgr, nil
 }

@@ -24,19 +24,10 @@
 package fsArpdClnt
 
 import (
-	"arpd"
-	"utils/clntUtils/clntDefs"
+	"utils/clntUtils/clntIntfs"
 )
 
-func convertToThriftPatchOpInfo(oper []*clntDefs.PatchOpInfo) []*arpd.PatchOpInfo {
-	var retObj []*arpd.PatchOpInfo
-	for _, op := range oper {
-		convOp := &arpd.PatchOpInfo{
-			Op:    op.Op,
-			Path:  op.Path,
-			Value: op.Value,
-		}
-		retObj = append(retObj, convOp)
-	}
-	return retObj
+func InitFSArpdSubscriber(clntInitParams clntIntfs.BaseClnt) {
+	//Ignore arpdClntDefs.NotificationMap
+	clntInitParams.Logger.Info("No notification is supported by FS Arpd")
 }

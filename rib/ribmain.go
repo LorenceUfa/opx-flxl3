@@ -36,7 +36,8 @@ import (
 	//"os"
 	//"runtime"
 	//"runtime/pprof"
-	"utils/clntUtils/clntDefs/arpdClntDefs"
+	"l3/rib/arpdMgr"
+	"utils/clntUtils/clntIntfs"
 	"utils/clntUtils/clntIntfs/arpdClntIntfs"
 	"utils/dbutils"
 	"utils/keepalive"
@@ -122,11 +123,15 @@ func main() {
 	}
 
 	clientInfoFile := fileName + "clients.json"
-	arpdHdl := arpdClntDefs.ArpdClientStruct{
-		Logger: logger,
+	arpdNHdl := arpdMgr.NewNotificationHdl()
+	arpdClntInitParams := clntIntfs.BaseClnt{
+		PluginName:   arpdClntIntfs.FS_ARPD_CLNT,
+		ClntInfoFile: clientInfoFile,
+		Logger:       logger,
+		NHdl:         arpdNHdl,
 	}
 	var arpdPlugin arpdClntIntfs.ArpdClntIntf
-	arpdPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntIntfs.FS_ARPD_CLNT, clientInfoFile, arpdHdl)
+	arpdPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntInitParams)
 	if err != nil {
 		panic(err)
 	}

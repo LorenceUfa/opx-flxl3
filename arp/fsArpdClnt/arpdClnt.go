@@ -25,18 +25,45 @@ package fsArpdClnt
 
 import (
 	"arpd"
-	"utils/clntUtils/clntDefs"
+	"strconv"
+	"sync"
+	"time"
+	"utils/cfgParser"
+	"utils/clntUtils/clntIntfs"
+	"utils/ipcutils"
+	"utils/logging"
 )
 
-func convertToThriftPatchOpInfo(oper []*clntDefs.PatchOpInfo) []*arpd.PatchOpInfo {
-	var retObj []*arpd.PatchOpInfo
-	for _, op := range oper {
-		convOp := &arpd.PatchOpInfo{
-			Op:    op.Op,
-			Path:  op.Path,
-			Value: op.Value,
-		}
-		retObj = append(retObj, convOp)
+var arpdMutex *sync.Mutex = &sync.Mutex{}
+var Logger logging.LoggerIntf
+
+func GetArpdThriftClientHdl(clntInitParams clntIntfs.BaseClnt) (*arpd.ARPDServicesClient, error) {
+	Logger = clntInitParams.Logger
+	port, err := cfgParser.GetDmnPortFromClientJson("arpd", clntInitParams.ClntInfoFile)
+	if err != nil {
+		Logger.Err("Error opening client connection for arpd", err)
+		return nil, err
 	}
-	return retObj
+	Logger.Debug("found arpd at port", port)
+	address := "localhost:" + strconv.Itoa(port)
+	transport, ptrProtocolFactory, err := ipcutils.CreateIPCHandles(address)
+	if err != nil {
+		Logger.Err("Failed to connect to Arpd, retrying until connection is successful")
+		count := 0
+		ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
+		for _ = range ticker.C {
+			transport, ptrProtocolFactory, err = ipcutils.CreateIPCHandles(address)
+			if err == nil {
+				ticker.Stop()
+				break
+			}
+			count++
+			if (count % 10) == 0 {
+				Logger.Err("Still can't connect to Arpd, retrying..")
+			}
+		}
+
+	}
+	Logger.Info("Connected to Arpd")
+	return arpd.NewARPDServicesClientFactory(transport, ptrProtocolFactory), nil
 }

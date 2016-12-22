@@ -77,7 +77,7 @@ type GarpEntry struct {
 
 type ARPServer struct {
 	IsLinuxOnly             bool
-	logger                  *logging.Writer
+	logger                  logging.LoggerIntf
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
 	AsicdSubSocketCh        chan asicdClntDefs.AsicdNotifyMsg
 	dbHdl                   *dbutils.DBUtil
@@ -208,7 +208,7 @@ func (server *ARPServer) initializeEvents() error {
 	return eventUtils.InitEvents("ARPD", server.eventDbHdl, server.eventDbHdl, server.logger, 1000)
 }
 
-func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
+func (server *ARPServer) InitServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
 	server.logger.Debug("Starting Arp Server")
 	server.AsicdPlugin = asicdPlugin
 	if server.AsicdPlugin == nil {
