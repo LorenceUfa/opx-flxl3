@@ -76,7 +76,8 @@ type GarpEntry struct {
 }
 
 type ARPServer struct {
-	logger                  logging.LoggerIntf
+	IsLinuxOnly             bool
+	logger                  *logging.Writer
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
 	AsicdSubSocketCh        chan asicdClntDefs.AsicdNotifyMsg
 	dbHdl                   *dbutils.DBUtil
@@ -207,9 +208,7 @@ func (server *ARPServer) initializeEvents() error {
 	return eventUtils.InitEvents("ARPD", server.eventDbHdl, server.eventDbHdl, server.logger, 1000)
 }
 
-func (server *ARPServer) InitServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
-	server.initArpParams()
-
+func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
 	server.logger.Debug("Starting Arp Server")
 	server.AsicdPlugin = asicdPlugin
 	if server.AsicdPlugin == nil {
@@ -218,34 +217,42 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
 	}
 	server.SysRsvdVlan = server.AsicdPlugin.GetSysRsvdVlan()
 	server.logger.Debug("Listen for ASICd updates")
-	server.buildArpInfra()
-
-	err := server.initiateDB()
+	var err error
+	server.IsLinuxOnly, err = server.AsicdPlugin.IsLinuxOnlyPlugin()
 	if err != nil {
-		server.logger.Err(fmt.Sprintln("DB Initialization failure...", err))
-	} else {
-		server.logger.Debug("ArpCache DB has been initiated successfully...")
-		server.updateArpCacheFromDB()
+		server.logger.Err("Error getting Plugin Info from Asicd", err)
 	}
+	if server.IsLinuxOnly == false {
+		server.initArpParams()
+		server.buildArpInfra()
 
-	if server.dbHdl != nil {
-		server.getArpGlobalConfig()
+		err = server.initiateDB()
+		if err != nil {
+			server.logger.Err(fmt.Sprintln("DB Initialization failure...", err))
+		} else {
+			server.logger.Debug("ArpCache DB has been initiated successfully...")
+			server.updateArpCacheFromDB()
+		}
+
+		if server.dbHdl != nil {
+			server.getArpGlobalConfig()
+		}
+
+		// Initialize Events
+		err = server.initializeEvents()
+		if err != nil {
+			server.logger.Err(fmt.Sprintln("Unable to initialize events", err))
+		}
+
+		sigChan := make(chan os.Signal, 1)
+		signalList := []os.Signal{syscall.SIGHUP}
+		signal.Notify(sigChan, signalList...)
+		go server.sigHandler(sigChan)
+		go server.updateArpCache()
+		go server.refreshArpSlice()
+		go server.arpCacheTimeout()
 	}
-
-	// Initialize Events
-	err = server.initializeEvents()
-	if err != nil {
-		server.logger.Err(fmt.Sprintln("Unable to initialize events", err))
-	}
-
-	sigChan := make(chan os.Signal, 1)
-	signalList := []os.Signal{syscall.SIGHUP}
-	signal.Notify(sigChan, signalList...)
-	go server.sigHandler(sigChan)
-	go server.updateArpCache()
-	go server.refreshArpSlice()
 	server.FlushLinuxArpCache()
-	go server.arpCacheTimeout()
 }
 
 func (server *ARPServer) StartServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
@@ -272,7 +279,9 @@ func (server *ARPServer) StartServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
 		case arpActionMsg := <-server.ArpActionCh:
 			server.processArpAction(arpActionMsg)
 		case msg := <-server.AsicdSubSocketCh:
-			server.processAsicdNotification(msg)
+			if server.IsLinuxOnly == false {
+				server.processAsicdNotification(msg)
+			}
 		}
 	}
 }

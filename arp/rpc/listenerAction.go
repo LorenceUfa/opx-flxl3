@@ -13,24 +13,27 @@
 //	 See the License for the specific language governing permissions and
 //	 limitations under the License.
 //
-// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __  
-// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  | 
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  | 
-// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   | 
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  | 
-// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__| 
-//                                                                                                           
+// _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
+// |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+//
 
 package rpc
 
 import (
 	"arpd"
-	"fmt"
+	"errors"
 	"l3/arp/server"
 )
 
 func (h *ARPHandler) ExecuteActionArpDeleteByIfName(config *arpd.ArpDeleteByIfName) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Received ArpDeleteByIfName for", config))
+	h.logger.Info("Received ArpDeleteByIfName for", config)
+	if h.server.IsLinuxOnly {
+		return false, errors.New("Not supported for linux only plugin")
+	}
 	msg := server.ArpActionMsg{
 		Type: server.DeleteByIfName,
 		Obj:  config.IfName,
@@ -40,7 +43,10 @@ func (h *ARPHandler) ExecuteActionArpDeleteByIfName(config *arpd.ArpDeleteByIfNa
 }
 
 func (h *ARPHandler) ExecuteActionArpDeleteByIPv4Addr(config *arpd.ArpDeleteByIPv4Addr) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Received ArpDeleteByIPv4Addr for", config))
+	h.logger.Info("Received ArpDeleteByIPv4Addr for", config)
+	if h.server.IsLinuxOnly {
+		return false, errors.New("Not supported for linux only plugin")
+	}
 	msg := server.ArpActionMsg{
 		Type: server.DeleteByIPAddr,
 		Obj:  config.IpAddr,
@@ -50,7 +56,10 @@ func (h *ARPHandler) ExecuteActionArpDeleteByIPv4Addr(config *arpd.ArpDeleteByIP
 }
 
 func (h *ARPHandler) ExecuteActionArpRefreshByIfName(config *arpd.ArpRefreshByIfName) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Received ArpRefreshByIfName for", config))
+	h.logger.Info("Received ArpRefreshByIfName for", config)
+	if h.server.IsLinuxOnly {
+		return false, errors.New("Not supported for linux only plugin")
+	}
 	msg := server.ArpActionMsg{
 		Type: server.RefreshByIfName,
 		Obj:  config.IfName,
@@ -60,7 +69,10 @@ func (h *ARPHandler) ExecuteActionArpRefreshByIfName(config *arpd.ArpRefreshByIf
 }
 
 func (h *ARPHandler) ExecuteActionArpRefreshByIPv4Addr(config *arpd.ArpRefreshByIPv4Addr) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Received ArpRefreshByIPv4Addr for", config))
+	h.logger.Info("Received ArpRefreshByIPv4Addr for", config)
+	if h.server.IsLinuxOnly {
+		return false, errors.New("Not supported for linux only plugin")
+	}
 	msg := server.ArpActionMsg{
 		Type: server.RefreshByIPAddr,
 		Obj:  config.IpAddr,
