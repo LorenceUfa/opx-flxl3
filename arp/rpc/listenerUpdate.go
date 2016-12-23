@@ -35,7 +35,7 @@ func (h *ARPHandler) sanityCheckArpGlobalConfig(timeout int) error {
 		err := errors.New(fmt.Sprintln("Arp refresh timeout value is below allowed refresh timeout value of:", h.server.MinRefreshTimeout))
 		return err
 	} else if timeout == h.server.ConfRefreshTimeout {
-		h.logger.Info(fmt.Sprintln("Arp refresh timeout is already configured with value of:", h.server.ConfRefreshTimeout))
+		h.logger.Info("Arp refresh timeout is already configured with value of:", h.server.ConfRefreshTimeout)
 		return nil
 	}
 	return nil
@@ -54,8 +54,11 @@ func (h *ARPHandler) SendUpdateArpGlobalConfig(timeout int) error {
 }
 
 func (h *ARPHandler) UpdateArpGlobal(origConf *arpd.ArpGlobal, newConf *arpd.ArpGlobal, attrset []bool, op []*arpd.PatchOpInfo) (bool, error) {
-	h.logger.Info(fmt.Sprintln("Original Arp config attrs:", origConf))
-	h.logger.Info(fmt.Sprintln("New Arp config attrs:", newConf))
+	h.logger.Info("Original Arp config attrs:", origConf)
+	h.logger.Info("New Arp config attrs:", newConf)
+	if h.server.IsLinuxOnly {
+		return false, errors.New("Not supported for linux only plugin")
+	}
 	err := h.SendUpdateArpGlobalConfig(int(newConf.Timeout))
 	if err != nil {
 		return false, err

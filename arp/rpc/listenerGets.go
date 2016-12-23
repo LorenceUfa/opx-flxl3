@@ -25,11 +25,15 @@ package rpc
 
 import (
 	"arpd"
+	"errors"
 	"fmt"
 )
 
 func (h *ARPHandler) GetArpEntryState(ipAddr string) (*arpd.ArpEntryState, error) {
 	h.logger.Info(fmt.Sprintln("Get call for ArpEntry...", ipAddr))
+	if h.server.IsLinuxOnly {
+		return nil, errors.New("Not supported in Linux only plugin")
+	}
 	arpEntryResponse := arpd.NewArpEntryState()
 	/* FIXME: When get is implemented return "Internal Vlan" for vlanId during display
 	 * when vlan == server.SysRsvdVlan */

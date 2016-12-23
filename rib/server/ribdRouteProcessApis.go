@@ -394,7 +394,7 @@ func (m RIBDServer) GetBulkRoutesForProtocol(srcProtocol string, fromIndex ribdI
 	This function adds and removes ipAddr from the TrachReachabilityMap based on the op value
 */
 func (m RIBDServer) TrackReachabilityStatus(ipAddr string, protocol string, op string) error {
-	logger.Debug("TrackReachabilityStatus for ipAddr: ", ipAddr, " by protocol ", protocol, " op = ", op)
+	logger.Info("TrackReachabilityStatus for ipAddr: ", ipAddr, " by protocol ", protocol, " op = ", op)
 	if op != "add" && op != "del" {
 		logger.Err("Invalid operation ", op)
 		return errors.New("Invalid operation")
@@ -1209,9 +1209,10 @@ func deleteRoute(destNetPrefix patriciaDB.Prefix, //route prefix of the route be
 			routeInfoList[i].resolvedNextHopIpIntf.IsReachable = false
 		}
 		routeInfoRecordList.routeInfoProtocolMap[ReverseRouteProtoTypeMapDB[int(routeInfoRecord.protocol)]] = routeInfoList
-		//logger.Debug("Route deleted for this destination, traverse dependent routes to update routeReachability status")
+		logger.Debug("Route deleted for this destination, traverse dependent routes to update routeReachability status")
 		//check if there are routes dependent on this network
 		if RouteServiceHandler.NextHopInfoMap[NextHopInfoKey{string(destNetPrefix)}].refCount > 0 {
+			logger.Debug("NextHopInfoMap for ", destNetPrefix, " RouteServiceHandler.NextHopInfoMap[NextHopInfoKey{string(destNetPrefix)}]")
 			nextHopIntf := ribdInt.NextHopInfo{}
 			routeReachabilityStatusInfo := RouteReachabilityStatusInfo{routeInfoRecord.networkAddr, routeInfoRecord.ipType, "Down", ReverseRouteProtoTypeMapDB[int(routeInfoRecord.protocol)], nextHopIntf}
 			RouteReachabilityStatusUpdate(routeReachabilityStatusInfo.protocol, routeReachabilityStatusInfo)

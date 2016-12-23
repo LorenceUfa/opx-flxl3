@@ -24,19 +24,46 @@
 package fsArpdClnt
 
 import (
-	"arpd"
-	"utils/clntUtils/clntDefs"
+	"arpdInt"
+	"errors"
 )
 
-func convertToThriftPatchOpInfo(oper []*clntDefs.PatchOpInfo) []*arpd.PatchOpInfo {
-	var retObj []*arpd.PatchOpInfo
-	for _, op := range oper {
-		convOp := &arpd.PatchOpInfo{
-			Op:    op.Op,
-			Path:  op.Path,
-			Value: op.Value,
-		}
-		retObj = append(retObj, convOp)
+func (arpdClientMgr *FSArpdClntMgr) ResolveArpIPv4(destNetIp string, ifIdx int32) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.ResolveArpIPv4(destNetIp, arpdInt.Int(ifIdx))
+		arpdMutex.Unlock()
+		return err
 	}
-	return retObj
+	return errors.New("Arpd Client Handle is nil")
+}
+
+func (arpdClientMgr *FSArpdClntMgr) DeleteResolveArpIPv4(NbrIP string) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.DeleteResolveArpIPv4(NbrIP)
+		arpdMutex.Unlock()
+		return err
+	}
+	return errors.New("Arpd Client Handle is nil")
+}
+
+func (arpdClientMgr *FSArpdClntMgr) DeleteArpEntry(ipAddr string) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.DeleteArpEntry(ipAddr)
+		arpdMutex.Unlock()
+		return err
+	}
+	return errors.New("Arpd Client Handle is nil")
+}
+
+func (arpdClientMgr *FSArpdClntMgr) SendGarp(ifName string, macAddr string, ipAddr string) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.SendGarp(ifName, macAddr, ipAddr)
+		arpdMutex.Unlock()
+		return err
+	}
+	return errors.New("Arpd Client Handle is nil")
 }

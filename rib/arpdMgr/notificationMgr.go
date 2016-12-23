@@ -21,22 +21,18 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package fsArpdClnt
+package arpdMgr
 
 import (
-	"arpd"
-	"utils/clntUtils/clntDefs"
+	"utils/clntUtils/clntIntfs"
 )
 
-func convertToThriftPatchOpInfo(oper []*clntDefs.PatchOpInfo) []*arpd.PatchOpInfo {
-	var retObj []*arpd.PatchOpInfo
-	for _, op := range oper {
-		convOp := &arpd.PatchOpInfo{
-			Op:    op.Op,
-			Path:  op.Path,
-			Value: op.Value,
-		}
-		retObj = append(retObj, convOp)
-	}
-	return retObj
+type NotificationHdl struct {
+}
+
+func NewNotificationHdl() clntIntfs.NotificationHdl {
+	return &NotificationHdl{}
+}
+
+func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
 }

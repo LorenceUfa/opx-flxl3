@@ -47,6 +47,9 @@ func (h *ARPHandler) convertArpEntryToThrift(arpState server.ArpState) *arpd.Arp
 
 func (h *ARPHandler) GetBulkArpEntryState(fromIdx arpd.Int, count arpd.Int) (*arpd.ArpEntryStateGetInfo, error) {
 	h.logger.Info(fmt.Sprintln("GetBulk call for ArpEntries..."))
+	if h.server.IsLinuxOnly {
+		return nil, errors.New("Not supported in Linux only plugin")
+	}
 	nextIdx, currCount, arpEntries := h.server.GetBulkArpEntry(int(fromIdx), int(count))
 	if arpEntries == nil {
 		err := errors.New("Arp is busy refreshing the Arp Cache")
