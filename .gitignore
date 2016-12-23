@@ -1,24 +1,15 @@
-# Compiled Object files, Static and Dynamic libs (Shared Objects)
-*.o
-*.a
-*.so
-
-# Folders
-_obj
-_test
-
-# Architecture specific extensions/prefixes
-*.[568vq]
-[568vq].out
-
-*.cgo1.go
-*.cgo2.c
-_cgo_defun.c
-_cgo_gotypes.go
-_cgo_export.*
-
-_testmain.go
-
-*.exe
-*.test
-*.prof
+#Ignore auto-generated thrift files
+arp/rpc/arpd.thrift
+dhcp/rpc/dhcpd.thrift
+bfd/rpc/bfdd.thrift
+bgp/rpc/bgpd.thrift
+dhcp_relay/rpc/dhcprelayd.thrift
+ospf/rpc/ospfd.thrift
+ospfv2/rpc/ospfv2d.thrift
+rib/rpc/ribd.thrift
+tunnel/vxlan/rpc/vxland.thrift
+vrrp/flexswitch/vrrpd.thrift
+ndp/flexswitch/ndpd.thrift
+isis/rpc/isisd.thrift
+#ignore cscope files
+cscope.*
