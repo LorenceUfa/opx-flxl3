@@ -42,12 +42,14 @@ func (l2Port *PhyPort) createPortPcap(pktCh chan *RxPktInfo, name string) (err e
 			debug.Logger.Err("Creating Pcap Handler failed for l2 interface:", name, "Error:", err)
 			return err
 		}
-		err = l2Port.RX.SetBPFFilter(NDP_PCAP_FILTER)
+		filter := getNewFilter(l2Port.Info.MacAddr)
+		err = l2Port.RX.SetBPFFilter(filter)
 		if err != nil {
 			debug.Logger.Err("Creating BPF Filter failed Error", err)
 			l2Port.RX = nil
 			return err
 		}
+		l2Port.filter = filter
 		debug.Logger.Info("Created l2 Pcap handler for port:", name, "now start receiving NdpPkts")
 		go l2Port.L2ReceiveNdpPkts(pktCh)
 	}
@@ -90,7 +92,7 @@ func (l2Port *PhyPort) L2ReceiveNdpPkts(pktCh chan *RxPktInfo) error {
 
 func (l2Port *PhyPort) updateFilter(macAddr string) {
 	if l2Port.RX != nil {
-		err := l2Port.RX.SetBPFFilter(getNewFilter(macAddr))
+		err := l2Port.RX.SetBPFFilter(updateFilter(l2Port.filter, macAddr))
 		if err != nil {
 			debug.Logger.Err("Updating BPF Filter failed for interface:", l2Port.Info.Name, "Error", err)
 			return
@@ -102,7 +104,7 @@ func (l2Port *PhyPort) updateFilter(macAddr string) {
 
 func (l2Port *PhyPort) resetFilter() {
 	if l2Port.RX != nil {
-		err := l2Port.RX.SetBPFFilter(NDP_PCAP_FILTER)
+		err := l2Port.RX.SetBPFFilter(l2Port.filter)
 		if err != nil {
 			debug.Logger.Err("Reseting BPF Filter failed for interface:", l2Port.Info.Name, "Error", err)
 		}
