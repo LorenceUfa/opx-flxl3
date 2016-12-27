@@ -55,7 +55,13 @@ func baseFilter(macAddr string) (filter string) {
 
 func getNewFilter(macAddr string) (filter string) {
 	filter = fmt.Sprintf("%s%s%s", NDP_PCAP_FILTER, NDP_ETHER_SRC, macAddr)
-	debug.Logger.Info("updating filter to:", filter)
+	debug.Logger.Info("filter is:", filter)
+	return filter
+}
+
+func updateFilter(baseFilter, macAddr string) (filter string) {
+	filter = fmt.Sprintf("%s%s%s", baseFilter, NDP_ETHER_SRC, macAddr)
+	debug.Logger.Info("updated filter is:", filter)
 	return filter
 }
 
