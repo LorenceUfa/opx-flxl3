@@ -2264,6 +2264,9 @@ func (s *BGPServer) getIfaceIP(ifIndex int32, peerAddrType config.PeerAddressTyp
 	}
 
 	if peerAddrType == config.PeerAddressV4 {
+		if ipInfo.IpAddr == nil {
+			return nil
+		}
 		ip := ipInfo.IpAddr
 		ifIP := make(net.IP, len(ip))
 		copy(ifIP, ip)
@@ -2277,7 +2280,9 @@ func (s *BGPServer) getIfaceIP(ifIndex int32, peerAddrType config.PeerAddressTyp
 		s.logger.Info("Peer IPv4Addr of the v4Neighbor interface", ifIndex, "is", ifIP)
 		return ifIP
 	} else if peerAddrType == config.PeerAddressV6 {
-		return net.ParseIP(ipInfo.LinklocalIpAddr)
+		if ipInfo.LinklocalIpAddr != "" {
+			return net.ParseIP(ipInfo.LinklocalIpAddr)
+		}
 	} else {
 		s.logger.Err("getIfaceIP - Unknown peer address type", peerAddrType, "ifIndex", ifIndex)
 	}
