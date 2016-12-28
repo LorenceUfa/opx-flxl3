@@ -24,14 +24,17 @@
 package arpdMgr
 
 import (
+	"l3/rib/server"
 	"utils/clntUtils/clntIntfs"
+	"utils/logging"
 )
 
 type NotificationHdl struct {
+	Server *server.RIBDServer
 }
 
-func NewNotificationHdl() clntIntfs.NotificationHdl {
-	return &NotificationHdl{}
+func NewNotificationHdl(server *server.RIBDServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
+	return &NotificationHdl{server}
 }
 
 func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {

@@ -15,8 +15,10 @@
 //
 // _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
 // |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
-// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
-// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
+// |  |__   |  |     |  |__   \  V  /     |   (----` \   \/    \/   /  |  | `---|  |----`|  ,----'|  |__|  |
+// |   __|  |  |     |   __|   >   <       \   \      \            /   |  |     |  |     |  |     |   __   |
+// |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
+// |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
 package fsArpdClnt
@@ -26,15 +28,19 @@ import (
 	"errors"
 	"fmt"
 	"utils/clntUtils/clntIntfs"
+	"utils/logging"
 )
 
 type FSArpdClntMgr struct {
 	ClientHdl *arpd.ARPDServicesClient
 }
 
-func NewArpdClntInit(clntInitParams clntIntfs.BaseClnt) (*FSArpdClntMgr, error) {
+var Logger logging.LoggerIntf
+
+func NewArpdClntInit(clntInitParams *clntIntfs.BaseClntInitParams) (*FSArpdClntMgr, error) {
 	var fsArpdClntMgr FSArpdClntMgr
 	var err error
+	Logger = clntInitParams.Logger
 	fsArpdClntMgr.ClientHdl, err = GetArpdThriftClientHdl(clntInitParams)
 	if fsArpdClntMgr.ClientHdl == nil || err != nil {
 		clntInitParams.Logger.Err("Unable Initialize Arpd Client", err)

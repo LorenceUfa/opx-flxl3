@@ -122,17 +122,16 @@ func main() {
 		return
 	}
 
-	clientInfoFile := fileName + "clients.json"
-	arpdNHdl := arpdMgr.NewNotificationHdl()
-	arpdClntInitParams := clntIntfs.BaseClnt{
-		PluginName:   arpdClntIntfs.FS_ARPD_CLNT,
-		ClntInfoFile: clientInfoFile,
-		Logger:       logger,
-		NHdl:         arpdNHdl,
+	arpdNHdl := arpdMgr.NewNotificationHdl(routeServer, logger)
+	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, arpdNHdl, fileName)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing base clnt for arpd")
+		panic(err)
 	}
 	var arpdPlugin arpdClntIntfs.ArpdClntIntf
 	arpdPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntInitParams)
 	if err != nil {
+		logger.Err("RIBD: Error Initializing new Arpd clnt")
 		panic(err)
 	}
 

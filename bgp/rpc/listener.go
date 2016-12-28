@@ -827,6 +827,10 @@ func (h *BGPHandler) getIPAndIfIndexForV4Neighbor(neighborIP string, neighborInt
 		ipInfo, err = h.server.GetIfaceIP(ifIndex)
 		h.logger.Info("getIPAndIfIndexForV4Neighbor - ipInfo:", ipInfo, " err:", err)
 		if err == nil {
+			if ipInfo.IpAddr == nil {
+				return ip, ifIndex, ifName, errors.New(fmt.Sprint("IPv4 address is not set on interface ", neighborIntfRef))
+			}
+
 			ifIP := make(net.IP, len(ipInfo.IpAddr))
 			copy(ifIP, ipInfo.IpAddr)
 			ipMask := ipInfo.IpMask
@@ -1136,12 +1140,17 @@ func (h *BGPHandler) getIPAndIfIndexForV6Neighbor(neighborIP string, neighborInt
 			return ip, ifIndex, ifName, err
 		}
 
-		ipInfo, err1 := h.server.GetIfaceIP(ifIndex)
-		h.logger.Info("ipInfo:", ipInfo, " err:", err1)
-		if err1 == nil {
+		var ipInfo *bgputils.IPInfo
+		ipInfo, err = h.server.GetIfaceIP(ifIndex)
+		h.logger.Info("ipInfo:", ipInfo, " err:", err)
+		if err == nil {
 			h.logger.Info("getIPAndIfIndexForV6Neighbor - ipInfo.LinkLocalIpAddr:", ipInfo.LinklocalIpAddr,
 				"after GetIfaceIP of neighborIfIndex:", ifIndex)
-			ip = net.ParseIP(ipInfo.LinklocalIpAddr)
+			if ipInfo.LinklocalIpAddr != "" {
+				ip = net.ParseIP(ipInfo.LinklocalIpAddr)
+			} else {
+				return ip, ifIndex, ifName, errors.New(fmt.Sprint("Link-local IP is not set on interface ", neighborIntfRef))
+			}
 		}
 	}
 	return ip, ifIndex, ifName, err
@@ -1916,7 +1925,7 @@ func (h *BGPHandler) ExecuteActionResetBGPv4NeighborByInterface(resetIf *bgpd.Re
 	ifIndexInt, _, err := h.server.ConvertIntfStrToIfIndex(resetIf.IntfRef)
 	if err != nil {
 		h.logger.Err("Invalid intfref:", resetIf.IntfRef)
-		return false, errors.New(fmt.Sprintf("Invalid IntfRef", resetIf.IntfRef))
+		return false, errors.New(fmt.Sprint("Invalid IntfRef ", resetIf.IntfRef))
 	}
 
 	ipInfo, err := h.server.GetIfaceIP(int32(ifIndexInt))
@@ -1982,6 +1991,10 @@ func (h *BGPHandler) ExecuteActionResetBGPv6NeighborByInterface(resetIf *bgpd.Re
 	}
 
 	h.logger.Info("Reset IPv6 neighbor by interface - ipInfo:%+v", ipInfo)
+	if ipInfo.LinklocalIpAddr == "" {
+		return false, errors.New(fmt.Sprintln("Link-local IP is not set on interface", resetIf.IntfRef))
+	}
+
 	ip := net.ParseIP(ipInfo.LinklocalIpAddr)
 
 	if ip == nil {
