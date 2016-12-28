@@ -26,6 +26,7 @@ package server
 import (
 	"errors"
 	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs"
 )
 
 type AsicdMsgType uint8
@@ -43,7 +44,7 @@ type AsicdMsg struct {
 	IfIdx   int32
 }
 
-func (server *ARPServer) processAsicdNotification(msg asicdClntDefs.AsicdNotifyMsg) {
+func (server *ARPServer) processAsicdNotification(msg clntIntfs.NotifyMsg) {
 	switch msg.(type) {
 	case asicdClntDefs.L2IntfStateNotifyMsg:
 		l2Msg := msg.(asicdClntDefs.L2IntfStateNotifyMsg)
@@ -100,7 +101,7 @@ func (server *ARPServer) processAsicdMsg(msg AsicdMsg) error {
 		}
 	case DeleteAsicdEntry:
 		server.logger.Debug("DeleteAsicdEntry:", msg)
-		_, err := server.AsicdPlugin.DeleteIPv4Neighbor(msg.IpAddr)
+		_, err := server.AsicdPlugin.DeleteIPv4Neighbor(msg.IpAddr, "00:00:00:00:00:00", 0, 0)
 		if err != nil {
 			server.logger.Err("Asicd was unable to delete neigbhor entry for", msg.IpAddr, "err:", err)
 			return err

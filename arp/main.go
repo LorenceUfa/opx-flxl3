@@ -29,7 +29,7 @@ import (
 	"l3/arp/asicdMgr"
 	"l3/arp/rpc"
 	"l3/arp/server"
-	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs"
 	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/keepalive"
 	"utils/logging"
@@ -54,20 +54,20 @@ func main() {
 	logger.Info(fmt.Sprintln("Starting ARP server..."))
 	arpServer := server.NewARPServer(logger)
 
-	clientInfoFile := fileName + "clients.json"
-	nHdl, nMap := asicdMgr.NewNotificationHdl(arpServer, logger)
-	asicdHdl := asicdClntDefs.AsicdClientStruct{
-		Logger: logger,
-		NHdl:   nHdl,
-		NMap:   nMap,
-	}
-	var asicdPlugin asicdClntIntfs.AsicdClntIntf
-	asicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntIntfs.FS_ASICD_CLNT, clientInfoFile, asicdHdl)
+	asicdNHdl := asicdMgr.NewNotificationHdl(arpServer, logger)
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, asicdNHdl, fileName)
 	if err != nil {
+		logger.Err("ARPD: Error Initializing base clnt for asicd")
 		panic(err)
 	}
-	go arpServer.StartServer(asicdPlugin)
+	var asicdPlugin asicdClntIntfs.AsicdClntIntf
+	asicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	if err != nil {
+		logger.Err("ARPD: Error Initializing new Asicd Clnt")
+		panic(err)
+	}
 
+	go arpServer.StartServer(asicdPlugin)
 	<-arpServer.InitDone
 
 	// Start keepalive routine

@@ -31,10 +31,10 @@ import (
 	"utils/clntUtils/clntDefs/arpdClntDefs"
 )
 
-func (arpdClientMgr *FSArpdClntMgr) GetArpEntryState(ipAddr string) (*objects.ArpEntryState, error) {
+func (arpdClientMgr *FSArpdClntMgr) GetArpEntryState(IpAddr string) (*objects.ArpEntryState, error) {
 	if arpdClientMgr.ClientHdl != nil {
 		arpdMutex.Lock()
-		obj, err := arpdClientMgr.ClientHdl.GetArpEntryState(ipAddr)
+		obj, err := arpdClientMgr.ClientHdl.GetArpEntryState(IpAddr)
 		arpdMutex.Unlock()
 		if err != nil {
 			return nil, err
@@ -67,10 +67,10 @@ func (arpdClientMgr *FSArpdClntMgr) GetBulkArpEntryState(fromIdx, count int) (*a
 	return &retObj, nil
 }
 
-func (arpdClientMgr *FSArpdClntMgr) GetArpLinuxEntryState(ipAddr string) (*objects.ArpLinuxEntryState, error) {
+func (arpdClientMgr *FSArpdClntMgr) GetArpLinuxEntryState(IpAddr string) (*objects.ArpLinuxEntryState, error) {
 	if arpdClientMgr.ClientHdl != nil {
 		arpdMutex.Lock()
-		obj, err := arpdClientMgr.ClientHdl.GetArpLinuxEntryState(ipAddr)
+		obj, err := arpdClientMgr.ClientHdl.GetArpLinuxEntryState(IpAddr)
 		arpdMutex.Unlock()
 		if err != nil {
 			return nil, err

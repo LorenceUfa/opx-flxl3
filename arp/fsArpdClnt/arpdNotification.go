@@ -27,7 +27,7 @@ import (
 	"utils/clntUtils/clntIntfs"
 )
 
-func InitFSArpdSubscriber(clntInitParams clntIntfs.BaseClnt) {
+func InitFSArpdSubscriber(clntInitParams *clntIntfs.BaseClntInitParams) {
 	//Ignore arpdClntDefs.NotificationMap
 	clntInitParams.Logger.Info("No notification is supported by FS Arpd")
 }

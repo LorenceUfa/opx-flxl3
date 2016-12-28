@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs"
 	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/eventUtils"
@@ -79,7 +80,7 @@ type ARPServer struct {
 	IsLinuxOnly             bool
 	logger                  logging.LoggerIntf
 	arpCache                map[string]ArpEntry //Key: Dest IpAddr
-	AsicdSubSocketCh        chan asicdClntDefs.AsicdNotifyMsg
+	AsicdSubSocketCh        chan clntIntfs.NotifyMsg
 	dbHdl                   *dbutils.DBUtil
 	eventDbHdl              *dbutils.DBUtil
 	snapshotLen             int32
@@ -133,7 +134,7 @@ func NewARPServer(logger logging.LoggerIntf) *ARPServer {
 	arpServer := &ARPServer{}
 	arpServer.logger = logger
 	arpServer.arpCache = make(map[string]ArpEntry)
-	arpServer.AsicdSubSocketCh = make(chan asicdClntDefs.AsicdNotifyMsg)
+	arpServer.AsicdSubSocketCh = make(chan clntIntfs.NotifyMsg)
 	arpServer.l3IntfPropMap = make(map[int]L3IntfProperty)
 	arpServer.lagPropMap = make(map[int]LagProperty)
 	arpServer.vlanPropMap = make(map[int]VlanProperty)

@@ -31,15 +31,12 @@ import (
 	"utils/cfgParser"
 	"utils/clntUtils/clntIntfs"
 	"utils/ipcutils"
-	"utils/logging"
 )
 
 var arpdMutex *sync.Mutex = &sync.Mutex{}
-var Logger logging.LoggerIntf
 
-func GetArpdThriftClientHdl(clntInitParams clntIntfs.BaseClnt) (*arpd.ARPDServicesClient, error) {
-	Logger = clntInitParams.Logger
-	port, err := cfgParser.GetDmnPortFromClientJson("arpd", clntInitParams.ClntInfoFile)
+func GetArpdThriftClientHdl(clntInitParams *clntIntfs.BaseClntInitParams) (*arpd.ARPDServicesClient, error) {
+	port, err := cfgParser.GetDmnPortFromClientJson("arpd", clntInitParams.ParamsFile)
 	if err != nil {
 		Logger.Err("Error opening client connection for arpd", err)
 		return nil, err
