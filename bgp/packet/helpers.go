@@ -981,16 +981,28 @@ func GetNumASesByASType(updateMsg *BGPMessage, asType BGPPathAttrType) uint32 {
 
 	body := updateMsg.Body.(*BGPUpdate)
 	for _, pa := range body.PathAttributes {
-		if pa.GetCode() == BGPPathAttrTypeASPath {
-			asPaths := pa.(*BGPPathAttrASPath).Value
-			for _, asPath := range asPaths {
-				if asPath.GetType() == BGPASPathSegmentSet {
-					total += 1
-				} else if asPath.GetType() == BGPASPathSegmentSequence {
-					total += uint32(asPath.GetLen())
+		if pa.GetCode() == asType {
+			if pa.GetCode() == BGPPathAttrTypeASPath {
+				asPaths := pa.(*BGPPathAttrASPath).Value
+				for _, asPath := range asPaths {
+					if asPath.GetType() == BGPASPathSegmentSet {
+						total += 1
+					} else if asPath.GetType() == BGPASPathSegmentSequence {
+						total += uint32(asPath.GetLen())
+					}
 				}
+				break
+			} else if pa.GetCode() == BGPPathAttrTypeAS4Path {
+				asPaths := pa.(*BGPPathAttrAS4Path).Value
+				for _, asPath := range asPaths {
+					if asPath.GetType() == BGPASPathSegmentSet {
+						total += 1
+					} else if asPath.GetType() == BGPASPathSegmentSequence {
+						total += uint32(asPath.GetLen())
+					}
+				}
+				break
 			}
-			break
 		}
 	}
 
@@ -1003,6 +1015,7 @@ func ConvertAS2ToAS4(updateMsg *BGPMessage) {
 		if pa.GetCode() == BGPPathAttrTypeASPath {
 			asPath := pa.(*BGPPathAttrASPath)
 			newASPath := NewBGPPathAttrASPath()
+			newASPath.ASSize = 4
 			for _, seg := range asPath.Value {
 				as2Seg := seg.(*BGPAS2PathSegment)
 				as4Seg := NewBGPAS4PathSegmentSeq()
@@ -1023,35 +1036,26 @@ func ConvertAS2ToAS4(updateMsg *BGPMessage) {
 }
 
 func ConstructASPathFromAS4Path(asPath *BGPPathAttrASPath, as4Path *BGPPathAttrAS4Path, skip uint16) *BGPPathAttrASPath {
+	utils.Logger.Info("ConstructASPathFromAS4Path")
 	var segIdx int
 	var segment BGPASPathSegment
 	var asNum uint16 = 0
 	newASPath := NewBGPPathAttrASPath()
+	newASPath.ASSize = 4
 	for segIdx, segment = range asPath.Value {
 		if (uint16(segment.GetNumASes()) + asNum) > skip {
 			break
 		}
-		seg := segment.(*BGPAS2PathSegment)
-		newSeg := NewBGPAS4PathSegmentSeq()
-		newSeg.Type = seg.Type
-		newSeg.Length = seg.Length
-		newSeg.BGPASPathSegmentLen += (uint16(newSeg.Length) * 4)
-		for asIdx, as := range seg.AS {
-			newSeg.AS[asIdx] = uint32(as)
-		}
-		newASPath.AppendASPathSegment(newSeg)
-		asNum += uint16(seg.GetNumASes())
+		newASPath.AppendASPathSegment(segment)
+		asNum += uint16(segment.GetNumASes())
 	}
 
 	for idx, segment := range as4Path.Value {
-		seg4 := segment.Clone()
 		if idx == 0 {
-			seg := asPath.Value[segIdx].(*BGPAS2PathSegment)
-			for asNum < skip {
-				seg4.PrependAS(uint32(seg.AS[skip-asNum-1]))
-			}
+			seg := asPath.Value[segIdx].(*BGPAS4PathSegment)
+			segment.PrependASList(seg.AS[:skip-asNum])
 		}
-		newASPath.AppendASPathSegment(seg4)
+		newASPath.AppendASPathSegment(segment)
 	}
 
 	return newASPath
@@ -1096,12 +1100,16 @@ func NormalizeASPath(updateMsg *BGPMessage, data interface{}) {
 
 	for _, pa := range body.PathAttributes {
 		if pa.GetCode() == BGPPathAttrTypeASPath {
+			utils.Logger.Debug("NormalizeASPath ASPath is set")
 			asPath = pa.(*BGPPathAttrASPath)
 		} else if pa.GetCode() == BGPPathAttrTypeAS4Path {
+			utils.Logger.Debug("NormalizeASPath AS4Path is set")
 			as4Path = pa.(*BGPPathAttrAS4Path)
 		} else if pa.GetCode() == BGPPathAttrTypeAggregator {
+			utils.Logger.Debug("NormalizeASPath Aggregator is set")
 			asAggregator = pa.(*BGPPathAttrAggregator)
 		} else if pa.GetCode() == BGPPathAttrTypeAS4Aggregator {
+			utils.Logger.Debug("NormalizeASPath AS4Aggregator is set")
 			as4Aggregator = pa.(*BGPPathAttrAS4Aggregator)
 		}
 	}
@@ -1113,14 +1121,18 @@ func NormalizeASPath(updateMsg *BGPMessage, data interface{}) {
 
 	if asPath.ASSize == 2 {
 		if asAggregator != nil && as4Aggregator != nil && uint16(asAggregator.AS.GetAS()) != BGPASTrans {
+			utils.Logger.Info("NormalizeASPath agg and as4agg is nil and agg.AS != BGPASTrans")
 			removePathAttr(updateMsg, BGPPathAttrTypeAS4Aggregator)
 			removePathAttr(updateMsg, BGPPathAttrTypeAS4Path)
 		} else {
+			utils.Logger.Info("NormalizeASPath calling ConvertAS2ToAS4")
 			ConvertAS2ToAS4(updateMsg)
 			if as4Path != nil {
 				numASes := GetNumASesByASType(updateMsg, BGPPathAttrTypeASPath)
 				numAS4es := GetNumASesByASType(updateMsg, BGPPathAttrTypeAS4Path)
+				utils.Logger.Info("NormalizeASPath as4Path != nil, numASes=", numASes, "numAS4es=", numAS4es)
 				if numASes >= numAS4es {
+					utils.Logger.Info("NormalizeASPath numASes >= numAS4es")
 					newASPath := ConstructASPathFromAS4Path(asPath, as4Path, uint16(numASes-numAS4es))
 					removePathAttr(updateMsg, BGPPathAttrTypeAS4Path)
 					removePathAttr(updateMsg, BGPPathAttrTypeASPath)
@@ -1129,6 +1141,7 @@ func NormalizeASPath(updateMsg *BGPMessage, data interface{}) {
 			}
 		}
 	} else if asPath.ASSize == 4 {
+		utils.Logger.Debug("NormalizeASPath asPath.ASSize == 4")
 		if as4Aggregator != nil {
 			removePathAttr(updateMsg, BGPPathAttrTypeAS4Aggregator)
 		}
