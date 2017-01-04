@@ -53,9 +53,8 @@ type L3Info struct {
 }
 
 type PhyPort struct {
-	RX     *pcap.Handle
-	Info   config.PortInfo
-	filter string //caching base filter
+	RX   *pcap.Handle
+	Info config.PortInfo
 }
 
 type NDPServer struct {
