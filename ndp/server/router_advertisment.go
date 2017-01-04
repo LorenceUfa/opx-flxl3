@@ -51,10 +51,6 @@ func (intf *Interface) createRANbrKey(ndInfo *packet.NDInfo) (tgtMac, nbrKey str
  * fill the NDInfo and then return it back to caller
  */
 func (intf *Interface) processRA(ndInfo *packet.NDInfo) (nbrInfo *config.NeighborConfig, oper NDP_OPERATION) {
-	// RA generated for my own ip address
-	if ndInfo.SrcIp == intf.linkScope || ndInfo.SrcIp == intf.globalScope {
-		return nil, IGNORE
-	}
 	var nbrKey string
 	// we need to use Option field to determine who is the original sender of this advertisement... if no
 	// options then the port itself is the sender

@@ -88,8 +88,6 @@ type PcapBase struct {
 	// if 0 then only start rx/tx
 	// if 1 then only stop rx/tx
 	PcapUsers uint8
-	// cache base filter
-	filter string
 }
 
 type PktCounter struct {
@@ -261,7 +259,7 @@ func (intf *Interface) DeleteAll() ([]string, error) {
  *		2) if no pcap users then check for PcapHandler and then create a new pcap handler
  *		3) Check if PcapCtrl is created or not..
  */
-func (intf *Interface) CreatePcap(swMacAddr string) (err error) {
+func (intf *Interface) CreatePcap() (err error) {
 	// RX Pcap handler for interface
 	if intf.PcapBase.PcapHandle == nil {
 		name := intf.IntfRef
@@ -270,14 +268,12 @@ func (intf *Interface) CreatePcap(swMacAddr string) (err error) {
 			debug.Logger.Err("Creating Pcap Handler failed for interface:", name, "Error:", err)
 			return err
 		}
-		filter := getNewFilter(swMacAddr)
-		err = intf.PcapBase.PcapHandle.SetBPFFilter(filter)
+		err = intf.PcapBase.PcapHandle.SetBPFFilter(NDP_PCAP_FILTER)
 		if err != nil {
 			debug.Logger.Err("Creating BPF Filter failed Error", err)
 			intf.PcapBase.PcapHandle = nil
 			return err
 		}
-		intf.PcapBase.filter = filter
 	}
 	intf.addPcapUser()
 	debug.Logger.Info("Total pcap user for", intf.IntfRef, "to", intf.PcapBase.PcapUsers)
@@ -628,7 +624,7 @@ func (intf *Interface) UpdateNbrEntry(oldNbrKey, newNbrKey string) (string, stri
 
 func (intf *Interface) updateFilter(macAddr string) {
 	if intf.PcapBase.PcapHandle != nil {
-		err := intf.PcapBase.PcapHandle.SetBPFFilter(updateFilter(intf.PcapBase.filter, macAddr))
+		err := intf.PcapBase.PcapHandle.SetBPFFilter(getNewFilter(macAddr))
 		if err != nil {
 			debug.Logger.Err("failed to update interface:", intf.IntfRef, "filter, err:", err)
 		}
@@ -637,7 +633,7 @@ func (intf *Interface) updateFilter(macAddr string) {
 
 func (intf *Interface) resetFilter() {
 	if intf.PcapBase.PcapHandle != nil {
-		err := intf.PcapBase.PcapHandle.SetBPFFilter(intf.PcapBase.filter)
+		err := intf.PcapBase.PcapHandle.SetBPFFilter(NDP_PCAP_FILTER)
 		if err != nil {
 			debug.Logger.Err("Reseting BPF Filter failed for interface:", intf.IntfRef, "Error", err)
 		}
