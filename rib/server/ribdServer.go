@@ -98,6 +98,7 @@ type RIBDServer struct {
 	DbHdl               *dbutils.DBUtil
 	Clients             map[string]ClientIf
 	//RouteInstallCh                 chan RouteParams
+	ArpdClntPlugin arpdClntIntfs.ArpdClntIntf
 }
 
 const (
@@ -603,7 +604,7 @@ func (s *RIBDServer) InitServer() {
 	go s.StartArpdServer()
 
 }
-func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string, arpdPlugin arpdClntIntfs.ArpdClntIntf) {
+func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string) {
 	ribdServiceHandler.InitServer()
 	logger.Info("Starting RIB server comment out logger. calls")
 	DummyRouteInfoRecord.protocol = PROTOCOL_NONE

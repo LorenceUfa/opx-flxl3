@@ -36,7 +36,6 @@ import (
 	//"os"
 	//"runtime"
 	//"runtime/pprof"
-	"l3/rib/arpdMgr"
 	"utils/clntUtils/clntIntfs"
 	"utils/clntUtils/clntIntfs/arpdClntIntfs"
 	"utils/dbutils"
@@ -122,20 +121,19 @@ func main() {
 		return
 	}
 
-	arpdNHdl := arpdMgr.NewNotificationHdl(routeServer, logger)
-	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, arpdNHdl, fileName)
+	//arpdNHdl := arpdMgr.NewNotificationHdl(routeServer, logger)
+	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, nil, fileName)
 	if err != nil {
 		logger.Err("RIBD: Error Initializing base clnt for arpd")
 		panic(err)
 	}
-	var arpdPlugin arpdClntIntfs.ArpdClntIntf
-	arpdPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntInitParams)
+	routeServer.ArpdClntPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntInitParams)
 	if err != nil {
 		logger.Err("RIBD: Error Initializing new Arpd clnt")
 		panic(err)
 	}
 
-	go routeServer.StartServer(*paramsDir, arpdPlugin)
+	go routeServer.StartServer(*paramsDir)
 	up := <-routeServer.ServerUpCh
 	//dbHdl.Close()
 	logger.Info(fmt.Sprintln("RIBD server is up: ", up))

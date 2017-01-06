@@ -60,14 +60,13 @@ func main() {
 		logger.Err("ARPD: Error Initializing base clnt for asicd")
 		panic(err)
 	}
-	var asicdPlugin asicdClntIntfs.AsicdClntIntf
-	asicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	arpServer.AsicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
 	if err != nil {
 		logger.Err("ARPD: Error Initializing new Asicd Clnt")
 		panic(err)
 	}
 
-	go arpServer.StartServer(asicdPlugin)
+	go arpServer.StartServer()
 	<-arpServer.InitDone
 
 	// Start keepalive routine

@@ -209,13 +209,8 @@ func (server *ARPServer) initializeEvents() error {
 	return eventUtils.InitEvents("ARPD", server.eventDbHdl, server.eventDbHdl, server.logger, 1000)
 }
 
-func (server *ARPServer) InitServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
+func (server *ARPServer) InitServer() {
 	server.logger.Debug("Starting Arp Server")
-	server.AsicdPlugin = asicdPlugin
-	if server.AsicdPlugin == nil {
-		server.logger.Err("Unable to instantiate Asicd Interface")
-		return
-	}
 	server.SysRsvdVlan = server.AsicdPlugin.GetSysRsvdVlan()
 	server.logger.Debug("Listen for ASICd updates")
 	var err error
@@ -256,8 +251,8 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
 	server.FlushLinuxArpCache()
 }
 
-func (server *ARPServer) StartServer(asicdPlugin asicdClntIntfs.AsicdClntIntf) {
-	server.InitServer(asicdPlugin)
+func (server *ARPServer) StartServer() {
+	server.InitServer()
 	server.InitDone <- true
 	for {
 		select {
