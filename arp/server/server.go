@@ -233,6 +233,7 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
 			server.updateArpCacheFromDB()
 		}
 
+		go server.updateArpCache()
 		if server.dbHdl != nil {
 			server.getArpGlobalConfig()
 		}
@@ -247,7 +248,6 @@ func (server *ARPServer) InitServer(asicdPlugin asicdClient.AsicdClientIntf) {
 		signalList := []os.Signal{syscall.SIGHUP}
 		signal.Notify(sigChan, signalList...)
 		go server.sigHandler(sigChan)
-		go server.updateArpCache()
 		go server.refreshArpSlice()
 		go server.arpCacheTimeout()
 	}
