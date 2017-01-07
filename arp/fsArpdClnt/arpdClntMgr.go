@@ -28,24 +28,45 @@ import (
 	"errors"
 	"fmt"
 	"utils/clntUtils/clntIntfs"
+	"utils/ipcutils"
 	"utils/logging"
 )
 
 type FSArpdClntMgr struct {
+	ipcutils.IPCClientBase
+	NCtrlCh   chan bool
 	ClientHdl *arpd.ARPDServicesClient
 }
 
 var Logger logging.LoggerIntf
 
 func NewArpdClntInit(clntInitParams *clntIntfs.BaseClntInitParams) (*FSArpdClntMgr, error) {
-	var fsArpdClntMgr FSArpdClntMgr
 	var err error
+	fsArpdClntMgr := new(FSArpdClntMgr)
 	Logger = clntInitParams.Logger
-	fsArpdClntMgr.ClientHdl, err = GetArpdThriftClientHdl(clntInitParams)
+	err = fsArpdClntMgr.GetArpdThriftClientHdl(clntInitParams)
 	if fsArpdClntMgr.ClientHdl == nil || err != nil {
-		clntInitParams.Logger.Err("Unable Initialize Arpd Client", err)
+		Logger.Err("Unable Initialize Arpd Client", err)
 		return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
 	}
-	InitFSArpdSubscriber(clntInitParams)
-	return &fsArpdClntMgr, nil
+	if clntInitParams.NHdl != nil {
+		err = fsArpdClntMgr.InitFSArpdSubscriber(clntInitParams)
+		if err != nil {
+			Logger.Err("Unable Initialize Arpd Client", err)
+			fsArpdClntMgr.DeinitArpdThriftClientHdl()
+			return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
+		}
+	}
+	return fsArpdClntMgr, nil
+}
+
+func (arpdClientMgr *FSArpdClntMgr) ArpdClntDeinit() {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdClientMgr.DeinitArpdThriftClientHdl()
+		arpdClientMgr.ClientHdl = nil
+	}
+	if arpdClientMgr.NCtrlCh != nil {
+		arpdClientMgr.DeinitFSArpdSubscriber()
+		arpdClientMgr.NCtrlCh = nil
+	}
 }

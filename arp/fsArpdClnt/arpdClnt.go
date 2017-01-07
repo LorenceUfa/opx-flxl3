@@ -35,21 +35,22 @@ import (
 
 var arpdMutex *sync.Mutex = &sync.Mutex{}
 
-func GetArpdThriftClientHdl(clntInitParams *clntIntfs.BaseClntInitParams) (*arpd.ARPDServicesClient, error) {
-	port, err := cfgParser.GetDmnPortFromClientJson("arpd", clntInitParams.ParamsFile)
+func (arpdClientMgr *FSArpdClntMgr) GetArpdThriftClientHdl(clntInitParams *clntIntfs.BaseClntInitParams) error {
+	arpdClientMgr.Name = "arpd"
+	port, err := cfgParser.GetDmnPortFromClientJson(arpdClientMgr.Name, clntInitParams.ParamsFile)
 	if err != nil {
 		Logger.Err("Error opening client connection for arpd", err)
-		return nil, err
+		return err
 	}
 	Logger.Debug("found arpd at port", port)
-	address := "localhost:" + strconv.Itoa(port)
-	transport, ptrProtocolFactory, err := ipcutils.CreateIPCHandles(address)
+	arpdClientMgr.Address = "localhost:" + strconv.Itoa(port)
+	arpdClientMgr.TTransport, arpdClientMgr.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(arpdClientMgr.Address)
 	if err != nil {
 		Logger.Err("Failed to connect to Arpd, retrying until connection is successful")
 		count := 0
 		ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
 		for _ = range ticker.C {
-			transport, ptrProtocolFactory, err = ipcutils.CreateIPCHandles(address)
+			arpdClientMgr.TTransport, arpdClientMgr.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(arpdClientMgr.Address)
 			if err == nil {
 				ticker.Stop()
 				break
@@ -62,5 +63,10 @@ func GetArpdThriftClientHdl(clntInitParams *clntIntfs.BaseClntInitParams) (*arpd
 
 	}
 	Logger.Info("Connected to Arpd")
-	return arpd.NewARPDServicesClientFactory(transport, ptrProtocolFactory), nil
+	arpdClientMgr.ClientHdl = arpd.NewARPDServicesClientFactory(arpdClientMgr.TTransport, arpdClientMgr.PtrProtocolFactory)
+	return nil
+}
+
+func (arpdClientMgr *FSArpdClntMgr) DeinitArpdThriftClientHdl() {
+	arpdClientMgr.CloseIPCHandles()
 }

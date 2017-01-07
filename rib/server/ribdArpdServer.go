@@ -25,32 +25,32 @@
 package server
 
 import (
-	"arpdInt"
+	//"arpdInt"
 	//	"fmt"
 	defs "l3/rib/ribdCommonDefs"
 )
 
-func arpdResolveRoute(routeInfoRecord RouteInfoRecord) {
-	if arpdclnt.IsConnected == false {
-		return
-	}
+func (ribdServiceHandler *RIBDServer) arpdResolveRoute(routeInfoRecord RouteInfoRecord) {
+	/*
+		if arpdclnt.IsConnected == false {
+			return
+		}
+	*/
 	if routeInfoRecord.ipType == defs.IPv6 {
 		return
 	}
-	//logger.Debug(" arpdResolveRoute: Sending ARP Resolve for ", routeInfoRecord.nextHopIp.String(), " routeInfoRecord.nextHopIfIndex ", routeInfoRecord.nextHopIfIndex, " routeInfoRecord.resolvedNextHopIpIntf.NextHopIfIndex ", routeInfoRecord.resolvedNextHopIpIntf.NextHopIfIndex)
-	arpdclnt.ClientHdl.ResolveArpIPv4(routeInfoRecord.resolvedNextHopIpIntf.NextHopIp, arpdInt.Int(routeInfoRecord.nextHopIfIndex))
-	//logger.Debug("ARP resolve for ", routeInfoRecord.resolvedNextHopIpIntf.NextHopIp, arpdInt.Int(routeInfoRecord.nextHopIfIndex), " returned ")
+	ribdServiceHandler.ArpdClntPlugin.ResolveArpIPv4(routeInfoRecord.resolvedNextHopIpIntf.NextHopIp, int32(routeInfoRecord.nextHopIfIndex))
 }
-func arpdRemoveRoute(routeInfoRecord RouteInfoRecord) {
-	if arpdclnt.IsConnected == false {
-		return
-	}
+func (ribdServiceHandler *RIBDServer) arpdRemoveRoute(routeInfoRecord RouteInfoRecord) {
+	/*
+		if arpdclnt.IsConnected == false {
+			return
+		}
+	*/
 	if routeInfoRecord.ipType == defs.IPv6 {
 		return
 	}
-	//logger.Debug("arpdRemoveRoute: for ", routeInfoRecord.nextHopIp.String())
-	arpdclnt.ClientHdl.DeleteResolveArpIPv4(routeInfoRecord.resolvedNextHopIpIntf.NextHopIp)
-	//logger.Debug("ARP remove for ", routeInfoRecord.resolvedNextHopIpIntf.NextHopIp, " returned ")
+	ribdServiceHandler.ArpdClntPlugin.DeleteResolveArpIPv4(routeInfoRecord.resolvedNextHopIpIntf.NextHopIp)
 }
 func (ribdServiceHandler *RIBDServer) StartArpdServer() {
 	logger.Info("Starting the arpdserver loop")
@@ -59,9 +59,9 @@ func (ribdServiceHandler *RIBDServer) StartArpdServer() {
 		case route := <-ribdServiceHandler.ArpdRouteCh:
 			logger.Debug(" received message on ArpdRouteCh, op:", route.Op)
 			if route.Op == defs.Add {
-				arpdResolveRoute(route.OrigConfigObject.(RouteInfoRecord))
+				ribdServiceHandler.arpdResolveRoute(route.OrigConfigObject.(RouteInfoRecord))
 			} else if route.Op == defs.Del {
-				arpdRemoveRoute(route.OrigConfigObject.(RouteInfoRecord))
+				ribdServiceHandler.arpdRemoveRoute(route.OrigConfigObject.(RouteInfoRecord))
 			}
 		}
 	}
