@@ -45,12 +45,10 @@ func NewArpdClntInit(clntInitParams *clntIntfs.BaseClntInitParams) (*FSArpdClntM
 	fsArpdClntMgr := new(FSArpdClntMgr)
 	Logger = clntInitParams.Logger
 
-	if clntInitParams.EnableSHdl {
-		err = fsArpdClntMgr.GetArpdThriftClientHdl(clntInitParams)
-		if fsArpdClntMgr.ClientHdl == nil || err != nil {
-			Logger.Err("Unable Initialize Arpd Client", err)
-			return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
-		}
+	err = fsArpdClntMgr.GetArpdThriftClientHdl(clntInitParams)
+	if fsArpdClntMgr.ClientHdl == nil || err != nil {
+		Logger.Err("Unable Initialize Arpd Client", err)
+		return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
 	}
 
 	if clntInitParams.NHdl != nil {

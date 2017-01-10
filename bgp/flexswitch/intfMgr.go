@@ -55,7 +55,7 @@ func NewFSIntfMgr(logger *logging.Writer, fileName string) (*FSIntfMgr, error) {
 		logger: logger,
 	}
 
-	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, mgr, true, fileName)
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, mgr, fileName)
 	if err != nil {
 		logger.Err("ARPD: Error Initializing base clnt for asicd")
 		panic(err)
