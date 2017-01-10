@@ -42,12 +42,12 @@ func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
 	switch msg.(type) {
 	case asicdClntDefs.L2IntfStateNotifyMsg,
 		asicdClntDefs.IPv4L3IntfStateNotifyMsg,
+		asicdClntDefs.IPv6L3IntfStateNotifyMsg,
 		asicdClntDefs.VlanNotifyMsg,
+		asicdClntDefs.LogicalIntfNotifyMsg,
 		asicdClntDefs.LagNotifyMsg,
-		asicdClntDefs.IPv4IntfNotifyMsg,
-		asicdClntDefs.IPv4NbrMacMoveNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfStateNotifyMsg:
+		asicdClntDefs.IPv6IntfNotifyMsg,
+		asicdClntDefs.IPv4IntfNotifyMsg:
 		nHdl.Server.AsicdSubSocketCh <- msg
 	}
 }

@@ -25,17 +25,18 @@
 package server
 
 import (
-	"asicd/asicdCommonDefs"
-	"encoding/json"
-	defs "l3/rib/ribdCommonDefs"
-	//"fmt"
-	"github.com/op/go-nanomsg"
-	"net"
-	"ribd"
-	"strconv"
-	"utils/commonDefs"
+//	"asicd/asicdCommonDefs"
+//	"encoding/json"
+//defs "l3/rib/ribdCommonDefs"
+//"fmt"
+//	"github.com/op/go-nanomsg"
+//	"net"
+//	"ribd"
+//	"strconv"
+//	"utils/commonDefs"
 )
 
+/*
 func (ribdServiceHandler *RIBDServer) ProcessLogicalIntfCreateEvent(logicalIntfNotifyMsg asicdCommonDefs.LogicalIntfNotifyMsg) {
 	ifId := logicalIntfNotifyMsg.IfIndex
 	if IntfIdNameMap == nil {
@@ -325,6 +326,7 @@ func (ribdServiceHandler *RIBDServer) ProcessAsicdEvents(sub *nanomsg.SubSocket)
 		}
 	}
 }
+
 func (ribdServiceHandler *RIBDServer) ProcessEvents(sub *nanomsg.SubSocket, subType ribd.Int) {
 	ribdServiceHandler.Logger.Info("in process events for sub ", subType)
 	if subType == SUB_ASICD {
@@ -360,3 +362,4 @@ func (ribdServiceHandler *RIBDServer) SetupEventHandler(sub *nanomsg.SubSocket, 
 	//processPortdEvents(sub)
 	ribdServiceHandler.ProcessEvents(sub, subtype)
 }
+*/

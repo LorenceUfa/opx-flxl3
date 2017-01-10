@@ -31,7 +31,6 @@ import (
 	"infra/sysd/sysdCommonDefs"
 	"io/ioutil"
 	"l3/rib/ribdCommonDefs"
-	"strconv"
 	"time"
 	"utils/ipcutils"
 	"utils/keepalive"
@@ -383,77 +382,78 @@ func (ribdServiceHandler *RIBDServer) ConnectToClients(paramsFile string) {
 		if client.Name == "ospfd" {
 			ribdServiceHandler.Clients["ospfd"] = &ospfdclnt
 		}
-		if client.Name == "asicd" {
-			logger.Info("found asicd at port ", client.Port)
-			asicdclnt.Address = "localhost:" + strconv.Itoa(client.Port)
-			asicdclnt.Transport, asicdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(asicdclnt.Address)
-			if err != nil {
-				logger.Info("Failed to connect to Asicd, retrying until connection is successful")
-				count := 0
-				ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
-				for _ = range ticker.C {
-					asicdclnt.Transport, asicdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(asicdclnt.Address)
-					if err == nil {
-						ticker.Stop()
-						break
-					}
-					count++
-					if (count % 10) == 0 {
-						logger.Info("Still can't connect to Asicd, retrying...")
-					}
-				}
-			}
-			if asicdclnt.Transport != nil && asicdclnt.PtrProtocolFactory != nil {
-				logger.Info("connecting to asicd,arpdclnt.IsConnected:", arpdclnt.IsConnected)
-				asicdclnt.ClientHdl = asicdServices.NewASICDServicesClientFactory(asicdclnt.Transport, asicdclnt.PtrProtocolFactory)
-				asicdclnt.IsConnected = true
-				ribdServiceHandler.Clients["asicd"] = &asicdclnt
-				if arpdclnt.IsConnected == true {
-					logger.Info(" Connected to all clients: call AcceptConfigActions")
-					ribdServiceHandler.AcceptConfigActions()
-				}
-			} else {
-				logger.Info("asicd clnt nil even after err is nil with createipchandles")
-				//go ribdServiceHandler.connectToClient(client.Name)
-				//go asicdclnt.ConnectToClient()
-			}
-		}
-		if client.Name == "arpd" {
-			logger.Info("RIBD: found arpd at port ", client.Port)
-			arpdclnt.Address = "localhost:" + strconv.Itoa(client.Port)
-			logger.Info("arpdclnt.Address:", arpdclnt.Address)
-			arpdclnt.Transport, arpdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(arpdclnt.Address)
-			logger.Info("arpdclnt.transport:", arpdclnt.Transport, " arpdclnt.ProtocolFactory:", arpdclnt.PtrProtocolFactory, " err:", err)
-			if err != nil {
-				logger.Info("Failed to connect to Arpd, retrying until connection is successful")
-				count := 0
-				ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
-				for _ = range ticker.C {
-					arpdclnt.Transport, arpdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(arpdclnt.Address)
-					if err == nil {
-						ticker.Stop()
-						break
-					}
-					count++
-					if (count % 10) == 0 {
-						logger.Info("Still can't connect to Arpd, retrying...")
+		/*
+			if client.Name == "asicd" {
+				logger.Info("found asicd at port ", client.Port)
+				asicdclnt.Address = "localhost:" + strconv.Itoa(client.Port)
+				asicdclnt.Transport, asicdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(asicdclnt.Address)
+				if err != nil {
+					logger.Info("Failed to connect to Asicd, retrying until connection is successful")
+					count := 0
+					ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
+					for _ = range ticker.C {
+						asicdclnt.Transport, asicdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(asicdclnt.Address)
+						if err == nil {
+							ticker.Stop()
+							break
+						}
+						count++
+						if (count % 10) == 0 {
+							logger.Info("Still can't connect to Asicd, retrying...")
+						}
 					}
 				}
-			}
-			if arpdclnt.Transport != nil && arpdclnt.PtrProtocolFactory != nil {
-				logger.Info("connecting to arpd,asicdclnt.IsConnected:", asicdclnt.IsConnected)
-				arpdclnt.ClientHdl = arpd.NewARPDServicesClientFactory(arpdclnt.Transport, arpdclnt.PtrProtocolFactory)
-				arpdclnt.IsConnected = true
-				ribdServiceHandler.Clients["arpd"] = &arpdclnt
-				if asicdclnt.IsConnected == true {
-					logger.Info(" Connected to all clients: call AcceptConfigActions")
-					ribdServiceHandler.AcceptConfigActions()
+				if asicdclnt.Transport != nil && asicdclnt.PtrProtocolFactory != nil {
+					logger.Info("connecting to asicd,arpdclnt.IsConnected:", arpdclnt.IsConnected)
+					asicdclnt.ClientHdl = asicdServices.NewASICDServicesClientFactory(asicdclnt.Transport, asicdclnt.PtrProtocolFactory)
+					asicdclnt.IsConnected = true
+					ribdServiceHandler.Clients["asicd"] = &asicdclnt
+					if arpdclnt.IsConnected == true {
+						logger.Info(" Connected to all clients: call AcceptConfigActions")
+						ribdServiceHandler.AcceptConfigActions()
+					}
+				} else {
+					logger.Info("asicd clnt nil even after err is nil with createipchandles")
+					//go ribdServiceHandler.connectToClient(client.Name)
+					//go asicdclnt.ConnectToClient()
 				}
-			} else {
-				logger.Info("arpd clnt nil even after err is nil with createipchandles")
-				//go ribdServiceHandler.connectToClient(client.Name)
-				//go arpdclnt.ConnectToClient()
 			}
-		}
+			if client.Name == "arpd" {
+				logger.Info("RIBD: found arpd at port ", client.Port)
+				arpdclnt.Address = "localhost:" + strconv.Itoa(client.Port)
+				logger.Info("arpdclnt.Address:", arpdclnt.Address)
+				arpdclnt.Transport, arpdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(arpdclnt.Address)
+				logger.Info("arpdclnt.transport:", arpdclnt.Transport, " arpdclnt.ProtocolFactory:", arpdclnt.PtrProtocolFactory, " err:", err)
+				if err != nil {
+					logger.Info("Failed to connect to Arpd, retrying until connection is successful")
+					count := 0
+					ticker := time.NewTicker(time.Duration(1000) * time.Millisecond)
+					for _ = range ticker.C {
+						arpdclnt.Transport, arpdclnt.PtrProtocolFactory, err = ipcutils.CreateIPCHandles(arpdclnt.Address)
+						if err == nil {
+							ticker.Stop()
+							break
+						}
+						count++
+						if (count % 10) == 0 {
+							logger.Info("Still can't connect to Arpd, retrying...")
+						}
+					}
+				}
+				if arpdclnt.Transport != nil && arpdclnt.PtrProtocolFactory != nil {
+					logger.Info("connecting to arpd,asicdclnt.IsConnected:", asicdclnt.IsConnected)
+					arpdclnt.ClientHdl = arpd.NewARPDServicesClientFactory(arpdclnt.Transport, arpdclnt.PtrProtocolFactory)
+					arpdclnt.IsConnected = true
+					ribdServiceHandler.Clients["arpd"] = &arpdclnt
+					if asicdclnt.IsConnected == true {
+						logger.Info(" Connected to all clients: call AcceptConfigActions")
+						ribdServiceHandler.AcceptConfigActions()
+					}
+				} else {
+					logger.Info("arpd clnt nil even after err is nil with createipchandles")
+					//go ribdServiceHandler.connectToClient(client.Name)
+					//go arpdclnt.ConnectToClient()
+				}
+			}*/
 	}
 }
