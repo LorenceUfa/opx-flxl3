@@ -24,11 +24,11 @@
 package server
 
 import (
-	"asicdServices"
 	"bytes"
 	"errors"
 	"fmt"
 	defs "l3/rib/ribdCommonDefs"
+	"models/objects"
 	"net"
 	"ribd"
 	"ribdInt"
@@ -210,7 +210,7 @@ func IsRoutePresent(routeInfoRecordList RouteInfoRecordList,
 	}
 	return found
 }
-func CreateV4ConnectedRoutes(count int, iPv4IntfStateList []*asicdServices.IPv4IntfState) {
+func CreateV4ConnectedRoutes(count int, iPv4IntfStateList []*objects.IPv4IntfState) {
 	for i := 0; i < int(count); i++ {
 		var ipMask net.IP
 		ip, ipNet, err := net.ParseCIDR(iPv4IntfStateList[i].IpAddr)
@@ -240,7 +240,7 @@ func CreateV4ConnectedRoutes(count int, iPv4IntfStateList []*asicdServices.IPv4I
 		}
 	}
 }
-func CreateV6ConnectedRoutes(count int, iPv6IntfStateList []*asicdServices.IPv6IntfState) {
+func CreateV6ConnectedRoutes(count int, iPv6IntfStateList []*objects.IPv6IntfState) {
 	for i := 0; i < int(count); i++ {
 		var ipMask net.IP
 		ip, ipNet, err := net.ParseCIDR(iPv6IntfStateList[i].IpAddr)
