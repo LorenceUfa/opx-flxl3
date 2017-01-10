@@ -122,7 +122,7 @@ func main() {
 	}
 
 	//arpdNHdl := arpdMgr.NewNotificationHdl(routeServer, logger)
-	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, nil, fileName)
+	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, nil, true, fileName)
 	if err != nil {
 		logger.Err("RIBD: Error Initializing base clnt for arpd")
 		panic(err)

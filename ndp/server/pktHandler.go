@@ -50,7 +50,7 @@ func (svr *NDPServer) StartRxTx(ifIndex int32) {
 	switch l3Port.IfType {
 	case commonDefs.IfTypePort:
 		// create pcap handler if there is none created right now
-		err = l3Port.CreatePcap(svr.SwitchMac)
+		err = l3Port.CreatePcap()
 		if err != nil {
 			debug.Logger.Err("Failed Creating Pcap Handler, err:", err, "for interface:", l3Port.IntfRef)
 			return
