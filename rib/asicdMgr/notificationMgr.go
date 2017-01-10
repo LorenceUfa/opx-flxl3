@@ -21,56 +21,33 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package fsArpdClnt
+package asicdMgr
 
 import (
-	"arpd"
-	"errors"
-	"fmt"
+	"l3/rib/server"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 	"utils/clntUtils/clntIntfs"
-	"utils/ipcutils"
 	"utils/logging"
 )
 
-type FSArpdClntMgr struct {
-	ipcutils.IPCClientBase
-	NCtrlCh   chan bool
-	ClientHdl *arpd.ARPDServicesClient
+type NotificationHdl struct {
+	Server *server.RIBDServer
 }
 
-var Logger logging.LoggerIntf
-
-func NewArpdClntInit(clntInitParams *clntIntfs.BaseClntInitParams) (*FSArpdClntMgr, error) {
-	var err error
-	fsArpdClntMgr := new(FSArpdClntMgr)
-	Logger = clntInitParams.Logger
-
-	if clntInitParams.EnableSHdl {
-		err = fsArpdClntMgr.GetArpdThriftClientHdl(clntInitParams)
-		if fsArpdClntMgr.ClientHdl == nil || err != nil {
-			Logger.Err("Unable Initialize Arpd Client", err)
-			return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
-		}
-	}
-
-	if clntInitParams.NHdl != nil {
-		err = fsArpdClntMgr.InitFSArpdSubscriber(clntInitParams)
-		if err != nil {
-			Logger.Err("Unable Initialize Arpd Client", err)
-			fsArpdClntMgr.DeinitArpdThriftClientHdl()
-			return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
-		}
-	}
-	return fsArpdClntMgr, nil
+func NewNotificationHdl(server *server.RIBDServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
+	return &NotificationHdl{server}
 }
 
-func (arpdClientMgr *FSArpdClntMgr) ArpdClntDeinit() {
-	if arpdClientMgr.ClientHdl != nil {
-		arpdClientMgr.DeinitArpdThriftClientHdl()
-		arpdClientMgr.ClientHdl = nil
-	}
-	if arpdClientMgr.NCtrlCh != nil {
-		arpdClientMgr.DeinitFSArpdSubscriber()
-		arpdClientMgr.NCtrlCh = nil
+func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
+	switch msg.(type) {
+	case asicdClntDefs.L2IntfStateNotifyMsg,
+		asicdClntDefs.IPv4L3IntfStateNotifyMsg,
+		asicdClntDefs.IPv6L3IntfStateNotifyMsg,
+		asicdClntDefs.VlanNotifyMsg,
+		asicdClntDefs.LogicalIntfNotifyMsg,
+		asicdClntDefs.LagNotifyMsg,
+		asicdClntDefs.IPv6IntfNotifyMsg,
+		asicdClntDefs.IPv4IntfNotifyMsg:
+		nHdl.Server.AsicdSubSocketCh <- msg
 	}
 }

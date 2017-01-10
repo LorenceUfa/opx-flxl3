@@ -24,20 +24,17 @@
 package server
 
 import (
-	"asicd/asicdCommonDefs"
-	"asicdServices"
-	//	"database/sql"
 	"fmt"
 	"github.com/op/go-nanomsg"
 	defs "l3/rib/ribdCommonDefs"
+	"models/objects"
 	"net"
-	//	"os"
-	//	"os/signal"
 	"ribd"
 	"ribdInt"
-	//	"syscall"
 	"strconv"
+	"utils/clntUtils/clntIntfs"
 	"utils/clntUtils/clntIntfs/arpdClntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/logging"
 	"utils/patriciaDB"
@@ -60,11 +57,11 @@ type RIBdServerConfig struct {
 
 type V4IntfGetInfo struct {
 	Count        int
-	IPv4IntfList []*asicdServices.IPv4IntfState
+	IPv4IntfList []*objects.IPv4IntfState
 }
 type V6IntfGetInfo struct {
 	Count        int
-	IPv6IntfList []*asicdServices.IPv6IntfState
+	IPv6IntfList []*objects.IPv6IntfState
 }
 
 /*type PatchUpdateRouteInfo struct {
@@ -98,7 +95,9 @@ type RIBDServer struct {
 	DbHdl               *dbutils.DBUtil
 	Clients             map[string]ClientIf
 	//RouteInstallCh                 chan RouteParams
-	ArpdClntPlugin arpdClntIntfs.ArpdClntIntf
+	ArpdClntPlugin   arpdClntIntfs.ArpdClntIntf
+	AsicdPlugin      asicdClntIntfs.AsicdClntIntf
+	AsicdSubSocketCh chan clntIntfs.NotifyMsg
 }
 
 const (
@@ -188,31 +187,6 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv4IntfDownEvent(ipAddr string, if
 		OrigConfigObject: &cfg,
 		Op:               defs.DelFIBOnly,
 	}
-	/*	for i := 0; i < len(ConnectedRoutes); i++ {
-		if ConnectedRoutes[i].Ipaddr == ipAddrStr && ConnectedRoutes[i].Mask == ipMaskStr {
-			if ifIndex != -1 && ConnectedRoutes[i].IfIndex != ribdInt.Int(ifIndex) {
-				continue
-			}
-			logger.Info("Delete this route with destAddress = ", ConnectedRoutes[i].Ipaddr, " nwMask = ", ConnectedRoutes[i].Mask, " ifIndex:", ifIndex)
-			//deleteIPRoute(ConnectedRoutes[i].Ipaddr, defs.IPv4, ConnectedRoutes[i].Mask, "CONNECTED", ConnectedRoutes[i].NextHopIp, ribd.Int(ConnectedRoutes[i].IfIndex), FIBOnly, defs.RoutePolicyStateChangeNoChange)
-			cfg := ribd.IPv4Route{
-				DestinationNw: ipAddrStr,
-				Protocol:      "CONNECTED",
-				Cost:          0,
-				NetworkMask:   ipMaskStr,
-			}
-			nextHop := ribd.NextHopInfo{
-				NextHopIp:     "0.0.0.0",
-				NextHopIntRef: strconv.Itoa(int(ifIndex)),
-			}
-			cfg.NextHop = make([]*ribd.NextHopInfo, 0)
-			cfg.NextHop = append(cfg.NextHop, &nextHop)
-			ribdServiceHandler.RouteConfCh <- RIBdServerConfig{
-				OrigConfigObject: &cfg,
-				Op:               "delFIBOnly",
-			}
-		}
-	}*/
 }
 func (ribdServiceHandler *RIBDServer) ProcessIPv6IntfDownEvent(ipAddr string, ifIndex int32) {
 	logger.Debug("processIPv6IntfDownEvent")
@@ -242,31 +216,6 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv6IntfDownEvent(ipAddr string, if
 		OrigConfigObject: &cfg,
 		Op:               defs.Delv6FIBOnly,
 	}
-	/*	for i := 0; i < len(ConnectedRoutes); i++ {
-		if ConnectedRoutes[i].Ipaddr == ipAddrStr && ConnectedRoutes[i].Mask == ipMaskStr {
-			if ifIndex != -1 && ConnectedRoutes[i].IfIndex != ribdInt.Int(ifIndex) {
-				continue
-			}
-			logger.Info("Delete this route with destAddress = ", ConnectedRoutes[i].Ipaddr, " nwMask = ", ConnectedRoutes[i].Mask, " ifIndex:", ifIndex)
-			//deleteIPRoute(ConnectedRoutes[i].Ipaddr, defs.IPv6, ConnectedRoutes[i].Mask, "CONNECTED", ConnectedRoutes[i].NextHopIp, ribd.Int(ConnectedRoutes[i].IfIndex), FIBOnly, defs.RoutePolicyStateChangeNoChange)
-			cfg := ribd.IPv6Route{
-				DestinationNw: ipAddrStr,
-				Protocol:      "CONNECTED",
-				Cost:          0,
-				NetworkMask:   ipMaskStr,
-			}
-			nextHop := ribd.NextHopInfo{
-				NextHopIp:     "0.0.0.0",
-				NextHopIntRef: strconv.Itoa(int(ifIndex)),
-			}
-			cfg.NextHop = make([]*ribd.NextHopInfo, 0)
-			cfg.NextHop = append(cfg.NextHop, &nextHop)
-			ribdServiceHandler.RouteConfCh <- RIBdServerConfig{
-				OrigConfigObject: &cfg,
-				Op:               "delv6FIBOnly",
-			}
-		}
-	}*/
 }
 
 /*
@@ -363,14 +312,14 @@ func (ribdServiceHandler *RIBDServer) ProcessIPv6IntfUpEvent(ipAddr string, ifIn
 	}
 }
 
-func getLogicalIntfInfo() {
+func (server *RIBDServer) GetLogicalIntfInfo() {
 	logger.Debug("Getting Logical Interfaces from asicd")
-	var currMarker asicdServices.Int
-	var count asicdServices.Int
+	var currMarker int
+	var count int
 	count = 100
 	for {
 		logger.Info("Getting ", count, "GetBulkLogicalIntf objects from currMarker:", currMarker)
-		bulkInfo, err := asicdclnt.ClientHdl.GetBulkLogicalIntfState(currMarker, count)
+		bulkInfo, err := server.AsicdPlugin.GetBulkLogicalIntfState(currMarker, count)
 		if err != nil {
 			logger.Info("GetBulkLogicalIntfState with err ", err)
 			return
@@ -397,17 +346,17 @@ func getLogicalIntfInfo() {
 			logger.Info("more returned as false, so no more get bulks")
 			return
 		}
-		currMarker = asicdServices.Int(bulkInfo.EndIdx)
+		currMarker = int(bulkInfo.EndIdx)
 	}
 }
-func getVlanInfo() {
+func (server *RIBDServer) GetVlanInfo() {
 	logger.Debug("Getting vlans from asicd")
-	var currMarker asicdServices.Int
-	var count asicdServices.Int
+	var currMarker int
+	var count int
 	count = 100
 	for {
 		logger.Info("Getting ", count, "GetBulkVlan objects from currMarker:", currMarker)
-		bulkInfo, err := asicdclnt.ClientHdl.GetBulkVlanState(currMarker, count)
+		bulkInfo, err := server.AsicdPlugin.GetBulkVlanState(currMarker, count)
 		if err != nil {
 			logger.Info("GetBulkVlan with err ", err)
 			return
@@ -434,17 +383,17 @@ func getVlanInfo() {
 			logger.Info("more returned as false, so no more get bulks")
 			return
 		}
-		currMarker = asicdServices.Int(bulkInfo.EndIdx)
+		currMarker = int(bulkInfo.EndIdx)
 	}
 }
-func getPortInfo() {
+func (server *RIBDServer) GetPortInfo() {
 	logger.Debug("Getting ports from asicd")
-	var currMarker asicdServices.Int
-	var count asicdServices.Int
+	var currMarker int
+	var count int
 	count = 100
 	for {
 		logger.Info("Getting ", count, "objects from currMarker:", currMarker)
-		bulkInfo, err := asicdclnt.ClientHdl.GetBulkPortState(currMarker, count)
+		bulkInfo, err := server.AsicdPlugin.GetBulkPortState(currMarker, count)
 		if err != nil {
 			logger.Info("GetBulkPortState with err ", err)
 			return
@@ -471,18 +420,18 @@ func getPortInfo() {
 			logger.Info("more returned as false, so no more get bulks")
 			return
 		}
-		currMarker = asicdServices.Int(bulkInfo.EndIdx)
+		currMarker = int(bulkInfo.EndIdx)
 	}
 }
-func getIntfInfo() {
-	getPortInfo()
-	getVlanInfo()
-	getLogicalIntfInfo()
+func (server *RIBDServer) GetIntfInfo() {
+	server.GetPortInfo()
+	server.GetVlanInfo()
+	server.GetLogicalIntfInfo()
 }
 func (ribdServiceHandler *RIBDServer) AcceptConfigActions() {
 	logger.Info("AcceptConfigActions: Setting AcceptConfig to true")
 	RouteServiceHandler.AcceptConfig = true
-	getIntfInfo()
+	ribdServiceHandler.GetIntfInfo()
 	logger.Info("adding fetchv4 to asicdroutech")
 	ribdServiceHandler.AsicdRouteCh <- RIBdServerConfig{Op: defs.AsicdFetchv4}
 	v4IntfsGetDone := <-ribdServiceHandler.V4IntfsGetDone
@@ -501,7 +450,7 @@ func (ribdServiceHandler *RIBDServer) AcceptConfigActions() {
 	if dbRead != true {
 		logger.Err("DB read failed")
 	}
-	go ribdServiceHandler.SetupEventHandler(AsicdSub, asicdCommonDefs.PUB_SOCKET_ADDR, SUB_ASICD)
+	//	go ribdServiceHandler.SetupEventHandler(AsicdSub, asicdCommonDefs.PUB_SOCKET_ADDR, SUB_ASICD)
 	logger.Info("All set to signal start the RIBd server")
 	ribdServiceHandler.ServerUpCh <- true
 }
@@ -563,6 +512,7 @@ func NewRIBDServicesHandler(dbHdl *dbutils.DBUtil, loggerC *logging.Writer) *RIB
 	ProtocolAdminDistanceMapDB = make(map[string]RouteDistanceConfig)
 	PublisherInfoMap = make(map[string]PublisherMapInfo)
 	ribdServicesHandler.NextHopInfoMap = make(map[NextHopInfoKey]NextHopInfo)
+	ribdServicesHandler.AsicdSubSocketCh = make(chan clntIntfs.NotifyMsg)
 	ribdServicesHandler.TrackReachabilityCh = make(chan TrackReachabilityInfo, 1000)
 	ribdServicesHandler.RouteConfCh = make(chan RIBdServerConfig, 200000)
 	ribdServicesHandler.AsicdRouteCh = make(chan RIBdServerConfig, 200000)
@@ -612,7 +562,8 @@ func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string) {
 	logger.Info(fmt.Sprintln("configfile = ", configFile))
 	PARAMSDIR = paramsDir
 	ribdServiceHandler.UpdatePolicyObjectsFromDB() //(paramsDir)
-	ribdServiceHandler.ConnectToClients(configFile)
+	//ribdServiceHandler.ConnectToClients(configFile)
+	ribdServiceHandler.AcceptConfigActions()
 	logger.Info("Starting the server loop")
 	count := 0
 	for {
@@ -632,6 +583,8 @@ func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string) {
 		case info := <-ribdServiceHandler.TrackReachabilityCh:
 			logger.Debug("received message on TrackReachabilityCh channel")
 			ribdServiceHandler.TrackReachabilityStatus(info.IpAddr, info.Protocol, info.Op)
+		case msg := <-ribdServiceHandler.AsicdSubSocketCh:
+			ribdServiceHandler.processAsicdNotification(msg)
 		}
 	}
 }
