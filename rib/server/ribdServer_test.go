@@ -27,6 +27,9 @@ import (
 	"fmt"
 	"infra/sysd/sysdCommonDefs"
 	"log/syslog"
+	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntIntfs/arpdClntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/logging"
 )
@@ -64,6 +67,29 @@ func getServerObject() *RIBDServer {
 		fmt.Sprintln("ribd server object is null ")
 		return nil
 	}
+	fileName := "/opt/flexswitch/params/"
+	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, nil, fileName)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing base clnt for arpd")
+		panic(err)
+	}
+	testserver.ArpdClntPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntInitParams)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing new Arpd clnt")
+		panic(err)
+	}
+
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, nil, fileName)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing base clnt for asicd")
+		panic(err)
+	}
+	testserver.AsicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing new Asicd Clnt")
+		panic(err)
+	}
+
 	return testserver
 }
 func InitTestServer() {
