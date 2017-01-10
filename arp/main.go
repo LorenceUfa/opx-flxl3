@@ -55,7 +55,7 @@ func main() {
 	arpServer := server.NewARPServer(logger)
 
 	asicdNHdl := asicdMgr.NewNotificationHdl(arpServer, logger)
-	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, asicdNHdl, true, fileName)
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, asicdNHdl, fileName)
 	if err != nil {
 		logger.Err("ARPD: Error Initializing base clnt for asicd")
 		panic(err)
