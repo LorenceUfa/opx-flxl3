@@ -120,9 +120,9 @@ func (server *RIBDServer) addAsicdRoute(routeInfoRecord RouteInfoRecord) {
 	}
 }
 func (server *RIBDServer) delAsicdRoute(routeInfoRecord RouteInfoRecord) {
-	if asicdclnt.IsConnected == false {
+	/*if asicdclnt.IsConnected == false {
 		return
-	}
+	}*/
 	logger.Info("delAsicdRoute with ipType ", routeInfoRecord.ipType)
 	if routeInfoRecord.ipType == defs.IPv4 {
 		server.AsicdPlugin.OnewayDeleteIPv4Route([]*asicdClntDefs.IPv4Route{
