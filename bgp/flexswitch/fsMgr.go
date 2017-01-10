@@ -24,12 +24,13 @@
 package FSMgr
 
 import (
-	"asicdServices"
 	"bfdd"
-	nanomsg "github.com/op/go-nanomsg"
 	"ndpd"
 	"ribd"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/logging"
+
+	nanomsg "github.com/op/go-nanomsg"
 )
 
 /*  Router manager will handle all the communication with ribd
@@ -45,12 +46,13 @@ type FSRouteMgr struct {
 /*  Interface manager will handle all the communication with asicd
  */
 type FSIntfMgr struct {
-	plugin               string
-	logger               *logging.Writer
-	AsicdClient          *asicdServices.ASICDServicesClient
-	NdpdClient           *ndpd.NDPDServicesClient
-	asicdL3IntfSubSocket *nanomsg.SubSocket
-	ndpIntfSubSocket     *nanomsg.SubSocket
+	plugin                   string
+	logger                   *logging.Writer
+	AsicdClient              asicdClntIntfs.AsicdClntIntf
+	NdpdClient               *ndpd.NDPDServicesClient
+	asicdL3IntfSubSocket     *nanomsg.SubSocket
+	ndpIntfSubSocket         *nanomsg.SubSocket
+	enableAsicdNotifications bool
 }
 
 /*  @FUTURE: this will be using in future if FlexSwitch is planning to support
