@@ -23,6 +23,7 @@
 
 package server
 
+/*
 import (
 	"asicd/asicdCommonDefs"
 	"fmt"
@@ -212,3 +213,4 @@ func TestIPv6IntfDeleteEvent(t *testing.T) {
 	server.ProcessIPv6IntfDeleteEvent(v6Intf)
 	fmt.Println("***************************************")
 }
+*/

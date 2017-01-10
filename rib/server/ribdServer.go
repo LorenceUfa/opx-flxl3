@@ -562,7 +562,7 @@ func (ribdServiceHandler *RIBDServer) StartServer(paramsDir string) {
 	logger.Info(fmt.Sprintln("configfile = ", configFile))
 	PARAMSDIR = paramsDir
 	ribdServiceHandler.UpdatePolicyObjectsFromDB() //(paramsDir)
-	ribdServiceHandler.ConnectToClients(configFile)
+	//ribdServiceHandler.ConnectToClients(configFile)
 	ribdServiceHandler.AcceptConfigActions()
 	logger.Info("Starting the server loop")
 	count := 0

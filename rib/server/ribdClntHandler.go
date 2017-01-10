@@ -26,13 +26,9 @@ package server
 import (
 	"arpd"
 	"asicdServices"
-	"encoding/json"
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"infra/sysd/sysdCommonDefs"
-	"io/ioutil"
 	"l3/rib/ribdCommonDefs"
-	"time"
-	"utils/ipcutils"
 	"utils/keepalive"
 	"utils/patriciaDB"
 )
@@ -217,7 +213,7 @@ func (clnt *ArpdClient) DmnUpHandler() {
 		logger.Info("RIBD already connected to arpd")
 		return
 	}
-	go clnt.ConnectToClient()
+	//	go clnt.ConnectToClient()
 }
 func (clnt *AsicdClient) DmnUpHandler() {
 	logger.Info("DmnUpHandler for AsicdClient")
@@ -225,7 +221,7 @@ func (clnt *AsicdClient) DmnUpHandler() {
 		logger.Info("RIBD already connected to asicd")
 		return
 	}
-	go clnt.ConnectToClient()
+	//	go clnt.ConnectToClient()
 }
 func (clnt *BGPdClient) DmnUpHandler() {
 	logger.Info("DmnUpHandler for BGPd")
@@ -264,6 +260,7 @@ func (mgr *RIBDServer) ListenToClientStateChanges() {
 	}
 }
 
+/*
 //connect to client functions
 func (clnt *ArpdClient) ConnectToClient() {
 	var timer *time.Timer
@@ -315,7 +312,7 @@ func (clnt *AsicdClient) ConnectToClient() {
 func (clnt *baseClient) ConnectToClient() {
 }
 
-/*
+
 func (ribdServiceHandler *RIBDServer) connectToClient(name string) {
 	var timer *time.Timer
 	logger.Info("in go routine ConnectToClient for connecting to %s\n", name)
@@ -358,7 +355,7 @@ func (ribdServiceHandler *RIBDServer) connectToClient(name string) {
 		}
 	}
 }
-*/
+
 func (ribdServiceHandler *RIBDServer) ConnectToClients(paramsFile string) {
 	var clientsList []ClientJson
 
@@ -454,6 +451,6 @@ func (ribdServiceHandler *RIBDServer) ConnectToClients(paramsFile string) {
 					//go ribdServiceHandler.connectToClient(client.Name)
 					//go arpdclnt.ConnectToClient()
 				}
-			}*/
+			}
 	}
-}
+}*/
