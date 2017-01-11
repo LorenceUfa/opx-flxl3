@@ -24,18 +24,19 @@
 package server
 
 import (
-	"utils/commonDefs"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs"
 )
 
-func (server *BFDServer) processAsicdNotification(msg commonDefs.AsicdNotifyMsg) {
+func (server *BFDServer) processAsicdNotification(msg clntIntfs.NotifyMsg) {
 	switch msg.(type) {
-	case commonDefs.VlanNotifyMsg:
-		vlanMsg := msg.(commonDefs.VlanNotifyMsg)
+	case asicdClntDefs.VlanNotifyMsg:
+		vlanMsg := msg.(asicdClntDefs.VlanNotifyMsg)
 		server.logger.Info("VlanNotifyMsg:", vlanMsg)
 		server.updatePortPropertyMap(vlanMsg)
 		server.updateVlanPropertyMap(vlanMsg)
-	case commonDefs.LagNotifyMsg:
-		lagMsg := msg.(commonDefs.LagNotifyMsg)
+	case asicdClntDefs.LagNotifyMsg:
+		lagMsg := msg.(asicdClntDefs.LagNotifyMsg)
 		server.updateLagPropertyMap(lagMsg)
 	}
 }

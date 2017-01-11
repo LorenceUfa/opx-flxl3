@@ -29,8 +29,8 @@ import (
 	"l3/bfd/asicdMgr"
 	"l3/bfd/rpc"
 	"l3/bfd/server"
-	"utils/asicdClient"
-	"utils/commonDefs"
+	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/keepalive"
 	"utils/logging"
@@ -64,19 +64,22 @@ func main() {
 	logger.Info("Starting BFD Server...")
 	bfdServer := server.NewBFDServer(logger)
 
-	pluginName := "Flexswitch" // Flexswitch/OvsDB
-	clientInfoFile := fileName + "clients.json"
-	nHdl, nMap := asicdMgr.NewNotificationHdl(bfdServer, logger)
-	asicdHdl := commonDefs.AsicdClientStruct{
-		Logger: logger,
-		NHdl:   nHdl,
-		NMap:   nMap,
+	asicdNHdl := asicdMgr.NewNotificationHdl(bfdServer, logger)
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, asicdNHdl, fileName)
+	if err != nil {
+		logger.Err("BFDD: Error Initializing base clnt for asicd")
+		panic(err)
 	}
-	asicdPlugin := asicdClient.NewAsicdClientInit(pluginName, clientInfoFile, asicdHdl)
+	bfdServer.AsicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	if err != nil {
+		logger.Err("BFDD: Error Initializing new Asicd Clnt")
+		panic(err)
+	}
+
 	// Start signal handler
 	go bfdServer.SigHandler(dbHdl)
 	// Start bfd server
-	go bfdServer.StartServer(clientsFileName, dbHdl, asicdPlugin)
+	go bfdServer.StartServer(clientsFileName, dbHdl)
 
 	<-bfdServer.ServerStartedCh
 	logger.Info("BFD Server started")
