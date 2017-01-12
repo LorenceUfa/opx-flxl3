@@ -37,8 +37,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"utils/asicdClient"
-	"utils/commonDefs"
+	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/ipcutils"
 	"utils/logging"
@@ -136,9 +136,9 @@ type BFDServer struct {
 	logger                *logging.Writer
 	ServerStartedCh       chan bool
 	ribdClient            RibdClient
-	AsicdPlugin           asicdClient.AsicdClientIntf
+	AsicdPlugin           asicdClntIntfs.AsicdClntIntf
 	GlobalConfigCh        chan GlobalConfig
-	AsicdSubSocketCh      chan commonDefs.AsicdNotifyMsg
+	AsicdSubSocketCh      chan clntIntfs.NotifyMsg
 	ribdSubSocket         *nanomsg.SubSocket
 	ribdSubSocketCh       chan []byte
 	ribdSubSocketErrCh    chan error
@@ -167,7 +167,7 @@ func NewBFDServer(logger *logging.Writer) *BFDServer {
 	bfdServer.logger = logger
 	bfdServer.ServerStartedCh = make(chan bool)
 	bfdServer.GlobalConfigCh = make(chan GlobalConfig)
-	bfdServer.AsicdSubSocketCh = make(chan commonDefs.AsicdNotifyMsg)
+	bfdServer.AsicdSubSocketCh = make(chan clntIntfs.NotifyMsg)
 	bfdServer.ribdSubSocketCh = make(chan []byte)
 	bfdServer.ribdSubSocketErrCh = make(chan error)
 	bfdServer.portPropertyMap = make(map[int32]PortProperty)
@@ -291,15 +291,8 @@ func (server *BFDServer) PublishSessionNotifications() {
 	}
 }
 
-func (server *BFDServer) InitServer(paramFile string, asicdPlugin asicdClient.AsicdClientIntf) {
+func (server *BFDServer) InitServer(paramFile string) {
 	server.logger.Info("Starting Bfd Server")
-	if asicdPlugin == nil {
-		server.logger.Err("Unable to instantiate Asicd Interface")
-		return
-	}
-	server.AsicdPlugin = asicdPlugin
-	server.logger.Debug("Listen for ASICd updates")
-
 	server.ConnectToServers(paramFile)
 	server.initBfdGlobalConfDefault()
 	server.BuildPortPropertyMap()
@@ -307,9 +300,9 @@ func (server *BFDServer) InitServer(paramFile string, asicdPlugin asicdClient.As
 	server.createDefaultSessionParam()
 }
 
-func (server *BFDServer) StartServer(paramFile string, dbHdl *dbutils.DBUtil, asicdPlugin asicdClient.AsicdClientIntf) {
+func (server *BFDServer) StartServer(paramFile string, dbHdl *dbutils.DBUtil) {
 	// Initialize BFD server from params file
-	server.InitServer(paramFile, asicdPlugin)
+	server.InitServer(paramFile)
 	// Start subcriber for RIBd events
 	go server.CreateRIBdSubscriber()
 	// Start session management handler
