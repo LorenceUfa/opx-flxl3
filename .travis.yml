@@ -89,6 +89,9 @@ install:
   - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
 before_script:
+  - mkdir -p /opt/flexswitch/params
+  - cp $HOME/gopath/src/snaproute/src/utils/clntUtils/clntIntfs/clntInfo.json /opt/flexswitch/params/
+  - cp $HOME/gopath/src/snaproute/src/params/clients.json /opt/flexswitch/params/
   - ln -s $HOME/gopath/src/reltools/Makefile $HOME/gopath/src/snaproute/src/Makefile
   - ls -alt $HOME/gopath/src/snaproute/src
   - export PYTHONPATH=/usr/lib/python2.7/dist-packages
