@@ -29,7 +29,7 @@ import (
 	"l3/ndp/packet"
 	"sync"
 	"time"
-	"utils/asicdClient" // this is switch plugin need to change the name
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dmnBase"
 )
 
@@ -60,7 +60,7 @@ type PhyPort struct {
 type NDPServer struct {
 	NdpConfig                                              // base config
 	dmnBase               *dmnBase.FSBaseDmn               // base Daemon
-	SwitchPlugin          asicdClient.AsicdClientIntf      // asicd plugin
+	SwitchPlugin          asicdClntIntfs.AsicdClntIntf     // asicd plugin
 	L2Port                map[int32]PhyPort                // key is l2 ifIndex
 	L3Port                map[int32]Interface              // key is l3 ifIndex
 	VlanInfo              map[int32]config.VlanInfo        // key is vlanIfIndex

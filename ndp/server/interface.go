@@ -34,7 +34,6 @@ import (
 	"net"
 	"strings"
 	"time"
-	"utils/commonDefs"
 )
 
 const (
@@ -176,10 +175,10 @@ func (intf *Interface) commonInit(ipAddr string, pktCh chan config.PacketData, g
 /*
  * Init Interface will be called during bootup when we do Get ALL ipv6 intfs
  */
-func (intf *Interface) InitIntf(obj *commonDefs.IPv6IntfState, pktCh chan config.PacketData, gCfg NdpConfig) {
+func (intf *Interface) InitIntf(obj *config.IPIntfNotification, pktCh chan config.PacketData, gCfg NdpConfig) {
 	intf.IntfRef = obj.IntfRef
 	intf.IfIndex = obj.IfIndex
-	intf.OperState = obj.OperState
+	intf.OperState = obj.Operation
 	intf.commonInit(obj.IpAddr, pktCh, gCfg)
 	debug.Logger.Debug("InitIntf port:", obj.IntfRef, "ifIndex:", obj.IfIndex, "GS:", intf.IpAddr, "LS:", intf.LinkLocalIp)
 }

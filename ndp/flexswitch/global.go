@@ -32,6 +32,10 @@ type ClientJson struct {
 	Port int    `json:Port`
 }
 
+const (
+	ASICD_DMN = "asicd"
+)
+
 type ConfigHandler struct {
 }
 

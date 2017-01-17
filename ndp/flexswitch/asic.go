@@ -23,61 +23,38 @@
 package flexswitch
 
 import (
-	"asicd/asicdCommonDefs"
-	"asicd/pluginManager/pluginCommon"
 	"l3/ndp/api"
 	"l3/ndp/config"
 	"l3/ndp/debug"
-	"sync"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/commonDefs"
 )
 
-var switchInst *commonDefs.AsicdClientStruct = nil
-var once sync.Once
+var switchInst asicdClntIntfs.AsicdClntIntf
 
-func initAsicdNotification() commonDefs.AsicdNotification {
-	nMap := make(commonDefs.AsicdNotification)
-	nMap = commonDefs.AsicdNotification{
-		commonDefs.NOTIFY_L2INTF_STATE_CHANGE:           true,
-		commonDefs.NOTIFY_IPV6_L3INTF_STATE_CHANGE:      true,
-		commonDefs.NOTIFY_VLAN_CREATE:                   true,
-		commonDefs.NOTIFY_VLAN_DELETE:                   true,
-		commonDefs.NOTIFY_VLAN_UPDATE:                   true,
-		commonDefs.NOTIFY_IPV6INTF_CREATE:               true,
-		commonDefs.NOTIFY_IPV6INTF_DELETE:               true,
-		commonDefs.NOTIFY_LAG_CREATE:                    true,
-		commonDefs.NOTIFY_LAG_DELETE:                    true,
-		commonDefs.NOTIFY_LAG_UPDATE:                    true,
-		commonDefs.NOTIFY_IPV6NBR_MAC_MOVE:              true,
-		commonDefs.NOTIFY_IPV6VIRTUAL_INTF_CREATE:       true,
-		commonDefs.NOTIFY_IPV6VIRTUAL_INTF_DELETE:       true,
-		commonDefs.NOTIFY_IPV6_VIRTUALINTF_STATE_CHANGE: true,
+func GetSwitchInst(fileName string) asicdClntIntfs.AsicdClntIntf {
+	notifyHdl := &AsicNotificationHdl{}
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams(ASICD_DMN, debug.Logger, notifyHdl, fileName)
+	switchInst, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	if err != nil {
+		debug.Logger.Err("Error Initializing new asicd client")
+		panic(err)
 	}
-	return nMap
-}
-
-func GetSwitchInst() *commonDefs.AsicdClientStruct {
-	once.Do(func() {
-		notifyMap := initAsicdNotification()
-		notifyHdl := &AsicNotificationHdl{}
-		switchInst = &commonDefs.AsicdClientStruct{
-			NHdl: notifyHdl,
-			NMap: notifyMap,
-		}
-	})
 	return switchInst
 }
 
-func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNotifyMsg) {
+func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
 	if !api.InitComplete() {
 		return
 	}
 	switch msg.(type) {
-	case commonDefs.IPv6IntfNotifyMsg:
+	case asicdClntDefs.IPv6IntfNotifyMsg:
 		// create/delete ipv6 interface notification case
-		ipv6Msg := msg.(commonDefs.IPv6IntfNotifyMsg)
-		if pluginCommon.GetTypeFromIfIndex(ipv6Msg.IfIndex) != commonDefs.IfTypeLoopback {
-			if ipv6Msg.MsgType == commonDefs.NOTIFY_IPV6INTF_CREATE {
+		ipv6Msg := msg.(asicdClntDefs.IPv6IntfNotifyMsg)
+		if switchInst.GetIntfTypeFromIfIndex(ipv6Msg.IfIndex) != commonDefs.IfTypeLoopback {
+			if ipv6Msg.MsgType == asicdClntDefs.NOTIFY_IPV6INTF_CREATE {
 				debug.Logger.Debug("Received Asicd IPV6 INTF Notfication CREATE:", ipv6Msg)
 				api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_CREATE)
 			} else {
@@ -85,12 +62,12 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 				api.SendIPIntfNotfication(ipv6Msg.IfIndex, ipv6Msg.IpAddr, ipv6Msg.IntfRef, config.CONFIG_DELETE)
 			}
 		}
-	case commonDefs.IPv6L3IntfStateNotifyMsg:
+	case asicdClntDefs.IPv6L3IntfStateNotifyMsg:
 		// state up/down for ipv6 interface case
-		l3Msg := msg.(commonDefs.IPv6L3IntfStateNotifyMsg)
+		l3Msg := msg.(asicdClntDefs.IPv6L3IntfStateNotifyMsg)
 		// only get state notification if ip type is v6 && not loopback
-		if pluginCommon.GetTypeFromIfIndex(l3Msg.IfIndex) != commonDefs.IfTypeLoopback {
-			if l3Msg.IfState == asicdCommonDefs.INTF_STATE_UP {
+		if switchInst.GetIntfTypeFromIfIndex(l3Msg.IfIndex) != commonDefs.IfTypeLoopback {
+			if l3Msg.IfState == asicdClntDefs.INTF_STATE_UP {
 				debug.Logger.Debug("Received Asicd L3 State Notfication UP:", l3Msg)
 				api.SendL3PortNotification(l3Msg.IfIndex, config.STATE_UP, l3Msg.IpAddr)
 			} else {
@@ -98,38 +75,38 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 				api.SendL3PortNotification(l3Msg.IfIndex, config.STATE_DOWN, l3Msg.IpAddr)
 			}
 		}
-	case commonDefs.L2IntfStateNotifyMsg:
-		l2Msg := msg.(commonDefs.L2IntfStateNotifyMsg)
-		if l2Msg.IfState == asicdCommonDefs.INTF_STATE_UP {
+	case asicdClntDefs.L2IntfStateNotifyMsg:
+		l2Msg := msg.(asicdClntDefs.L2IntfStateNotifyMsg)
+		if l2Msg.IfState == asicdClntDefs.INTF_STATE_UP {
 			debug.Logger.Debug("Received Asicd L2 Port Notfication UP:", l2Msg)
 			api.SendL3PortNotification(l2Msg.IfIndex, config.STATE_UP, config.L2_NOTIFICATION)
 		} else {
 			debug.Logger.Debug("Received Asicd L2 Port Notfication DOWN:", l2Msg)
 			api.SendL3PortNotification(l2Msg.IfIndex, config.STATE_DOWN, config.L2_NOTIFICATION)
 		}
-	case commonDefs.VlanNotifyMsg:
-		vlanMsg := msg.(commonDefs.VlanNotifyMsg)
+	case asicdClntDefs.VlanNotifyMsg:
+		vlanMsg := msg.(asicdClntDefs.VlanNotifyMsg)
 		debug.Logger.Debug("Received Asicd Vlan Notfication:", vlanMsg)
 		oper := ""
 		switch vlanMsg.MsgType {
-		case commonDefs.NOTIFY_VLAN_CREATE:
+		case asicdClntDefs.NOTIFY_VLAN_CREATE:
 			debug.Logger.Debug("Received Asicd VLAN CREATE")
 			oper = config.CONFIG_CREATE
-		case commonDefs.NOTIFY_VLAN_DELETE:
+		case asicdClntDefs.NOTIFY_VLAN_DELETE:
 			debug.Logger.Debug("Received Asicd VLAN DELETE")
 			oper = config.CONFIG_DELETE
-		case commonDefs.NOTIFY_VLAN_UPDATE:
+		case asicdClntDefs.NOTIFY_VLAN_UPDATE:
 			debug.Logger.Debug("Received Asicd VLAN UPDATE")
 			oper = config.CONFIG_UPDATE
 		}
 		api.SendVlanNotification(oper, int32(vlanMsg.VlanId), vlanMsg.VlanIfIndex, vlanMsg.VlanName, vlanMsg.UntagPorts, vlanMsg.TagPorts)
-	case commonDefs.IPv6NbrMacMoveNotifyMsg:
-		macMoveMsg := msg.(commonDefs.IPv6NbrMacMoveNotifyMsg)
+	case asicdClntDefs.IPv6NbrMacMoveNotifyMsg:
+		macMoveMsg := msg.(asicdClntDefs.IPv6NbrMacMoveNotifyMsg)
 		debug.Logger.Debug("Received Asicd IPv6 Neighbor Mac Move Notification:", macMoveMsg)
 		api.SendMacMoveNotification(macMoveMsg.IpAddr, macMoveMsg.IfIndex, macMoveMsg.VlanId)
-	case commonDefs.IPv6VirtualIntfNotifyMsg:
-		virIpMsg := msg.(commonDefs.IPv6VirtualIntfNotifyMsg)
-		if virIpMsg.MsgType == commonDefs.NOTIFY_IPV6VIRTUAL_INTF_CREATE {
+	case asicdClntDefs.IPv6VirtualIntfNotifyMsg:
+		virIpMsg := msg.(asicdClntDefs.IPv6VirtualIntfNotifyMsg)
+		if virIpMsg.MsgType == asicdClntDefs.NOTIFY_IPV6VIRTUAL_INTF_CREATE {
 			debug.Logger.Debug("Received Asicd IPV6 Virtual INTF Notfication CREATE:", virIpMsg)
 			api.SendVirtualIpNotification(virIpMsg.IfIndex, virIpMsg.ParentIfIndex, virIpMsg.IpAddr, virIpMsg.MacAddr, virIpMsg.IfName,
 				config.VIRTUAL_CREATE)
@@ -139,9 +116,9 @@ func (notifyHdl *AsicNotificationHdl) ProcessNotification(msg commonDefs.AsicdNo
 				config.VIRTUAL_DELETE)
 		}
 
-	case commonDefs.IPv6VirtualIntfStateNotifyMsg:
-		virIpMsg := msg.(commonDefs.IPv6VirtualIntfStateNotifyMsg)
-		if virIpMsg.IfState == asicdCommonDefs.INTF_STATE_UP {
+	case asicdClntDefs.IPv6VirtualIntfStateNotifyMsg:
+		virIpMsg := msg.(asicdClntDefs.IPv6VirtualIntfStateNotifyMsg)
+		if virIpMsg.IfState == asicdClntDefs.INTF_STATE_UP {
 			debug.Logger.Debug("Received Asicd IPV6 Virtual Intf State Up:", virIpMsg)
 			api.SendVirtualIpStateMsg(virIpMsg.IfIndex, virIpMsg.IpAddr, config.STATE_UP)
 		} else {
