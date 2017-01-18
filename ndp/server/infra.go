@@ -29,6 +29,7 @@ import (
 	"l3/ndp/config"
 	"l3/ndp/debug"
 	"net"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 	"utils/commonDefs"
 )
 
@@ -37,35 +38,44 @@ import (
  */
 func (svr *NDPServer) GetPorts() {
 	debug.Logger.Info("Get Port State List")
-	portsInfo, err := svr.SwitchPlugin.GetAllPortState()
-	if err != nil {
-		debug.Logger.Err("Failed to get all ports from system, ERROR:", err)
-		return
-	}
-	for _, obj := range portsInfo {
-		var empty struct{}
-		port := config.PortInfo{
-			IntfRef:   obj.IntfRef,
-			IfIndex:   obj.IfIndex,
-			OperState: obj.OperState,
-			Name:      obj.Name,
+	curMark := svr.SwitchPlugin.GetMinSysPort()
+	count := 512
+	for {
+		bulkInfo, _ := svr.SwitchPlugin.GetBulkPortState(curMark, count)
+		if bulkInfo == nil {
+			break
 		}
-		pObj, err := svr.SwitchPlugin.GetPort(obj.Name)
-		if err != nil {
-			debug.Logger.Err("Getting mac address for", obj.Name, "failed, error:", err)
-		} else {
-			port.MacAddr = pObj.MacAddr
-			port.Description = pObj.Description
+		objCnt := int(bulkInfo.Count)
+		more := bool(bulkInfo.More)
+		curMark = int(bulkInfo.EndIdx)
+		for i := 0; i < objCnt; i++ {
+			obj := bulkInfo.PortStateList[i]
+			var empty struct{}
+			port := config.PortInfo{
+				IntfRef:   obj.IntfRef,
+				IfIndex:   obj.IfIndex,
+				OperState: obj.OperState,
+				Name:      obj.Name,
+			}
+			pObj, err := svr.SwitchPlugin.GetPort(obj.Name)
+			if err != nil {
+				debug.Logger.Err("Getting mac address for", obj.Name, "failed, error:", err)
+			} else {
+				port.MacAddr = pObj.MacAddr
+				port.Description = pObj.Description
+			}
+			l2Port := svr.L2Port[port.IfIndex]
+			l2Port.Info = port
+			l2Port.RX = nil
+			debug.Logger.Info("L2 IfIndex:", port.IfIndex, "Information is:", l2Port.Info)
+			svr.L2Port[port.IfIndex] = l2Port
+			svr.SwitchMacMapEntries[port.MacAddr] = empty
+			svr.SwitchMac = port.MacAddr // @HACK.... need better solution
 		}
-		l2Port := svr.L2Port[port.IfIndex]
-		l2Port.Info = port
-		l2Port.RX = nil
-		debug.Logger.Info("L2 IfIndex:", port.IfIndex, "Information is:", l2Port.Info)
-		svr.L2Port[port.IfIndex] = l2Port
-		svr.SwitchMacMapEntries[port.MacAddr] = empty
-		svr.SwitchMac = port.MacAddr // @HACK.... need better solution
+		if more == false {
+			break
+		}
 	}
-
 	debug.Logger.Info("Done with Port State list")
 	return
 }
@@ -75,42 +85,61 @@ func (svr *NDPServer) GetPorts() {
  */
 func (svr *NDPServer) GetVlans() {
 	debug.Logger.Info("Get Vlan Information")
+	curMark := svr.SwitchPlugin.GetMinSysPort()
+	count := 1024
+	vlanConfigList := make([]*asicdClntDefs.Vlan, 0)
+	// get all vlan configuration
+	for {
+		bulkVlanInfo, _ := svr.SwitchPlugin.GetBulkVlan(curMark, count)
+		if bulkVlanInfo == nil {
+			break
+		}
 
-	// Get Vlan State Information
-	vlansStateInfo, err := svr.SwitchPlugin.GetAllVlanState()
-	if err != nil {
-		debug.Logger.Err("Failed to get system vlan information, ERROR:", err)
-		return
+		//objCnt := int(bulkVlanInfo.Count)
+		more := bool(bulkVlanInfo.More)
+		curMark = int(bulkVlanInfo.EndIdx)
+		vlanConfigList = append(vlanConfigList, bulkVlanInfo.VlanList...)
+		if more == false {
+			break
+		}
 	}
-
-	// Get Vlan Config Information
-	vlansConfigInfo, err := svr.SwitchPlugin.GetAllVlan()
-	if err != nil {
-		debug.Logger.Err("Failed to get system vlan config information, ERROR:", err)
-	}
-	// store vlan state information like name, ifIndex, operstate
-	for _, vlanState := range vlansStateInfo {
-		debug.Logger.Info("vlan:", *vlanState)
-		entry, _ := svr.VlanInfo[vlanState.IfIndex]
-		entry.VlanId = vlanState.VlanId
-		entry.VlanIfIndex = vlanState.IfIndex
-		entry.Name = vlanState.VlanName
-		entry.OperState = vlanState.OperState
-		for _, vlanconfig := range vlansConfigInfo {
-			if entry.VlanId == vlanconfig.VlanId {
-				entry.UntagPortsMap = make(map[int32]bool)
-				for _, untagintf := range vlanconfig.UntagIfIndexList {
-					entry.UntagPortsMap[untagintf] = true
-				}
-				entry.TagPortsMap = make(map[int32]bool)
-				for _, tagIntf := range vlanconfig.IfIndexList {
-					entry.TagPortsMap[tagIntf] = true
+	curMark = 0
+	// get all vlan state information
+	for {
+		bulkVlanStateInfo, _ := svr.SwitchPlugin.GetBulkVlanState(curMark, count)
+		if bulkVlanStateInfo == nil {
+			break
+		}
+		//objCnt := int(bulkVlanStateInfo.Count)
+		more := bool(bulkVlanStateInfo.More)
+		curMark = int(bulkVlanStateInfo.EndIdx)
+		// store vlan state information like name, ifIndex, operstate
+		for _, vlanState := range bulkVlanStateInfo.VlanStateList {
+			debug.Logger.Info("vlan:", *vlanState)
+			entry, _ := svr.VlanInfo[vlanState.IfIndex]
+			entry.VlanId = vlanState.VlanId
+			entry.VlanIfIndex = vlanState.IfIndex
+			entry.Name = vlanState.VlanName
+			entry.OperState = vlanState.OperState
+			for _, vlanconfig := range vlanConfigList {
+				if entry.VlanId == vlanconfig.VlanId {
+					entry.UntagPortsMap = make(map[int32]bool)
+					for _, untagintf := range vlanconfig.UntagIfIndexList {
+						entry.UntagPortsMap[untagintf] = true
+					}
+					entry.TagPortsMap = make(map[int32]bool)
+					for _, tagIntf := range vlanconfig.IfIndexList {
+						entry.TagPortsMap[tagIntf] = true
+					}
 				}
 			}
+			svr.VlanInfo[vlanState.IfIndex] = entry
+			svr.VlanIfIdxVlanIdMap[vlanState.VlanName] = vlanState.VlanId
+			svr.Dot1QToVlanIfIndex[vlanState.VlanId] = vlanState.IfIndex
 		}
-		svr.VlanInfo[vlanState.IfIndex] = entry
-		svr.VlanIfIdxVlanIdMap[vlanState.VlanName] = vlanState.VlanId
-		svr.Dot1QToVlanIfIndex[vlanState.VlanId] = vlanState.IfIndex
+		if more == false {
+			break
+		}
 	}
 	debug.Logger.Info("Done with Vlan List")
 	return
@@ -121,28 +150,43 @@ func (svr *NDPServer) GetVlans() {
  */
 func (svr *NDPServer) GetIPIntf() {
 	debug.Logger.Info("Get IPv6 Interface List")
-	ipsInfo, err := svr.SwitchPlugin.GetAllIPv6IntfState()
-	if err != nil {
-		debug.Logger.Err("Failed to get all ipv6 interfaces from system, ERROR:", err)
-		return
-	}
-	for _, obj := range ipsInfo {
-		// ndp will not listen on loopback interfaces
-		if svr.SwitchPlugin.IsLoopbackType(obj.IfIndex) {
-			continue
+	curMark := svr.SwitchPlugin.GetMinSysPort()
+	count := 1024
+	for {
+		bulkIPv6Info, _ := svr.SwitchPlugin.GetBulkIPv6IntfState(curMark, count)
+		if bulkIPv6Info == nil {
+			break
 		}
-		ipInfo, exists := svr.L3Port[obj.IfIndex]
-		if !exists {
-			ipInfo.InitIntf(obj, svr.PktDataCh, svr.NdpConfig)
-			ipInfo.SetIfType(svr.GetIfType(obj.IfIndex))
-			// cache reverse map from intfref to ifIndex, used mainly during state
-			svr.L3IfIntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
-		} else {
-			ipInfo.UpdateIntf(obj.IpAddr)
+		//objCnt := int(bulkIPv6Info.Count)
+		more := bool(bulkIPv6Info.More)
+		curMark = int(bulkIPv6Info.EndIdx)
+		for _, obj := range bulkIPv6Info.IPv6IntfStateList {
+			// ndp will not listen on loopback interfaces
+			if obj.L2IntfType == commonDefs.LOOPBACK {
+				continue
+			}
+			ipInfo, exists := svr.L3Port[obj.IfIndex]
+			if !exists {
+				ipStObj := &config.IPIntfNotification{
+					IntfRef:   obj.IntfRef,
+					IfIndex:   obj.IfIndex,
+					Operation: obj.OperState,
+					IpAddr:    obj.IpAddr,
+				}
+				ipInfo.InitIntf(ipStObj, svr.PktDataCh, svr.NdpConfig)
+				ipInfo.SetIfType(svr.GetIfType(obj.IfIndex))
+				// cache reverse map from intfref to ifIndex, used mainly during state
+				svr.L3IfIntfRefToIfIndex[obj.IntfRef] = obj.IfIndex
+			} else {
+				ipInfo.UpdateIntf(obj.IpAddr)
+			}
+			svr.L3Port[ipInfo.IfIndex] = ipInfo
+			if !exists {
+				svr.ndpL3IntfStateSlice = append(svr.ndpL3IntfStateSlice, ipInfo.IfIndex)
+			}
 		}
-		svr.L3Port[ipInfo.IfIndex] = ipInfo
-		if !exists {
-			svr.ndpL3IntfStateSlice = append(svr.ndpL3IntfStateSlice, ipInfo.IfIndex)
+		if more == false {
+			break
 		}
 	}
 	debug.Logger.Info("Done with IPv6 State list")
@@ -151,23 +195,32 @@ func (svr *NDPServer) GetIPIntf() {
 
 func (svr *NDPServer) getVirtualIpIntf() {
 	debug.Logger.Info("Get Virtual IPv6 Interface List")
-	ipsInfo, err := svr.SwitchPlugin.GetAllSubIPv6IntfState()
-	if err != nil {
-		debug.Logger.Err("Failed to get any virtual ipv6 interfaces from system, ERROR:", err)
-		return
-	}
-	for _, ipInfo := range ipsInfo {
-		if ipInfo.Type == commonDefs.SUB_INTF_VIRTUAL_TYPE {
-			virEntry := &config.VirtualIpInfo{}
-			virEntry.IfIndex = ipInfo.IfIndex
-			virEntry.ParentIfIndex = ipInfo.ParentIfIndex
-			virEntry.IpAddr = ipInfo.IpAddr
-			virEntry.MacAddr = ipInfo.MacAddr
-			virEntry.IfName = ipInfo.IfName
-			svr.virtualIp[ipInfo.IfIndex] = virEntry
-			if ipInfo.OperState == config.STATE_UP {
-				svr.updateFilters(virEntry)
+	curMark := svr.SwitchPlugin.GetMinSysPort()
+	count := 1024
+	for {
+		bulkIPv6Info, _ := svr.SwitchPlugin.GetBulkSubIPv6IntfState(curMark, count)
+		if bulkIPv6Info == nil {
+			break
+		}
+		//objCnt := int(bulkIPv6Info.Count)
+		more := bool(bulkIPv6Info.More)
+		curMark = int(bulkIPv6Info.EndIdx)
+		for _, ipInfo := range bulkIPv6Info.SubIPv6IntfStateList {
+			if ipInfo.Type == commonDefs.SUB_INTF_VIRTUAL_TYPE {
+				virEntry := &config.VirtualIpInfo{}
+				virEntry.IfIndex = ipInfo.IfIndex
+				virEntry.ParentIfIndex = ipInfo.ParentIfIndex
+				virEntry.IpAddr = ipInfo.IpAddr
+				virEntry.MacAddr = ipInfo.MacAddr
+				virEntry.IfName = ipInfo.IfName
+				svr.virtualIp[ipInfo.IfIndex] = virEntry
+				if ipInfo.OperState == config.STATE_UP {
+					svr.updateFilters(virEntry)
+				}
 			}
+		}
+		if more == false {
+			break
 		}
 	}
 	debug.Logger.Info("Done with virtual ipv6 interface list")
@@ -280,7 +333,7 @@ func (svr *NDPServer) deleteNeighbor(nbrKey string, ifIndex int32) {
 	svr.SendIPv6DeleteNotification(nbrIp, ifIndex)
 	// Request asicd to delete the neighbor
 	if net.ParseIP(nbrIp).IsLinkLocalUnicast() == false {
-		_, err := svr.SwitchPlugin.DeleteIPv6Neighbor(nbrIp)
+		_, err := svr.SwitchPlugin.DeleteIPv6Neighbor(nbrIp, "00:00:00:00:00:00", 0, 0)
 		if err != nil {
 			debug.Logger.Err("delete ipv6 neigbor failed for", nbrIp, "error is", err)
 		}
