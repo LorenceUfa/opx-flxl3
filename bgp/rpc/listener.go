@@ -827,6 +827,10 @@ func (h *BGPHandler) getIPAndIfIndexForV4Neighbor(neighborIP string, neighborInt
 		ipInfo, err = h.server.GetIfaceIP(ifIndex)
 		h.logger.Info("getIPAndIfIndexForV4Neighbor - ipInfo:", ipInfo, " err:", err)
 		if err == nil {
+			if ipInfo.IpAddr == nil {
+				return ip, ifIndex, ifName, errors.New(fmt.Sprint("IPv4 address is not set on interface ", neighborIntfRef))
+			}
+
 			ifIP := make(net.IP, len(ipInfo.IpAddr))
 			copy(ifIP, ipInfo.IpAddr)
 			ipMask := ipInfo.IpMask
@@ -1136,12 +1140,17 @@ func (h *BGPHandler) getIPAndIfIndexForV6Neighbor(neighborIP string, neighborInt
 			return ip, ifIndex, ifName, err
 		}
 
-		ipInfo, err1 := h.server.GetIfaceIP(ifIndex)
-		h.logger.Info("ipInfo:", ipInfo, " err:", err1)
-		if err1 == nil {
+		var ipInfo *bgputils.IPInfo
+		ipInfo, err = h.server.GetIfaceIP(ifIndex)
+		h.logger.Info("ipInfo:", ipInfo, " err:", err)
+		if err == nil {
 			h.logger.Info("getIPAndIfIndexForV6Neighbor - ipInfo.LinkLocalIpAddr:", ipInfo.LinklocalIpAddr,
 				"after GetIfaceIP of neighborIfIndex:", ifIndex)
-			ip = net.ParseIP(ipInfo.LinklocalIpAddr)
+			if ipInfo.LinklocalIpAddr != "" {
+				ip = net.ParseIP(ipInfo.LinklocalIpAddr)
+			} else {
+				return ip, ifIndex, ifName, errors.New(fmt.Sprint("Link-local IP is not set on interface ", neighborIntfRef))
+			}
 		}
 	}
 	return ip, ifIndex, ifName, err
@@ -1779,6 +1788,119 @@ func (h *BGPHandler) DeleteBGPv6Aggregate(bgpAgg *bgpd.BGPv6Aggregate) (bool, er
 	return true, nil
 }
 
+func (h *BGPHandler) validateBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement) (nsConf config.BGPNetworkStatement,
+	err error) {
+	if bgpNS == nil {
+		return nsConf, err
+	}
+	var ip net.IP
+
+	ip, _, err = net.ParseCIDR(bgpNS.IpPrefix)
+	if err != nil {
+		err = errors.New(fmt.Sprintf("BGPNetworkStatement: IP %s is not valid", bgpNS.IpPrefix))
+		h.logger.Info("BGPNetworkStatement: IP", bgpNS.IpPrefix, "is not valid")
+		return nsConf, err
+	}
+
+	var afi packet.AFI
+	if ip.To4() != nil {
+		afi = packet.AfiIP
+	} else if ip.To16() != nil {
+		afi = packet.AfiIP6
+	} else {
+		err = errors.New(fmt.Sprintf("BGPNetworkStatement: IP %s is not a valid v4 or v6 address", bgpNS.IpPrefix))
+		h.logger.Info("BGPNetworkStatement: IP", bgpNS.IpPrefix, "is not a valid v4 or v6 address")
+		return nsConf, err
+	}
+
+	nsConf = config.BGPNetworkStatement{
+		IPPrefix:      bgpNS.IpPrefix,
+		Policy:        bgpNS.Policy,
+		AddressFamily: packet.GetProtocolFamily(afi, packet.SafiUnicast),
+	}
+	return nsConf, nil
+}
+
+func (h *BGPHandler) SendBGPNetworkStatement(oldConfig *bgpd.BGPNetworkStatement, newConfig *bgpd.BGPNetworkStatement,
+	attrSet []bool) (
+	bool, error) {
+	if err := h.checkBGPGlobal(); err != nil {
+		return false, err
+	}
+
+	oldAgg, err := h.validateBGPNetworkStatement(oldConfig)
+	if err != nil {
+		return false, err
+	}
+
+	newAgg, err := h.validateBGPNetworkStatement(newConfig)
+	if err != nil {
+		return false, err
+	}
+
+	h.server.AddNSCh <- server.NSUpdate{oldAgg, newAgg, attrSet}
+	return true, err
+}
+
+func (h *BGPHandler) CreateBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement) (bool, error) {
+	h.logger.Info("Create BGP network statement:", bgpNS)
+	return h.SendBGPNetworkStatement(nil, bgpNS, make([]bool, 0))
+}
+
+func (h *BGPHandler) UpdateBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement, updatedNS *bgpd.BGPNetworkStatement,
+	attrSet []bool, op []*bgpd.PatchOpInfo) (bool, error) {
+	h.logger.Info("Update BGP network statement:", updatedNS, "old:", bgpNS)
+	return h.SendBGPNetworkStatement(bgpNS, updatedNS, attrSet)
+}
+
+func (h *BGPHandler) DeleteBGPNetworkStatement(bgpNS *bgpd.BGPNetworkStatement) (bool, error) {
+	h.logger.Info("Delete BGP network statement:", bgpNS)
+	if err := h.checkBGPGlobal(); err != nil {
+		return false, err
+	}
+
+	nsConf, _ := h.validateBGPNetworkStatement(bgpNS)
+	h.server.RemNSCh <- nsConf
+	return true, nil
+}
+
+func (h *BGPHandler) ConvertBGPNetworkStateToThriftObject(ns *config.BGPNetworkStatement) *bgpd.BGPNetworkStatementState {
+	return &bgpd.BGPNetworkStatementState{
+		IpPrefix:       ns.IPPrefix,
+		Policy:         ns.Policy,
+		PolicyStmtList: ns.PolicyStmtList,
+	}
+}
+
+func (h *BGPHandler) GetBGPNetworkStatementState(ipPrefix string) (*bgpd.BGPNetworkStatementState, error) {
+	var err error = nil
+	var bgpNS *bgpd.BGPNetworkStatementState
+
+	ns := h.server.GetBGPNetworkStatementState(ipPrefix)
+	if ns == nil {
+		err = errors.New(fmt.Sprintf("Network statement not found for prefix %s", ipPrefix))
+	} else {
+		bgpNS = h.ConvertBGPNetworkStateToThriftObject(ns)
+	}
+	return bgpNS, err
+}
+
+func (h *BGPHandler) GetBulkBGPNetworkStatementState(index bgpd.Int, count bgpd.Int) (
+	*bgpd.BGPNetworkStatementStateGetInfo, error) {
+	nextIdx, currCount, nsRoutes := h.server.BulkGetBGPNetworkStatements(int(index), int(count))
+	bgpdNSRoutes := make([]*bgpd.BGPNetworkStatementState, len(nsRoutes))
+	for idx, nsRoute := range nsRoutes {
+		bgpdNSRoutes[idx] = h.ConvertBGPNetworkStateToThriftObject(nsRoute)
+	}
+	bgpRoutesBulk := bgpd.NewBGPNetworkStatementStateGetInfo()
+	bgpRoutesBulk.EndIdx = bgpd.Int(nextIdx)
+	bgpRoutesBulk.Count = bgpd.Int(currCount)
+	bgpRoutesBulk.More = (nextIdx != 0)
+	bgpRoutesBulk.BGPNetworkStatementStateList = bgpdNSRoutes
+
+	return bgpRoutesBulk, nil
+}
+
 func (h *BGPHandler) ExecuteActionResetBGPv4NeighborByIPAddr(resetIP *bgpd.ResetBGPv4NeighborByIPAddr) (bool, error) {
 	h.logger.Info("Reset BGP v4 neighbor by IP address", resetIP.IPAddr)
 	if err := h.checkBGPGlobal(); err != nil {
@@ -1803,7 +1925,7 @@ func (h *BGPHandler) ExecuteActionResetBGPv4NeighborByInterface(resetIf *bgpd.Re
 	ifIndexInt, _, err := h.server.ConvertIntfStrToIfIndex(resetIf.IntfRef)
 	if err != nil {
 		h.logger.Err("Invalid intfref:", resetIf.IntfRef)
-		return false, errors.New(fmt.Sprintf("Invalid IntfRef", resetIf.IntfRef))
+		return false, errors.New(fmt.Sprint("Invalid IntfRef ", resetIf.IntfRef))
 	}
 
 	ipInfo, err := h.server.GetIfaceIP(int32(ifIndexInt))
@@ -1869,6 +1991,10 @@ func (h *BGPHandler) ExecuteActionResetBGPv6NeighborByInterface(resetIf *bgpd.Re
 	}
 
 	h.logger.Info("Reset IPv6 neighbor by interface - ipInfo:%+v", ipInfo)
+	if ipInfo.LinklocalIpAddr == "" {
+		return false, errors.New(fmt.Sprintln("Link-local IP is not set on interface", resetIf.IntfRef))
+	}
+
 	ip := net.ParseIP(ipInfo.LinklocalIpAddr)
 
 	if ip == nil {

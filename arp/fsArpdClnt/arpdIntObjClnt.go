@@ -21,33 +21,49 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package asicdMgr
+package fsArpdClnt
 
 import (
-	"l3/arp/server"
-	"utils/clntUtils/clntDefs/asicdClntDefs"
-	"utils/clntUtils/clntIntfs"
-	"utils/logging"
+	"arpdInt"
+	"errors"
 )
 
-type NotificationHdl struct {
-	Server *server.ARPServer
-}
-
-func NewNotificationHdl(server *server.ARPServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
-	return &NotificationHdl{server}
-}
-
-func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
-	switch msg.(type) {
-	case asicdClntDefs.L2IntfStateNotifyMsg,
-		asicdClntDefs.IPv4L3IntfStateNotifyMsg,
-		asicdClntDefs.VlanNotifyMsg,
-		asicdClntDefs.LagNotifyMsg,
-		asicdClntDefs.IPv4IntfNotifyMsg,
-		asicdClntDefs.IPv4NbrMacMoveNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfStateNotifyMsg:
-		nHdl.Server.AsicdSubSocketCh <- msg
+func (arpdClientMgr *FSArpdClntMgr) ResolveArpIPv4(destNetIp string, ifIdx int32) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.ResolveArpIPv4(destNetIp, arpdInt.Int(ifIdx))
+		arpdMutex.Unlock()
+		return err
 	}
+	return errors.New("Arpd Client Handle is nil")
+}
+
+func (arpdClientMgr *FSArpdClntMgr) DeleteResolveArpIPv4(NbrIP string) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.DeleteResolveArpIPv4(NbrIP)
+		arpdMutex.Unlock()
+		return err
+	}
+	return errors.New("Arpd Client Handle is nil")
+}
+
+func (arpdClientMgr *FSArpdClntMgr) DeleteArpEntry(ipAddr string) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.DeleteArpEntry(ipAddr)
+		arpdMutex.Unlock()
+		return err
+	}
+	return errors.New("Arpd Client Handle is nil")
+}
+
+func (arpdClientMgr *FSArpdClntMgr) SendGarp(ifName string, macAddr string, ipAddr string) error {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdMutex.Lock()
+		err := arpdClientMgr.ClientHdl.SendGarp(ifName, macAddr, ipAddr)
+		arpdMutex.Unlock()
+		return err
+	}
+	return errors.New("Arpd Client Handle is nil")
 }

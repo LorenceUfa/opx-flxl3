@@ -7,11 +7,11 @@
 //
 //    http://www.apache.org/licenses/LICENSE-2.0
 //
-//	 Unless required by applicable law or agreed to in writing, software
-//	 distributed under the License is distributed on an "AS IS" BASIS,
-//	 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//	 See the License for the specific language governing permissions and
-//	 limitations under the License.
+//       Unless required by applicable law or agreed to in writing, software
+//       distributed under the License is distributed on an "AS IS" BASIS,
+//       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//       See the License for the specific language governing permissions and
+//       limitations under the License.
 //
 // _______  __       __________   ___      _______.____    __    ____  __  .___________.  ______  __    __
 // |   ____||  |     |   ____\  \ /  /     /       |\   \  /  \  /   / |  | |           | /      ||  |  |  |
@@ -20,24 +20,19 @@
 // |  |     |  `----.|  |____ /  .  \  .----)   |      \    /\    /    |  |     |  |     |  `----.|  |  |  |
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
-package flexswitch
 
-type ConfigPlugin struct {
-	handler  *ConfigHandler
-	fileName string
-}
+package fsArpdClnt
 
-type ClientJson struct {
-	Name string `json:Name`
-	Port int    `json:Port`
-}
-
-const (
-	ASICD_DMN = "asicd"
+import (
+	"utils/clntUtils/clntIntfs"
 )
 
-type ConfigHandler struct {
+func (arpdClientMgr *FSArpdClntMgr) InitFSArpdSubscriber(clntInitParams *clntIntfs.BaseClntInitParams) error {
+	//Ignore arpdClntDefs.NotificationMap
+	Logger.Info("No notification is supported by FS Arpd")
+	return nil
 }
 
-type AsicNotificationHdl struct {
+func (arpdClientMgr *FSArpdClntMgr) DeinitFSArpdSubscriber() {
+	return
 }

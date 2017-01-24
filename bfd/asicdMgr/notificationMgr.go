@@ -2,7 +2,8 @@ package asicdMgr
 
 import (
 	"l3/bfd/server"
-	"utils/commonDefs"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"utils/clntUtils/clntIntfs"
 	"utils/logging"
 )
 
@@ -10,6 +11,7 @@ type NotificationHdl struct {
 	Server *server.BFDServer
 }
 
+/*
 func initAsicdNotification() commonDefs.AsicdNotification {
 	nMap := make(commonDefs.AsicdNotification)
 	nMap = commonDefs.AsicdNotification{
@@ -51,12 +53,16 @@ func initAsicdNotification() commonDefs.AsicdNotification {
 	}
 	return nMap
 }
+*/
 
-func NewNotificationHdl(server *server.BFDServer, logger *logging.Writer) (commonDefs.AsicdNotificationHdl, commonDefs.AsicdNotification) {
-	nMap := initAsicdNotification()
-	return &NotificationHdl{server}, nMap
+func NewNotificationHdl(server *server.BFDServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
+	return &NotificationHdl{server}
 }
 
-func (nHdl *NotificationHdl) ProcessNotification(msg commonDefs.AsicdNotifyMsg) {
-	nHdl.Server.AsicdSubSocketCh <- msg
+func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
+	switch msg.(type) {
+	case asicdClntDefs.VlanNotifyMsg,
+		asicdClntDefs.LagNotifyMsg:
+		nHdl.Server.AsicdSubSocketCh <- msg
+	}
 }

@@ -83,6 +83,19 @@ func (m RIBDServer) GetV4RouteReachabilityInfo(destNet string, ifIndex ribdInt.I
 				logger.Err("Next hop for ifIndex:", ifIndex, " not found")
 				return nil, errors.New(fmt.Sprintln("dest ip address not reachable via ifIndex", ifIndex))
 			}
+			//logger.Info("v.networkAddr", v.networkAddr)
+			prefix := strings.SplitAfter(v.networkAddr, "/")
+			if len(prefix) == 0 {
+				logger.Err(v.networkAddr, " not in cidr format")
+				return nextHopIntf, errors.New(fmt.Sprintln(v.networkAddr, " not in cidr format"))
+			}
+			cidrLen, _ := strconv.Atoi(prefix[(len(prefix) - 1)])
+			//logger.Info("cidr len := ", cidrLen, " prefix", prefix)
+			reachable := netutils.CheckIfInRange(v.networkAddr, destNet+"/"+prefix[(len(prefix)-1)], cidrLen, 32)
+			if !reachable {
+				logger.Info("CheckIfInRange reachability check returned false for ", v.networkAddr, ",", destNet+"/"+prefix[(len(prefix)-1)], ",", cidrLen, ",", 32)
+				found = false
+			}
 			nextHopIntf.NextHopIp = v.nextHopIp.String()
 			nextHopIntf.NextHopIfIndex = ribdInt.Int(v.nextHopIfIndex)
 			nextHopIntf.Metric = ribdInt.Int(v.metric)

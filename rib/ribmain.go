@@ -31,11 +31,15 @@ import (
 	"syscall"
 
 	//"github.com/davecheney/profile"
+	"l3/rib/asicdMgr"
 	"l3/rib/rpc"
 	"l3/rib/server"
 	//"os"
 	//"runtime"
 	//"runtime/pprof"
+	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntIntfs/arpdClntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/dbutils"
 	"utils/keepalive"
 	"utils/logging"
@@ -118,6 +122,31 @@ func main() {
 		logger.Println("routeServer nil")
 		return
 	}
+
+	//arpdNHdl := arpdMgr.NewNotificationHdl(routeServer, logger)
+	arpdClntInitParams, err := clntIntfs.NewBaseClntInitParams("arpd", logger, nil, fileName)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing base clnt for arpd")
+		panic(err)
+	}
+	routeServer.ArpdClntPlugin, err = arpdClntIntfs.NewArpdClntInit(arpdClntInitParams)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing new Arpd clnt")
+		panic(err)
+	}
+
+	asicdNHdl := asicdMgr.NewNotificationHdl(routeServer, logger)
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, asicdNHdl, fileName)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing base clnt for asicd")
+		panic(err)
+	}
+	routeServer.AsicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	if err != nil {
+		logger.Err("RIBD: Error Initializing new Asicd Clnt")
+		panic(err)
+	}
+
 	go routeServer.StartServer(*paramsDir)
 	up := <-routeServer.ServerUpCh
 	//dbHdl.Close()

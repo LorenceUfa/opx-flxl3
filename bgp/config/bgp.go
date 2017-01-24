@@ -262,8 +262,20 @@ type BGPAggregate struct {
 	AddressFamily   uint32
 }
 
+type BGPNetworkStatement struct {
+	IPPrefix         string
+	Policy           string
+	AddressFamily    uint32
+	PolicyList       []string
+	PolicyStmtList   []string
+	PolicyHitCounter int
+	Accept           bool
+	Idx              int
+}
+
 type AddressFamily struct {
-	BgpAggs map[string]*BGPAggregate
+	BgpAggs         map[string]*BGPAggregate
+	BgpNetworkStmts map[string]*BGPNetworkStatement
 }
 
 type Bgp struct {

@@ -26,7 +26,7 @@ package server
 import (
 	"models/events"
 	"time"
-	"utils/commonDefs"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 	"utils/eventUtils"
 )
 
@@ -181,7 +181,7 @@ func (server *ARPServer) processArpEntryCntUpdateMsg(cnt int) {
 	}
 }
 
-func (server *ARPServer) processArpEntryMacMoveMsg(msg commonDefs.IPv4NbrMacMoveNotifyMsg) {
+func (server *ARPServer) processArpEntryMacMoveMsg(msg asicdClntDefs.IPv4NbrMacMoveNotifyMsg) {
 	if entry, ok := server.arpCache[msg.IpAddr]; ok {
 		entry.PortNum = int(msg.IfIndex)
 		server.arpCache[msg.IpAddr] = entry

@@ -29,8 +29,8 @@ import (
 	"l3/arp/asicdMgr"
 	"l3/arp/rpc"
 	"l3/arp/server"
-	"utils/asicdClient"
-	"utils/commonDefs"
+	"utils/clntUtils/clntIntfs"
+	"utils/clntUtils/clntIntfs/asicdClntIntfs"
 	"utils/keepalive"
 	"utils/logging"
 )
@@ -54,17 +54,19 @@ func main() {
 	logger.Info(fmt.Sprintln("Starting ARP server..."))
 	arpServer := server.NewARPServer(logger)
 
-	pluginName := "Flexswitch" // Flexswitch/OvsDB
-	clientInfoFile := fileName + "clients.json"
-	nHdl, nMap := asicdMgr.NewNotificationHdl(arpServer, logger)
-	asicdHdl := commonDefs.AsicdClientStruct{
-		Logger: logger,
-		NHdl:   nHdl,
-		NMap:   nMap,
+	asicdNHdl := asicdMgr.NewNotificationHdl(arpServer, logger)
+	asicdClntInitParams, err := clntIntfs.NewBaseClntInitParams("asicd", logger, asicdNHdl, fileName)
+	if err != nil {
+		logger.Err("ARPD: Error Initializing base clnt for asicd")
+		panic(err)
 	}
-	asicdPlugin := asicdClient.NewAsicdClientInit(pluginName, clientInfoFile, asicdHdl)
-	go arpServer.StartServer(asicdPlugin)
+	arpServer.AsicdPlugin, err = asicdClntIntfs.NewAsicdClntInit(asicdClntInitParams)
+	if err != nil {
+		logger.Err("ARPD: Error Initializing new Asicd Clnt")
+		panic(err)
+	}
 
+	go arpServer.StartServer()
 	<-arpServer.InitDone
 
 	// Start keepalive routine

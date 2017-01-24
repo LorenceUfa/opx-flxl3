@@ -54,13 +54,10 @@ func main() {
 			fmt.Println("Failed to do daemon base init")
 			return
 		}
-		// create handler and map for recieving notifications from switch/asicd
-		asicHdl := flexswitch.GetSwitchInst()
-		asicHdl.Logger = ndpBase.Logger
-		debug.NDPSetLogger(ndpBase.Logger) // @TODO: Change this to interface and move it to util
+		debug.NDPSetLogger(ndpBase.Logger)
 		debug.Logger.Info("Initializing switch plugin")
 		// connect to server and do the initializing
-		switchPlugin := ndpBase.InitSwitch("Flexswitch", "ndpd", "NDP", *asicHdl)
+		switchPlugin := flexswitch.GetSwitchInst(ndpBase.ParamsDir)
 		// create north bound config listener
 		debug.Logger.Info("Creating NB Config Plugin")
 		lPlugin := flexswitch.NewConfigPlugin(flexswitch.NewConfigHandler(), ndpBase.ParamsDir)

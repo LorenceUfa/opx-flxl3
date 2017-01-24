@@ -21,33 +21,54 @@
 // |__|     |_______||_______/__/ \__\ |_______/        \__/  \__/     |__|     |__|      \______||__|  |__|
 //
 
-package asicdMgr
+package fsArpdClnt
 
 import (
-	"l3/arp/server"
-	"utils/clntUtils/clntDefs/asicdClntDefs"
+	"arpd"
+	"errors"
+	"fmt"
 	"utils/clntUtils/clntIntfs"
+	"utils/ipcutils"
 	"utils/logging"
 )
 
-type NotificationHdl struct {
-	Server *server.ARPServer
+type FSArpdClntMgr struct {
+	ipcutils.IPCClientBase
+	NCtrlCh   chan bool
+	ClientHdl *arpd.ARPDServicesClient
 }
 
-func NewNotificationHdl(server *server.ARPServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
-	return &NotificationHdl{server}
+var Logger logging.LoggerIntf
+
+func NewArpdClntInit(clntInitParams *clntIntfs.BaseClntInitParams) (*FSArpdClntMgr, error) {
+	var err error
+	fsArpdClntMgr := new(FSArpdClntMgr)
+	Logger = clntInitParams.Logger
+
+	err = fsArpdClntMgr.GetArpdThriftClientHdl(clntInitParams)
+	if fsArpdClntMgr.ClientHdl == nil || err != nil {
+		Logger.Err("Unable Initialize Arpd Client", err)
+		return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
+	}
+
+	if clntInitParams.NHdl != nil {
+		err = fsArpdClntMgr.InitFSArpdSubscriber(clntInitParams)
+		if err != nil {
+			Logger.Err("Unable Initialize Arpd Client", err)
+			fsArpdClntMgr.DeinitArpdThriftClientHdl()
+			return nil, errors.New(fmt.Sprintln("Unable Initialize Arpd Client", err))
+		}
+	}
+	return fsArpdClntMgr, nil
 }
 
-func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
-	switch msg.(type) {
-	case asicdClntDefs.L2IntfStateNotifyMsg,
-		asicdClntDefs.IPv4L3IntfStateNotifyMsg,
-		asicdClntDefs.VlanNotifyMsg,
-		asicdClntDefs.LagNotifyMsg,
-		asicdClntDefs.IPv4IntfNotifyMsg,
-		asicdClntDefs.IPv4NbrMacMoveNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfStateNotifyMsg:
-		nHdl.Server.AsicdSubSocketCh <- msg
+func (arpdClientMgr *FSArpdClntMgr) ArpdClntDeinit() {
+	if arpdClientMgr.ClientHdl != nil {
+		arpdClientMgr.DeinitArpdThriftClientHdl()
+		arpdClientMgr.ClientHdl = nil
+	}
+	if arpdClientMgr.NCtrlCh != nil {
+		arpdClientMgr.DeinitFSArpdSubscriber()
+		arpdClientMgr.NCtrlCh = nil
 	}
 }

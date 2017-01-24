@@ -25,27 +25,27 @@
 package server
 
 import (
-	"asicdInt"
-	"asicdServices"
 	//"fmt"
 	defs "l3/rib/ribdCommonDefs"
+	"models/objects"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 )
 
 var asicdBulkCount = 30000
 var asicdv4RouteCount = 0
-var asicdv4Routes []*asicdInt.IPv4Route
-var asicdv4Route []asicdInt.IPv4Route
-var asicdv6Route []asicdInt.IPv6Route
+var asicdv4Routes []*asicdClntDefs.IPv4Route
+var asicdv4Route []asicdClntDefs.IPv4Route
+var asicdv6Route []asicdClntDefs.IPv6Route
 
 type Linklocaldata struct{}
 
 var V6linklocalIPMap = make(map[string]Linklocaldata)
 
-func addAsicdRouteBulk(routeInfoRecord RouteInfoRecord, bulkEnd bool) {
+func (server *RIBDServer) addAsicdRouteBulk(routeInfoRecord RouteInfoRecord, bulkEnd bool) {
 	logger.Info("addAsicdRouteBulk, bulkEnd:", bulkEnd)
-	if asicdclnt.IsConnected == false {
+	/*	if asicdclnt.IsConnected == false {
 		return
-	}
+	}*/
 	ipType := ""
 	if routeInfoRecord.ipType == defs.IPv4 {
 		ipType = "IPv4"
@@ -55,14 +55,14 @@ func addAsicdRouteBulk(routeInfoRecord RouteInfoRecord, bulkEnd bool) {
 	logger.Info("addAsicdRoute, weight = ", routeInfoRecord.weight+1, " ipType:", ipType)
 	if routeInfoRecord.ipType == defs.IPv4 {
 		if asicdv4RouteCount == 0 {
-			asicdv4Routes = make([]*asicdInt.IPv4Route, 0)
+			asicdv4Routes = make([]*asicdClntDefs.IPv4Route, 0)
 		}
 		asicdv4Routes = append(asicdv4Routes,
-			&asicdInt.IPv4Route{
+			&asicdClntDefs.IPv4Route{
 				routeInfoRecord.destNetIp.String(),
 				routeInfoRecord.networkMask.String(),
-				[]*asicdInt.IPv4NextHop{
-					&asicdInt.IPv4NextHop{
+				[]*asicdClntDefs.IPv4NextHop{
+					&asicdClntDefs.IPv4NextHop{
 						NextHopIp: routeInfoRecord.resolvedNextHopIpIntf.NextHopIp,
 						Weight:    int32(routeInfoRecord.weight + 1),
 					},
@@ -70,53 +70,24 @@ func addAsicdRouteBulk(routeInfoRecord RouteInfoRecord, bulkEnd bool) {
 			})
 		asicdv4RouteCount++
 		if asicdv4RouteCount == asicdBulkCount || bulkEnd {
-			asicdclnt.ClientHdl.OnewayCreateIPv4Route(asicdv4Routes)
+			server.AsicdPlugin.OnewayCreateIPv4Route(asicdv4Routes)
 			asicdv4Routes = nil
 			asicdv4RouteCount = 0
 		}
 	} else if routeInfoRecord.ipType == defs.IPv6 {
 	}
 }
-func addAsicdRoute(routeInfoRecord RouteInfoRecord) {
-	if asicdclnt.IsConnected == false {
+func (server *RIBDServer) addAsicdRoute(routeInfoRecord RouteInfoRecord) {
+	/*	if asicdclnt.IsConnected == false {
 		return
-	}
-	/*	ipType := ""
-		if routeInfoRecord.ipType == ribdCommonDefs.IPv4 {
-			ipType = "IPv4"
-		} else if routeInfoRecord.ipType == ribdCommonDefs.IPv6 {
-			ipType = "IPv6"
-		}
-		logger.Info("addAsicdRoute, weight = ", routeInfoRecord.weight+1, " ipType:", ipType)*/
+	}*/
 	if routeInfoRecord.ipType == defs.IPv4 {
-		//logger.Info("ipv4 route, calling onewaycreateipv4 route")
-		/*	asicdRoute = make([]asicdInt.IPv4Route, asicdBulkCount)
-			if asicdRouteCount == 0 {
-				asicdRoutes = make([]*asicdInt.IPv4Route, 0)
-			}
-			asicdRoute[asicdRouteCount] = asicdInt.IPv4Route{
+		server.AsicdPlugin.OnewayCreateIPv4Route([]*asicdClntDefs.IPv4Route{
+			&asicdClntDefs.IPv4Route{
 				routeInfoRecord.destNetIp.String(),
 				routeInfoRecord.networkMask.String(),
-				[]*asicdInt.IPv4NextHop{
-					&asicdInt.IPv4NextHop{
-						NextHopIp: routeInfoRecord.resolvedNextHopIpIntf.NextHopIp,
-						Weight:    int32(routeInfoRecord.weight + 1),
-					},
-				},
-			}
-			asicdRoutes = append(asicdRoutes, &asicdRoute[asicdRouteCount])
-			asicdRouteCount++
-			if asicdRouteCount == asicdBulkCount {
-				asicdclnt.ClientHdl.OnewayCreateIPv4Route(asicdRoutes)
-				asicdRoutes = nil
-				asicdRouteCount = 0
-			}*/
-		asicdclnt.ClientHdl.OnewayCreateIPv4Route([]*asicdInt.IPv4Route{
-			&asicdInt.IPv4Route{
-				routeInfoRecord.destNetIp.String(),
-				routeInfoRecord.networkMask.String(),
-				[]*asicdInt.IPv4NextHop{
-					&asicdInt.IPv4NextHop{
+				[]*asicdClntDefs.IPv4NextHop{
+					&asicdClntDefs.IPv4NextHop{
 						NextHopIp: routeInfoRecord.resolvedNextHopIpIntf.NextHopIp,
 						Weight:    int32(routeInfoRecord.weight + 1),
 					},
@@ -125,24 +96,20 @@ func addAsicdRoute(routeInfoRecord RouteInfoRecord) {
 		})
 	} else if routeInfoRecord.ipType == defs.IPv6 {
 		add := true
-		//fmt.Println("RIBD addAsicdRoute: ipv6 address add for ", routeInfoRecord.destNetIp.String())
 		if routeInfoRecord.destNetIp.IsLinkLocalUnicast() {
-			//fmt.Println("RIBD addAsicdRoute: link local unicast ipv6 during add in asicdaddroute for ", routeInfoRecord.destNetIp.String())
 			if len(V6linklocalIPMap) > 0 {
-				//fmt.Println("RIBD addAsicdRoute ", routeInfoRecord.destNetIp.String(), " is not the first link local ip, there are already ", len(V6linklocalIPMap), " addresses ")
 				add = false
 			}
 			empty := Linklocaldata{}
 			V6linklocalIPMap[routeInfoRecord.destNetIp.String()] = empty
 		}
 		if add {
-			//fmt.Println("RIBD addAsicdRoute: add set to true, send add address to asicd for ", routeInfoRecord.destNetIp.String())
-			asicdclnt.ClientHdl.OnewayCreateIPv6Route([]*asicdInt.IPv6Route{
-				&asicdInt.IPv6Route{
+			server.AsicdPlugin.OnewayCreateIPv6Route([]*asicdClntDefs.IPv6Route{
+				&asicdClntDefs.IPv6Route{
 					routeInfoRecord.destNetIp.String(),
 					routeInfoRecord.networkMask.String(),
-					[]*asicdInt.IPv6NextHop{
-						&asicdInt.IPv6NextHop{
+					[]*asicdClntDefs.IPv6NextHop{
+						&asicdClntDefs.IPv6NextHop{
 							NextHopIp: routeInfoRecord.resolvedNextHopIpIntf.NextHopIp,
 							Weight:    int32(routeInfoRecord.weight + 1),
 						},
@@ -152,18 +119,18 @@ func addAsicdRoute(routeInfoRecord RouteInfoRecord) {
 		}
 	}
 }
-func delAsicdRoute(routeInfoRecord RouteInfoRecord) {
-	if asicdclnt.IsConnected == false {
+func (server *RIBDServer) delAsicdRoute(routeInfoRecord RouteInfoRecord) {
+	/*if asicdclnt.IsConnected == false {
 		return
-	}
+	}*/
 	logger.Info("delAsicdRoute with ipType ", routeInfoRecord.ipType)
 	if routeInfoRecord.ipType == defs.IPv4 {
-		asicdclnt.ClientHdl.OnewayDeleteIPv4Route([]*asicdInt.IPv4Route{
-			&asicdInt.IPv4Route{
+		server.AsicdPlugin.OnewayDeleteIPv4Route([]*asicdClntDefs.IPv4Route{
+			&asicdClntDefs.IPv4Route{
 				routeInfoRecord.destNetIp.String(),
 				routeInfoRecord.networkMask.String(),
-				[]*asicdInt.IPv4NextHop{
-					&asicdInt.IPv4NextHop{
+				[]*asicdClntDefs.IPv4NextHop{
+					&asicdClntDefs.IPv4NextHop{
 						NextHopIp: routeInfoRecord.resolvedNextHopIpIntf.NextHopIp,
 						Weight:    int32(routeInfoRecord.weight + 1),
 						//NextHopIfType: int32(routeInfoRecord.resolvedNextHopIpIntf.NextHopIfType),
@@ -185,12 +152,12 @@ func delAsicdRoute(routeInfoRecord RouteInfoRecord) {
 		}
 		if del {
 			//fmt.Sprintln("RIBD delAsicdRoute:del is true, calling delasicdroute for ", routeInfoRecord.destNetIp.String())
-			asicdclnt.ClientHdl.OnewayDeleteIPv6Route([]*asicdInt.IPv6Route{
-				&asicdInt.IPv6Route{
+			server.AsicdPlugin.OnewayDeleteIPv6Route([]*asicdClntDefs.IPv6Route{
+				&asicdClntDefs.IPv6Route{
 					routeInfoRecord.destNetIp.String(),
 					routeInfoRecord.networkMask.String(),
-					[]*asicdInt.IPv6NextHop{
-						&asicdInt.IPv6NextHop{
+					[]*asicdClntDefs.IPv6NextHop{
+						&asicdClntDefs.IPv6NextHop{
 							NextHopIp: routeInfoRecord.resolvedNextHopIpIntf.NextHopIp,
 							Weight:    int32(routeInfoRecord.weight + 1),
 							//NextHopIfType: int32(routeInfoRecord.resolvedNextHopIpIntf.NextHopIfType),
@@ -203,13 +170,13 @@ func delAsicdRoute(routeInfoRecord RouteInfoRecord) {
 }
 func (m RIBDServer) GetV4ConnectedRoutes() {
 	logger.Info("Getting v4 Intfs from asicd")
-	var currMarker asicdServices.Int
-	var count asicdServices.Int
-	ipv4IntfList := make([]*asicdServices.IPv4IntfState, 0)
+	var currMarker int
+	var count int
+	ipv4IntfList := make([]*objects.IPv4IntfState, 0)
 	count = 100
 	ret_count := 0
 	for {
-		IPIntfBulk, err := asicdclnt.ClientHdl.GetBulkIPv4IntfState(currMarker, count)
+		IPIntfBulk, err := m.AsicdPlugin.GetBulkIPv4IntfState(currMarker, count)
 		if err != nil {
 			logger.Debug("GetBulkIPv4IntfState with err ", err)
 			break
@@ -225,20 +192,20 @@ func (m RIBDServer) GetV4ConnectedRoutes() {
 			logger.Debug("more returned as false, so no more get bulks")
 			break
 		}
-		currMarker = asicdServices.Int(IPIntfBulk.EndIdx)
+		currMarker = int(IPIntfBulk.EndIdx)
 	}
 	m.V4IntfsGetDone <- V4IntfGetInfo{ret_count, ipv4IntfList}
 }
 
 func (m RIBDServer) GetV6ConnectedRoutes() {
 	logger.Info("Getting v6  intfs from asicd")
-	var currMarker asicdServices.Int
-	var count asicdServices.Int
-	ipv6IntfList := make([]*asicdServices.IPv6IntfState, 0)
+	var currMarker int
+	var count int
+	ipv6IntfList := make([]*objects.IPv6IntfState, 0)
 	count = 100
 	ret_count := 0
 	for {
-		IPIntfBulk, err := asicdclnt.ClientHdl.GetBulkIPv6IntfState(currMarker, count)
+		IPIntfBulk, err := m.AsicdPlugin.GetBulkIPv6IntfState(currMarker, count)
 		if err != nil {
 			logger.Debug("GetBulkIPv6IntfState with err ", err)
 			break
@@ -254,27 +221,27 @@ func (m RIBDServer) GetV6ConnectedRoutes() {
 			logger.Debug("more returned as false, so no more get bulks")
 			break
 		}
-		currMarker = asicdServices.Int(IPIntfBulk.EndIdx)
+		currMarker = int(IPIntfBulk.EndIdx)
 	}
 	m.V6IntfsGetDone <- V6IntfGetInfo{ret_count, ipv6IntfList}
 }
 
 func (ribdServiceHandler *RIBDServer) StartAsicdServer() {
 	logger.Info("Starting the asicdserver loop")
-	asicdv4Route = make([]asicdInt.IPv4Route, asicdBulkCount)
-	asicdv6Route = make([]asicdInt.IPv6Route, asicdBulkCount)
+	asicdv4Route = make([]asicdClntDefs.IPv4Route, asicdBulkCount)
+	asicdv6Route = make([]asicdClntDefs.IPv6Route, asicdBulkCount)
 	for {
 		select {
 		case route := <-ribdServiceHandler.AsicdRouteCh:
 			logger.Info(" received message on AsicdRouteCh, op:", route.Op)
 			if route.Op == defs.Add {
 				if route.Bulk {
-					addAsicdRouteBulk(route.OrigConfigObject.(RouteInfoRecord), route.BulkEnd)
+					ribdServiceHandler.addAsicdRouteBulk(route.OrigConfigObject.(RouteInfoRecord), route.BulkEnd)
 				} else {
-					addAsicdRoute(route.OrigConfigObject.(RouteInfoRecord))
+					ribdServiceHandler.addAsicdRoute(route.OrigConfigObject.(RouteInfoRecord))
 				}
 			} else if route.Op == defs.Del {
-				delAsicdRoute(route.OrigConfigObject.(RouteInfoRecord))
+				ribdServiceHandler.delAsicdRoute(route.OrigConfigObject.(RouteInfoRecord))
 			} else if route.Op == defs.AsicdFetchv4 {
 				logger.Info("AsicdServer loop fetchv4, call getv4connectedroutes")
 				ribdServiceHandler.GetV4ConnectedRoutes()

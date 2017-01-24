@@ -24,85 +24,85 @@
 package server
 
 import (
-	"asicd/asicdCommonDefs"
 	"fmt"
+	"utils/clntUtils/clntDefs/asicdClntDefs"
 	//"l3/rib/ribdCommonDefs"
 	"testing"
 )
 
-var logicalIntfList []asicdCommonDefs.LogicalIntfNotifyMsg
-var vlanList []asicdCommonDefs.VlanNotifyMsg
-var ipv4IntfList []asicdCommonDefs.IPv4IntfNotifyMsg
-var ipv6IntfList []asicdCommonDefs.IPv6IntfNotifyMsg
+var logicalIntfList []asicdClntDefs.LogicalIntfNotifyMsg
+var vlanList []asicdClntDefs.VlanNotifyMsg
+var ipv4IntfList []asicdClntDefs.IPv4IntfNotifyMsg
+var ipv6IntfList []asicdClntDefs.IPv6IntfNotifyMsg
 
 func InitLogicalIntfList() {
-	logicalIntfList = make([]asicdCommonDefs.LogicalIntfNotifyMsg, 0)
-	logicalIntfList = append(logicalIntfList, asicdCommonDefs.LogicalIntfNotifyMsg{
+	logicalIntfList = make([]asicdClntDefs.LogicalIntfNotifyMsg, 0)
+	logicalIntfList = append(logicalIntfList, asicdClntDefs.LogicalIntfNotifyMsg{
 		IfIndex:         1,
 		LogicalIntfName: "lo1",
 	})
-	logicalIntfList = append(logicalIntfList, asicdCommonDefs.LogicalIntfNotifyMsg{
+	logicalIntfList = append(logicalIntfList, asicdClntDefs.LogicalIntfNotifyMsg{
 		IfIndex:         2,
 		LogicalIntfName: "lo2",
 	})
-	logicalIntfList = append(logicalIntfList, asicdCommonDefs.LogicalIntfNotifyMsg{
+	logicalIntfList = append(logicalIntfList, asicdClntDefs.LogicalIntfNotifyMsg{
 		IfIndex:         3,
 		LogicalIntfName: "lo3",
 	})
-	logicalIntfList = append(logicalIntfList, asicdCommonDefs.LogicalIntfNotifyMsg{
+	logicalIntfList = append(logicalIntfList, asicdClntDefs.LogicalIntfNotifyMsg{
 		IfIndex:         4,
 		LogicalIntfName: "lo4",
 	})
-	logicalIntfList = append(logicalIntfList, asicdCommonDefs.LogicalIntfNotifyMsg{
+	logicalIntfList = append(logicalIntfList, asicdClntDefs.LogicalIntfNotifyMsg{
 		IfIndex:         5,
 		LogicalIntfName: "lo5",
 	})
 }
 func InitVlanList() {
-	vlanList = make([]asicdCommonDefs.VlanNotifyMsg, 0)
-	vlanList = append(vlanList, asicdCommonDefs.VlanNotifyMsg{
+	vlanList = make([]asicdClntDefs.VlanNotifyMsg, 0)
+	vlanList = append(vlanList, asicdClntDefs.VlanNotifyMsg{
 		VlanId:   100,
 		VlanName: "vlan100",
 	})
-	vlanList = append(vlanList, asicdCommonDefs.VlanNotifyMsg{
+	vlanList = append(vlanList, asicdClntDefs.VlanNotifyMsg{
 		VlanId:   200,
 		VlanName: "vlan200",
 	})
 }
 func InitIPv4IntfList() {
-	ipv4IntfList = make([]asicdCommonDefs.IPv4IntfNotifyMsg, 0)
-	ipv4IntfList = append(ipv4IntfList, asicdCommonDefs.IPv4IntfNotifyMsg{
+	ipv4IntfList = make([]asicdClntDefs.IPv4IntfNotifyMsg, 0)
+	ipv4IntfList = append(ipv4IntfList, asicdClntDefs.IPv4IntfNotifyMsg{
 		IpAddr:  "11.1.10.1/24",
 		IfIndex: 1,
 	})
-	ipv4IntfList = append(ipv4IntfList, asicdCommonDefs.IPv4IntfNotifyMsg{
+	ipv4IntfList = append(ipv4IntfList, asicdClntDefs.IPv4IntfNotifyMsg{
 		IpAddr:  "21.1.10.1/24",
 		IfIndex: 2,
 	})
-	ipv4IntfList = append(ipv4IntfList, asicdCommonDefs.IPv4IntfNotifyMsg{
+	ipv4IntfList = append(ipv4IntfList, asicdClntDefs.IPv4IntfNotifyMsg{
 		IpAddr:  "31.1.10.1/24",
 		IfIndex: 3,
 	})
-	ipv4IntfList = append(ipv4IntfList, asicdCommonDefs.IPv4IntfNotifyMsg{
+	ipv4IntfList = append(ipv4IntfList, asicdClntDefs.IPv4IntfNotifyMsg{
 		IpAddr:  "35.1.10.1/24",
 		IfIndex: 35,
 	})
 }
 func InitIPv6IntfList() {
-	ipv6IntfList = make([]asicdCommonDefs.IPv6IntfNotifyMsg, 0)
-	ipv6IntfList = append(ipv6IntfList, asicdCommonDefs.IPv6IntfNotifyMsg{
+	ipv6IntfList = make([]asicdClntDefs.IPv6IntfNotifyMsg, 0)
+	ipv6IntfList = append(ipv6IntfList, asicdClntDefs.IPv6IntfNotifyMsg{
 		IpAddr:  "2002::1/64",
 		IfIndex: 4,
 	})
-	ipv6IntfList = append(ipv6IntfList, asicdCommonDefs.IPv6IntfNotifyMsg{
+	ipv6IntfList = append(ipv6IntfList, asicdClntDefs.IPv6IntfNotifyMsg{
 		IpAddr:  "2002::/64",
 		IfIndex: 3,
 	})
-	ipv6IntfList = append(ipv6IntfList, asicdCommonDefs.IPv6IntfNotifyMsg{
+	ipv6IntfList = append(ipv6IntfList, asicdClntDefs.IPv6IntfNotifyMsg{
 		IpAddr:  "2003::1/64",
 		IfIndex: 40,
 	})
-	ipv6IntfList = append(ipv6IntfList, asicdCommonDefs.IPv6IntfNotifyMsg{
+	ipv6IntfList = append(ipv6IntfList, asicdClntDefs.IPv6IntfNotifyMsg{
 		IpAddr:  "2003::1/64",
 		IfIndex: 5,
 	})
@@ -186,12 +186,12 @@ func TestProcessIPv6IntfStateChangeEvents(t *testing.T) {
 }
 func TestIPv4IntfDeleteEvent(t *testing.T) {
 	fmt.Println("**** TestIPv4IntfDeleteEvent event ****")
-	v4Intf := asicdCommonDefs.IPv4IntfNotifyMsg{
+	v4Intf := asicdClntDefs.IPv4IntfNotifyMsg{
 		IpAddr:  "31.1.10.2/24",
 		IfIndex: 3,
 	}
 	server.ProcessIPv4IntfDeleteEvent(v4Intf)
-	v4Intf = asicdCommonDefs.IPv4IntfNotifyMsg{
+	v4Intf = asicdClntDefs.IPv4IntfNotifyMsg{
 		IpAddr:  "61.1.10.2/24",
 		IfIndex: 6,
 	}
@@ -200,12 +200,12 @@ func TestIPv4IntfDeleteEvent(t *testing.T) {
 }
 func TestIPv6IntfDeleteEvent(t *testing.T) {
 	fmt.Println("**** TestIPv6IntfDeleteEvent event ****")
-	v6Intf := asicdCommonDefs.IPv6IntfNotifyMsg{
+	v6Intf := asicdClntDefs.IPv6IntfNotifyMsg{
 		IpAddr:  "2002::1/64",
 		IfIndex: 4,
 	}
 	server.ProcessIPv6IntfDeleteEvent(v6Intf)
-	v6Intf = asicdCommonDefs.IPv6IntfNotifyMsg{
+	v6Intf = asicdClntDefs.IPv6IntfNotifyMsg{
 		IpAddr:  "2006::1/64",
 		IfIndex: 6,
 	}

@@ -24,17 +24,17 @@
 package asicdMgr
 
 import (
-	"l3/arp/server"
+	"l3/rib/server"
 	"utils/clntUtils/clntDefs/asicdClntDefs"
 	"utils/clntUtils/clntIntfs"
 	"utils/logging"
 )
 
 type NotificationHdl struct {
-	Server *server.ARPServer
+	Server *server.RIBDServer
 }
 
-func NewNotificationHdl(server *server.ARPServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
+func NewNotificationHdl(server *server.RIBDServer, logger logging.LoggerIntf) clntIntfs.NotificationHdl {
 	return &NotificationHdl{server}
 }
 
@@ -42,12 +42,12 @@ func (nHdl *NotificationHdl) ProcessNotification(msg clntIntfs.NotifyMsg) {
 	switch msg.(type) {
 	case asicdClntDefs.L2IntfStateNotifyMsg,
 		asicdClntDefs.IPv4L3IntfStateNotifyMsg,
+		asicdClntDefs.IPv6L3IntfStateNotifyMsg,
 		asicdClntDefs.VlanNotifyMsg,
+		asicdClntDefs.LogicalIntfNotifyMsg,
 		asicdClntDefs.LagNotifyMsg,
-		asicdClntDefs.IPv4IntfNotifyMsg,
-		asicdClntDefs.IPv4NbrMacMoveNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfNotifyMsg,
-		asicdClntDefs.IPv4VirtualIntfStateNotifyMsg:
+		asicdClntDefs.IPv6IntfNotifyMsg,
+		asicdClntDefs.IPv4IntfNotifyMsg:
 		nHdl.Server.AsicdSubSocketCh <- msg
 	}
 }

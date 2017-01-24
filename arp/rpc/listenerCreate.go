@@ -26,6 +26,7 @@ package rpc
 import (
 	"arpd"
 	"arpdInt"
+	"errors"
 	"fmt"
 	"l3/arp/server"
 )
@@ -51,14 +52,21 @@ func (h *ARPHandler) SendSetArpGlobalConfig(refTimeout int) error {
 	return err
 }
 
-func (h *ARPHandler) ResolveArpIPV4(targetIp string, ifId arpdInt.Int) error {
+func (h *ARPHandler) ResolveArpIPv4(targetIp string, ifId arpdInt.Int) error {
 	h.logger.Info(fmt.Sprintln("Received ResolveArpIPV4 call with targetIp:", targetIp, "ifId:", ifId))
+	if h.server.IsLinuxOnly {
+		h.logger.Info("Linux only plugin. Linux Arp will take care of resolving Arp")
+		return nil
+	}
 	h.SendResolveArpIPv4(targetIp, ifId)
 	return nil
 }
 
 func (h *ARPHandler) CreateArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
 	h.logger.Info(fmt.Sprintln("Received CreateArpGlobal call with Timeout:", conf.Timeout))
+	if h.server.IsLinuxOnly {
+		return true, nil
+	}
 	err := h.SendSetArpGlobalConfig(int(conf.Timeout))
 	if err != nil {
 		return false, err
@@ -68,6 +76,9 @@ func (h *ARPHandler) CreateArpGlobal(conf *arpd.ArpGlobal) (bool, error) {
 
 func (h *ARPHandler) SendGarp(ifName, macAddr, ipAddr string) error {
 	h.logger.Info("received send garp request", ifName, macAddr, ipAddr)
+	if h.server.IsLinuxOnly {
+		return errors.New("Not supported in Linux only plugin")
+	}
 	h.server.GarpEntryCh <- &server.GarpEntry{ifName, macAddr, ipAddr}
 	return nil
 }

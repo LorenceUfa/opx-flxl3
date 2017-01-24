@@ -34,7 +34,7 @@ func (intf VXLANSnapClient) ResolveNextHopMac(nexthopip net.IP, nexthopIfName st
 			logger.Debug(fmt.Sprintln("calling ResolveArpIPV4", nexthopip, nexthopIfName))
 			portstate, _ := asicdclnt.ClientHdl.GetPortState(nexthopIfName)
 			//arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.Pvid))
-			arpdclnt.ClientHdl.ResolveArpIPV4(nexthopip.String(), arpdInt.Int(portstate.IfIndex))
+			arpdclnt.ClientHdl.ResolveArpIPv4(nexthopip.String(), arpdInt.Int(portstate.IfIndex))
 		}
 		intf.thriftmutex.Unlock()
 
